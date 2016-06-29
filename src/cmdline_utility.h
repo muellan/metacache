@@ -1,0 +1,45 @@
+/*****************************************************************************
+ *
+ * MetaCache - Meta-Genomic Classification Tool
+ *
+ * version 1.0
+ *
+ * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *****************************************************************************/
+
+#ifndef MC_CMDLINE_TOOLS_H_
+#define MC_CMDLINE_TOOLS_H_
+
+
+namespace mc {
+
+
+/*****************************************************************************
+ *
+ * @brief prints a progress indicator like this:  [====>   ] 50%
+ *
+ *****************************************************************************/
+void show_progress_indicator(float done, int totalLength = 80);
+
+void clear_current_line(int length = 80);
+
+
+
+} // namespace mc
+
+
+#endif

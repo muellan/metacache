@@ -1,0 +1,34 @@
+Documentation for MetaCache mode "info"
+
+SYNOPSIS:
+    Display (meta-)information stored in a database.
+
+
+SYNTAX:
+    metacache info <database name> [{genome id} | lineages | rank <rankname>]
+
+
+SUB-MODES:
+    1. info <database> {genome id}
+        list all available meta information for reference genomes
+        in the database
+
+
+    2. info <database> lineages
+        print a table with ranked lineages for all reference genomes
+
+
+    3. info <database> rank <rankname>
+        list distribution of the number of sequences on rank <rankname>
+
+
+EXAMPLES:
+    List metadata for all reference genomes in database 'refseq':
+        metacache info refseq.db
+
+    List metadata for the genome with id NC_12345.6 in database 'refseq':
+        metacache info refseq.db NC_12345.6
+
+    List distribution of the number of sequences on rank 'domain':
+        metacache info refseq.db rank domain
+

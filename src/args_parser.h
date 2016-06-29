@@ -1,0 +1,496 @@
+/*****************************************************************************
+ *
+ * MetaCache - Meta-Genomic Classification Tool
+ *
+ * version 1.0
+ *
+ * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *****************************************************************************/
+
+/*****************************************************************************
+ *
+ * simple ad-hoc command line argument parsing
+ *
+ * 2008-2015 André Müller
+ *
+ * The parser distinguishes between non-prefixed and prefixed parameters
+ * based on the prefix setting. The default prefix is '-'.
+ *
+ *
+ * CONSTRUCTION
+ *     args_parser args(int argc, char** argv)
+ *
+ *
+ * READING PARAMETERS
+ *     args.contains("parameter_string")
+ *
+ *     args.get<type>(non_prefixed_parameter_index)
+ *     args.get<type>(non_prefixed_parameter_index, not_provided_value)
+ *
+ *     args.get<type>("parameter_string", not_provided_value)
+ *     args.get<type>("parameter_string", not_provided_value, default_result)
+ *
+ *     not_provided_value: value if the parameter string couldn't be found
+ *
+ *     default_result:     value if the parameter string was found but
+ *                         no parameter value was defined
+ *
+ *   use the member function
+ *     arg_prefix(char)
+ *   to set the character which signals the begin of a prefixed parameter
+ *
+ *
+ * EXAMPLES
+ *
+ *   call string:
+ *      "myExecutable -a -b 12 -c 20.3 -d filename"
+ *
+ *   query parameter count:
+ *
+ *      args.size()                  returns 6
+ *      args.prefixed_count()        returns 4   (a, b, c, d)
+ *      args.non_prefixed_count()    returns 2   (20.3, filename)
+ *
+ *
+ *   access prefixed arguments (and following value agument to the right):
+ *
+ *      args.contains("z")        returns false (no such argument provided)
+ *      args.get<int>("z", 1)     returns 1
+ *      args.get<int>("z", 1, 2)  returns 1
+ *
+ *      args.contains("a")                 returns true
+ *      args.get<string>("a", "xyz")       returns the string "xyz"
+ *      args.get<int>("a", 10)             returns the integer 10
+ *      args.get<double>("a", 10.0)        returns the double 10.0
+ *      args.get<double>("a", 10.0, 88.0)  returns the double 88.0
+ *                                         would 10.0 if "a" wasn't found
+ *
+ *      args.contains("b")                 returns true
+ *      args.get<double>("b", 99.0)        returns the double 12.0
+ *      args.get<int>("b", 99)             returns the integer 12
+ *
+ *      args.contains("c")                 returns true
+ *      argc.get<double>("c", 0.0)         returns the double 20.3
+ *      argc.get<int>("c", 0)              returns the integer 20
+ *
+ *      args.contains("d")                 returns true
+ *      args.get<double>("d", "default")   returns the string "filename"
+ *
+ *
+ *   access non-prefixed arguments (arguments without the prefix token "-"):
+ *
+ *      args.non_prefixed_count()          returns 2
+ *      args.non_prefixed(0)               returns "20.3"
+ *      args.non_prefixed(1)               returns "filename"
+ *
+ *      args.get<double>(0)                returns 20.3
+ *      args.get<std::string>(1)           returns "filename"
+ *
+ *
+ *****************************************************************************/
+#ifndef MC_ARGS_PARSER_H_
+#define MC_ARGS_PARSER_H_
+
+
+
+#include <string>
+#include <vector>
+#include <cstdlib>
+#include <cstring>
+#include <cmath>
+
+
+namespace mc {
+
+namespace detail {
+
+//---------------------------------------------------------------
+// type conversion helper
+//---------------------------------------------------------------
+struct convert_string
+{
+    template<class T>
+    static inline T
+    to(const std::string& s) {
+        return T(s.c_str());
+    }
+};
+
+//-------------------------------------------------------------------
+template<> inline
+bool
+convert_string::to<bool>(const std::string& s) {
+    return static_cast<bool>(std::atoi(s.c_str()));
+}
+
+//---------------------------------------------------------
+template<> inline
+unsigned char
+convert_string::to<unsigned char>(const std::string& s) {
+    return static_cast<unsigned char>(std::atoi(s.c_str()));
+}
+
+//---------------------------------------------------------
+template<> inline
+unsigned short
+convert_string::to<unsigned short>(const std::string& s) {
+    return static_cast<unsigned short>(std::atoi(s.c_str()));
+}
+//---------------------------------------------------------
+template<> inline
+unsigned
+convert_string::to<unsigned>(const std::string& s) {
+    return std::atoi(s.c_str());
+}
+//---------------------------------------------------------
+template<> inline
+unsigned long
+convert_string::to<unsigned long>(const std::string& s) {
+    return std::atol(s.c_str());
+}
+//---------------------------------------------------------
+template<> inline
+unsigned long long
+convert_string::to<unsigned long long>(const std::string& s)
+{
+    return std::atol(s.c_str());
+}
+
+//---------------------------------------------------------
+template<> inline
+char
+convert_string::to<char>(const std::string& s) {
+    return static_cast<char>(std::atoi(s.c_str()));
+}
+//---------------------------------------------------------
+template<> inline
+short int
+convert_string::to<short int>(const std::string& s) {
+    return static_cast<short int>(std::atoi(s.c_str()));
+}
+//---------------------------------------------------------
+template<> inline
+int
+convert_string::to<int>(const std::string& s) {
+    return std::atoi(s.c_str());
+}
+//---------------------------------------------------------
+template<> inline
+long
+convert_string::to<long>(const std::string& s) {
+    return std::atol(s.c_str());
+}
+//---------------------------------------------------------
+template<> inline
+long long
+convert_string::to<long long>(const std::string& s) {
+    return std::atol(s.c_str());
+}
+
+//---------------------------------------------------------
+template<> inline
+float
+convert_string::to<float>(const std::string& s) {
+    return std::atof(s.c_str());
+}
+//---------------------------------------------------------
+template<> inline
+double
+convert_string::to<double>(const std::string& s) {
+    return std::atof(s.c_str());
+}
+//---------------------------------------------------------
+template<> inline
+long double
+convert_string::to<long double>(const std::string& s) {
+    return static_cast<long double>(std::atof(s.c_str()));
+}
+
+//---------------------------------------------------------
+template<> inline
+std::string
+convert_string::to<std::string>(const std::string& s) {
+    return s;
+}
+
+
+}  // namespace detail
+
+
+
+
+
+
+
+
+/*****************************************************************************
+ *
+ * @brief command line argument parser class
+ *
+ *
+ *****************************************************************************/
+class args_parser
+{
+public:
+    //---------------------------------------------------------------
+    using size_type = int;
+
+
+    //---------------------------------------------------------------
+    args_parser(int argCount, char** argVec):
+        argc_(argCount), argv_(argVec),
+        prefix_('-'), listDelimiter_(','),
+        appPath_("")
+    {
+        appPath_ = std::string(argv_[0]);
+        size_type i = std::strlen(argv_[0]) - 1;
+        while ((i > 0) && (argv_[0][i] != '\\') && (argv_[0][i] != '/')) --i;
+        appPath_ = (i > 0) ? appPath_.substr(0, i+1) : "";
+    }
+
+
+    //---------------------------------------------------------------
+    void arg_prefix(char c) {
+        prefix_ = c;
+    }
+    char arg_prefix() const noexcept {
+        return prefix_;
+    }
+    //-----------------------------------------------------
+    void list_delimiter(char c) {
+        listDelimiter_ = c;
+    }
+    char list_delimiter() const noexcept {
+        return listDelimiter_;
+    }
+
+
+    //---------------------------------------------------------------
+    size_type size() const noexcept {
+        return (argc_ > 1) ? static_cast<size_type>(argc_-1) : 0;
+    }
+    //-------------------------------------------
+    size_type non_prefixed_count() const noexcept {
+        size_type j = 0;
+        for(int i = 1; i < argc_; ++i)
+            if(argv_[i][0] != prefix_) ++j;
+        return j;
+    }
+    //-------------------------------------------
+    size_type prefixed_count() const noexcept {
+        size_type j = 0;
+        for(int i = 1; i < argc_; ++i)
+            if(argv_[i][0] == prefix_) ++j;
+        return j;
+    }
+
+
+    //---------------------------------------------------------------
+    bool contains(const std::string& arg) const {
+        return parse(arg);
+    }
+
+
+    //---------------------------------------------------------------
+    bool is_prefixed(size_type i) const noexcept {
+        return (argv_[i+1][0] == prefix_);
+    }
+    //-----------------------------------------------------
+    bool is_preceded_by_prefixed_arg(size_type i) const noexcept {
+        return (argv_[i+1][0] == prefix_);
+    }
+
+
+    //---------------------------------------------------------------
+    // get parameter
+    //---------------------------------------------------------------
+    std::string
+    operator [] (size_type i) const {
+        if((i+1) < static_cast<size_type>(argc_))
+            return std::string(argv_[i+1]);
+        else
+            return std::string("");
+    }
+    //-----------------------------------------------------
+    std::string
+    non_prefixed(size_type i, const std::string& defaultValue = "") const {
+        return non_prefixed_str(i, defaultValue);
+    }
+    //-----------------------------------------------------
+    std::string
+    prefixed(size_type i, const std::string& defaultValue = "") const {
+        return prefixed_str(i, defaultValue);
+    }
+
+
+    //---------------------------------------------------------------
+    // get attached value(s)
+    //---------------------------------------------------------------
+    template<class T>
+    T get(size_type i, T notProvidedValue) const {
+        std::string p = non_prefixed_str(i);
+        if(p != "")
+            return detail::convert_string::to<T>(p);
+        else
+            return notProvidedValue;
+    }
+
+
+    //-----------------------------------------------------
+    template<class T>
+    T get(const std::string& arg, T notProvidedValue) const {
+        std::string p;
+        if(parse(arg, p)) {
+            if(p != "")
+                return detail::convert_string::to<T>(p);
+            else
+                return notProvidedValue;
+        }
+        return notProvidedValue;
+    }
+
+    //-----------------------------------------------------
+    template<class T>
+    T get(const std::string& arg, T notProvidedValue, T defaultValue) const {
+        std::string p;
+        if(parse(arg, p)) {
+            if(p != "")
+                return detail::convert_string::to<T>(p);
+            else
+                return defaultValue;
+        }
+        return notProvidedValue;
+    }
+
+    //-----------------------------------------------------
+    template<class T>
+    std::vector<T> get_list(const std::string& arg) const
+    {
+        std::string p;
+        if(parse(arg, p)) {
+            std::vector<T> v;
+            size_type pos = 0;
+            for(size_type i = 0; i < p.length(); ++i) {
+                size_type j = p.find(listDelimiter_,pos);
+                if(j == std::string::npos) {
+                    j = p.length();
+                    v.push_back(detail::convert_string::to<T>(p.substr(pos,j-pos)));
+                    break;
+                }
+                v.push_back(detail::convert_string::to<T>(p.substr(pos,j-pos)));
+                pos = j+1;
+            }
+            return v;
+        }
+        return std::vector<T>();
+    }
+
+
+private:
+    //---------------------------------------------------------------
+    bool
+    parse(const std::string& arg) const {
+        if(argc_ < 2) return false;
+
+        for(int i = 1; i < argc_; ++i) {
+            if(argv_[i][0] == prefix_) {
+                size_type len = std::strlen(argv_[i]);
+                std::string s = "";
+                for(size_type j = 1; j < len; ++j) {
+                    s += argv_[i][j];
+                    if(s == arg) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    //---------------------------------------------------------------
+    bool
+    parse(const std::string& arg, std::string& parameter) const
+    {
+        if(argc_ < 2) return false;
+
+        for(int i = 1; i < argc_; ++i) {
+            if(argv_[i][0] == prefix_) {
+                size_type len = std::strlen(argv_[i]);
+                std::string s = "";
+                for(size_type j = 1; j < len; ++j) {
+                    s += argv_[i][j];
+                    if(s == arg) {
+                        std::string p(argv_[i]);
+                        parameter = p.substr(j+1,len-j-1);
+                        for(int k = i+1; k < argc_; ++k) {
+                            if(argv_[k][0] == prefix_) break;
+                            std::string ps(argv_[k]);
+                            if(parameter.length() > 0) parameter += " ";
+                            parameter += ps;
+                        }
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    //---------------------------------------------------------------
+    std::string
+    prefixed_str(size_type index, const std::string& def = "") const
+    {
+        if(argc_ < 2) return def;
+
+        size_type j = 0;
+        for(int i = 1; i < argc_; ++i) {
+            if(argv_[i][0] == prefix_) {
+                if(j == index) return argv_[i];
+                ++j;
+            }
+        }
+        return def;
+    }
+    //---------------------------------------------------------------
+    std::string
+    non_prefixed_str(size_type index, const std::string& def = "") const
+    {
+        if(argc_ < 2) return def;
+
+        size_type j = 0;
+        for(int i = 1; i < argc_; ++i) {
+            if(argv_[i][0] != prefix_) {
+                if(j == index) return argv_[i];
+                ++j;
+            }
+        }
+        return def;
+    }
+
+
+    //---------------------------------------------------------------
+    int argc_;
+    char** argv_;
+    char prefix_;
+    char listDelimiter_;
+    std::string appPath_;
+};
+
+
+
+} //namespace mc
+
+#endif
+

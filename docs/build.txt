@@ -1,0 +1,45 @@
+Documentation for MetaCache mode "build"
+
+SYNOPSIS:
+    Create a new database of reference genomes.
+
+SYNTAX:
+    metacache build <database name> {<reference genome>} {[option]}
+
+    You can also provide names of directories that contain
+    genomic sequence files instead of single filenames. MetaCache will
+    search at most 10 levels down in the file hierarchy.
+
+OPTIONS:
+    -sketchlen <no>       number of stored k-mers per sampling window
+                          default: 16
+
+    -winlen <no>          number of letters in each sampling window
+                          default: 128
+
+    -winstride <no>       distance between window start positions
+                          default: 0
+
+    -kmerlen <no>         number of letters in a k-mer
+                          default: 16
+
+    -verbose              show detailed status information during build
+
+    -taxonomy <path>      directory with taxonomic hierarchy data 
+                          (see NCBI's taxonomic data files)
+
+EXAMPLES:
+    Build database 'mydb' from sequence file 'genomes.fna':
+        ./metacache build mydb genomes.fna
+
+    Build database with latest complete genomes from the NCBI RefSeq
+        ./download-ncbi-genomes refseq/bacteria myfolder
+        ./download-ncbi-genomes refseq/viruses myfolder
+        ./download-ncbi-taxonomy myfolder
+        ./metacache build myRefseq myfolder -taxonomy myfolder
+
+    Build database 'mydb' from two sequence files:
+        ./metacache build mydb mrsa.fna ecoli.fna
+
+    Build database 'myBacteria' from folder containing sequence files:
+        ./metacache build myBacteria all_bacteria

@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# Copyright 2016, André Müller <muellan@uni-mainz.de>
+#
+# This file is part of the MetaCache taxonomic sequence classification tool.
+#
+# MetaCache is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# MetaCache is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with MetaCache.  If not, see <http://www.gnu.org/licenses/>.
+
+
+set -u  # Protect against uninitialized vars.
+set -e  # Stop on error
+
+FTPURL="ftp://ftp.ncbi.nih.gov/genomes"
+
+
+function download_specific_lib {
+  DBASE=$1
+
+  mkdir -p $DBASE
+  cd $DBASE
+
+  if [ ! -e "complete.flag" ]; then
+
+    echo "Downloading NCBI $DBASE."
+
+    rm -f assembly_summary.txt
+    rm -f ftpdirpaths
+    rm -f ftpfilepaths
+
+    wget $FTPURL/$DBASE/assembly_summary.txt
+
+    if [ -e "assembly_summary.txt" ]; then
+
+      awk -F "\t" '$12=="Complete Genome" && $11=="latest"{print $20}' assembly_summary.txt > ftpdirpaths
+      awk 'BEGIN{FS=OFS="/";filesuffix="genomic.fna.gz"}{ftpdir=$0;asm=$6;file=asm"_"filesuffix;print ftpdir,file}' ftpdirpaths > ftpfilepaths
+      wget -nc -i ftpfilepaths
+
+      echo -n "Download complete. Unpacking files ... "
+      gunzip *.gz
+
+      rm -f ftpdirpaths
+      rm -f ftpfilepaths
+
+      touch complete.flag
+      
+      echo "complete."
+
+    else
+      echo "ERROR: Couldn't find assembly_summary text file!"
+    fi
+  else 
+    echo "Download of $DBASE already complete."
+  fi
+
+  cd ..
+}
+
+
+if [ $# -lt 2 ]; then
+  echo "Usage: $0 (refseq|genbank)/<sublibrary> <target directory>"
+  echo "    Example 1: $0 refseq/bacteria directory1"
+  echo "    Example 2: $0 genbank/bacteria directory2"
+  echo "    Example 3: $0 refseq/vertebrate_mammalian/Homo\\ Sapiens directory3"
+  exit
+fi
+
+DATABASE=$1
+TARGETDIR=$2
+
+
+mkdir -p $TARGETDIR
+cd $TARGETDIR
+
+download_specific_lib $DATABASE
+
+cd ..

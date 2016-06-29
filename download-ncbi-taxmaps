@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# Copyright 2016, André Müller <muellan@uni-mainz.de>
+#
+# This file is part of the MetaCache taxonomic sequence classification tool.
+#
+# MetaCache is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# MetaCache is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with MetaCache.  If not, see <http://www.gnu.org/licenses/>.
+
+
+set -u  # Protect against uninitialized vars.
+set -e  # Stop on error
+
+FTPURL="ftp://ftp.ncbi.nih.gov/pub/taxonomy"
+
+
+function download_mapping {
+  FILE=$1
+
+  if [ ! -e "$FILE" ]; then
+    if [ ! -e "${FILE}.gz" ]; then
+      echo "Downloading taxonomic mapping $FILE ... "
+      wget $FTPURL/accession2taxid/$FILE.gz
+      echo "Download complete."
+    fi
+    echo -n "Unpacking $FILE ..."
+    gunzip ${FILE}.gz
+    echo "complete."
+  fi
+}
+
+
+if [ $# -lt 1 ]; then
+  echo "Usage: $0 <target directory> [all]"
+  exit
+fi
+
+
+TARGET=$1
+
+mkdir -p "$TARGET"
+cd "$TARGET"
+
+echo "Downloading sequence id to taxid mapping files."
+
+download_mapping nucl_gb.accession2taxid
+download_mapping nucl_wgs.accession2taxid
+
+if [ $# -gt 1 ]; then
+  if [ "$2" = "all" ]; then
+    download_mapping nucl_est.accession2taxid
+    download_mapping nucl_gss.accession2taxid
+  fi
+fi
+
+echo "Complete."
