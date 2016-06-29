@@ -24,11 +24,11 @@
 #include <iostream>
 #include <fstream>
 
-#include "../src/args_handling.h"
-#include "../src/modes.h"
-#include "../src/dna_encoding.h"
+#include "args_handling.h"
+#include "modes.h"
+#include "dna_encoding.h"
 
-#include "../src/timer.h"
+#include "timer.h"
 
 
 /*****************************************************************************

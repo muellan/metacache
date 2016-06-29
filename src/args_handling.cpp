@@ -23,8 +23,8 @@
 
 #include <stdexcept>
 
-#include "../src/filesys_utility.h"
-#include "../src/args_handling.h"
+#include "filesys_utility.h"
+#include "args_handling.h"
 
 
 namespace mc {

@@ -23,7 +23,7 @@
 
 #include <iostream>
 
-#include "../src/cmdline_utility.h"
+#include "cmdline_utility.h"
 
 
 namespace mc {

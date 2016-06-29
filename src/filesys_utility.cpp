@@ -24,7 +24,7 @@
 #include <dirent.h> //POSIX header
 #include <cstring>
 
-#include "../src/filesys_utility.h"
+#include "filesys_utility.h"
 
 
 namespace mc {

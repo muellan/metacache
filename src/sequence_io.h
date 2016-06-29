@@ -33,7 +33,7 @@
 #include <cstdint>
 #include <memory>
 
-#include "../src/io_error.h"
+#include "io_error.h"
 
 
 namespace mc {

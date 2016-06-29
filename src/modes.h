@@ -24,9 +24,9 @@
 #ifndef MC_MODE_BUILD_H_
 #define MC_MODE_BUILD_H_
 
-#include "../src/args_parser.h"
-#include "../src/sketch_database.h"
-#include "../src/min_hasher.h"
+#include "args_parser.h"
+#include "sketch_database.h"
+#include "min_hasher.h"
 
 
 namespace mc {

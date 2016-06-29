@@ -21,15 +21,15 @@
  *
  *****************************************************************************/
 
-#include "../src/args_handling.h"
-#include "../src/timer.h"
-#include "../src/filesys_utility.h"
-#include "../src/cmdline_utility.h"
-#include "../src/sequence_io.h"
-#include "../src/sequence_view.h"
-#include "../src/alignment.h"
+#include "args_handling.h"
+#include "timer.h"
+#include "filesys_utility.h"
+#include "cmdline_utility.h"
+#include "sequence_io.h"
+#include "sequence_view.h"
+#include "alignment.h"
 
-#include "../src/modes.h"
+#include "modes.h"
 
 
 namespace mc {
@@ -46,7 +46,7 @@ using ranked_lineage = database_type::ranked_lineage_type;
 using match_result   = database_type::match_result_type;
 
 using top_matches_in_contiguous_window_range
-        = matches_in_contiguous_window_range_top<8>;
+        = matches_in_contiguous_window_range_top<2>;
 
 
 
@@ -160,34 +160,6 @@ struct query_param
     std::string outfile;
 };
 
-
-
-/*****************************************************************************
- *
- *
- *****************************************************************************/
-struct context
-{
-    context(const database_type& d, const query_param& p,
-            std::ostream& outs = std::cout,
-            std::ostream& logs = std::cout)
-    :
-        db(d), par(p), out(outs), log(logs)
-    {}
-
-    template<class Value>
-    inline friend const context&
-    operator << (const context& c, const Value& v) {
-        c.out << v;
-        return c;
-    }
-
-    const database_type& db;
-    const query_param&   par;
-    std::ostream& out;
-    std::ostream& log;
-
-};
 
 
 
@@ -885,7 +857,7 @@ lowest_common_taxon(
     else {
         if(lowestRank == taxon_rank::Sequence) ++lowestRank;
 
-        std::cout << "vote (" << trustedMajority << "): ";
+//        std::cout << "vote (" << trustedMajority << "): ";
 
         std::unordered_map<taxon_id,int> scores;
         scores.rehash(2*cand.count());
@@ -909,14 +881,14 @@ lowest_common_taxon(
                 }
             }
 
-            std::cout << "\n    " << taxonomy::rank_name(r) << " ";
+//            std::cout << "\n    " << taxonomy::rank_name(r) << " ";
 
             //determine taxon id with most votes
             taxon_id toptid = 0;
             int topscore = 0;
             for(const auto& x : scores) {
 
-                std::cout << x.first << ":" << x.second << ", ";
+//                std::cout << x.first << ":" << x.second << ", ";
 
                 if(x.second > topscore) {
                     toptid = x.first;
@@ -928,8 +900,8 @@ lowest_common_taxon(
             //agree on a taxon => classify as such
             if(topscore >= (totalscore * trustedMajority)) {
 
-                std::cout << "  => classified " << taxonomy::rank_name(r)
-                          << " " << toptid << '\n';
+//                std::cout << "  => classified " << taxonomy::rank_name(r)
+//                          << " " << toptid << '\n';
 
                 return &db.taxon(toptid);
             }

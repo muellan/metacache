@@ -25,13 +25,13 @@
 #include <cstdint>
 #include <fstream>
 
-#include "../src/timer.h"
-#include "../src/args_handling.h"
-#include "../src/filesys_utility.h"
-#include "../src/cmdline_utility.h"
-#include "../src/sequence_io.h"
+#include "timer.h"
+#include "args_handling.h"
+#include "filesys_utility.h"
+#include "cmdline_utility.h"
+#include "sequence_io.h"
 
-#include "../src/modes.h"
+#include "modes.h"
 
 
 namespace mc {

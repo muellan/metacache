@@ -28,8 +28,8 @@
 #include <string>
 #include <vector>
 
-#include "../src/args_parser.h"
-#include "../src/taxonomy.h"
+#include "args_parser.h"
+#include "taxonomy.h"
 
 
 namespace mc {

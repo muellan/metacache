@@ -37,11 +37,11 @@
 #include <string>
 #include <limits>
 
-#include "../src/generic.h"
-#include "../src/io_error.h"
-#include "../src/stat_moments.h"
-#include "../src/taxonomy.h"
-#include "../src/hash_multimap.h"
+#include "generic.h"
+#include "io_error.h"
+#include "stat_moments.h"
+#include "taxonomy.h"
+#include "hash_multimap.h"
 
 
 namespace mc {

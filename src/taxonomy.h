@@ -31,7 +31,7 @@
 #include <cstdint>
 #include <iostream>
 
-#include "../src/confusion.h"
+#include "confusion.h"
 
 
 namespace mc {

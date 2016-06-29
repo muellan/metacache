@@ -31,8 +31,8 @@
 #include <limits>
 //#include <random>
 
-#include "../src/dna_encoding.h"
-#include "../src/hash_family.h"
+#include "dna_encoding.h"
+#include "hash_family.h"
 
 
 namespace mc {

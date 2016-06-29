@@ -22,10 +22,10 @@
  *****************************************************************************/
 #include <map>
 
-#include "../src/args_handling.h"
-#include "../src/sequence_io.h"
+#include "args_handling.h"
+#include "sequence_io.h"
 
-#include "../src/modes.h"
+#include "modes.h"
 
 
 namespace mc {

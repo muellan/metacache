@@ -26,8 +26,8 @@
 
 #include <sstream>
 
-#include "../src/io_error.h"
-#include "../src/sequence_io.h"
+#include "io_error.h"
+#include "sequence_io.h"
 
 
 namespace mc {

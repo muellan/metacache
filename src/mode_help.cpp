@@ -24,8 +24,8 @@
 #include <string>
 #include <fstream>
 
-#include "../src/modes.h"
-#include "../src/filesys_utility.h"
+#include "modes.h"
+#include "filesys_utility.h"
 
 
 namespace mc {

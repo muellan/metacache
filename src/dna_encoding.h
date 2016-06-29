@@ -28,7 +28,7 @@
 #include <vector>
 #include <algorithm>
 
-#include "../src/bitmanip.h"
+#include "bitmanip.h"
 
 
 namespace mc {

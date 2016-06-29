@@ -24,3 +24,4 @@
 *.zip
 metacache
 metacache.exe
+/random_keys.txt
