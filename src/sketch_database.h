@@ -42,6 +42,7 @@
 #include "stat_moments.h"
 #include "taxonomy.h"
 #include "hash_multimap.h"
+#include "timer.h"
 
 
 namespace mc {

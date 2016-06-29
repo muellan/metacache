@@ -162,6 +162,34 @@ struct query_param
 
 
 
+/*****************************************************************************
+ *
+ *
+ *****************************************************************************/
+struct context
+{
+    context(const database_type& d, const query_param& p,
+            std::ostream& outs = std::cout,
+            std::ostream& logs = std::cout)
+    :
+        db(d), par(p), out(outs), log(logs)
+    {}
+
+    template<class Value>
+    inline friend const context&
+    operator << (const context& c, const Value& v) {
+        c.out << v;
+        return c;
+    }
+
+    const database_type& db;
+    const query_param&   par;
+    std::ostream& out;
+    std::ostream& log;
+
+};
+
+
 
 /*****************************************************************************
  *
