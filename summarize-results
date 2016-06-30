@@ -45,7 +45,7 @@ for fname in fnames:
     with open(fname, 'r') as file:
         section = 0
         ranks = False
-        uncl = ""
+        uncl = "0.0"
         clas = {}
         prec = {}
         sens = {}
@@ -56,6 +56,10 @@ for fname in fnames:
                 if res is not None:
                     uncl = res.group(1)
                     section = 1
+                else:
+                    res = clasre.match(line)
+                    if res is not None:
+                        section = 2
 
             elif section == 1:
                 res = clasre.match(line)
@@ -91,9 +95,6 @@ for fname in fnames:
                     section = 7
 
             # print str(section) + " -> " + line
-
-    if uncl == "":
-        uncl = "0.0"
 
     if section > 5:
         print fname + "   " \
