@@ -24,7 +24,6 @@ HEADERS = src/alignment.h \
           src/args_handling.h \
           src/bitmanip.h \
           src/cmdline_utility.h \
-          src/current_time.h \
           src/dna_encoding.h \
           src/filesys_utility.h \
           src/hash_family.h \
