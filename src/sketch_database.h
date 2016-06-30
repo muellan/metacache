@@ -36,8 +36,8 @@
 #include <cstdint>
 #include <string>
 #include <limits>
+#include <memory>
 
-#include "generic.h"
 #include "io_error.h"
 #include "stat_moments.h"
 #include "taxonomy.h"

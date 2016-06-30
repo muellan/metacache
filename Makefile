@@ -27,7 +27,6 @@ HEADERS = src/alignment.h \
           src/current_time.h \
           src/dna_encoding.h \
           src/filesys_utility.h \
-          src/generic.h \
           src/hash_family.h \
           src/hash_multimap.h \
           src/io_error.h \
