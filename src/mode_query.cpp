@@ -254,7 +254,7 @@ get_query_param(const args_parser& args)
     //query sketching
     param.sketchlen = args.get<int>("sketchlen", -1);
     param.winlen    = args.get<int>("winlen", -1);
-    param.winstride   = args.get<int>("winstride",
+    param.winstride = args.get<int>("winstride",
                                     param.winlen > 0 ? param.winlen : -1);
 
     //query classification
@@ -885,7 +885,7 @@ lowest_common_taxon(
     else {
         if(lowestRank == taxon_rank::Sequence) ++lowestRank;
 
-        std::cout << "vote (" << trustedMajority << "): ";
+//        std::cout << "vote (" << trustedMajority << "): ";
 
         std::unordered_map<taxon_id,int> scores;
         scores.rehash(2*cand.count());
@@ -898,7 +898,6 @@ lowest_common_taxon(
                 auto tid = db.ranked_lineage_of_genome(cand.genome_id(i))[int(r)];
                 if(tid > 0) {
                     auto score = cand.hits(i);
-//                    score *= score;
                     totalscore += score;
                     auto it = scores.find(tid);
                     if(it != scores.end()) {
@@ -909,14 +908,14 @@ lowest_common_taxon(
                 }
             }
 
-            std::cout << "\n    " << taxonomy::rank_name(r) << " ";
+//            std::cout << "\n    " << taxonomy::rank_name(r) << " ";
 
             //determine taxon id with most votes
             taxon_id toptid = 0;
             int topscore = 0;
             for(const auto& x : scores) {
 
-                std::cout << x.first << ":" << x.second << ", ";
+//                std::cout << x.first << ":" << x.second << ", ";
 
                 if(x.second > topscore) {
                     toptid = x.first;
@@ -928,8 +927,8 @@ lowest_common_taxon(
             //agree on a taxon => classify as such
             if(topscore >= (totalscore * trustedMajority)) {
 
-                std::cout << "  => classified " << taxonomy::rank_name(r)
-                          << " " << toptid << '\n';
+//                std::cout << "  => classified " << taxonomy::rank_name(r)
+//                          << " " << toptid << '\n';
 
                 return &db.taxon(toptid);
             }
@@ -937,7 +936,7 @@ lowest_common_taxon(
             scores.clear();
         }
 
-        std::cout << '\n';
+//        std::cout << '\n';
     }
 
     //candidates couldn't agree on a taxon on any relevant taxonomic rank

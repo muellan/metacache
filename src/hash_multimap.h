@@ -35,7 +35,7 @@ namespace mc {
 
 /*****************************************************************************
  *
- * @brief   integer key -> value hashed multimap
+ * @brief   (integer) key -> value hashed multimap
  *          optimized for many values per key
  *
  * @details Uses open addressing with linear probing to resolve hash conflicts.
