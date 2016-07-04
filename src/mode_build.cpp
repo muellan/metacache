@@ -261,65 +261,87 @@ void read_sequence_to_taxon_id_mapping(
             show_progress_indicator(0);
         }
 
-        //read first line and determine the columns which hold
+        //read first line(s) and determine the columns which hold
         //sequence ids (keys) and taxon ids
-        int keycol = 0;
-        int taxcol = 0;
+        int headerRow = 0;
         {
-            int col = 0;
-            std::string header;
-            getline(is, header);
-            std::istringstream hs(header);
-            //get rif of comment chars
-            hs >> header;
-            while(hs >> header) {
-                if(header == "taxid") {
-                    taxcol = col;
-                }
-                else if (header == "accession.version" ||
-                         header == "assembly_accession")
-                {
-                    keycol = col;
-                }
-                ++col;
+            std::string line;
+            for(int i = 0; i < 10; ++i, ++headerRow) {
+                getline(is, line);
+                if(line[0] != '#') break;
+            }
+            if(headerRow > 0) --headerRow;
+        }
+
+        //reopen and forward to header row
+        is.close();
+        is.open(mappingFile);
+        {
+            std::string line;
+            for(int i = 0; i < headerRow; ++i) {
+                getline(is, line);
             }
         }
 
-        //taxid column assignment not found
-        if(taxcol < 1) {
-            //reopen file and use 1st column as key and 2nd column as taxid
-            is.close();
-            is.open(mappingFile);
-            taxcol = 1;
-        }
-
-        std::string key;
-        taxon_id taxonId;
-        while(is.good()) {
-            for(int i = 0; i < keycol; ++i) { //forward to column with key
-                is.ignore(std::numeric_limits<std::streamsize>::max(), '\t');
+        if(is.good()) {
+            //process header row
+            int keycol = 0;
+            int taxcol = 0;
+            {
+                int col = 0;
+                std::string header;
+                getline(is, header);
+                std::istringstream hs(header);
+                //get rid of comment chars
+                hs >> header;
+                while(hs >> header) {
+                    if(header == "taxid") {
+                        taxcol = col;
+                    }
+                    else if (header == "accession.version" ||
+                            header == "assembly_accession")
+                    {
+                        keycol = col;
+                    }
+                    ++col;
+                }
             }
-            is >> key;
-            for(int i = 0; i < taxcol; ++i) { //forward to column with taxid
-                is.ignore(std::numeric_limits<std::streamsize>::max(), '\t');
+            //taxid column assignment not found
+            if(taxcol < 1) {
+                //reopen file and use 1st column as key and 2nd column as taxid
+                is.close();
+                is.open(mappingFile);
+                taxcol = 1;
             }
-            is >> taxonId;
-            is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
-//            std::cout << key << " -> " << taxonId << std::endl;
+            std::string key;
+            taxon_id taxonId;
+            while(is.good()) {
+                for(int i = 0; i < keycol; ++i) { //forward to column with key
+                    is.ignore(std::numeric_limits<std::streamsize>::max(), '\t');
+                }
+                is >> key;
+                for(int i = 0; i < taxcol; ++i) { //forward to column with taxid
+                    is.ignore(std::numeric_limits<std::streamsize>::max(), '\t');
+                }
+                is >> taxonId;
+                is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
-            map.insert({key, taxonId});
+    //            std::cout << key << " -> " << taxonId << std::endl;
 
+                map.insert({key, taxonId});
+
+                if(showProgress) {
+                    auto pos = is.tellg();
+                    if(pos >= nextStat) {
+                        show_progress_indicator(pos / float(fsize));
+                        nextStat = pos + nextStatStep;
+                    }
+                }
+            }
             if(showProgress) {
-                auto pos = is.tellg();
-                if(pos >= nextStat) {
-                    show_progress_indicator(pos / float(fsize));
-                    nextStat = pos + nextStatStep;
-                }
+                clear_current_line();
             }
-        }
-        if(showProgress) {
-            clear_current_line();
         }
     }
 }
@@ -558,6 +580,7 @@ void add_to_database(database_type& db,
                         }
                     }
 
+
                     //genomes need to have a sequence id
                     //look up taxon id
                     taxon_id taxid = 0;
@@ -571,8 +594,12 @@ void add_to_database(database_type& db,
                         }
                     }
                     //no valid taxid assigned -> try to find one in annotatino
-                    if(taxid < 1) {
+                    if(taxid > 0) {
+                        std::cout << " [" << seqId << ":" << taxid << "] ";
+                    }
+                    else {
                         taxid = extract_taxon_id(sequ.header);
+                        std::cout << " [" << seqId << "] ";
                     }
 
                     //try to add to database
@@ -585,7 +612,7 @@ void add_to_database(database_type& db,
                 ++origin.index; //track sequence index in file
             }
             if(param.showDetailedBuildInfo) {
-                std::cout << "done" << std::endl;
+                std::cout << " done." << std::endl;
             }
         }
         catch(std::exception& e) {
