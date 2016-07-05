@@ -595,11 +595,11 @@ void add_to_database(database_type& db,
                     }
                     //no valid taxid assigned -> try to find one in annotatino
                     if(taxid > 0) {
-                        std::cout << " [" << seqId << ":" << taxid << "] ";
+                        std::cout << "[" << seqId << ":" << taxid << "] ";
                     }
                     else {
                         taxid = extract_taxon_id(sequ.header);
-                        std::cout << " [" << seqId << "] ";
+                        std::cout << "[" << seqId << "] ";
                     }
 
                     //try to add to database
@@ -612,7 +612,7 @@ void add_to_database(database_type& db,
                 ++origin.index; //track sequence index in file
             }
             if(param.showDetailedBuildInfo) {
-                std::cout << " done." << std::endl;
+                std::cout << "done." << std::endl;
             }
         }
         catch(std::exception& e) {
