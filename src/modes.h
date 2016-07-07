@@ -38,8 +38,11 @@ namespace mc {
  *
  *****************************************************************************/
 using sequence_type = std::string;
-using sketcher_type = single_function_min_hasher;
-//using sketcher_type = multi_function_min_hasher;
+
+using sketcher_type = single_function_min_hasher; //default, for 0 <= k <= 32
+// using sketcher_type = single_function_min_hasher64; //for 33 <= k <= 64
+// using sketcher_type = multi_function_min_hasher; //different hash fun for each sketch value
+
 using database_type = sketch_database<sequence_type,sketcher_type>;
 using taxon_rank    = database_type::taxon_rank;
 using genome_id     = database_type::genome_id;

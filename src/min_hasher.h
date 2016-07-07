@@ -40,6 +40,7 @@ namespace mc {
 
 /*****************************************************************************
  *
+ * @brief default min-hasher (0 <= k <= 32)
  *
  *****************************************************************************/
 class single_function_min_hasher
@@ -182,6 +183,128 @@ private:
     static void nvidia_hash(std::uint64_t) = delete;
     static void nvidia_hash(std::uint16_t) = delete;
     static void nvidia_hash(std::uint8_t) = delete;
+};
+
+
+
+
+/*****************************************************************************
+ *
+ * @brief min-hasher for 0 <= k <= 64
+ *
+ *****************************************************************************/
+class single_function_min_hasher_64
+{
+public:
+    //---------------------------------------------------------------
+    using kmer_type = std::uint64_t;
+    using hash_type = std::uint32_t;
+    using result_type = std::vector<hash_type>;
+    //-----------------------------------------------------
+    using kmer_size_type   = numk_t;
+    using sketch_size_type = typename result_type::size_type;
+
+
+    //---------------------------------------------------------------
+    static constexpr std::uint8_t max_kmer_size() noexcept {
+        return max_word_size<kmer_type,2>::value;
+    }
+    static constexpr sketch_size_type max_sketch_size() noexcept {
+        return std::numeric_limits<sketch_size_type>::max();
+    }
+
+
+    //---------------------------------------------------------------
+    single_function_min_hasher_64():
+        kmerSize_(16), maxSketchSize_(32)
+    {}
+
+
+    //---------------------------------------------------------------
+    kmer_size_type
+    kmer_size() const noexcept {
+        return kmerSize_;
+    }
+    void
+    kmer_size(kmer_size_type k) noexcept {
+        if(k < 1) k = 1;
+        if(k > max_kmer_size()) k = max_kmer_size();
+        kmerSize_ = k;
+    }
+
+    //---------------------------------------------------------------
+    sketch_size_type
+    sketch_size() const noexcept {
+        return maxSketchSize_;
+    }
+    void
+    sketch_size(sketch_size_type s) noexcept {
+        if(s < 1) s = 1;
+        maxSketchSize_ = s;
+    }
+
+
+    //---------------------------------------------------------------
+    template<class Sequence>
+    result_type
+    operator () (const Sequence& s) const {
+        using std::begin;
+        using std::end;
+        return operator()(begin(s), end(s));
+    }
+
+    //-----------------------------------------------------
+    template<class InputIterator>
+    result_type
+    operator () (InputIterator first, InputIterator last) const
+    {
+        using std::distance;
+        using std::begin;
+        using std::end;
+
+        const auto numkmers = sketch_size_type(distance(first, last) - kmerSize_ + 1);
+        const auto sketchsize = std::min(maxSketchSize_, numkmers);
+
+        auto sketch = result_type(sketchsize, hash_type(~0));
+
+        for_each_kmer_2bit<kmer_type>(kmerSize_, first, last,
+            [&] (kmer_type kmer, half_size_t<kmer_type> ambiguous) {
+                if(!ambiguous) {
+                    //make canonical (strand neutral) k-mer and hash it
+                    auto h = thomas_mueller_hash(hash_64_to_32(
+                                make_canonical(kmer, kmerSize_)));
+
+                    if(h < sketch.back()) {
+                        auto pos = std::upper_bound(sketch.begin(), sketch.end(), h);
+                        if(pos != sketch.end()) {
+                            sketch.pop_back();
+                            sketch.insert(pos, h);
+                        }
+                    }
+                }
+            });
+
+//        for(auto x : sketch) std::cout << x << ' '; std::cout << '\n';
+
+        return sketch;
+    }
+
+private:
+    //---------------------------------------------------------------
+    kmer_size_type kmerSize_;
+    sketch_size_type maxSketchSize_;
+
+    //---------------------------------------------------------------
+    static std::uint32_t
+    thomas_mueller_hash(std::uint32_t x) noexcept {
+        x = ((x >> 16) ^ x) * 0x45d9f3b;
+        x = ((x >> 16) ^ x) * 0x45d9f3b;
+        x = ((x >> 16) ^ x);
+        return x;
+    }
+    static void thomas_mueller_hash(std::uint64_t) = delete;
+    static void thomas_mueller_hash(std::uint16_t) = delete;
+    static void thomas_mueller_hash(std::uint8_t) = delete;
 
     //-----------------------------------------------------
     static std::uint32_t
@@ -202,7 +325,7 @@ private:
 
 /*****************************************************************************
  *
- *
+ * @brief min-hasher that uses a different hash function for each sketch value
  *
  *****************************************************************************/
 class multi_function_min_hasher
