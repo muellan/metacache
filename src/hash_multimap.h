@@ -28,6 +28,8 @@
 #include <algorithm>
 #include <utility>
 #include <functional>
+#include <atomic>
+#include <mutex>
 
 
 namespace mc {
@@ -44,7 +46,10 @@ namespace mc {
  *           - iterators can be invalidated by inserts/rehashes
  *
  *****************************************************************************/
-template<class Key, class ValueT, class Hash = std::hash<Key>>
+template<
+    class Key, class ValueT,
+    class Hash = std::hash<Key>
+>
 class hash_multimap
 {
 public:
@@ -81,7 +86,7 @@ public:
 
         bool empty() const noexcept { return !values_.get(); }
 
-        key_type key() const noexcept { return key_; }
+        const key_type& key() const noexcept { return key_; }
 
         reference
         operator [](size_type i) noexcept { return values_[i]; }
@@ -130,7 +135,7 @@ public:
         }
 
         //-----------------------------------------------------
-        void key(key_type key) noexcept { key_ = key; }
+        void key(const key_type& key) noexcept { key_ = key; }
 
         //-----------------------------------------------------
         void grow_by(size_type n) {
@@ -192,7 +197,9 @@ public:
     //---------------------------------------------------------------
     hash_multimap():
         numKeys_(0), numValues_(0), maxLoadFactor_(0.80),
-        hash_(), buckets_{}
+        hash_{},
+//        mutables_{},
+        buckets_{}
     {
         buckets_.resize(5);
     }
@@ -236,6 +243,10 @@ public:
     //---------------------------------------------------------------
     void rehash(size_type n)
     {
+//        std::lock_guard<std::mutex> lock(mutables_);
+
+        if(n == buckets_.size()) return;
+
 //        std::cout << "\nREHASH to " << n << std::endl;
 
         //make temporary new map
@@ -263,57 +274,55 @@ public:
     //---------------------------------------------------------------
     template<class Value>
     iterator
-    insert(key_type key, Value&& value)
+    insert(const key_type& key, Value&& value)
     {
         make_sure_enough_buckets_left(1);
 
-        //initial bucket index
-        auto it = buckets_.begin() + (hash_(key) % buckets_.size());
+        auto it = find_slot(key);
 
-        //find bucket by linear probing
-        for(; it < buckets_.end(); ++it) {
-            if(try_insert(it, key, std::forward<Value>(value))) return it;
+        if(it->empty()) {
+            it->key(key);
+            it->insert(std::forward<Value>(value));
+            ++numKeys_;
+            numValues_ += it->size();
+            return it;
         }
-        //re-start at first bucket
-        auto oldit = it;
-        it = buckets_.begin();
-        for(; it < oldit; ++it) {
-            if(try_insert(it, key, std::forward<Value>(value))) return it;
+        else { //key already there
+            auto oldsize = it->size();
+            it->insert(std::forward<Value>(value));
+            numValues_ += it->size() - oldsize;
+            return it;
         }
-
-        //could not be inserted - this should *never* happen!
-        return end();
     }
 
     //-----------------------------------------------------
     template<class Values>
     iterator
-    replace(key_type key, size_type size, Values&& values)
+    replace(const key_type& key, size_type size, Values&& values)
     {
         make_sure_enough_buckets_left(1);
 
-        //initial bucket index
-        auto it = buckets_.begin() + (hash_(key) % buckets_.size());
+        auto it = find_slot(key);
 
-        //find other bucket by linear probing
-        for(; it < buckets_.end(); ++it) {
-            if(try_replace(it, key, size, std::forward<Values>(values))) return it;
+        if(it->empty()) {
+            it->key(key);
+            it->replace(size, std::forward<Values>(values));
+            ++numKeys_;
+            numValues_ += it->size();
+            return it;
         }
-        //re-start at first bucket
-        auto oldit = it;
-        it = buckets_.begin();
-        for(; it < oldit; ++it) {
-            if(try_replace(it, key, size, std::forward<Values>(values))) return it;
+        else { //key already there
+            auto oldsize = it->size();
+            it->replace(size, std::forward<Values>(values));
+            numValues_ += it->size() - oldsize;
+            return it;
         }
-
-        //could not be inserted - this should *never* happen!
-        return end();
     }
 
 
     //---------------------------------------------------------------
     size_type
-    erase(key_type key)
+    erase(const key_type& key)
     {
         auto it = find(key);
         return (it != end()) ? erase(it) : 0;
@@ -332,7 +341,7 @@ public:
 
 
     //---------------------------------------------------------------
-    void limit(key_type key, bucket_size_type n) {
+    void limit(const key_type& key, bucket_size_type n) {
         auto it = find(key);
         if(it != end()) limit(it, n);
     }
@@ -371,41 +380,23 @@ public:
      *          or end iterator if key not found
      */
     iterator
-    find(key_type key)
+    find(const key_type& key)
     {
-        //initial bucket index
-        auto it = buckets_.begin() + (hash_(key) % buckets_.size());
-
-        //find correct bucket by linear probing
-        //start at current bucket
-        for(; it < buckets_.end(); ++it) {
-            if(it->empty()) return end();
-            if(it->key() == key) return it;
-        }
-        //start at first bucket
-        auto oldit = it;
-        it = buckets_.begin();
-        for(; it < oldit; ++it) {
-            if(it->empty()) return end();
-            if(it->key() == key) return it;
-        }
-
-        //there can't be a non-const version of operator[] since
-        //the empty bucket should not be modifiable
-        return end();
+        auto it = find_slot(key);
+        return it->empty() ? end() : it;
     }
     //-----------------------------------------------------
     const_iterator
-    find(key_type key) const
+    find(const key_type& key) const
     {
         return const_iterator(const_cast<hash_multimap*>(this)->find(key));
     }
 
     //-----------------------------------------------------
     size_type
-    count(key_type key) const {
-        auto it = find(key);
-        return (it != end()) ? it->size() : 0;
+    count(const key_type& key) const {
+        auto it = find_slot(key);
+        return (!it->empty()) ? it->size() : 0;
     }
 
 
@@ -476,6 +467,37 @@ public:
 
 private:
     //---------------------------------------------------------------
+    iterator
+    find_slot(const key_type& key)
+    {
+        //initial bucket index
+        auto it = buckets_.begin() + (hash_(key) % buckets_.size());
+
+//        char i = 0;
+//        for(; i < 4 && it < buckets_.end(); ++it, ++i) {
+//            if(it->empty() || it->key() == key) return it;
+//        }
+//        for() {
+//
+//        }
+
+        //find correct bucket by linear probing
+        //start at current bucket
+        for(; it < buckets_.end(); ++it) {
+            if(it->empty() || it->key() == key) return it;
+        }
+        //start at first bucket
+        auto oldit = it;
+        it = buckets_.begin();
+        for(; it < oldit; ++it) {
+            if(it->empty() || it->key() == key) return it;
+        }
+
+        return it;
+    }
+
+
+    //---------------------------------------------------------------
     void make_sure_enough_buckets_left(size_type more)
     {
         auto n = numKeys_ + more;
@@ -491,52 +513,11 @@ private:
 
 
     //---------------------------------------------------------------
-    template<class V>
-    bool try_insert(iterator it, key_type key, V&& values)
-    {
-        if(it->empty()) {
-            it->key(key);
-            it->insert(std::forward<V>(values));
-            ++numKeys_;
-            numValues_ += it->size();
-            return true;
-        }
-        else if(it->key() == key) {
-            auto oldsize = it->size();
-            it->insert(std::forward<V>(values));
-            numValues_ += it->size() - oldsize;
-            return true;
-        }
-        return false;
-    }
-
-
-    //---------------------------------------------------------------
-    template<class V>
-    bool try_replace(iterator it, key_type key, size_type n, V&& values)
-    {
-        if(it->empty()) {
-            it->key(key);
-            it->replace(n, std::forward<V>(values));
-            ++numKeys_;
-            numValues_ += it->size();
-            return true;
-        }
-        else if(it->key() == key) {
-            auto oldsize = it->size();
-            it->replace(n, std::forward<V>(values));
-            numValues_ += it->size() - oldsize;
-            return true;
-        }
-        return false;
-    }
-
-
-    //---------------------------------------------------------------
     size_type numKeys_;
     size_type numValues_;
     float maxLoadFactor_;
     hasher hash_;
+//    mutable std::mutex mutables_;
     store_t buckets_;
 };
 
