@@ -49,6 +49,7 @@ using genome_id  = database::genome_id;
 
 using top_matches_in_contiguous_window_range
         = matches_in_contiguous_window_range_top<2>;
+//        = matches_in_contiguous_window_range_top<8>;  //will use majority voting scheme
 
 
 
