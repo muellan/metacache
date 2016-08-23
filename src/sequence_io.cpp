@@ -356,7 +356,25 @@ extract_genbank_identifier(const std::string& text)
 
 
 //-------------------------------------------------------------------
-std::uint64_t extract_taxon_id(const std::string& text)
+std::string
+extract_accession_string(const std::string& text)
+{
+    auto s = extract_ncbi_accession_version_number(text);
+    if(!s.empty()) return s;
+
+    s = extract_ncbi_accession_number(text);
+    if(!s.empty()) return s;
+
+    s = extract_genbank_identifier(text);
+
+    return s;
+}
+
+
+
+//-------------------------------------------------------------------
+std::uint64_t
+extract_taxon_id(const std::string& text)
 {
     auto i = text.find("taxid");
     if(i != std::string::npos) {

@@ -42,7 +42,7 @@ int main(int argc, char* argv[])
 
     /*
     //database / hash map query time benchmarking
-    auto db = make_database<database_type>("refseq_w128_k16_s16.db");
+    auto db = make_database<database>("refseq_w128_k16_s16.db");
 
     std::ifstream is {"random_keys.txt"};
 
@@ -54,7 +54,7 @@ int main(int argc, char* argv[])
         keys.push_back(k);
     }
 
-    std::vector<database_type::reference_pos> values;
+    std::vector<database::reference_pos> values;
     values.reserve(keys.size() * 1024);
 
     auto time = db.hash_table_query_benchmark(keys, values);

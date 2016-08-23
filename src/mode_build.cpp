@@ -217,7 +217,7 @@ make_taxonomic_hierarchy(const std::string& taxNodesFile,
  * @brief adds taxonomic information to database
  *
  *****************************************************************************/
-void load_taxonomy_into_database(database_type& db,
+void load_taxonomy_into_database(database& db,
                                  const build_param& param)
 {
     db.apply_taxonomy( make_taxonomic_hierarchy(param.taxonomy.nodesFile,
@@ -244,9 +244,9 @@ void load_taxonomy_into_database(database_type& db,
  *****************************************************************************/
 void read_sequence_to_taxon_id_mapping(
     const std::string& mappingFile,
-    std::map<std::string,database_type::taxon_id>& map)
+    std::map<std::string,database::taxon_id>& map)
 {
-    using taxon_id = database_type::taxon_id;
+    using taxon_id = database::taxon_id;
 
     std::ifstream is{mappingFile};
     if(is.good()) {
@@ -355,7 +355,7 @@ void read_sequence_to_taxon_id_mapping(
  *        as the input files
  *
  *****************************************************************************/
-std::map<std::string,database_type::taxon_id>
+std::map<std::string,database::taxon_id>
 make_sequence_to_taxon_id_map(const std::vector<std::string>& mappingFilenames,
                               const std::vector<std::string>& infilenames)
 {
@@ -363,7 +363,7 @@ make_sequence_to_taxon_id_map(const std::vector<std::string>& mappingFilenames,
     //of the input directories
     auto indirs = unique_directories(infilenames);
 
-    auto map = std::map<std::string,database_type::taxon_id>{};
+    auto map = std::map<std::string,database::taxon_id>{};
 
     for(const auto& dir : indirs) {
         for(const auto& file : mappingFilenames) {
@@ -385,7 +385,7 @@ make_sequence_to_taxon_id_map(const std::vector<std::string>& mappingFilenames,
  *        (like the NCBI's *.accession2version files)
  *
  *****************************************************************************/
-void rank_genomes_post_process(database_type& db,
+void rank_genomes_post_process(database& db,
                                std::set<genome_id>& gids,
                                const std::string& mappingFile)
 {
@@ -455,7 +455,7 @@ void rank_genomes_post_process(database_type& db,
  *
  *****************************************************************************/
 std::set<genome_id>
-unranked_genomes(const database_type& db)
+unranked_genomes(const database& db)
 {
     auto res = std::set<genome_id>{};
 
@@ -476,7 +476,7 @@ unranked_genomes(const database_type& db)
  *
  *
  *****************************************************************************/
-void try_to_rank_unranked_genomes(database_type& db, const build_param& param)
+void try_to_rank_unranked_genomes(database& db, const build_param& param)
 {
     auto unranked = unranked_genomes(db);
 
@@ -525,10 +525,10 @@ extract_sequence_id(const std::string& text)
  * @brief adds reference sequences to database
  *
  *****************************************************************************/
-void add_to_database(database_type& db,
+void add_to_database(database& db,
                      const build_param& param)
 {
-    using taxon_id   = database_type::taxon_id;
+    using taxon_id   = database::taxon_id;
 
     if(param.maxGenomesPerSketchVal > 1)
         db.max_genomes_per_sketch_value(param.maxGenomesPerSketchVal);
@@ -561,7 +561,7 @@ void add_to_database(database_type& db,
         try {
             auto reader = make_sequence_reader(filename);
             while(reader->has_next()) {
-                database_type::sequence_origin origin;
+                database::sequence_origin origin;
                 origin.filename = filename;
                 origin.index = 0;
 
@@ -652,11 +652,11 @@ void main_mode_build(const args_parser& args)
     }
 
     //configure database
-    auto sketcher = database_type::sketcher_type{};
+    auto sketcher = database::sketcher{};
     sketcher.kmer_size(param.kmerlen);
     sketcher.sketch_size(param.sketchlen);
 
-    auto db = database_type{sketcher};
+    auto db = database{sketcher};
     db.genome_window_size(param.winlen);
     db.genome_window_stride(param.winstride);
 
@@ -706,7 +706,7 @@ void main_mode_build_add(const args_parser& args)
         return;
     }
 
-    auto db = make_database<database_type>(param.dbfile);
+    auto db = make_database<database>(param.dbfile);
 
     if(param.maxGenomesPerSketchVal > 1)
         db.max_genomes_per_sketch_value(param.maxGenomesPerSketchVal);

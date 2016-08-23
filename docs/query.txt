@@ -31,7 +31,7 @@ OPTIONS:
                        will be treated as paired-end reads.
 
     -insertsize        Maximum insert size to consider.
-                       default: length of individual reads
+                       default: sum of lengths of the individual reads
 
     -lowest  <rank>    Do not classify on ranks below <rank>.
                        default: sequence

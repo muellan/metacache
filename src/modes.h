@@ -37,15 +37,15 @@ namespace mc {
  *
  *
  *****************************************************************************/
-using sequence_type = std::string;
+using sequence = std::string;
 
-using sketcher_type = single_function_min_hasher; //default, for 0 <= k <= 32
-// using sketcher_type = single_function_min_hasher64; //for 33 <= k <= 64
-// using sketcher_type = multi_function_min_hasher; //different hash fun for each sketch value
+using sketcher = single_function_min_hasher; //default, for 0 <= k <= 32
+// using sketcher = single_function_min_hasher64; //for 33 <= k <= 64
+// using sketcher = multi_function_min_hasher; //different hash fun for each sketch value
 
-using database_type = sketch_database<sequence_type,sketcher_type>;
-using taxon_rank    = database_type::taxon_rank;
-using genome_id     = database_type::genome_id;
+using database   = sketch_database<sequence,sketcher>;
+using taxon_rank = database::taxon_rank;
+using genome_id  = database::genome_id;
 
 
 

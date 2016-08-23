@@ -35,15 +35,14 @@ namespace mc {
  *
  *
  *****************************************************************************/
-void show_ranked_lineage_of_genome(const database_type& db,
-                                   database_type::genome_id gid)
+void show_ranked_lineage_of_genome(const database& db, database::genome_id gid)
 {
     //if genomes don't have their own taxonId, print their sequence id
     std::cout << "    sequence:   " << db.sequence_id_of_genome(gid);
 
     for(auto taxid : db.ranked_lineage_of_genome(gid)) {
         if(taxid > 1) {
-            auto&& taxon = db.taxon(taxid);
+            auto&& taxon = db.taxon_with_id(taxid);
             auto rn = taxon.rank_name() + ":";
             rn.resize(12, ' ');
             std::cout << "\n    " << rn << "(" << taxon.id << ") " << taxon.name;
@@ -60,8 +59,7 @@ void show_ranked_lineage_of_genome(const database_type& db,
  * @brief
  *
  *****************************************************************************/
-void show_sequence_info(const database_type& db,
-                        database_type::genome_id gid)
+void show_sequence_info(const database& db, database::genome_id gid)
 {
     std::cout
         << "Reference sequence " << gid << " ("
@@ -85,20 +83,12 @@ void show_sequence_info(const args_parser& args)
 
     auto sids = std::vector<std::string>{};
     for(int i = 2; i < args.non_prefixed_count(); ++i) {
-        auto argi = args.non_prefixed(i);
-        auto an = extract_ncbi_accession_version_number(argi);
-
-        if(an.empty()) {
-            std::cout << argi << " is not an NCBI accession.version number!"
-                      << std::endl;
-        } else {
-            sids.push_back(std::move(an));
-        }
+        sids.push_back(args.non_prefixed(i));
     }
 
     if(sids.empty()) return;
 
-    auto db = make_database<database_type>(dbfilename);
+    auto db = make_database_metadata_only<database>(dbfilename);
 
     for(const auto& sid : sids) {
         auto gid = db.genome_id_of_sequence(sid);
@@ -125,7 +115,7 @@ void show_lineage_table(const args_parser& args)
 
     auto dbfilename = database_name(args);
 
-    auto db = make_database<database_type>(dbfilename);
+    auto db = make_database_metadata_only<database>(dbfilename);
     if(db.genome_count() < 1) return;
 
     //table header
@@ -155,7 +145,7 @@ void show_all_info(const args_parser& args)
 {
     auto dbfilename = database_name(args);
 
-    auto db = make_database<database_type>(dbfilename);
+    auto db = make_database_metadata_only<database>(dbfilename);
     if(db.genome_count() < 1) return;
 
     std::cout << "Properties of database " << dbfilename << ":\n";
@@ -185,7 +175,7 @@ void show_rank_statistics(const args_parser& args)
 
     auto dbfilename = database_name(args);
 
-    auto db = make_database<database_type>(dbfilename);
+    auto db = make_database_metadata_only<database>(dbfilename);
 
     std::map<taxonomy::taxon_id, std::size_t> stat;
 
@@ -201,7 +191,7 @@ void show_rank_statistics(const args_parser& args)
 
     std::cout << "Sequence distribution for rank " << rankName << ":" << std::endl;
     for(const auto& s : stat) {
-        std::cout << db.taxon(s.first).name << " \t " << s.second << '\n';
+        std::cout << db.taxon_with_id(s.first).name << " \t " << s.second << '\n';
     }
 }
 

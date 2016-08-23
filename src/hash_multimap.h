@@ -287,7 +287,7 @@ public:
             numValues_ += it->size();
             return it;
         }
-        else { //key already there
+        else { //key already inserted
             auto oldsize = it->size();
             it->insert(std::forward<Value>(value));
             numValues_ += it->size() - oldsize;
@@ -311,7 +311,7 @@ public:
             numValues_ += it->size();
             return it;
         }
-        else { //key already there
+        else { //key already inserted
             auto oldsize = it->size();
             it->replace(size, std::forward<Values>(values));
             numValues_ += it->size() - oldsize;

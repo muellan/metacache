@@ -38,15 +38,15 @@ namespace mc {
  *
  *
  *****************************************************************************/
-using taxon_rank     = database_type::taxon_rank;
-using taxon          = database_type::taxon_type;
-using genome_id      = database_type::genome_id;
-using taxon_id       = database_type::taxon_id;
-using ranked_lineage = database_type::ranked_lineage_type;
-using match_result   = database_type::match_result_type;
+using taxon_rank     = database::taxon_rank;
+using taxon          = database::taxon;
+using genome_id      = database::genome_id;
+using taxon_id       = database::taxon_id;
+using ranked_lineage = database::ranked_lineage_type;
+using match_result   = database::match_result_type;
 
 using top_matches_in_contiguous_window_range
-        = matches_in_contiguous_window_range_top<8>;
+        = matches_in_contiguous_window_range_top<2>;
 
 
 
@@ -168,7 +168,7 @@ struct query_param
  *****************************************************************************/
 struct context
 {
-    context(const database_type& d, const query_param& p,
+    context(const database& d, const query_param& p,
             std::ostream& outs = std::cout,
             std::ostream& logs = std::cout)
     :
@@ -182,8 +182,8 @@ struct context
         return c;
     }
 
-    const database_type& db;
-    const query_param&   par;
+    const database& db;
+    const query_param& par;
     std::ostream& out;
     std::ostream& log;
 
@@ -331,7 +331,7 @@ get_query_param(const args_parser& args)
  *****************************************************************************/
 void show_ranked_lineage(
     std::ostream& os,
-    const database_type& db,
+    const database& db,
     const ranked_lineage& lineage,
     taxon_print_mode mode = taxon_print_mode::name_only,
     taxon_rank lowest  = taxon_rank::Species,
@@ -343,7 +343,7 @@ void show_ranked_lineage(
         os << taxonomy::rank_name(lowest) << ':';
         if(mode != taxon_print_mode::id_only) {
             if(taxid > 1)
-                os << db.taxon(taxid).name;
+                os << db.taxon_with_id(taxid).name;
             else
                 os << "n/a";
             if(mode != taxon_print_mode::name_only)
@@ -358,7 +358,7 @@ void show_ranked_lineage(
         for(auto r = lowest; r <= highest; ++r) {
             auto taxid = lineage[int(r)];
             if(taxid > 1) {
-                auto&& taxon = db.taxon(taxid);
+                auto&& taxon = db.taxon_with_id(taxid);
                 if(taxon.rank >= lowest && taxon.rank <= highest) {
                     os << taxon.rank_name() << ':';
                     if(mode != taxon_print_mode::id_only) {
@@ -386,7 +386,7 @@ void show_ranked_lineage(
  *****************************************************************************/
 void show_ranked_lineage_of_genome(
     std::ostream& os,
-    const database_type& db,
+    const database& db,
     genome_id gid,
     taxon_print_mode mode = taxon_print_mode::name_only,
     taxon_rank lowest  = taxon_rank::Sequence,
@@ -416,7 +416,7 @@ void show_ranked_lineage_of_genome(
  *
  *****************************************************************************/
 void show_matches(std::ostream& os,
-    const database_type& db,
+    const database& db,
     const match_result& matches,
     taxon_rank lowest = taxon_rank::Sequence)
 {
@@ -440,7 +440,7 @@ void show_matches(std::ostream& os,
 //-------------------------------------------------------------------
 template<int n>
 void show_matches(std::ostream& os,
-    const database_type& db,
+    const database& db,
     const matches_in_contiguous_window_range_top<n>& cand,
     taxon_rank lowest = taxon_rank::Sequence)
 {
@@ -485,7 +485,7 @@ void show_matches(std::ostream& os,
  *****************************************************************************/
 template<int n>
 void show_candidate_ranges(std::ostream& os,
-    const database_type& db,
+    const database& db,
     const matches_in_contiguous_window_range_top<n>& cand)
 {
     const auto w = db.genome_window_stride();
@@ -662,8 +662,8 @@ make_view_from_window_range(
 template<int n>
 int
 best_kmer_intersection_candidate(std::ostream&,
-    const database_type& db, const query_param& param,
-    const sequence_type& query1, const sequence_type& query2,
+    const database& db, const query_param& param,
+    const sequence& query1, const sequence& query2,
     const matches_in_contiguous_window_range_top<n>& cand)
 {
     std::size_t fstVal = 0;
@@ -738,8 +738,8 @@ best_kmer_intersection_candidate(std::ostream&,
 template<int n>
 int
 best_alignment_candidate(std::ostream& os,
-    const database_type& db, const query_param& param,
-    const sequence_type& query1, const sequence_type& query2,
+    const database& db, const query_param& param,
+    const sequence& query1, const sequence& query2,
     const matches_in_contiguous_window_range_top<n>& cand)
 {
     //check which of the top sequences has a better alignment
@@ -869,7 +869,7 @@ best_alignment_candidate(std::ostream& os,
 template<int maxn>
 const taxon*
 lowest_common_taxon(
-    const database_type& db,
+    const database& db,
     const matches_in_contiguous_window_range_top<maxn>& cand,
     float trustedMajority,
     taxon_rank lowestRank = taxon_rank::subSpecies,
@@ -930,7 +930,7 @@ lowest_common_taxon(
 //                std::cout << "  => classified " << taxonomy::rank_name(r)
 //                          << " " << toptid << '\n';
 
-                return &db.taxon(toptid);
+                return &db.taxon_with_id(toptid);
             }
 
             scores.clear();
@@ -955,8 +955,8 @@ lowest_common_taxon(
 template<int n>
 classification
 sequence_classification(std::ostream& os,
-    const database_type& db, const query_param& param,
-    const sequence_type& query1, const sequence_type& query2,
+    const database& db, const query_param& param,
+    const sequence& query1, const sequence& query2,
     const matches_in_contiguous_window_range_top<n>& cand)
 {
     //sum of top-2 hits < threshold => considered not classifiable
@@ -1002,7 +1002,7 @@ sequence_classification(std::ostream& os,
 
 //-------------------------------------------------------------------
 void show_classification(std::ostream& os,
-                         const database_type& db, const query_param& param,
+                         const database& db, const query_param& param,
                          const classification& cls)
 {
     if(cls.sequence_level()) {
@@ -1036,7 +1036,7 @@ void show_classification(std::ostream& os,
  *
  *****************************************************************************/
 classification
-ground_truth(const database_type& db, const std::string& header)
+ground_truth(const database& db, const std::string& header)
 {
     //try to extract query id and find the corresponding genome in database
     auto gid = db.genome_id_of_sequence(extract_ncbi_accession_version_number(header));
@@ -1057,17 +1057,17 @@ ground_truth(const database_type& db, const std::string& header)
         //from the genome in the db
         if(taxid < 1) db.taxon_id_of_genome(gid);
 
-        return classification { gid, taxid > 0 ? &db.taxon(taxid) : nullptr };
+        return classification { gid, taxid > 0 ? &db.taxon_with_id(taxid) : nullptr };
     }
 
-    return classification { taxid > 0 ? &db.taxon(taxid) : nullptr };
+    return classification { taxid > 0 ? &db.taxon_with_id(taxid) : nullptr };
 }
 
 
 
 //-------------------------------------------------------------------
 taxon_rank
-lowest_common_rank(const database_type& db,
+lowest_common_rank(const database& db,
                    const classification& a,
                    const classification& b)
 {
@@ -1090,7 +1090,7 @@ lowest_common_rank(const database_type& db,
            masks out hits of a taxon; can be very slow!
  *
  *****************************************************************************/
-void remove_hits_on_rank(const database_type& db,
+void remove_hits_on_rank(const database& db,
                          taxon_rank rank, taxon_id taxid,
                          match_result& res)
 {
@@ -1114,14 +1114,14 @@ void remove_hits_on_rank(const database_type& db,
  *
  *****************************************************************************/
 void update_coverage_statistics(
-    const database_type& db,
+    const database& db,
     const classification& result, const classification& truth,
     rank_statistics& stats)
 {
     const auto& lin = db.ranked_lineage(truth.tax());
     //check if taxa are covered in DB
     for(auto tid : lin) {
-        auto r = db.taxon(tid).rank;
+        auto r = db.taxon_with_id(tid).rank;
         if(db.covers_taxon(tid)) {
             if(r < result.rank()) { //unclassified on rank
                 stats.count_coverage_false_neg(r);
@@ -1147,9 +1147,9 @@ void update_coverage_statistics(
  *
  *****************************************************************************/
 void process_database_answer(std::ostream& os,
-     const database_type& db, const query_param& param,
+     const database& db, const query_param& param,
      const std::string& header,
-     const sequence_type& query1, const sequence_type& query2,
+     const sequence& query1, const sequence& query2,
      match_result&& hits,
      rank_statistics& stats)
 {
@@ -1251,7 +1251,7 @@ void process_database_answer(std::ostream& os,
  *
  *****************************************************************************/
 void classify_on_file_pairs(std::ostream& os,
-    const database_type& db, const query_param& param,
+    const database& db, const query_param& param,
     const std::vector<std::string>& infilenames,
     rank_statistics& stats)
 {
@@ -1302,7 +1302,7 @@ void classify_on_file_pairs(std::ostream& os,
  *
  *****************************************************************************/
 void classify_per_file(std::ostream& os,
-    const database_type& db, const query_param& param,
+    const database& db, const query_param& param,
     const std::vector<std::string>& infilenames,
     rank_statistics& stats)
 {
@@ -1340,7 +1340,7 @@ void classify_per_file(std::ostream& os,
                     }
                     else {
                         process_database_answer(os, db, param,
-                            query.header, query.data, sequence_type{},
+                            query.header, query.data, sequence{},
                             std::move(res), stats);
                     }
                 }
@@ -1363,7 +1363,7 @@ void classify_per_file(std::ostream& os,
  *
  *****************************************************************************/
 void classify_sequences(std::ostream& os,
-                        const database_type& db,
+                        const database& db,
                         const query_param& param,
                         const std::vector<std::string>& infilenames)
 {
@@ -1456,7 +1456,7 @@ void classify_sequences(std::ostream& os,
  * @brief
  *
  *****************************************************************************/
-void process_input_files(const database_type& db,
+void process_input_files(const database& db,
                          const query_param& param,
                          const std::vector<std::string>& infilenames,
                          const std::string& outfilename)
@@ -1499,7 +1499,7 @@ void main_mode_query(const args_parser& args)
 
     auto param = get_query_param(args);
 
-    auto db = make_database<database_type>(param.dbfile);
+    auto db = make_database<database>(param.dbfile);
 
 
     //configure database
