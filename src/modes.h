@@ -47,6 +47,9 @@ using database   = sketch_database<sequence,sketcher>;
 using taxon_rank = database::taxon_rank;
 using genome_id  = database::genome_id;
 
+using top_matches_in_contiguous_window_range
+        = matches_in_contiguous_window_range_top<2>;
+
 
 
 /*****************************************************************************

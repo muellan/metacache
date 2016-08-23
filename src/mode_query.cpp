@@ -45,8 +45,6 @@ using taxon_id       = database::taxon_id;
 using ranked_lineage = database::ranked_lineage_type;
 using match_result   = database::match_result_type;
 
-using top_matches_in_contiguous_window_range
-        = matches_in_contiguous_window_range_top<2>;
 
 
 
