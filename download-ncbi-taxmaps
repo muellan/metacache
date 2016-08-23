@@ -20,7 +20,7 @@
 
 set -u  # Protect against uninitialized vars.
 set -e  # Stop on error
-
+ 
 FTPURL="ftp://ftp.ncbi.nih.gov/pub/taxonomy"
 
 
