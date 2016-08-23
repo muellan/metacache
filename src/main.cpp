@@ -40,6 +40,29 @@ int main(int argc, char* argv[])
 {
     using namespace mc;
 
+    /*
+    //database / hash map query time benchmarking
+    auto db = make_database<database>("refseq_w128_k16_s16.db");
+
+    std::ifstream is {"random_keys.txt"};
+
+    std::vector<std::uint32_t> keys;
+
+    while(is.good()) {
+        std::uint32_t k;
+        is >> k;
+        keys.push_back(k);
+    }
+
+    std::vector<database::reference_pos> values;
+    values.reserve(keys.size() * 1024);
+
+    auto time = db.hash_table_query_benchmark(keys, values);
+
+    std::cout << time.milliseconds() << " ms " << std::endl;
+    */
+
+
     args_parser args{argc, argv};
     
     bool nomode = false;

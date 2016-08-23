@@ -178,6 +178,16 @@ std::string extract_genbank_identifier(const std::string&);
 
 
 
+
+/*****************************************************************************
+ *
+ * @brief extracts any string recognized as accession ID
+ *
+ *****************************************************************************/
+std::string extract_accession_string(const std::string&);
+
+
+
 /*****************************************************************************
  *
  * @brief extracts the numeric part from a gi identifier

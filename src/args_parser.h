@@ -61,9 +61,9 @@
  *
  *   query parameter count:
  *
- *      args.size()                  returns 6
+ *      args.size()                  returns 7
  *      args.prefixed_count()        returns 4   (a, b, c, d)
- *      args.non_prefixed_count()    returns 2   (20.3, filename)
+ *      args.non_prefixed_count()    returns 3   (12, 20.3, filename)
  *
  *
  *   access prefixed arguments (and following value agument to the right):

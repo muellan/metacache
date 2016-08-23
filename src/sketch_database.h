@@ -36,8 +36,8 @@
 #include <cstdint>
 #include <string>
 #include <limits>
+#include <memory>
 
-#include "generic.h"
 #include "io_error.h"
 #include "stat_moments.h"
 #include "taxonomy.h"
@@ -76,15 +76,15 @@ class sketch_database
 {
 public:
     //---------------------------------------------------------------
-    using sequence_type = SequenceType;
-    using sketcher_type = Sketcher;
+    using sequence = SequenceType;
+    using sketcher = Sketcher;
     //-----------------------------------------------------
     using genome_id   = std::uint16_t;
     using window_id   = std::uint16_t;
     using sequence_id = std::string;
     //-----------------------------------------------------
     using taxon_id   = taxonomy::taxon_id;
-    using taxon_type = taxonomy::taxon;
+    using taxon      = taxonomy::taxon;
     using taxon_rank = taxonomy::taxon_rank;
     //-----------------------------------------------------
     using ranked_lineage_type = taxonomy::ranked_lineage_type;
@@ -95,6 +95,10 @@ public:
     struct sequence_origin {
         std::string filename = "";
         std::size_t index = 0;  //if file contains more than one sequence
+    };
+
+    enum class scope {
+        everything, metadata_only
     };
 
 
@@ -185,7 +189,7 @@ private:
 
 public:
     //-----------------------------------------------------
-    using sketch_type  = typename sketcher_type::result_type;
+    using sketch_type  = typename sketcher::result_type;
     using sketch_value = typename sketch_type::value_type;
 
     //-----------------------------------------------------
@@ -222,7 +226,7 @@ public:
 
     //---------------------------------------------------------------
     explicit
-    sketch_database(sketcher_type sketcher = sketcher_type{}) :
+    sketch_database(sketcher sketcher = sketcher{}) :
         refSketcher_{std::move(sketcher)},
         querySketcher_{refSketcher_},
         genomeWindowSize_(128),
@@ -321,7 +325,7 @@ public:
 
 
     //---------------------------------------------------------------
-    bool add_genome(const sequence_type& seq,
+    bool add_genome(const sequence& seq,
                     sequence_id sid,
                     taxon_id taxonId = 0,
                     const sequence_origin& origin = sequence_origin{})
@@ -329,7 +333,7 @@ public:
         using std::begin;
         using std::end;
 
-        using iter_t = typename sequence_type::const_iterator;
+        using iter_t = typename sequence::const_iterator;
 
         if(seq.size() < kmer_size()) return false;
 
@@ -413,8 +417,8 @@ public:
         return taxa_.taxon_count();
     }
     //-----------------------------------------------------
-    const taxon_type&
-    taxon(taxon_id id) const noexcept {
+    const taxon&
+    taxon_with_id(taxon_id id) const noexcept {
         return taxa_[id];
     }
 
@@ -431,7 +435,7 @@ public:
         return taxa_[genomes_[id].taxonId].id;
     }
     //-----------------------------------------------------
-    const taxon_type&
+    const taxon&
     taxon_of_genome(genome_id id) const noexcept {
         return taxa_[genomes_[id].taxonId];
     }
@@ -444,7 +448,7 @@ public:
 
     //-----------------------------------------------------
     full_lineage_type
-    full_lineage(const taxon_type& tax) const noexcept {
+    full_lineage(const taxon& tax) const noexcept {
         return taxa_.full_lineage(tax.id);
     }
     //-----------------------------------------------------
@@ -455,7 +459,7 @@ public:
 
     //-----------------------------------------------------
     ranked_lineage_type
-    ranked_lineage(const taxon_type& tax) const noexcept {
+    ranked_lineage(const taxon& tax) const noexcept {
         return taxa_.ranked_lineage(tax.id);
     }
     //-----------------------------------------------------
@@ -465,13 +469,13 @@ public:
     }
 
     //---------------------------------------------------------------
-    const taxon_type&
-    lca(const taxon_type& ta, const taxon_type& tb) const
+    const taxon&
+    lca(const taxon& ta, const taxon& tb) const
     {
         return taxa_.lca(ta,tb);
     }
     //---------------------------------------------------------------
-    const taxon_type&
+    const taxon&
     lca_of_genomes(genome_id ga, genome_id gb) const
     {
         return taxa_[taxonomy::lca_id(full_lineage_of_genome(ga),
@@ -479,13 +483,13 @@ public:
     }
 
     //---------------------------------------------------------------
-    const taxon_type&
-    ranked_lca(const taxon_type& ta, const taxon_type& tb) const
+    const taxon&
+    ranked_lca(const taxon& ta, const taxon& tb) const
     {
         return taxa_.ranked_lca(ta,tb);
     }
     //---------------------------------------------------------------
-    const taxon_type&
+    const taxon&
     ranked_lca_of_genomes(genome_id ga, genome_id gb) const
     {
         return taxa_[taxonomy::ranked_lca_id(ranked_lineage_of_genome(ga),
@@ -494,7 +498,7 @@ public:
 
     //---------------------------------------------------------------
     taxon_rank
-    lowest_rank(const taxon_type& tax) const {
+    lowest_rank(const taxon& tax) const {
         return taxa_.lowest_rank(tax.id);
     }
     //-----------------------------------------------------
@@ -507,7 +511,7 @@ public:
     /**
      * @return number of times a taxon is covered by any genome in the DB
      */
-    int covering(const taxon_type& t) const {
+    int covering(const taxon& t) const {
         return covering_of_taxon(t.id);
     }
     int covering_of_taxon(taxon_id id) const {
@@ -525,7 +529,7 @@ public:
     /**
      * @return true, if taxon is covered by any genome in the DB
      */
-    bool covers(const taxon_type& t) const {
+    bool covers(const taxon& t) const {
         return covers_taxon(t.id);
     }
     bool covers_taxon(taxon_id id) const {
@@ -541,9 +545,9 @@ public:
     //---------------------------------------------------------------
     template<class Consumer>
     void
-    for_each_match(const sequence_type& query, Consumer&& consume) const
+    for_each_match(const sequence& query, Consumer&& consume) const
     {
-        using iter_t = typename sequence_type::const_iterator;
+        using iter_t = typename sequence::const_iterator;
 
         if(query.empty()) return;
 
@@ -564,7 +568,7 @@ public:
 
     //---------------------------------------------------------------
     match_result_type
-    matches(const sequence_type& query) const
+    matches(const sequence& query) const
     {
         auto res = match_result_type{};
         accumulate_matches(query, res);
@@ -572,7 +576,7 @@ public:
     }
     //---------------------------------------------------------------
     void
-    accumulate_matches(const sequence_type& query,
+    accumulate_matches(const sequence& query,
                        match_result_type& res) const
     {
         for_each_match(query,
@@ -606,7 +610,7 @@ public:
      *          This should make DB files more robust against changes in the
      *          internal mapping structure.
      */
-    void read(const std::string& filename)
+    void read(const std::string& filename, scope what = scope::everything)
     {
         std::ifstream is{filename, std::ios::in | std::ios::binary};
 
@@ -667,6 +671,8 @@ public:
         for(genome_id i = 0; i < genome_id(genomes_.size()); ++i) {
             sid2gid_.insert({genomes_[i].id, i});
         }
+
+        if(what == scope::metadata_only) return;
 
         //read sketch values (keys) and their origin references
         size_t nkeys = 0;
@@ -831,8 +837,8 @@ private:
 
     
     //---------------------------------------------------------------
-    sketcher_type refSketcher_;
-    sketcher_type querySketcher_;
+    sketcher refSketcher_;
+    sketcher querySketcher_;
     size_t genomeWindowSize_;
     size_t genomeWindowStride_;
     size_t queryWindowSize_;
@@ -999,14 +1005,15 @@ private:
  *****************************************************************************/
 template<class Database>
 Database
-make_database(const std::string& filename)
+make_database(const std::string& filename,
+              typename Database::scope what = Database::scope::everything)
 {
     Database db;
 
     std::cout << "Reading database from file '"
               << filename << "' ... " << std::flush;
     try {
-        db.read(filename);
+        db.read(filename, what);
         std::cout << "done." << std::endl;
 
         return db;
@@ -1017,6 +1024,14 @@ make_database(const std::string& filename)
     }
 
     return db;
+}
+
+//-------------------------------------------------------------------
+template<class Database>
+Database
+make_database_metadata_only(const std::string& filename)
+{
+    return make_database<Database>(filename, Database::scope::metadata_only);
 }
 
 

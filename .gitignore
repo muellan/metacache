@@ -10,7 +10,6 @@
 /literature
 /kraken
 /kmers
-/dump
 .cproject
 .project
 *.exe
@@ -25,3 +24,4 @@
 metacache
 metacache.exe
 /random_keys.txt
+/roadmap.txt

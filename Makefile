@@ -8,7 +8,7 @@ MACROS   =
 #COMPILER     = nvcc
 COMPILER     = g++
 MPI_COMPILER = mpicxx
-DIALECT      = -std=c++11
+DIALECT      = -std=c++14
 WARNINGS     = -Wall -Wextra -Wpedantic
 
 REL_FLAGS   = $(INCLUDES) $(MACROS) $(DIALECT) -O3 $(WARNINGS)
@@ -19,15 +19,14 @@ DBG_LDFLAGS =
 
 
 #--------------------------------------------------------------------
-HEADERS = src/alignment.h \
+HEADERS = \
+		  src/alignment.h \
           src/args_parser.h \
           src/args_handling.h \
           src/bitmanip.h \
           src/cmdline_utility.h \
-          src/current_time.h \
           src/dna_encoding.h \
           src/filesys_utility.h \
-          src/generic.h \
           src/hash_family.h \
           src/hash_multimap.h \
           src/io_error.h \
@@ -41,16 +40,16 @@ HEADERS = src/alignment.h \
           src/timer.h
 
 SOURCES = \
-    src/args_handling.cpp \
-    src/cmdline_utility.cpp \
-    src/filesys_utility.cpp \
-    src/main.cpp \
-    src/mode_annotate.cpp \
-    src/mode_build.cpp \
-    src/mode_help.cpp \
-    src/mode_info.cpp \
-    src/mode_query.cpp \
-    src/sequence_io.cpp
+		  src/args_handling.cpp \
+		  src/cmdline_utility.cpp \
+		  src/filesys_utility.cpp \
+		  src/main.cpp \
+		  src/mode_annotate.cpp \
+		  src/mode_build.cpp \
+		  src/mode_help.cpp \
+		  src/mode_info.cpp \
+		  src/mode_query.cpp \
+		  src/sequence_io.cpp
 
 
 #--------------------------------------------------------------------

@@ -217,7 +217,7 @@ make_taxonomic_hierarchy(const std::string& taxNodesFile,
  * @brief adds taxonomic information to database
  *
  *****************************************************************************/
-void load_taxonomy_into_database(database_type& db,
+void load_taxonomy_into_database(database& db,
                                  const build_param& param)
 {
     db.apply_taxonomy( make_taxonomic_hierarchy(param.taxonomy.nodesFile,
@@ -244,9 +244,9 @@ void load_taxonomy_into_database(database_type& db,
  *****************************************************************************/
 void read_sequence_to_taxon_id_mapping(
     const std::string& mappingFile,
-    std::map<std::string,database_type::taxon_id>& map)
+    std::map<std::string,database::taxon_id>& map)
 {
-    using taxon_id = database_type::taxon_id;
+    using taxon_id = database::taxon_id;
 
     std::ifstream is{mappingFile};
     if(is.good()) {
@@ -261,65 +261,87 @@ void read_sequence_to_taxon_id_mapping(
             show_progress_indicator(0);
         }
 
-        //read first line and determine the columns which hold
+        //read first line(s) and determine the columns which hold
         //sequence ids (keys) and taxon ids
-        int keycol = 0;
-        int taxcol = 0;
+        int headerRow = 0;
         {
-            int col = 0;
-            std::string header;
-            getline(is, header);
-            std::istringstream hs(header);
-            //get rif of comment chars
-            hs >> header;
-            while(hs >> header) {
-                if(header == "taxid") {
-                    taxcol = col;
-                }
-                else if (header == "accession.version" ||
-                         header == "assembly_accession")
-                {
-                    keycol = col;
-                }
-                ++col;
+            std::string line;
+            for(int i = 0; i < 10; ++i, ++headerRow) {
+                getline(is, line);
+                if(line[0] != '#') break;
+            }
+            if(headerRow > 0) --headerRow;
+        }
+
+        //reopen and forward to header row
+        is.close();
+        is.open(mappingFile);
+        {
+            std::string line;
+            for(int i = 0; i < headerRow; ++i) {
+                getline(is, line);
             }
         }
 
-        //taxid column assignment not found
-        if(taxcol < 1) {
-            //reopen file and use 1st column as key and 2nd column as taxid
-            is.close();
-            is.open(mappingFile);
-            taxcol = 1;
-        }
-
-        std::string key;
-        taxon_id taxonId;
-        while(is.good()) {
-            for(int i = 0; i < keycol; ++i) { //forward to column with key
-                is.ignore(std::numeric_limits<std::streamsize>::max(), '\t');
+        if(is.good()) {
+            //process header row
+            int keycol = 0;
+            int taxcol = 0;
+            {
+                int col = 0;
+                std::string header;
+                getline(is, header);
+                std::istringstream hs(header);
+                //get rid of comment chars
+                hs >> header;
+                while(hs >> header) {
+                    if(header == "taxid") {
+                        taxcol = col;
+                    }
+                    else if (header == "accession.version" ||
+                            header == "assembly_accession")
+                    {
+                        keycol = col;
+                    }
+                    ++col;
+                }
             }
-            is >> key;
-            for(int i = 0; i < taxcol; ++i) { //forward to column with taxid
-                is.ignore(std::numeric_limits<std::streamsize>::max(), '\t');
+            //taxid column assignment not found
+            if(taxcol < 1) {
+                //reopen file and use 1st column as key and 2nd column as taxid
+                is.close();
+                is.open(mappingFile);
+                taxcol = 1;
             }
-            is >> taxonId;
-            is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
-//            std::cout << key << " -> " << taxonId << std::endl;
+            std::string key;
+            taxon_id taxonId;
+            while(is.good()) {
+                for(int i = 0; i < keycol; ++i) { //forward to column with key
+                    is.ignore(std::numeric_limits<std::streamsize>::max(), '\t');
+                }
+                is >> key;
+                for(int i = 0; i < taxcol; ++i) { //forward to column with taxid
+                    is.ignore(std::numeric_limits<std::streamsize>::max(), '\t');
+                }
+                is >> taxonId;
+                is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
-            map.insert({key, taxonId});
+    //            std::cout << key << " -> " << taxonId << std::endl;
 
+                map.insert({key, taxonId});
+
+                if(showProgress) {
+                    auto pos = is.tellg();
+                    if(pos >= nextStat) {
+                        show_progress_indicator(pos / float(fsize));
+                        nextStat = pos + nextStatStep;
+                    }
+                }
+            }
             if(showProgress) {
-                auto pos = is.tellg();
-                if(pos >= nextStat) {
-                    show_progress_indicator(pos / float(fsize));
-                    nextStat = pos + nextStatStep;
-                }
+                clear_current_line();
             }
-        }
-        if(showProgress) {
-            clear_current_line();
         }
     }
 }
@@ -333,7 +355,7 @@ void read_sequence_to_taxon_id_mapping(
  *        as the input files
  *
  *****************************************************************************/
-std::map<std::string,database_type::taxon_id>
+std::map<std::string,database::taxon_id>
 make_sequence_to_taxon_id_map(const std::vector<std::string>& mappingFilenames,
                               const std::vector<std::string>& infilenames)
 {
@@ -341,7 +363,7 @@ make_sequence_to_taxon_id_map(const std::vector<std::string>& mappingFilenames,
     //of the input directories
     auto indirs = unique_directories(infilenames);
 
-    auto map = std::map<std::string,database_type::taxon_id>{};
+    auto map = std::map<std::string,database::taxon_id>{};
 
     for(const auto& dir : indirs) {
         for(const auto& file : mappingFilenames) {
@@ -363,7 +385,7 @@ make_sequence_to_taxon_id_map(const std::vector<std::string>& mappingFilenames,
  *        (like the NCBI's *.accession2version files)
  *
  *****************************************************************************/
-void rank_genomes_post_process(database_type& db,
+void rank_genomes_post_process(database& db,
                                std::set<genome_id>& gids,
                                const std::string& mappingFile)
 {
@@ -433,7 +455,7 @@ void rank_genomes_post_process(database_type& db,
  *
  *****************************************************************************/
 std::set<genome_id>
-unranked_genomes(const database_type& db)
+unranked_genomes(const database& db)
 {
     auto res = std::set<genome_id>{};
 
@@ -454,7 +476,7 @@ unranked_genomes(const database_type& db)
  *
  *
  *****************************************************************************/
-void try_to_rank_unranked_genomes(database_type& db, const build_param& param)
+void try_to_rank_unranked_genomes(database& db, const build_param& param)
 {
     auto unranked = unranked_genomes(db);
 
@@ -503,10 +525,10 @@ extract_sequence_id(const std::string& text)
  * @brief adds reference sequences to database
  *
  *****************************************************************************/
-void add_to_database(database_type& db,
+void add_to_database(database& db,
                      const build_param& param)
 {
-    using taxon_id   = database_type::taxon_id;
+    using taxon_id   = database::taxon_id;
 
     if(param.maxGenomesPerSketchVal > 1)
         db.max_genomes_per_sketch_value(param.maxGenomesPerSketchVal);
@@ -539,7 +561,7 @@ void add_to_database(database_type& db,
         try {
             auto reader = make_sequence_reader(filename);
             while(reader->has_next()) {
-                database_type::sequence_origin origin;
+                database::sequence_origin origin;
                 origin.filename = filename;
                 origin.index = 0;
 
@@ -558,6 +580,7 @@ void add_to_database(database_type& db,
                         }
                     }
 
+
                     //genomes need to have a sequence id
                     //look up taxon id
                     taxon_id taxid = 0;
@@ -571,8 +594,12 @@ void add_to_database(database_type& db,
                         }
                     }
                     //no valid taxid assigned -> try to find one in annotatino
-                    if(taxid < 1) {
+                    if(taxid > 0) {
+                        std::cout << "[" << seqId << ":" << taxid << "] ";
+                    }
+                    else {
                         taxid = extract_taxon_id(sequ.header);
+                        std::cout << "[" << seqId << "] ";
                     }
 
                     //try to add to database
@@ -585,7 +612,7 @@ void add_to_database(database_type& db,
                 ++origin.index; //track sequence index in file
             }
             if(param.showDetailedBuildInfo) {
-                std::cout << "done" << std::endl;
+                std::cout << "done." << std::endl;
             }
         }
         catch(std::exception& e) {
@@ -625,11 +652,11 @@ void main_mode_build(const args_parser& args)
     }
 
     //configure database
-    auto sketcher = database_type::sketcher_type{};
+    auto sketcher = database::sketcher{};
     sketcher.kmer_size(param.kmerlen);
     sketcher.sketch_size(param.sketchlen);
 
-    auto db = database_type{sketcher};
+    auto db = database{sketcher};
     db.genome_window_size(param.winlen);
     db.genome_window_stride(param.winstride);
 
@@ -679,7 +706,7 @@ void main_mode_build_add(const args_parser& args)
         return;
     }
 
-    auto db = make_database<database_type>(param.dbfile);
+    auto db = make_database<database>(param.dbfile);
 
     if(param.maxGenomesPerSketchVal > 1)
         db.max_genomes_per_sketch_value(param.maxGenomesPerSketchVal);
