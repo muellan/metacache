@@ -25,43 +25,12 @@
 #define MC_MODE_BUILD_H_
 
 #include "args_parser.h"
-#include "sketch_database.h"
-#include "min_hasher.h"
+
+//contains all important typedefs
+#include "config.h"
 
 
 namespace mc {
-
-
-/*****************************************************************************
- *
- *
- *
- *****************************************************************************/
-using sequence = std::string;
-
-using sketcher = single_function_min_hasher; //default, for 0 <= k <= 32
-// using sketcher = single_function_min_hasher64; //for 33 <= k <= 64
-// using sketcher = multi_function_min_hasher; //different hash fun for each sketch value
-
-using database   = sketch_database<sequence,sketcher>;
-using taxon_rank = database::taxon_rank;
-using genome_id  = database::genome_id;
-
-using top_matches_in_contiguous_window_range
-        = matches_in_contiguous_window_range_top<2>;
-//        = matches_in_contiguous_window_range_top<8>;  //will use majority voting scheme
-
-
-
-/*****************************************************************************
- *
- *
- *
- *****************************************************************************/
-enum class sequence_id_type {
-    custom, acc, acc_ver, gi
-};
-
 
 
 /*****************************************************************************
