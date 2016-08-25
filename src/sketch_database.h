@@ -193,16 +193,10 @@ public:
     using sketch_value = typename sketch_type::value_type;
 
     //-----------------------------------------------------
-    struct reference_pos {
-        reference_pos() = default;
-
-        explicit
-        reference_pos(genome_id s, window_id w) noexcept :
-            gid{s}, win{w}
-        {}
-
-        genome_id gid = 0;
-        window_id win = 0;
+    struct reference_pos
+    {
+        genome_id gid;
+        window_id win;
 
         friend bool
         operator < (const reference_pos& a, const reference_pos& b) noexcept {
@@ -226,8 +220,8 @@ public:
 
     //---------------------------------------------------------------
     explicit
-    sketch_database(sketcher sketcher = sketcher{}) :
-        refSketcher_{std::move(sketcher)},
+    sketch_database(sketcher sk = sketcher{}) :
+        refSketcher_{std::move(sk)},
         querySketcher_{refSketcher_},
         genomeWindowSize_(128),
         genomeWindowStride_(128 - querySketcher_.kmer_size()),
@@ -674,48 +668,7 @@ public:
 
         if(what == scope::metadata_only) return;
 
-        //read sketch values (keys) and their origin references
-        size_t nkeys = 0;
-        is.read(reinterpret_cast<char*>(&nkeys), sizeof(nkeys));
-        if(nkeys < 1) return;
-        size_t nvalues = 0;
-        is.read(reinterpret_cast<char*>(&nvalues), sizeof(nvalues));
-        if(nvalues < 1) return;
-
-        sketchVals_.clear();
-        sketchVals_.rehash( typename store_t::size_type(
-            10 + (1/sketchVals_.max_load_factor() * nkeys)));
-
-        for(size_t i = 0; i < nkeys; ++i) {
-            typename store_t::key_type key;
-            typename store_t::bucket_size_type nvals;
-            is.read(reinterpret_cast<char*>(&key), sizeof(key));
-            is.read(reinterpret_cast<char*>(&nvals), sizeof(nvals));
-
-            auto vals = std::unique_ptr<reference_pos[]>{new reference_pos[nvals]};
-
-            for(auto v = vals.get(), e = v+nvals; v < e; ++v) {
-                is.read(reinterpret_cast<char*>(&(v->gid)), sizeof(v->gid));
-                is.read(reinterpret_cast<char*>(&(v->win)), sizeof(v->win));
-            }
-
-            sketchVals_.replace(key, nvals, std::move(vals));
-        }
-
-//        std::cout << '\n'
-//            << "keys:        " << sketchVals_.key_count() << " <> " << nkeys << '\n'
-//            << "values:      " << sketchVals_.value_count() << " <> " << nvalues << '\n'
-//            << "buckets:     " << sketchVals_.bucket_count() << '\n'
-//            << "bucket size: " << (8*sizeof(sketchVals_.bucket(0))) << '\n'
-//            << "key size:    " << (8*sizeof(sketchVals_.bucket(0).key())) << '\n'
-//            << "value size:  " << (8*sizeof(sketchVals_.bucket(0)[0])) << '\n'
-//            << "gid size:    " << (8*sizeof(sketchVals_.bucket(0)[0].gid)) << '\n'
-//            << "win size:    " << (8*sizeof(sketchVals_.bucket(0)[0].win)) << '\n'
-//            << "addr0      : " << &sketchVals_.bucket(0)[0] << '\n'
-//            << "addr1      : " << &sketchVals_.bucket(0)[1] << '\n'
-//            << std::flush;
-//        char c;
-//        std::cin >> c;
+        sketchVals_.read(is);
     }
 
 
@@ -761,27 +714,8 @@ public:
             a.write(os);
         }
 
-        //write sketch values (keys) and their origin references
-        auto nkeys = sketchVals_.key_count();
-        os.write(reinterpret_cast<char*>(&nkeys), sizeof(nkeys));
-        auto nvalues = sketchVals_.value_count();
-        os.write(reinterpret_cast<char*>(&nvalues), sizeof(nvalues));
+        sketchVals_.write(os);
 
-        for(const auto& bucket : sketchVals_) {
-            //store non-empty buckets only
-            if(!bucket.empty()) {
-                auto key = bucket.key();
-                os.write(reinterpret_cast<const char*>(&key), sizeof(key));
-
-                auto nvals = bucket.size();
-                os.write(reinterpret_cast<const char*>(&nvals), sizeof(nvals));
-
-                for(const auto& ref : bucket) {
-                    os.write(reinterpret_cast<const char*>(&ref.gid), sizeof(ref.gid));
-                    os.write(reinterpret_cast<const char*>(&ref.win), sizeof(ref.win));
-                }
-            }
-        }
     }
 
     //---------------------------------------------------------------

@@ -30,6 +30,8 @@
 #include <functional>
 #include <atomic>
 #include <mutex>
+#include <iostream>
+#include <type_traits>
 
 
 namespace mc {
@@ -221,6 +223,24 @@ public:
 
 
     //---------------------------------------------------------------
+    /**
+     * @brief reserve memory for 'n' values in total
+     */
+    void reserve(size_type n)
+    {
+        if(n == capacity()) return;
+
+//        std::lock_guard<std::mutex> lock(mutables_);
+
+        //TODO
+    }
+    //-----------------------------------------------------
+    size_type capacity() const noexcept {
+        //TODO
+    }
+
+
+    //---------------------------------------------------------------
     size_type bucket_count() const noexcept {
         return buckets_.size();
     }
@@ -243,9 +263,9 @@ public:
     //---------------------------------------------------------------
     void rehash(size_type n)
     {
-//        std::lock_guard<std::mutex> lock(mutables_);
-
         if(n == buckets_.size()) return;
+
+//        std::lock_guard<std::mutex> lock(mutables_);
 
 //        std::cout << "\nREHASH to " << n << std::endl;
 
@@ -463,6 +483,91 @@ public:
     //-----------------------------------------------------
     const_local_iterator
     cend(size_type i) const noexcept { return buckets_[i].end(); }
+
+
+    //---------------------------------------------------------------
+    /**
+     * @brief deserialize hashmap from input stream
+     */
+//    template<class = typename std::enable_if<std::is_pod<value_type>::value>::type>
+    void read(std::istream& is)
+    {
+        static_assert(std::is_pod<ValueT>::value,
+                      "hash_multimap::read requires ValueT to be a POD type.");
+
+        size_t nkeys = 0;
+        is.read(reinterpret_cast<char*>(&nkeys), sizeof(nkeys));
+        if(nkeys < 1) return;
+        size_t nvalues = 0;
+        is.read(reinterpret_cast<char*>(&nvalues), sizeof(nvalues));
+        if(nvalues < 1) return;
+
+        clear();
+        rehash( typename store_t::size_type(10 + (1/max_load_factor() * nkeys)));
+
+        for(size_t i = 0; i < nkeys; ++i) {
+            key_type key;
+            bucket_size_type nvals;
+            is.read(reinterpret_cast<char*>(&key), sizeof(key));
+            is.read(reinterpret_cast<char*>(&nvals), sizeof(nvals));
+
+            auto vals = std::unique_ptr<value_type[]>{new value_type[nvals]};
+
+            for(auto v = vals.get(), e = v+nvals; v < e; ++v) {
+                is.read(reinterpret_cast<char*>(&(*v)), sizeof(*v));
+            }
+
+            replace(key, nvals, std::move(vals));
+        }
+
+//        std::cout << '\n'
+//            << "keys:        " << key_count() << " <> " << nkeys << '\n'
+//            << "values:      " << value_count() << " <> " << nvalues << '\n'
+//            << "buckets:     " << bucket_count() << '\n'
+//            << "bucket size: " << (8*sizeof(bucket(0))) << '\n'
+//            << "key size:    " << (8*sizeof(bucket(0).key())) << '\n'
+//            << "value size:  " << (8*sizeof(bucket(0)[0])) << '\n'
+//            << "gid size:    " << (8*sizeof(bucket(0)[0].gid)) << '\n'
+//            << "win size:    " << (8*sizeof(bucket(0)[0].win)) << '\n'
+//            << "addr0      : " << &bucket(0)[0] << '\n'
+//            << "addr1      : " << &bucket(0)[1] << '\n'
+//            << std::flush;
+//        char c;
+//        std::cin >> c;
+    }
+
+
+    //---------------------------------------------------------------
+    /**
+     * @brief serialize hashmap to output stream
+     */
+//    template<class = typename std::enable_if<std::is_pod<value_type>::value>::type>
+    void write(std::ostream& os) const
+    {
+        static_assert(std::is_pod<ValueT>::value,
+                      "hash_multimap::write requires ValueT to be a POD type.");
+
+        //write sketch values (keys) and their origin references
+        auto nkeys = key_count();
+        os.write(reinterpret_cast<char*>(&nkeys), sizeof(nkeys));
+        auto nvalues = value_count();
+        os.write(reinterpret_cast<char*>(&nvalues), sizeof(nvalues));
+
+        for(const auto& bucket : buckets_) {
+            //store non-empty buckets only
+            if(!bucket.empty()) {
+                auto key = bucket.key();
+                os.write(reinterpret_cast<const char*>(&key), sizeof(key));
+
+                auto nvals = bucket.size();
+                os.write(reinterpret_cast<const char*>(&nvals), sizeof(nvals));
+
+                for(const auto& ref : bucket) {
+                    os.write(reinterpret_cast<const char*>(&ref), sizeof(ref));
+                }
+            }
+        }
+    }
 
 
 private:
