@@ -23,7 +23,7 @@
 
 /*****************************************************************************
  *
- * @file    dynamci_memory.h
+ * @file    dynamic_memory.h
  *
  * @brief   a (very much incomplete and quick & dirty) implementation
  *          of C++17's upcoming memory_resource and polymorphic_allocator
@@ -92,6 +92,7 @@ protected:
 
 
 
+
 /*****************************************************************************
  *
  *
@@ -118,6 +119,7 @@ protected:
         return std::addressof(*this) == std::addressof(other);
     }
 };
+
 
 
 

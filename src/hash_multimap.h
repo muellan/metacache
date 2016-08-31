@@ -34,7 +34,7 @@
 #include <type_traits>
 #include <memory>
 
-#include "dynamic_memory.h"
+#include "memory.h"
 
 
 namespace mc {
@@ -53,27 +53,29 @@ namespace mc {
  * @tparam  Key:
  * @tparam  ValueT:
  * @tparam  Hash:
- * @tparam  ValueAllocator: controls allocation of values, *not* of buckets
+ * @tparam  ValueAllocator:  controls allocation of values, *not* of buckets
+ * @tparam  BucketAllocator: controls allocation of buckets, *not* of values
  *
  *****************************************************************************/
 template<
     class Key, class ValueT,
     class Hash = std::hash<Key>,
-    class ValueAllocator = std::allocator<ValueT>
+    class ValueAllocator = std::allocator<ValueT>,
+    class BucketAllocator = std::allocator<Key>
 >
 class hash_multimap
 {
 //    static_assert(std::is_pod<Key>::value,    "Key must be a POD type");
 //    static_assert(std::is_pod<ValueT>::value, "Value must be a POD type");
 
-    using value_alloc   = std::allocator_traits<ValueAllocator>;
+    using value_alloc = std::allocator_traits<ValueAllocator>;
 
 public:
     //---------------------------------------------------------------
-    using value_type     = ValueT;
-    using key_type       = Key;
-    using hasher         = Hash;
-    using allocator_type = ValueAllocator;
+    using value_type      = ValueT;
+    using key_type        = Key;
+    using hasher          = Hash;
+    using value_allocator = ValueAllocator;
 
     //-----------------------------------------------------
     /**
@@ -123,23 +125,23 @@ public:
 
     private:
         //-----------------------------------------------------
-        void insert(const value_type& v, allocator_type& alloc) {
+        void insert(const value_type& v, value_allocator& alloc) {
             grow_by(1, alloc);
             values_[size_-1] = v;
         }
         //-------------------------------------------
-        void insert(value_type&& v, allocator_type& alloc) {
+        void insert(value_type&& v, value_allocator& alloc) {
             grow_by(1, alloc);
             values_[size_-1] = std::move(v);
         }
 
         //-----------------------------------------------------
-        void shrink_to(size_type n, allocator_type&) noexcept {
+        void shrink_to(size_type n, value_allocator&) noexcept {
             if(size_ > n) size_ = n;
         }
 
         //-------------------------------------------
-        void clear(allocator_type& alloc) {
+        void clear(value_allocator& alloc) {
             if(empty()) return;
             if(!std::is_pod<value_type>::value) {
                 for(auto i = values_, e = i + size_; i < e; ++i) {
@@ -152,7 +154,7 @@ public:
             capacity_ = 0;
         }
         //-------------------------------------------
-        void replace(bucket_type&& src, allocator_type& alloc) {
+        void replace(bucket_type&& src, value_allocator& alloc) {
             key_ = std::move(src.key_);
             clear(alloc);
             size_ = src.size_;
@@ -167,7 +169,7 @@ public:
         void key(const key_type& key) noexcept { key_ = key; }
 
         //-----------------------------------------------------
-        void resize(size_type n, allocator_type& alloc) {
+        void resize(size_type n, value_allocator& alloc) {
             if(size_ < n) {
                 grow_by(n - size_, alloc);
             }
@@ -177,7 +179,7 @@ public:
         }
 
         //-----------------------------------------------------
-        void grow_by(size_type n, allocator_type& alloc) {
+        void grow_by(size_type n, value_allocator& alloc) {
             if(values_) {
                 auto nsize = std::uint64_t(size_) + n;
                 if(nsize > 65535) throw std::runtime_error{
@@ -230,9 +232,13 @@ public:
     };
 
 
+    //---------------------------------------------------------------
+    using bucket_allocator = typename
+        std::allocator_traits<BucketAllocator>::template rebind_alloc<bucket_type>;
+
 private:
     //-----------------------------------------------------
-    using store_t = std::vector<bucket_type>;
+    using store_t = std::vector<bucket_type,bucket_allocator>;
 
 
 public:
@@ -245,12 +251,12 @@ public:
     using iterator        = typename store_t::iterator;
     using const_iterator  = typename store_t::const_iterator;
     //-----------------------------------------------------
-    using local_iterator        = typename bucket_type::iterator;
-    using const_local_iterator  = typename bucket_type::const_iterator;
+    using local_iterator       = typename bucket_type::iterator;
+    using const_local_iterator = typename bucket_type::const_iterator;
 
 
     //---------------------------------------------------------------
-    hash_multimap(const allocator_type& alloc = allocator_type{}):
+    hash_multimap(const value_allocator& alloc = value_allocator{}):
         numKeys_(0), numValues_(0), maxLoadFactor_(0.80),
         hash_{}, alloc_{alloc},
         mutables_{},
@@ -260,7 +266,7 @@ public:
     }
     //-----------------------------------------------------
     hash_multimap(const hasher& hash,
-                  const allocator_type& alloc = allocator_type{})
+                  const value_allocator& alloc = value_allocator{})
     :
         numKeys_(0), numValues_(0), maxLoadFactor_(0.80),
         hash_{hash}, alloc_{alloc},
@@ -344,9 +350,16 @@ public:
 
 
     //---------------------------------------------------------------
-    const allocator_type&
+    const value_allocator&
     get_allocator() const noexcept {
         return alloc_;
+    }
+
+
+    //---------------------------------------------------------------
+    const hasher&
+    hash_function() const noexcept {
+        return hash_;
     }
 
 
@@ -388,7 +401,7 @@ public:
     {
         make_sure_enough_buckets_left(1);  //might lock
 
-        //TODO make concurrency safe
+        //TODO make concurrency-safe
 
         auto it = find_slot(key);
 
@@ -412,7 +425,7 @@ public:
     size_type
     erase(const key_type& key)
     {
-        //TODO make concurrency safe
+        //TODO make concurrency-safe
 
         auto it = find(key);
         return (it != end()) ? erase(it) : 0;
@@ -421,7 +434,7 @@ public:
     size_type
     erase(const_iterator it)
     {
-        //TODO make concurrency safe
+        //TODO make concurrency-safe
 
         auto s = it->size();
         const_cast<bucket_type*>(&(*it))->clear(alloc_);
@@ -435,7 +448,7 @@ public:
     //---------------------------------------------------------------
     void limit(const key_type& key, bucket_size_type n)
     {
-        //TODO make concurrency safe
+        //TODO make concurrency-safe
 
         auto it = find(key);
         if(it != end()) limit(it, n);
@@ -443,7 +456,7 @@ public:
     //-----------------------------------------------------
     void limit(const_iterator bit, bucket_size_type n)
     {
-        //TODO make concurrency safe
+        //TODO make concurrency-safe
 
         auto so = bit->size();
         const_cast<bucket_type*>(&(*bit))->shrink_to(n, alloc_);
@@ -572,12 +585,14 @@ public:
     cend(size_type i) const noexcept { return buckets_[i].end(); }
 
 
-    //---------------------------------------------------------------
-    /**
+    /****************************************************************
      * @brief deserialize hashmap from input stream
+     * @param is:        input stream
+     * @param memconfig: callback that can be used to configurate allocators
      */
-//    template<class = typename std::enable_if<std::is_pod<value_type>::value>::type>
-    void read(std::istream& is)
+    template<class MemoryConfigurator>
+    void read(std::istream& is,
+              MemoryConfigurator&& memconfig = [](std::size_t,std::size_t){})
     {
         static_assert(std::is_pod<ValueT>::value,
                       "hash_multimap::read requires ValueT to be a POD type.");
@@ -588,6 +603,8 @@ public:
         size_t nvalues = 0;
         is.read(reinterpret_cast<char*>(&nvalues), sizeof(nvalues));
         if(nvalues < 1) return;
+
+        memconfig(nkeys, nvalues);
 
         //locks
         clear();
@@ -678,7 +695,7 @@ private:
     {
         make_sure_enough_buckets_left(1);  //might lock
 
-        //TODO make concurrency safe
+        //TODO make concurrency-safe
 
         auto it = find_slot(b.key());
 
@@ -747,7 +764,7 @@ private:
     size_type numValues_;
     float maxLoadFactor_;
     hasher hash_;
-    allocator_type alloc_;
+    value_allocator alloc_;
     mutable std::mutex mutables_;
     store_t buckets_;
 };

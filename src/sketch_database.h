@@ -101,6 +101,10 @@ public:
         everything, metadata_only
     };
 
+    enum class application_scenario {
+        build, query
+    };
+
 
 private:
     //-----------------------------------------------------
@@ -209,7 +213,9 @@ public:
 
 private:
     //-----------------------------------------------------
-    using store_t = hash_multimap<sketch_value,reference_pos>;
+    using store_t = hash_multimap<sketch_value,reference_pos,
+                                  std::hash<sketch_value>,
+                                  polymorphic_allocator<reference_pos>>;
 
 
 public:
@@ -220,7 +226,9 @@ public:
 
     //---------------------------------------------------------------
     explicit
-    sketch_database(sketcher sk = sketcher{}) :
+    sketch_database(sketcher sk = sketcher{},
+                    application_scenario app = application_scenario::build)
+    :
         refSketcher_{std::move(sk)},
         querySketcher_{refSketcher_},
         genomeWindowSize_(128),
@@ -229,11 +237,12 @@ public:
         queryWindowStride_(genomeWindowStride_),
         maxRefsPerSketchVal_(1024),
         numSeq_(0),
-        sketchVals_{},
-        genomes_{}, noGenome_{},
+        memory_{make_memory_resource(app)},
+        genomes_{},
+        sketchVals_{memory_.get()},
         sid2gid_{},
         taxa_{}
-    { }
+    {}
 
 
     //---------------------------------------------------------------
@@ -668,7 +677,16 @@ public:
 
         if(what == scope::metadata_only) return;
 
-        sketchVals_.read(is);
+        //in case
+        auto mr = dynamic_cast<new_delete_resource*>(memory_.get());
+        sketchVals_.read(is,
+            [mr](std::size_t nkeys, std::size_t nvalues) {
+                if(mr) {
+                    std::cout << "new_delete_resource" << std::endl;
+                }
+                std::cout << "keys: " << nkeys
+                          << ", values: " << nvalues << std::endl;
+            });
     }
 
 
@@ -769,6 +787,20 @@ private:
         }
     }
 
+
+    //---------------------------------------------------------------
+    std::unique_ptr<memory_resource>
+    make_memory_resource(application_scenario app) {
+        switch(app) {
+            case application_scenario::build: return
+                std::unique_ptr<memory_resource>(new new_delete_resource{});
+
+            case application_scenario::query: return
+                std::unique_ptr<memory_resource>(new new_delete_resource{});
+        }
+        return nullptr;
+    }
+
     
     //---------------------------------------------------------------
     sketcher refSketcher_;
@@ -779,9 +811,9 @@ private:
     size_t queryWindowStride_;
     size_t maxRefsPerSketchVal_;
     genome_id numSeq_;
-    store_t sketchVals_;
+    std::unique_ptr<memory_resource> memory_;
     std::vector<genome_property> genomes_;
-    genome_property noGenome_;
+    store_t sketchVals_;
     std::map<sequence_id,genome_id> sid2gid_;
     taxonomy taxa_;
 };
