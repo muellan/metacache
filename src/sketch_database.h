@@ -101,11 +101,6 @@ public:
         everything, metadata_only
     };
 
-    enum class application_scenario {
-        build, query
-    };
-
-
 private:
     //-----------------------------------------------------
     /**
@@ -213,21 +208,18 @@ public:
 
 private:
     //-----------------------------------------------------
-    using store_t = hash_multimap<sketch_value,reference_pos,
-                                  std::hash<sketch_value>,
-                                  polymorphic_allocator<reference_pos>>;
+    using key_value_store = hash_multimap<sketch_value,reference_pos>;
 
 
 public:
     //-------------------------------------------------------------------
-    using bucket_size_type  = typename store_t::bucket_size_type;
+    using bucket_size_type  = typename key_value_store::bucket_size_type;
     using match_result_type = std::map<reference_pos,std::uint16_t>;
 
 
     //---------------------------------------------------------------
     explicit
-    sketch_database(sketcher sk = sketcher{},
-                    application_scenario app = application_scenario::build)
+    sketch_database(sketcher sk = sketcher{})
     :
         refSketcher_{std::move(sk)},
         querySketcher_{refSketcher_},
@@ -237,12 +229,17 @@ public:
         queryWindowStride_(genomeWindowStride_),
         maxRefsPerSketchVal_(1024),
         numSeq_(0),
-        memory_{make_memory_resource(app)},
         genomes_{},
-        sketchVals_{memory_.get()},
+        sketchVals_{},
         sid2gid_{},
         taxa_{}
     {}
+
+    sketch_database(const sketch_database&) = delete;
+    sketch_database(sketch_database&&)      = default;
+
+    sketch_database& operator = (const sketch_database&) = delete;
+    sketch_database& operator = (sketch_database&&)      = default;
 
 
     //---------------------------------------------------------------
@@ -677,16 +674,7 @@ public:
 
         if(what == scope::metadata_only) return;
 
-        //in case
-        auto mr = dynamic_cast<new_delete_resource*>(memory_.get());
-        sketchVals_.read(is,
-            [mr](std::size_t nkeys, std::size_t nvalues) {
-                if(mr) {
-                    std::cout << "new_delete_resource" << std::endl;
-                }
-                std::cout << "keys: " << nkeys
-                          << ", values: " << nvalues << std::endl;
-            });
+        sketchVals_.read(is);
     }
 
 
@@ -789,20 +777,6 @@ private:
 
 
     //---------------------------------------------------------------
-    std::unique_ptr<memory_resource>
-    make_memory_resource(application_scenario app) {
-        switch(app) {
-            case application_scenario::build: return
-                std::unique_ptr<memory_resource>(new new_delete_resource{});
-
-            case application_scenario::query: return
-                std::unique_ptr<memory_resource>(new new_delete_resource{});
-        }
-        return nullptr;
-    }
-
-    
-    //---------------------------------------------------------------
     sketcher refSketcher_;
     sketcher querySketcher_;
     size_t genomeWindowSize_;
@@ -811,9 +785,8 @@ private:
     size_t queryWindowStride_;
     size_t maxRefsPerSketchVal_;
     genome_id numSeq_;
-    std::unique_ptr<memory_resource> memory_;
     std::vector<genome_property> genomes_;
-    store_t sketchVals_;
+    key_value_store sketchVals_;
     std::map<sequence_id,genome_id> sid2gid_;
     taxonomy taxa_;
 };

@@ -34,10 +34,31 @@
 #include <type_traits>
 #include <memory>
 
-#include "memory.h"
+#include "chunk_allocator.h"
 
 
 namespace mc {
+
+/*****************************************************************************
+ *
+ * @brief helper template for allocator configuration
+ *
+ *****************************************************************************/
+template<class Alloc>
+struct allocator_config
+{
+    static void reserve(Alloc&, std::size_t) {}
+};
+
+template<class T>
+struct allocator_config<chunk_allocator<T>>
+{
+    static void reserve(chunk_allocator<T>& alloc, std::size_t n) {
+        alloc.reserve(n);
+    }
+};
+
+
 
 
 /*****************************************************************************
@@ -60,7 +81,7 @@ namespace mc {
 template<
     class Key, class ValueT,
     class Hash = std::hash<Key>,
-    class ValueAllocator = std::allocator<ValueT>,
+    class ValueAllocator = chunk_allocator<ValueT>,
     class BucketAllocator = std::allocator<Key>
 >
 class hash_multimap
@@ -68,7 +89,8 @@ class hash_multimap
 //    static_assert(std::is_pod<Key>::value,    "Key must be a POD type");
 //    static_assert(std::is_pod<ValueT>::value, "Value must be a POD type");
 
-    using value_alloc = std::allocator_traits<ValueAllocator>;
+    using value_alloc  = std::allocator_traits<ValueAllocator>;
+    using alloc_config = allocator_config<ValueAllocator>;
 
 public:
     //---------------------------------------------------------------
@@ -266,12 +288,13 @@ public:
     }
     //-----------------------------------------------------
     hash_multimap(const hasher& hash,
-                  const value_allocator& alloc = value_allocator{})
+                  const value_allocator& valloc = value_allocator{},
+                  const bucket_allocator& balloc = bucket_allocator{})
     :
         numKeys_(0), numValues_(0), maxLoadFactor_(0.80),
-        hash_{hash}, alloc_{alloc},
+        hash_{hash}, alloc_{valloc},
         mutables_{},
-        buckets_{}
+        buckets_{balloc}
     {
         buckets_.resize(5);
     }
@@ -373,13 +396,14 @@ public:
 //        std::cout << "\nREHASH to " << n << std::endl;
 
         //make temporary new map with our old allocator
-        hash_multimap newmap{alloc_};
+        hash_multimap newmap{};
         newmap.maxLoadFactor_ = maxLoadFactor_;
         //this might throw
         newmap.buckets_.resize(n);
 
         //move old bucket contents into new hash slots
         //this should use only noexcept operations
+        //note that the allocator on newmap won't be called
         for(auto& b : buckets_) {
             if(!b.empty()) {
                 newmap.replace(std::move(b));
@@ -590,9 +614,7 @@ public:
      * @param is:        input stream
      * @param memconfig: callback that can be used to configurate allocators
      */
-    template<class MemoryConfigurator>
-    void read(std::istream& is,
-              MemoryConfigurator&& memconfig = [](std::size_t,std::size_t){})
+    void read(std::istream& is)
     {
         static_assert(std::is_pod<ValueT>::value,
                       "hash_multimap::read requires ValueT to be a POD type.");
@@ -604,13 +626,13 @@ public:
         is.read(reinterpret_cast<char*>(&nvalues), sizeof(nvalues));
         if(nvalues < 1) return;
 
-        memconfig(nkeys, nvalues);
-
         //locks
         clear();
         rehash(typename store_t::size_type(10 + (1/max_load_factor() * nkeys)));
 
         std::lock_guard<std::mutex> lock(mutables_);
+
+        alloc_config::reserve(alloc_, nvalues);
 
         for(size_t i = 0; i < nkeys; ++i) {
             key_type key;
@@ -633,11 +655,9 @@ public:
 //            << "keys:        " << key_count() << " <> " << nkeys << '\n'
 //            << "values:      " << value_count() << " <> " << nvalues << '\n'
 //            << "buckets:     " << bucket_count() << '\n'
-//            << "bucket size: " << (8*sizeof(bucket(0))) << '\n'
-//            << "key size:    " << (8*sizeof(bucket(0).key())) << '\n'
-//            << "value size:  " << (8*sizeof(bucket(0)[0])) << '\n'
-//            << "gid size:    " << (8*sizeof(bucket(0)[0].gid)) << '\n'
-//            << "win size:    " << (8*sizeof(bucket(0)[0].win)) << '\n'
+//            << "bucket size: " << (8*sizeof(bucket(0))) << " bits\n"
+//            << "key size:    " << (8*sizeof(bucket(0).key())) << " bits\n"
+//            << "value size:  " << (8*sizeof(bucket(0)[0])) << " bits\n"
 //            << "addr0      : " << &bucket(0)[0] << '\n'
 //            << "addr1      : " << &bucket(0)[1] << '\n'
 //            << std::flush;
