@@ -8,7 +8,7 @@ MACROS   =
 #COMPILER     = nvcc
 COMPILER     = g++
 MPI_COMPILER = mpicxx
-DIALECT      = -std=c++14
+DIALECT      = -std=c++11
 WARNINGS     = -Wall -Wextra -Wpedantic
 
 REL_FLAGS   = $(INCLUDES) $(MACROS) $(DIALECT) -O3 $(WARNINGS)
