@@ -8,7 +8,7 @@ You need to specify one of the following modes:
 
     query       classify read sequences using pre-built database
     build       build new database from reference genomes
-    add         add reference genomes to existing database
+    add         add reference genomes and/or taxonomy to existing database
     info        show database and reference genome properties
     annotate    annotate sequences with taxonomic information 
 

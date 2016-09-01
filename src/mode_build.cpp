@@ -184,18 +184,20 @@ make_taxonomic_hierarchy(const std::string& taxNodesFile,
             is.ignore(std::numeric_limits<std::streamsize>::max(), '|');
             is >> rankName;
             is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
             //get taxon name
             auto it = taxonNames.find(taxonId);
-            auto taxonName = (it != taxonNames.end()) ? it->second : std::string("--");
-//            std::cout << taxonId << " " << taxonName << " (" << rank_name() << ")\n";
-
-            //replace parent ids with new ids according to mergers
-            auto mi = mergedTaxa.find(parentId);
-            if(mi != mergedTaxa.end()) parentId = mi->second;
-
+            auto taxonName = (it != taxonNames.end())
+                             ? it->second : std::string("--");
             if(taxonName.empty()) {
                 taxonName = "<" + std::to_string(taxonId) + ">";
             }
+
+            //replace ids with new ids according to mergers
+            auto mi = mergedTaxa.find(taxonId);
+            if(mi != mergedTaxa.end()) taxonId = mi->second;
+            mi = mergedTaxa.find(parentId);
+            if(mi != mergedTaxa.end()) parentId = mi->second;
 
             tax.emplace(taxonId, parentId, taxonName, rankName);
         }
