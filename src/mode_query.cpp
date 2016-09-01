@@ -160,34 +160,6 @@ struct query_param
 
 
 
-/*****************************************************************************
- *
- *
- *****************************************************************************/
-struct context
-{
-    context(const database& d, const query_param& p,
-            std::ostream& outs = std::cout,
-            std::ostream& logs = std::cout)
-    :
-        db(d), par(p), out(outs), log(logs)
-    {}
-
-    template<class Value>
-    inline friend const context&
-    operator << (const context& c, const Value& v) {
-        c.out << v;
-        return c;
-    }
-
-    const database& db;
-    const query_param& par;
-    std::ostream& out;
-    std::ostream& log;
-
-};
-
-
 
 /*****************************************************************************
  *
@@ -197,6 +169,8 @@ struct context
 query_param
 get_query_param(const args_parser& args)
 {
+    const query_param defaults;
+
     query_param param;
 
     //files
@@ -250,29 +224,29 @@ get_query_param(const args_parser& args)
     }
 
     //query sketching
-    param.sketchlen = args.get<int>("sketchlen", -1);
-    param.winlen    = args.get<int>("winlen", -1);
+    param.sketchlen = args.get<int>("sketchlen", defaults.sketchlen);
+    param.winlen    = args.get<int>("winlen", defaults.winlen);
     param.winstride = args.get<int>("winstride",
-                                    param.winlen > 0 ? param.winlen : -1);
+                                    param.winlen > 0 ? param.winlen : defaults.winstride);
 
     //query classification
-    param.hitsMin  = args.get<int>("hitmin", -1);
-    param.hitsDiff = args.get<float>("hitdiff", 0.5);
+    param.hitsMin  = args.get<int>("hitmin", defaults.hitsMin);
+    param.hitsDiff = args.get<float>("hitdiff", defaults.hitsDiff);
 
     //kmer counting
-    param.useCommonKmerCount = args.get<int>("kmercount", 0);
+    param.useCommonKmerCount = args.get<int>("kmercount", defaults.useCommonKmerCount);
     if(param.useCommonKmerCount < 0)
         param.useCommonKmerCount = 0;
     else if(param.useCommonKmerCount > 32)
         param.useCommonKmerCount = 32;
 
-    param.kmerCountMin  = args.get<float>("kcmin", 0.8);
-    param.kmerCountDiff = args.get<float>("kcdiff", 1.2f);
+    param.kmerCountMin  = args.get<float>("kcmin", defaults.kmerCountMin);
+    param.kmerCountDiff = args.get<float>("kcdiff", defaults.kmerCountDiff);
 
     //alignment
     param.useAlignment  = args.contains("align");
-    param.alignmentMin  = args.get<float>("alignmin", 0.9f);
-    param.alignmentDiff = args.get<float>("aligndiff", 1.1f);
+    param.alignmentMin  = args.get<float>("alignmin", defaults.alignmentMin);
+    param.alignmentDiff = args.get<float>("aligndiff", defaults.alignmentDiff);
     param.showAlignment = args.contains("showalign");
 
     //output formatting
@@ -311,11 +285,14 @@ get_query_param(const args_parser& args)
 
     param.showGroundTruth = args.contains("ground_truth");
 
-    param.insertSizeMax = args.get<std::size_t>("insertsize", 0);
+    param.insertSizeMax = args.get<std::size_t>("insertsize",
+                                                defaults.insertSizeMax);
 
     //database tuning parameters
-    param.maxLoadFactor = args.get<float>("max_load_fac", -1);
-    param.maxGenomesPerSketchVal = args.get<int>("max_genomes_per_sketch_value", -1);
+    param.maxLoadFactor = args.get<float>("max_load_fac", defaults.maxLoadFactor);
+
+    param.maxGenomesPerSketchVal = args.get<int>("max_genomes_per_sketch_value",
+                                                 defaults.maxGenomesPerSketchVal);
 
     return param;
 }

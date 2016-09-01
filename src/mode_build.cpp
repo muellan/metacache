@@ -51,7 +51,7 @@ struct build_param
     int winstride = 113;
 
     float maxLoadFactor = -1;           //< 0 : use database default
-    int maxGenomesPerSketchVal = 1024;
+    int maxGenomesPerSketchVal = 128;
 
     taxonomy_param taxonomy;
 
@@ -69,6 +69,8 @@ struct build_param
 build_param
 get_build_param(const args_parser& args)
 {
+    const build_param defaults;
+
     build_param param;
 
     param.dbfile = database_name(args);
@@ -77,13 +79,14 @@ get_build_param(const args_parser& args)
 
     param.showDetailedBuildInfo = args.contains("verbose");
 
-    param.kmerlen   = args.get<int>("kmerlen", args.get<int>("k", 16));
-    param.sketchlen = args.get<int>("sketchlen", args.get<int>("s", 16));
-    param.winlen    = args.get<int>("winlen", args.get<int>("w", 128));
-    param.winstride   = args.get<int>("winstride", param.winlen - param.kmerlen + 1);
+    param.kmerlen   = args.get<int>("kmerlen", args.get<int>("k", defaults.kmerlen));
+    param.sketchlen = args.get<int>("sketchlen", args.get<int>("s", defaults.sketchlen));
+    param.winlen    = args.get<int>("winlen", args.get<int>("w", defaults.winlen));
+    param.winstride = args.get<int>("winstride", param.winlen - param.kmerlen + 1);
 
     param.maxLoadFactor = args.get<float>("max_load_fac", -1);
-    param.maxGenomesPerSketchVal = args.get<int>("max_genomes_per_sketch_value", 1024);
+    param.maxGenomesPerSketchVal = args.get<int>("max_genomes_per_sketch_value",
+                                                 defaults.maxGenomesPerSketchVal);
 
     param.taxonomy = get_taxonomy_param(args);
 

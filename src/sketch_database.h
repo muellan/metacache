@@ -227,7 +227,7 @@ public:
         genomeWindowStride_(128 - querySketcher_.kmer_size()),
         queryWindowSize_(genomeWindowSize_),
         queryWindowStride_(genomeWindowStride_),
-        maxRefsPerSketchVal_(1024),
+        maxRefsPerSketchVal_(128),
         numSeq_(0),
         genomes_{},
         sketchVals_{},

@@ -740,14 +740,6 @@ private:
         //initial bucket index
         auto it = buckets_.begin() + (hash_(key) % buckets_.size());
 
-//        char i = 0;
-//        for(; i < 4 && it < buckets_.end(); ++it, ++i) {
-//            if(it->empty() || it->key() == key) return it;
-//        }
-//        for() {
-//
-//        }
-
         //find correct bucket by linear probing
         //start at current bucket
         for(; it < buckets_.end(); ++it) {

@@ -117,6 +117,7 @@ mapping_filenames(const args_parser& args)
 annotation_param
 get_annotation_param(const args_parser& args)
 {
+    const annotation_param defaults;
     annotation_param param;
 
     if(args.non_prefixed_count() < 2) {
@@ -142,12 +143,15 @@ get_annotation_param(const args_parser& args)
 
     param.infile = args.non_prefixed(2);
 
-    param.outfile = args.get<std::string>("out", "");
+    param.outfile = args.get<std::string>("out", defaults.outfile);
 
     param.mappingFiles = mapping_filenames(args);
 
-    param.fieldSeparator = args.get<std::string>("field_separator", " ");
-    param.valueSeparator = args.get<std::string>("value_separator", "|");
+    param.fieldSeparator = args.get<std::string>("field_separator",
+                                                 defaults.fieldSeparator);
+
+    param.valueSeparator = args.get<std::string>("value_separator",
+                                                 defaults.valueSeparator);
 
     if(args.contains("id=accver"))
         param.idtype = sequence_id_type::acc_ver;
