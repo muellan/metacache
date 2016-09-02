@@ -44,22 +44,24 @@ HEADERS = \
           src/timer.h
 
 SOURCES = \
-		  src/args_handling.cpp \
-		  src/cmdline_utility.cpp \
-		  src/filesys_utility.cpp \
-		  src/mode_annotate.cpp \
-		  src/mode_build.cpp \
-		  src/mode_help.cpp \
-		  src/mode_info.cpp \
-		  src/mode_query.cpp \
-		  src/sequence_io.cpp
-		  
+          src/main.cpp \
+          src/args_handling.cpp \
+          src/cmdline_utility.cpp \
+          src/filesys_utility.cpp \
+          src/mode_annotate.cpp \
+          src/mode_build.cpp \
+          src/mode_help.cpp \
+          src/mode_info.cpp \
+          src/mode_query.cpp \
+          src/sequence_io.cpp
+          
 TEST_HEADERS = \
-		  test/sketch_database_test.h
-		  
+          test/sketch_database_test.h
+          
 TEST_SOURCES = \
-		  test/hash_multimap_test.cpp \
-		  test/sketch_database_test.cpp
+          test\tests.cpp \
+          test/hash_multimap_test.cpp \
+          test/sketch_database_test.cpp
 
 
 #--------------------------------------------------------------------
@@ -93,7 +95,7 @@ release: $(REL_DIR) $(REL_ARTIFACT)
 
 debug: $(DBG_DIR) $(DBG_ARTIFACT)
 
-tests: release $(TEST_DIR) $(TEST_ARTIFACT)
+tests: $(TEST_DIR) $(TEST_ARTIFACT)
 
 all: release debug tests
 
@@ -111,8 +113,8 @@ clean :
 $(REL_DIR):
 	mkdir $(REL_DIR) 
 
-$(REL_ARTIFACT): $(REL_DIR)/main.o $(REL_OBJS)
-	$(COMPILER) -o $(REL_ARTIFACT) $(REL_DIR)/main.o $(REL_OBJS) $(REL_LDFLAGS)
+$(REL_ARTIFACT): $(REL_OBJS)
+	$(COMPILER) -o $(REL_ARTIFACT) $(REL_OBJS) $(REL_LDFLAGS)
 
 $(REL_DIR)/main.o : src/main.cpp src/modes.h 
 	$(REL_COMPILE)
@@ -152,8 +154,8 @@ $(REL_DIR)/args_handling.o : src/args_handling.cpp src/args_handling.h src/args_
 $(DBG_DIR):
 	mkdir $(DBG_DIR) 
 
-$(DBG_ARTIFACT): $(DBG_DIR)/main.o $(DBG_OBJS)
-	$(COMPILER) -o $(DBG_ARTIFACT) $(DBG_DIR)/main.o $(DBG_OBJS) $(DBG_LDFLAGS)
+$(DBG_ARTIFACT): $(DBG_OBJS)
+	$(COMPILER) -o $(DBG_ARTIFACT) $(DBG_OBJS) $(DBG_LDFLAGS)
 
 $(DBG_DIR)/main.o : src/main.cpp src/modes.h 
 	$(DBG_COMPILE)
@@ -193,8 +195,8 @@ $(DBG_DIR)/args_handling.o : src/args_handling.cpp src/args_handling.h src/args_
 $(TEST_DIR):
 	mkdir $(TEST_DIR) 
 
-$(TEST_ARTIFACT): $(TEST_DIR)/tests.o $(TEST_OBJS) $(REL_OBJS)
-	$(COMPILER) -o $(TEST_ARTIFACT) $(TEST_DIR)/tests.o $(TEST_OBJS) $(REL_OBJS) $(TEST_LDFLAGS)
+$(TEST_ARTIFACT): $(TEST_OBJS)
+	$(COMPILER) -o $(TEST_ARTIFACT) $(TEST_OBJS) $(TEST_LDFLAGS)
 
 # test specific sources
 $(TEST_DIR)/tests.o : test/tests.cpp $(TEST_HEADERS)
