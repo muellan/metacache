@@ -227,7 +227,7 @@ public:
         genomeWindowStride_(128 - querySketcher_.kmer_size()),
         queryWindowSize_(genomeWindowSize_),
         queryWindowStride_(genomeWindowStride_),
-        maxRefsPerSketchVal_(128),
+        maxRefsPerSketchVal_(sketchVals_.max_bucket_size()-1),
         numSeq_(0),
         genomes_{},
         sketchVals_{},
@@ -304,11 +304,15 @@ public:
     void max_genomes_per_sketch_value(bucket_size_type n)
     {
         if(n < 1) n = 1;
-        maxRefsPerSketchVal_ = n;
-
-        for(auto i = sketchVals_.begin(), e = sketchVals_.end(); i != e; ++i) {
-            if(i->size() > n) sketchVals_.limit(i, n);
+        if(n >= sketchVals_.max_bucket_size()) {
+            n = sketchVals_.max_bucket_size() - 1;
         }
+        else if(n < maxRefsPerSketchVal_) {
+            for(auto i = sketchVals_.begin(), e = sketchVals_.end(); i != e; ++i) {
+                if(i->size() > n) sketchVals_.limit(i, n);
+            }
+        }
+        maxRefsPerSketchVal_ = n;
     }
     //-----------------------------------------------------
     bucket_size_type max_genomes_per_sketch_value() const noexcept {

@@ -82,7 +82,8 @@ template<
     class Key, class ValueT,
     class Hash = std::hash<Key>,
     class ValueAllocator = chunk_allocator<ValueT>,
-    class BucketAllocator = std::allocator<Key>
+    class BucketAllocator = std::allocator<Key>,
+    class BucketSizeT = std::uint8_t
 >
 class hash_multimap
 {
@@ -94,10 +95,20 @@ class hash_multimap
 
 public:
     //---------------------------------------------------------------
-    using value_type      = ValueT;
-    using key_type        = Key;
-    using hasher          = Hash;
-    using value_allocator = ValueAllocator;
+    using value_type       = ValueT;
+    using mapped_type      = ValueT;
+    using key_type         = Key;
+    using hasher           = Hash;
+    using value_allocator  = ValueAllocator;
+    using bucket_size_type = BucketSizeT;
+
+
+    //---------------------------------------------------------------
+    static constexpr std::size_t
+    max_bucket_size() noexcept {
+        return std::numeric_limits<bucket_size_type>::max() - 1;
+    }
+
 
     //-----------------------------------------------------
     /**
@@ -110,7 +121,7 @@ public:
         friend class hash_multimap;
 
     public:
-        using size_type        = std::uint16_t;
+        using size_type        = bucket_size_type;
         using key_type         = hash_multimap::key_type;
         using value_type       = hash_multimap::value_type;
         using reference        = value_type&;
@@ -204,12 +215,12 @@ public:
         void grow_by(size_type n, value_allocator& alloc) {
             if(values_) {
                 auto nsize = std::uint64_t(size_) + n;
-                if(nsize > 65535) throw std::runtime_error{
+                if(nsize > max_bucket_size()) throw std::runtime_error{
                     "hash_multimap: bucket size exceeded maximum"};
 
                 if((size_ + n) > capacity_) {
                     auto ncap = std::uint64_t(size_ * 1.3 + n);
-                    if(ncap > 65535) ncap = 65535;
+                    if(ncap > max_bucket_size()) ncap = max_bucket_size();
                     //make new array
                     auto nvals = value_alloc::allocate(alloc, ncap);
                     if(!std::is_pod<value_type>::value) {
@@ -247,10 +258,10 @@ public:
         }
 
         //-----------------------------------------------------
-        value_type* values_;  //64 bits
-        key_type key_;        //usually only 32 bits
-        size_type size_;      //16 bits
-        size_type capacity_;  //16 bits
+        value_type* values_;  //64 bits on 64-bit platforms
+        key_type key_;        //usually: 32 bits
+        size_type size_;      //default: 8 bits
+        size_type capacity_;  //default: 8 bits
     };
 
 
@@ -266,7 +277,6 @@ private:
 public:
     //-----------------------------------------------------
     using size_type        = typename store_t::size_type;
-    using bucket_size_type = typename bucket_type::size_type;
     using reference        = bucket_type&;
     using const_reference  = const bucket_type&;
     //-----------------------------------------------------
