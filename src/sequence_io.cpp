@@ -36,12 +36,12 @@ namespace mc {
 //-------------------------------------------------------------------
 constexpr const char* accession_prefix[]
 {
-    "AC_", "AE", "AJ", "AL", "AM", "AP", "AY",
+    "NC_", "NG_", "NS_", "NT_", "NW_", "NZ_", "GCF_", "AC_",
+    "AE", "AJ", "AL", "AM", "AP", "AY",
     "BA", "BK", "BX",
     "CP", "CR", "CT", "CU",
     "FM", "FN", "FO", "FP", "FQ", "FR",
-    "GCF_", "HE", "JH",
-    "NC_", "NG_", "NS_", "NT_", "NW_", "NZ_"
+    "HE", "JH"
 };
 
 
