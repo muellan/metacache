@@ -20,12 +20,13 @@
 
 set -u  # Protect against uninitialized vars.
 set -e  # Stop on error
- 
+
 FTPURL="ftp://ftp.ncbi.nih.gov/genomes"
 
 
 function download_specific_lib {
   DBASE=$1
+  FILTER=$2
 
   mkdir -p $DBASE
   cd $DBASE
@@ -35,22 +36,31 @@ function download_specific_lib {
     echo "Downloading NCBI $DBASE."
 
     rm -f assembly_summary.txt
-    rm -f ftpdirpaths
-    rm -f ftpfilepaths
+    rm -f ftpdirpaths*
+    rm -f ftpfilepaths*
 
     wget $FTPURL/$DBASE/assembly_summary.txt
 
     if [ -e "assembly_summary.txt" ]; then
 
-      awk -F "\t" '$12=="Complete Genome" && $11=="latest"{print $20}' assembly_summary.txt > ftpdirpaths
+      if [ $FILTER -ge 0 ]; then
+        #only complete genomes
+        awk -F "\t" '$12=="Complete Genome" && $11=="latest"{print $20}' assembly_summary.txt > ftpdirpaths1
+        touch ftpdirpaths2
+      fi
+      if [ $FILTER -ge 1 ]; then
+        awk -F "\t" '$12=="Contig" && $11=="latest"{print $20}' assembly_summary.txt > ftpdirpaths2
+      fi
+
+      cat ftpdirpaths1 ftpdirpaths2 > ftpdirpaths
       awk 'BEGIN{FS=OFS="/";filesuffix="genomic.fna.gz"}{ftpdir=$0;asm=$6;file=asm"_"filesuffix;print ftpdir,file}' ftpdirpaths > ftpfilepaths
       wget -nc -i ftpfilepaths
 
       echo -n "Download complete. Unpacking files ... "
       gunzip *.gz
 
-      rm -f ftpdirpaths
-      rm -f ftpfilepaths
+      rm -f ftpdirpaths*
+      rm -f ftpfilepaths*
 
       touch complete.flag
       
@@ -68,20 +78,34 @@ function download_specific_lib {
 
 
 if [ $# -lt 2 ]; then
-  echo "Usage: $0 (refseq|genbank)/<sublibrary> <target directory>"
+  echo "Usage: $0 (refseq|genbank)/<sublibrary> <target directory> [contigs]"
   echo "    Example 1: $0 refseq/bacteria directory1"
+  echo ""
   echo "    Example 2: $0 genbank/bacteria directory2"
+  echo ""
   echo "    Example 3: $0 refseq/vertebrate_mammalian/Homo\\ Sapiens directory3"
+  echo ""
+  echo "    Example 4: Bacteria from RefSeq: full genomes and all contigs:"
+  echo "               $0 refseq/bacteria directory1 contigs"
   exit
 fi
 
 DATABASE=$1
 TARGETDIR=$2
+FILTER=0
+if [ $# -gt 2 ]; then
+  if [ "$3" == "contigs" ]; then
+    FILTER=1
+  else
+    echo "unknown filter option $3"
+    exit
+  fi
+fi
 
 
 mkdir -p $TARGETDIR
 cd $TARGETDIR
 
-download_specific_lib $DATABASE
+download_specific_lib $DATABASE $FILTER
 
 cd ..
