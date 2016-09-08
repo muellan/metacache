@@ -36,12 +36,12 @@ namespace mc {
 //-------------------------------------------------------------------
 constexpr const char* accession_prefix[]
 {
-    "AC_", "AE", "AJ", "AL", "AM", "AP", "AY",
+    "NC_", "NG_", "NS_", "NT_", "NW_", "NZ_", "AC_", "GCF_",
+    "AE", "AJ", "AL", "AM", "AP", "AY",
     "BA", "BK", "BX",
     "CP", "CR", "CT", "CU",
     "FM", "FN", "FO", "FP", "FQ", "FR",
-    "GCF_", "HE", "JH",
-    "NC_", "NG_", "NS_", "NT_", "NW_", "NZ_"
+    "HE", "JH"
 };
 
 
@@ -67,6 +67,8 @@ fasta_reader::fasta_reader(std::string filename):
 sequence_reader::result_type
 fasta_reader::next()
 {
+    std::lock_guard<std::mutex> lock(mutables_);
+
     result_type res;
 
     if(!valid_ || !file_.good()) {
@@ -137,6 +139,8 @@ fastq_reader::fastq_reader(std::string filename):
 sequence_reader::result_type
 fastq_reader::next()
 {
+    std::lock_guard<std::mutex> lock(mutables_);
+
     result_type res;
 
     if(!valid_ || !file_.good()) {
@@ -196,6 +200,8 @@ sequence_header_reader::sequence_header_reader(std::string filename):
 sequence_reader::result_type
 sequence_header_reader::next()
 {
+    std::lock_guard<std::mutex> lock(mutables_);
+
     result_type res;
 
     if(!valid_ || !file_.good()) {

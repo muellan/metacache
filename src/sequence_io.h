@@ -32,6 +32,7 @@
 #include <string>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 
 #include "io_error.h"
 
@@ -79,6 +80,7 @@ public:
     bool has_next() const noexcept override { return valid_; }
 
 private:
+    std::mutex mutables_;
     std::ifstream file_;
     std::string linebuffer_;
     bool valid_;
@@ -104,6 +106,7 @@ public:
     bool has_next() const noexcept override { return valid_; }
 
 private:
+    std::mutex mutables_;
     std::ifstream file_;
     bool valid_;
 };
@@ -128,6 +131,7 @@ public:
     bool has_next() const noexcept override { return valid_; }
 
 private:
+    std::mutex mutables_;
     std::ifstream file_;
     bool valid_;
 };
