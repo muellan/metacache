@@ -30,6 +30,18 @@
 
 namespace mc {
 
+/*****************************************************************************
+ *
+ *
+ *****************************************************************************/
+void show_database_statistics(const args_parser& args)
+{
+    auto dbfilename = database_name(args);
+    auto db = make_database<database>(dbfilename);
+    print_statistics(db);
+}
+
+
 
 /*****************************************************************************
  *
@@ -141,7 +153,7 @@ void show_lineage_table(const args_parser& args)
  * @brief
  *
  *****************************************************************************/
-void show_all_info(const args_parser& args)
+void show_all_meta_info(const args_parser& args)
 {
     auto dbfilename = database_name(args);
 
@@ -149,7 +161,7 @@ void show_all_info(const args_parser& args)
     if(db.genome_count() < 1) return;
 
     std::cout << "Properties of database " << dbfilename << ":\n";
-    print_info(db);
+    print_statistics(db);
 
     std::cout << "Reference sequences in database:\n";
     for(genome_id gid = 0; gid < db.genome_count(); ++gid) {
@@ -205,7 +217,9 @@ void show_rank_statistics(const args_parser& args)
 void main_mode_info(const args_parser& args)
 {
     if(args.non_prefixed_count() > 2) {
-        if(args.non_prefixed(2) == "lineages") {
+        if(args.non_prefixed(2) == "statistics") {
+            show_database_statistics(args);
+        } else if(args.non_prefixed(2) == "lineages") {
             show_lineage_table(args);
         }
         else if(args.non_prefixed(2) == "rank" && args.non_prefixed_count() > 3) {
@@ -216,7 +230,7 @@ void main_mode_info(const args_parser& args)
         }
     }
     else {
-        show_all_info(args);
+        show_all_meta_info(args);
     }
 }
 

@@ -1011,7 +1011,7 @@ write_database(const sketch_database<S,K>& db, const std::string& filename)
  *
  *****************************************************************************/
 template<class S, class K>
-void print_info(const sketch_database<S,K>& db)
+void print_statistics(const sketch_database<S,K>& db)
 {
     using genome_id = typename sketch_database<S,K>::genome_id;
     int numRankedGenomes = 0;

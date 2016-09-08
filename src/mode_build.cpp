@@ -685,7 +685,7 @@ void main_mode_build(const args_parser& args)
 
     try_to_rank_unranked_genomes(db, param);
 
-    print_info(db);
+    print_statistics(db);
     write_database(db, param.dbfile);
 }
 
@@ -733,7 +733,7 @@ void main_mode_build_add(const args_parser& args)
 
     try_to_rank_unranked_genomes(db, param);
 
-    print_info(db);
+    print_statistics(db);
     write_database(db, param.dbfile);
 }
 
