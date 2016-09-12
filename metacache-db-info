@@ -1,34 +1,31 @@
 #!/bin/bash
 
-DBSUFFIX=_w8192_k16_s16.db
-if [ $# -ge 1 ]; then
-  DBSUFFIX=$1
+if [ $# -lt 1 ]; then
+  echo "usage: $0 <database filename>"
+  exit
 fi
 
-for i in 1 2 3 4; do
-  DB=G${i}${DBSUFFIX}
-  echo $DB
-
-  if [ -e $DB ]; then
-    ./metacache info $DB lineages | tail -n+2 > G${i}_lineages.txt
-
-    RANKSTAT=G${i}_ranks.txt
-    rm -f $RANKSTAT
-
-    for r in subspecies species genus family order class phylum kingdom domain; do
-      RESFILE=G${i}_rank_${r}.txt
-
-      ./metacache info $DB rank ${r}  | tail -n+3 > $RESFILE
-
-      no=$(cat $RESFILE | head -n 1 | grep -e -- | sed 's/--\s*//g' )
-      nr=$(cat $RESFILE | wc -l)
-      nr=$(( $nr - 1))
-
-      echo "$r: $nr    none: $no" >> $RANKSTAT
-    done
-
-  fi
-done
-  
+DB=$1
 
 
+if [ -e $DB ]; then
+  echo "collecting statistics for database $DB"
+
+  ./metacache info $DB lineages | tail -n+2 > ${DB}_lineages.txt
+
+  RANKSTAT=${DB}_ranks.txt
+  rm -f $RANKSTAT
+
+  for r in subspecies species genus family order class phylum kingdom domain; do
+    RESFILE=${DB}_rank_${r}.txt
+
+    ./metacache info $DB rank ${r}  | tail -n+3 > $RESFILE
+
+    no=$(cat $RESFILE | head -n 1 | grep -e -- | sed 's/--\s*//g' )
+    nr=$(cat $RESFILE | wc -l)
+    nr=$(( $nr - 1))
+
+    echo "$r: $nr    none: $no" >> $RANKSTAT
+  done
+
+fi

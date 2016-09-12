@@ -83,9 +83,7 @@ if [ $# -lt 2 ]; then
   echo ""
   echo "    Example 2: $0 genbank/bacteria directory2"
   echo ""
-  echo "    Example 3: $0 refseq/vertebrate_mammalian/Homo\\ Sapiens directory3"
-  echo ""
-  echo "    Example 4: Bacteria from RefSeq: full genomes and all contigs:"
+  echo "    Example 3: Bacteria from RefSeq: full genomes and all contigs:"
   echo "               $0 refseq/bacteria directory1 contigs"
   exit
 fi

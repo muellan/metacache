@@ -5,12 +5,12 @@ SYNOPSIS:
 
 
 SYNTAX:
-    metacache info <database name> [{genome id} | lineages | rank <rankname>]
+    metacache info <database name> [{sequence id} | lineages | rank <name> | statistics]
 
 
 SUB-MODES:
-    1. info <database> {genome id}
-        list all available meta information for reference genomes
+    1. info <database> {sequence id}
+        list all available meta information for a specific reference genome
         in the database
 
 
@@ -20,6 +20,10 @@ SUB-MODES:
 
     3. info <database> rank <rankname>
         list distribution of the number of sequences on rank <rankname>
+
+
+    4. info <database> statistics
+        print database statistics i.e. hash table properties
 
 
 EXAMPLES:
