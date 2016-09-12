@@ -246,10 +246,10 @@ num_kmers(size_t k, size_t sequenceLen)
 /*****************************************************************************
  * @brief
  *****************************************************************************/
-template<class RandomAccesIterator, class Consumer>
+template<class RAIterator, class Consumer>
 inline void
-for_each_window(const size_t len, const size_t step,
-                RandomAccesIterator first, RandomAccesIterator last,
+for_each_window(RAIterator first, RAIterator last,
+                const size_t len, const size_t step,
                 Consumer&& consume)
 {
     for(auto ssend = first + len; ssend <= last; first += step, ssend += step) {
@@ -265,14 +265,14 @@ for_each_window(const size_t len, const size_t step,
 //-------------------------------------------------------------------
 template<class RAInputRange, class Consumer>
 inline void
-for_each_window(const size_t len, const size_t step,
-              RAInputRange range, Consumer&& consume)
+for_each_window(RAInputRange range,
+                const size_t len, const size_t step,
+                Consumer&& consume)
 {
     using std::begin;
     using std::end;
-    for_each_window(len, step,
-                   begin(range), end(range),
-                   std::forward<Consumer>(consume));
+    for_each_window(begin(range), end(range), len, step,
+                    std::forward<Consumer>(consume));
 }
 
 

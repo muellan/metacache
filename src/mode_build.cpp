@@ -194,6 +194,7 @@ make_taxonomic_hierarchy(const std::string& taxNodesFile,
             }
 
             //replace ids with new ids according to mergers
+            //TODO this is stupid, handle mergers properly
             auto mi = mergedTaxa.find(taxonId);
             if(mi != mergedTaxa.end()) taxonId = mi->second;
             mi = mergedTaxa.find(parentId);
@@ -422,15 +423,15 @@ void rank_genomes_post_process(database& db,
         //genome in database?
         //accession.version is the default
         auto gid = db.genome_id_of_sequence(accver);
-        if(gid >= db.genome_count()) {
+        if(!db.is_valid(gid)) {
             gid = db.genome_id_of_sequence(acc);
-            if(gid >= db.genome_count()) {
+            if(!db.is_valid(gid)) {
                 gid = db.genome_id_of_sequence(gi);
             }
         }
 
         //if in database then map to taxon
-        if(gid < db.genome_count()) {
+        if(db.is_valid(gid)) {
             auto it = gids.find(gid);
             if(it != gids.end()) {
                 db.rank_genome(gid, taxid);
@@ -685,7 +686,7 @@ void main_mode_build(const args_parser& args)
 
     try_to_rank_unranked_genomes(db, param);
 
-    print_info(db);
+    print_statistics(db);
     write_database(db, param.dbfile);
 }
 
@@ -733,7 +734,7 @@ void main_mode_build_add(const args_parser& args)
 
     try_to_rank_unranked_genomes(db, param);
 
-    print_info(db);
+    print_statistics(db);
     write_database(db, param.dbfile);
 }
 

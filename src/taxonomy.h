@@ -32,6 +32,7 @@
 #include <iostream>
 
 #include "confusion.h"
+#include "io_serialize.h"
 
 
 namespace mc {
@@ -49,7 +50,7 @@ public:
     using taxon_id = std::uint64_t;
 
     //-----------------------------------------------------
-    enum class taxon_rank {
+    enum class taxon_rank : std::uint16_t {
                                             Sequence,
 //                                            Strain,
 //                               subForm,     Form,
@@ -65,7 +66,15 @@ public:
                                             Domain,
         root,
         none
+
     };
+    inline friend void write_binary(std::ostream& os, taxon_rank r) {
+        write_binary(os, std::uint16_t(r));
+    }
+    inline friend void read_binary(std::istream& is, taxon_rank& r) {
+        read_binary(is, r);
+    }
+
     //---------------------------------------------------------------
     static constexpr int num_ranks = static_cast<int>(taxon_rank::none);
 
@@ -272,26 +281,21 @@ public:
         }
 
         //-----------------------------------------------------
-        void read(std::istream& is) {
-            is.read(reinterpret_cast<char*>(&id), sizeof(id));
-            is.read(reinterpret_cast<char*>(&parent), sizeof(parent));
-            is.read(reinterpret_cast<char*>(&rank), sizeof(rank));
-            //name
-            std::size_t l = 0;
-            is.read(reinterpret_cast<char*>(&l), sizeof(l));
-            name.resize(l);
-            is.read(reinterpret_cast<char*>(&(*name.begin())), l);
+        friend
+        void read_binary(std::istream& is, taxon& t) {
+            read_binary(is, t.id);
+            read_binary(is, t.parent);
+            read_binary(is, t.rank);
+            read_binary(is, t.name);
         }
 
         //-----------------------------------------------------
-        void write(std::ostream& os) const {
-            os.write(reinterpret_cast<const char*>(&id), sizeof(id));
-            os.write(reinterpret_cast<const char*>(&parent), sizeof(parent));
-            os.write(reinterpret_cast<const char*>(&rank), sizeof(rank));
-            //name
-            std::size_t l = name.size();
-            os.write(reinterpret_cast<const char*>(&l), sizeof(l));
-            os.write(name.c_str(), l);
+        friend
+        void write_binary(std::ostream& os, const taxon& t) {
+            write_binary(os, t.id);
+            write_binary(os, t.parent);
+            write_binary(os, t.rank);
+            write_binary(os, t.name);
         }
 
         //-----------------------------------------------------
@@ -517,30 +521,27 @@ public:
 
 
     //---------------------------------------------------------------
-    void
-    read(std::istream& is)
+    friend void
+    read_binary(std::istream& is, taxonomy& tax)
     {
-        taxa_.clear();
-        std::size_t nt = 0;
-        is.read(reinterpret_cast<char*>(&nt), sizeof(nt));
-
-        for(std::size_t i = 0; i < nt; ++i) {
+        tax.taxa_.clear();
+        std::uint64_t nt = 0;
+        read_binary(is, nt);
+        for(std::uint64_t i = 0; i < nt; ++i) {
             taxon t;
-            t.read(is);
-            taxa_.insert(std::move(t));
+            read_binary(is, t);
+            tax.taxa_.insert(std::move(t));
         }
     }
 
 
     //---------------------------------------------------------------
-    void
-    write(std::ostream& os) const
+    friend void
+    write_binary(std::ostream& os, const taxonomy& tax)
     {
-        auto nt = taxa_.size();
-        os.write(reinterpret_cast<const char*>(&nt), sizeof(nt));
-
-        for(const auto& t : taxa_) {
-           t.write(os);
+        write_binary(os, std::uint64_t(tax.taxa_.size()));
+        for(const auto& t : tax.taxa_) {
+           write_binary(os, t);
         }
     }
 

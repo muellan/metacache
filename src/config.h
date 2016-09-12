@@ -3,7 +3,7 @@
 
 
 #include "sketch_database.h"
-#include "min_hasher.h"
+#include "dna_hasher.h"
 
 
 namespace mc {

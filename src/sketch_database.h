@@ -42,12 +42,13 @@
 #include "stat_moments.h"
 #include "taxonomy.h"
 #include "hash_multimap.h"
-#include "timer.h"
 
 
 namespace mc {
 
-#define METACACHE_DB_VERSION 20160606
+#define METACACHE_DB_VERSION 20160912
+
+
 
 
 /*****************************************************************************
@@ -56,7 +57,7 @@ namespace mc {
  *
  * @details
  *   terminology:
- *   genome      reference sequence whose sketches are stored in the DB
+ *   (genome)      reference sequence whose sketches are stored in the DB
  *
  *   query       sequence (usually short reads) that shall be classified
  *               (ideally a slightly modified version of a genome's sub-sequence)
@@ -94,7 +95,7 @@ public:
     //---------------------------------------------------------------
     struct sequence_origin {
         std::string filename = "";
-        std::size_t index = 0;  //if file contains more than one sequence
+        std::uint32_t index = 0;  //if file contains more than one sequence
     };
 
     enum class scope {
@@ -122,60 +123,24 @@ private:
             origin{std::move(origin)}
         {}
 
-        void read(std::istream& is) {
-            //id
-            std::string::size_type l = 0;
-            is.read(reinterpret_cast<char*>(&l), sizeof(l));
-            id.clear();
-            id.resize(l);
-            is.read(reinterpret_cast<char*>(&(*id.begin())), l);
-            //tax id
-            is.read(reinterpret_cast<char*>(&taxonId), sizeof(taxonId));
-            //ranked lineage
-            for(auto& x : rankedLineage) {
-                is.read(reinterpret_cast<char*>(&x), sizeof(x));
-            }
-            //full lineage
-            std::size_t linSize = 0;
-            is.read(reinterpret_cast<char*>(&linSize), sizeof(linSize));
-            fullLineage.clear();
-            fullLineage.resize(linSize);
-            for(auto& x : fullLineage) {
-                is.read(reinterpret_cast<char*>(&x), sizeof(x));
-            }
-            //sequence filename
-            l = 0;
-            is.read(reinterpret_cast<char*>(&l), sizeof(l));
-            origin.filename.clear();
-            origin.filename.resize(l);
-            is.read(reinterpret_cast<char*>(&(*origin.filename.begin())), l);
-            //index in file
-            is.read(reinterpret_cast<char*>(&origin.index), sizeof(origin.index));
+        friend void
+        read_binary(std::istream& is, genome_property& p) {
+            read_binary(is, p.id);
+            read_binary(is, p.taxonId);
+            read_binary(is, p.rankedLineage);
+            read_binary(is, p.fullLineage);
+            read_binary(is, p.origin.filename);
+            read_binary(is, p.origin.index);
         }
 
-        void write(std::ostream& os) const {
-            //id
-            auto l = id.size();
-            os.write(reinterpret_cast<const char*>(&l), sizeof(l));
-            os.write(id.c_str(), id.size());
-            //tax id
-            os.write(reinterpret_cast<const char*>(&taxonId), sizeof(taxonId));
-            //ranked lineage
-            for(auto x : rankedLineage) {
-                os.write(reinterpret_cast<char*>(&x), sizeof(x));
-            }
-            //full lineage
-            std::size_t linSize = fullLineage.size();
-            os.write(reinterpret_cast<char*>(&linSize), sizeof(linSize));
-            for(auto x : fullLineage) {
-                os.write(reinterpret_cast<char*>(&x), sizeof(x));
-            }
-            //sequence filename
-            l = origin.filename.size();
-            os.write(reinterpret_cast<const char*>(&l), sizeof(l));
-            os.write(origin.filename.c_str(), origin.filename.size());
-            //index in file
-            os.write(reinterpret_cast<const char*>(&origin.index), sizeof(origin.index));
+        friend void
+        write_binary(std::ostream& os, const genome_property& p) {
+            write_binary(os, p.id);
+            write_binary(os, p.taxonId);
+            write_binary(os, p.rankedLineage);
+            write_binary(os, p.fullLineage);
+            write_binary(os, p.origin.filename);
+            write_binary(os, p.origin.index);
         }
 
         std::string id;
@@ -194,6 +159,11 @@ public:
     //-----------------------------------------------------
     struct reference_pos
     {
+        constexpr
+        reference_pos(genome_id g = 0, window_id w = 0) noexcept :
+            gid{g}, win{w}
+        {}
+
         genome_id gid;
         window_id win;
 
@@ -203,34 +173,58 @@ public:
             if(a.gid > b.gid) return false;
             return (a.win < b.win);
         }
+
+        friend void read_binary(std::istream& is, reference_pos& p) {
+            read_binary(is, p.gid);
+            read_binary(is, p.win);
+        }
+        friend void write_binary(std::ostream& os, const reference_pos& p) {
+            write_binary(os, p.gid);
+            write_binary(os, p.win);
+        }
     };
 
 
 private:
     //-----------------------------------------------------
-    using key_value_store = hash_multimap<sketch_value,reference_pos>;
+    using feature_store = hash_multimap<sketch_value,reference_pos>;
 
 
 public:
     //-------------------------------------------------------------------
-    using bucket_size_type  = typename key_value_store::bucket_size_type;
+    using bucket_size_type  = typename feature_store::bucket_size_type;
     using match_result_type = std::map<reference_pos,std::uint16_t>;
 
 
     //---------------------------------------------------------------
     explicit
-    sketch_database(sketcher sk = sketcher{})
-    :
-        refSketcher_{std::move(sk)},
-        querySketcher_{refSketcher_},
+    sketch_database(sketcher genomeSketcher = sketcher{}) :
+        genomeSketcher_{std::move(genomeSketcher)},
+        querySketcher_{genomeSketcher_},
         genomeWindowSize_(128),
-        genomeWindowStride_(128 - querySketcher_.kmer_size()),
+        genomeWindowStride_(128-15),
         queryWindowSize_(genomeWindowSize_),
         queryWindowStride_(genomeWindowStride_),
-        maxRefsPerSketchVal_(sketchVals_.max_bucket_size()-1),
-        numSeq_(0),
+        maxRefsPerSketchVal_(features_.max_bucket_size()-1),
+        nextGenomeId_(0),
         genomes_{},
-        sketchVals_{},
+        features_{},
+        sid2gid_{},
+        taxa_{}
+    {}
+    //-----------------------------------------------------
+    explicit
+    sketch_database(sketcher genomeSketcher, sketcher querySketcher) :
+        genomeSketcher_{std::move(genomeSketcher)},
+        querySketcher_{std::move(querySketcher)},
+        genomeWindowSize_(128),
+        genomeWindowStride_(128-15),
+        queryWindowSize_(genomeWindowSize_),
+        queryWindowStride_(genomeWindowStride_),
+        maxRefsPerSketchVal_(features_.max_bucket_size()-1),
+        nextGenomeId_(0),
+        genomes_{},
+        features_{},
         sid2gid_{},
         taxa_{}
     {}
@@ -243,14 +237,28 @@ public:
 
 
     //---------------------------------------------------------------
-    size_t kmer_size() const noexcept {
-        return refSketcher_.kmer_size();
+    const sketcher&
+    genome_sketcher() const noexcept {
+        return genomeSketcher_;
+    }
+    //-----------------------------------------------------
+    const sketcher&
+    query_sketcher() const noexcept {
+        return querySketcher_;
+    }
+    //-----------------------------------------------------
+    void
+    query_sketcher(const sketcher& s) {
+        querySketcher_ = s;
+    }
+    void
+    query_sketcher(sketcher&& s) {
+        querySketcher_ = std::move(s);
     }
 
 
     //---------------------------------------------------------------
     void genome_window_size(std::size_t s) {
-        if(s < 2*kmer_size()) s = 2*kmer_size();
         genomeWindowSize_ = s;
     }
     //-----------------------------------------------------
@@ -266,15 +274,10 @@ public:
     size_t genome_window_stride() const noexcept {
         return genomeWindowStride_;
     }
-    //---------------------------------------------------------------
-    size_t genome_sketch_size() const noexcept {
-        return refSketcher_.sketch_size();
-    }
 
 
     //---------------------------------------------------------------
     void query_window_size(std::size_t s) {
-        if(s < 2*kmer_size()) s = 2*kmer_size();
         queryWindowSize_ = s;
     }
     //-----------------------------------------------------
@@ -290,26 +293,18 @@ public:
     size_t query_window_stride() const noexcept {
         return queryWindowStride_;
     }
-    //---------------------------------------------------------------
-    size_t query_sketch_size() const noexcept {
-        return querySketcher_.sketch_size();
-    }
-    //---------------------------------------------------------------
-    void query_sketch_size(size_t s) {
-        querySketcher_.sketch_size(s);
-    }
 
 
     //---------------------------------------------------------------
     void max_genomes_per_sketch_value(bucket_size_type n)
     {
         if(n < 1) n = 1;
-        if(n >= sketchVals_.max_bucket_size()) {
-            n = sketchVals_.max_bucket_size() - 1;
+        if(n >= features_.max_bucket_size()) {
+            n = features_.max_bucket_size() - 1;
         }
         else if(n < maxRefsPerSketchVal_) {
-            for(auto i = sketchVals_.begin(), e = sketchVals_.end(); i != e; ++i) {
-                if(i->size() > n) sketchVals_.limit(i, n);
+            for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
+                if(i->size() > n) features_.shrink(i, n);
             }
         }
         maxRefsPerSketchVal_ = n;
@@ -322,8 +317,8 @@ public:
     //-----------------------------------------------------
     void erase_sketch_values_with_more_genomes_than(bucket_size_type n)
     {
-        for(auto i = sketchVals_.begin(), e = sketchVals_.end(); i != e; ++i) {
-            if(i->size() > n) sketchVals_.erase(i);
+        for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
+            if(i->size() > n) features_.erase(i);
         }
     }
 
@@ -337,55 +332,67 @@ public:
         using std::begin;
         using std::end;
 
+        //reached hard limit for number of genomes
+        if(nextGenomeId_ >= max_genome_count()) return false;
+
         using iter_t = typename sequence::const_iterator;
 
-        if(seq.size() < kmer_size()) return false;
+        if(seq.empty()) return false;
 
         //don't allow non-unique sequence ids
         auto it = sid2gid_.find(sid);
         if(it != sid2gid_.end()) return false;
 
-        sid2gid_.insert({sid, numSeq_});
+        sid2gid_.insert({sid, nextGenomeId_});
 
         genomes_.emplace_back(std::move(sid), taxonId, origin);
         if(taxonId > 0 && !taxa_.empty()) {
-            rank_genome(numSeq_, taxonId);
+            rank_genome(nextGenomeId_, taxonId);
         }
 
         window_id win = 0;
-        for_each_window(genomeWindowSize_, genomeWindowStride_, seq,
+        for_each_window(seq, genomeWindowSize_, genomeWindowStride_,
             [this, &win] (iter_t b, iter_t e) {
-                auto sketch = refSketcher_(b,e);
+                auto sketch = genomeSketcher_(b,e);
                 //insert values from sketch into database
-                for(auto s : sketch) {
-                    auto it = sketchVals_.insert(s, reference_pos{numSeq_, win});
+                for(const auto& s : sketch) {
+                    auto it = features_.insert(s, reference_pos{nextGenomeId_, win});
                     if(it->size() > maxRefsPerSketchVal_) {
-                        sketchVals_.limit(it, maxRefsPerSketchVal_);
+                        features_.shrink(it, maxRefsPerSketchVal_);
                     }
                 }
                 ++win;
             });
 
-        ++numSeq_;
+        ++nextGenomeId_;
 
         return true;
     }
 
     //---------------------------------------------------------------
-    std::size_t genome_count() const noexcept {
-        return numSeq_;
+    bool
+    is_valid(genome_id gid) const noexcept {
+        return gid < nextGenomeId_;
+    }
+    std::uint64_t
+    genome_count() const noexcept {
+        return genomes_.size();
+    }
+    static std::uint64_t
+    max_genome_count() noexcept {
+        return std::numeric_limits<genome_id>::max();
     }
 
     //-----------------------------------------------------
     bool empty() const noexcept {
-        return sketchVals_.empty();
+        return features_.empty();
     }
 
 
     //---------------------------------------------------------------
     void clear() {
         genomes_.clear();
-        sketchVals_.clear();
+        features_.clear();
         sid2gid_.clear();
     }
 
@@ -399,7 +406,7 @@ public:
     genome_id
     genome_id_of_sequence(const sequence_id& sid) const noexcept {
         auto it = sid2gid_.find(sid);
-        return (it != sid2gid_.end()) ? it->second : numSeq_;
+        return (it != sid2gid_.end()) ? it->second : nextGenomeId_;
     }
 
 
@@ -416,7 +423,7 @@ public:
 
 
     //---------------------------------------------------------------
-    std::size_t
+    std::uint64_t
     taxon_count() const noexcept {
         return taxa_.taxon_count();
     }
@@ -555,12 +562,12 @@ public:
 
         if(query.empty()) return;
 
-        for_each_window(queryWindowSize_, queryWindowStride_, query,
+        for_each_window(query, queryWindowSize_, queryWindowStride_,
             [this, &consume] (iter_t b, iter_t e) {
                 auto sketch = querySketcher_(b,e);
                 for(auto s : sketch) {
-                    auto sit = sketchVals_.find(s);
-                    if(sit != sketchVals_.end()) {
+                    auto sit = features_.find(s);
+                    if(sit != features_.end()) {
                         for(const auto& pos : *sit) {
                             consume(pos);
                         }
@@ -598,11 +605,11 @@ public:
 
     //-------------------------------------------------------------------
     void max_load_factor(float lf) {
-        sketchVals_.max_load_factor(lf);
+        features_.max_load_factor(lf);
     }
     //-----------------------------------------------------
     float max_load_factor() const noexcept {
-        return sketchVals_.max_load_factor();
+        return features_.max_load_factor();
     }
 
 
@@ -623,51 +630,43 @@ public:
         }
 
         //database version info
-        std::uint32_t dbVer = 0;
-        is.read(reinterpret_cast<char*>(&dbVer), sizeof(dbVer));
+        using std::uint64_t;
+        uint64_t dbVer = 0;
+        read_binary(is, dbVer);
 
-        if(METACACHE_DB_VERSION < dbVer) {
+        if(METACACHE_DB_VERSION != dbVer) {
             throw file_read_error{
                 "Database " + filename +
-                " was built with a newer version of MetaCache\n" +
-                "that is incompatible with this version!"
+                " was built with an incompatible version of MetaCache\n"
             };
         }
 
         clear();
 
-        //read basic properties
-        auto kmersize = refSketcher_.kmer_size();
-        is.read(reinterpret_cast<char*>(&kmersize), sizeof(kmersize));
-        refSketcher_.kmer_size(kmersize);
-        querySketcher_.kmer_size(kmersize);
+        //sketching parameters
+        read_binary(is, genomeSketcher_);
+        read_binary(is, genomeWindowSize_);
+        read_binary(is, genomeWindowStride_);
 
-        auto refsketchsize = refSketcher_.sketch_size();
-        is.read(reinterpret_cast<char*>(&refsketchsize), sizeof(refsketchsize));
-        refSketcher_.sketch_size(refsketchsize);
-        is.read(reinterpret_cast<char*>(&genomeWindowSize_), sizeof(genomeWindowSize_));
-        is.read(reinterpret_cast<char*>(&genomeWindowStride_), sizeof(genomeWindowStride_));
+        read_binary(is, querySketcher_);
+        read_binary(is, queryWindowSize_);
+        read_binary(is, queryWindowStride_);
 
-        auto querysketchsize = refSketcher_.sketch_size();
-        is.read(reinterpret_cast<char*>(&querysketchsize), sizeof(querysketchsize));
-        querySketcher_.sketch_size(querysketchsize);
-        is.read(reinterpret_cast<char*>(&queryWindowSize_), sizeof(queryWindowSize_));
-        is.read(reinterpret_cast<char*>(&queryWindowStride_), sizeof(queryWindowStride_));
+        read_binary(is, maxRefsPerSketchVal_);
 
-        is.read(reinterpret_cast<char*>(&maxRefsPerSketchVal_), sizeof(maxRefsPerSketchVal_));
-
-        taxa_.read(is);
+        //taxon metadata
+        read_binary(is, taxa_);
 
         //number of sequences
-        is.read(reinterpret_cast<char*>(&numSeq_), sizeof(numSeq_));
-        if(numSeq_ < 1) return;
+        read_binary(is, nextGenomeId_);
+        if(nextGenomeId_ < 1) return;
 
         //read genome metainformation
         genomes_.clear();
-        genomes_.reserve(numSeq_);
-        for(size_t i = 0; i < numSeq_; ++i) {
+        genomes_.reserve(nextGenomeId_);
+        for(uint64_t i = 0; i < nextGenomeId_; ++i) {
             genome_property p;
-            p.read(is);
+            read_binary(is, p);
             genomes_.push_back(std::move(p));
         }
 
@@ -678,7 +677,8 @@ public:
 
         if(what == scope::metadata_only) return;
 
-        sketchVals_.read(is);
+        //hash table
+        read_binary(is, features_);
     }
 
 
@@ -695,42 +695,34 @@ public:
         }
 
         //database version info
-        std::uint32_t dbVer = METACACHE_DB_VERSION;
-        os.write(reinterpret_cast<const char*>(&dbVer), sizeof(dbVer));
+        using std::uint64_t;
+        write_binary(os, uint64_t(METACACHE_DB_VERSION));
 
-        //write basic properties
-        auto kmersize = refSketcher_.kmer_size();
-        os.write(reinterpret_cast<const char*>(&kmersize), sizeof(kmersize));
+        //sketching parameters
+        write_binary(os, genomeSketcher_);
+        write_binary(os, genomeWindowSize_);
+        write_binary(os, genomeWindowStride_);
 
-        auto refsketchsize = refSketcher_.sketch_size();
-        os.write(reinterpret_cast<const char*>(&refsketchsize), sizeof(refsketchsize));
-        os.write(reinterpret_cast<const char*>(&genomeWindowSize_), sizeof(genomeWindowSize_));
-        os.write(reinterpret_cast<const char*>(&genomeWindowStride_), sizeof(genomeWindowStride_));
+        write_binary(os, querySketcher_);
+        write_binary(os, queryWindowSize_);
+        write_binary(os, queryWindowStride_);
 
-        auto querysketchsize = querySketcher_.sketch_size();
-        os.write(reinterpret_cast<const char*>(&querysketchsize), sizeof(querysketchsize));
-        os.write(reinterpret_cast<const char*>(&queryWindowSize_), sizeof(queryWindowSize_));
-        os.write(reinterpret_cast<const char*>(&queryWindowStride_), sizeof(queryWindowStride_));
+        write_binary(os, maxRefsPerSketchVal_);
 
-        os.write(reinterpret_cast<const char*>(&maxRefsPerSketchVal_), sizeof(maxRefsPerSketchVal_));
+        //taxon metadata
+        write_binary(os, taxa_);
 
-        taxa_.write(os);
+        //genome metainformation
+        write_binary(os, nextGenomeId_);
+        write_binary(os, genomes_);
 
-        //number of genomes
-        os.write(reinterpret_cast<const char*>(&numSeq_), sizeof(numSeq_));
-
-        //write genome metainformation
-        for(const auto& a : genomes_) {
-            a.write(os);
-        }
-
-        sketchVals_.write(os);
-
+        //hash table
+        write_binary(os, features_);
     }
 
     //---------------------------------------------------------------
     size_t bucket_count() const noexcept {
-        return sketchVals_.bucket_count();
+        return features_.bucket_count();
     }
 
 
@@ -739,7 +731,7 @@ public:
     bucket_sizes() const {
         auto priSize = variance_accumulator<double>{};
 
-        for(const auto& bucket : sketchVals_) {
+        for(const auto& bucket : features_) {
             priSize += bucket.size();
         }
 
@@ -747,29 +739,8 @@ public:
     }
 
 
-    //---------------------------------------------------------------
-    timer hash_table_query_benchmark(const std::vector<sketch_value>& keys,
-                                     std::vector<reference_pos>& result)
-    {
-        timer time;
-        time.start();
-
-        for(auto k : keys) {
-            auto it = sketchVals_.find(k);
-            if(it != sketchVals_.end()) {
-                for(const auto& v : *it) {
-                    result.push_back(v);
-                }
-            }
-        }
-
-        time.stop();
-
-        return time;
-    }
-
-
 private:
+
     //---------------------------------------------------------------
     void update_lineages(genome_property& gp)
     {
@@ -781,16 +752,16 @@ private:
 
 
     //---------------------------------------------------------------
-    sketcher refSketcher_;
+    sketcher genomeSketcher_;
     sketcher querySketcher_;
-    size_t genomeWindowSize_;
-    size_t genomeWindowStride_;
-    size_t queryWindowSize_;
-    size_t queryWindowStride_;
-    size_t maxRefsPerSketchVal_;
-    genome_id numSeq_;
+    std::uint64_t genomeWindowSize_;
+    std::uint64_t genomeWindowStride_;
+    std::uint64_t queryWindowSize_;
+    std::uint64_t queryWindowStride_;
+    std::uint64_t maxRefsPerSketchVal_;
+    genome_id nextGenomeId_;
     std::vector<genome_property> genomes_;
-    key_value_store sketchVals_;
+    feature_store features_;
     std::map<sequence_id,genome_id> sid2gid_;
     taxonomy taxa_;
 };
@@ -1011,7 +982,7 @@ write_database(const sketch_database<S,K>& db, const std::string& filename)
  *
  *****************************************************************************/
 template<class S, class K>
-void print_info(const sketch_database<S,K>& db)
+void print_statistics(const sketch_database<S,K>& db)
 {
     using genome_id = typename sketch_database<S,K>::genome_id;
     int numRankedGenomes = 0;
@@ -1023,8 +994,8 @@ void print_info(const sketch_database<S,K>& db)
               << "ranked sequences: " << numRankedGenomes << '\n'
               << "window length:    " << db.genome_window_size() << '\n'
               << "window stride:    " << db.genome_window_stride() << '\n'
-              << "kmer size:        " << db.kmer_size() << '\n'
-              << "sketch size:      " << db.genome_sketch_size() << '\n'
+              << "kmer size:        " << db.genome_sketcher().kmer_size() << '\n'
+              << "sketch size:      " << db.genome_sketcher().sketch_size() << '\n'
               << "taxa in tree:     " << db.taxon_count() << '\n';
 
     auto hbs = db.bucket_sizes();

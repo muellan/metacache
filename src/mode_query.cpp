@@ -1016,10 +1016,10 @@ ground_truth(const database& db, const std::string& header)
     //try to extract query id and find the corresponding genome in database
     auto gid = db.genome_id_of_sequence(extract_ncbi_accession_version_number(header));
     //not found yet
-    if(gid >= db.genome_count()) {
+    if(!db.is_valid(gid)) {
         gid = db.genome_id_of_sequence(extract_ncbi_accession_number(header));
         //not found yet
-//        if(gid >= db.genome_count()) {
+//        if(!db.is_valid(gid)) {
 //            gid = db.genome_id_of_sequence(extract_genbank_identifier(header));
 //        }
     }
@@ -1027,7 +1027,7 @@ ground_truth(const database& db, const std::string& header)
     auto taxid = extract_taxon_id(header);
 
     //if genome known and in db
-    if(gid < db.genome_count()) {
+    if(db.is_valid(gid)) {
         //if taxid could not be determined solely from header, use the one
         //from the genome in the db
         if(taxid < 1) db.taxon_id_of_genome(gid);
@@ -1247,9 +1247,7 @@ void classify_on_file_pairs(std::ostream& os,
             while(reader1->has_next() && reader2->has_next()) {
                 auto query1 = reader1->next();
                 auto query2 = reader2->next();
-                if(query1.data.size() > db.kmer_size() &&
-                   query2.data.size() > db.kmer_size() )
-                {
+                if(!query1.data.empty() && !query2.data.empty() ) {
                     //merge sketches of both reads
                     auto res = db.matches(query1.data);
                     db.accumulate_matches(query2.data, res);
@@ -1295,7 +1293,7 @@ void classify_per_file(std::ostream& os,
             auto reader = make_sequence_reader(fname);
             while(reader->has_next()) {
                 auto query = reader->next();
-                if(query.data.size() > db.kmer_size()) {
+                if(!query.data.empty()) {
                     //make sure we use the first read's header in case of pairing
                     auto res = db.matches(query.data);
 
@@ -1487,14 +1485,19 @@ void main_mode_query(const args_parser& args)
 
     //deduced query parameters
     if(param.hitsMin < 1) {
-        param.hitsMin = db.genome_sketch_size() / 2 - 1;
+        param.hitsMin = db.genome_sketcher().sketch_size() / 2 - 1;
         if(param.hitsMin < 1) param.hitsMin = 1;
     }
 
     //use a different sketching scheme for querying?
     if(param.winlen > 0)    db.query_window_size(param.winlen);
     if(param.winstride > 0) db.query_window_stride(param.winstride);
-    if(param.sketchlen > 0) db.query_sketch_size(param.sketchlen);
+
+    if(param.sketchlen > 0) {
+        auto s = db.query_sketcher();
+        s.sketch_size(param.sketchlen);
+        db.query_sketcher(std::move(s));
+    }
 
     //process files / file pairs separately
     if(param.splitOutput) {

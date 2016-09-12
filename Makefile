@@ -29,12 +29,13 @@ HEADERS = \
           src/cmdline_utility.h \
           src/config.h \
           src/dna_encoding.h \
+          src/dna_hasher.h \
           src/chunk_allocator.h \
           src/filesys_utility.h \
           src/hash_family.h \
           src/hash_multimap.h \
           src/io_error.h \
-          src/min_hasher.h \
+          src/io_serialize.h \
           src/modes.h \
           src/sequence_io.h \
           src/sequence_view.h \
@@ -56,12 +57,10 @@ SOURCES = \
           src/sequence_io.cpp
           
 TEST_HEADERS = \
-          test/sketch_database_test.h
           
 TEST_SOURCES = \
           test\tests.cpp \
-          test/hash_multimap_test.cpp \
-          test/sketch_database_test.cpp
+          test/hash_multimap_test.cpp
 
 
 #--------------------------------------------------------------------
@@ -190,7 +189,7 @@ $(DBG_DIR)/args_handling.o : src/args_handling.cpp src/args_handling.h src/args_
 
 
 #--------------------------------------------------------------------
-# test
+# tests
 #--------------------------------------------------------------------
 $(TEST_DIR):
 	mkdir $(TEST_DIR) 
@@ -202,9 +201,6 @@ $(TEST_ARTIFACT): $(TEST_OBJS)
 $(TEST_DIR)/tests.o : test/tests.cpp $(TEST_HEADERS)
 	$(TEST_COMPILE)
 	
-$(TEST_DIR)/sketch_database_test.o : test/sketch_database_test.cpp $(HEADERS)
-	$(TEST_COMPILE)
-	
-$(TEST_DIR)/hash_multimap_test.o : test/hash_multimap_test.cpp $(HEADERS)
+$(TEST_DIR)/hash_multimap_test.o : test/hash_multimap_test.cpp src/hash_multimap.h
 	$(TEST_COMPILE)
 	

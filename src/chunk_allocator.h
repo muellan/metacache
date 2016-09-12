@@ -27,6 +27,7 @@
 #include <vector>
 #include <memory>
 #include <algorithm>
+//#include <mutex>
 
 
 namespace mc {
@@ -103,11 +104,13 @@ public:
 
     chunk_allocator():
         minChunkSize_(128*1024*1024/sizeof(T)), //128 MiB
+        freeSize_(0),
         chunks_{}
     {}
 
     chunk_allocator(const chunk_allocator& src):
         minChunkSize_(src.minChunkSize_),
+        freeSize_(),
         chunks_{}
     {}
 
@@ -121,27 +124,38 @@ public:
 
 
     void min_chunk_size(std::size_t n) {
+//        std::lock_guard<std::mutex> lock(mutables_);
         minChunkSize_ = n;
     }
     std::size_t min_chunk_size() const noexcept {
+//        std::lock_guard<std::mutex> lock(mutables_);
         return minChunkSize_;
     }
 
-    void reserve(std::size_t n) {
-        for(auto& c : chunks_) {
-            if(c.free_size() >= n) return;
+    void reserve(std::size_t total)
+    {
+//        std::lock_guard<std::mutex> lock(mutables_);
+
+        if(total > freeSize_) {
+            chunks_.emplace_back(total - freeSize_);
+            freeSize_ += chunks_.back().free_size();
         }
-        //make new chunk
-        chunks_.emplace_back(n);
     }
 
     T* allocate(std::size_t n)
     {
+//        std::lock_guard<std::mutex> lock(mutables_);
+
         //at the moment chunks will only be used,
-        //if they have been explicitly reserved
-        for(auto& c : chunks_) {
-            auto p = c.next_buffer(n);
-            if(p) return p;
+        //if they have been reserved explicitly
+        if(n >= freeSize_) {
+            for(auto& c : chunks_) {
+                auto p = c.next_buffer(n);
+                if(p) {
+                    freeSize_ -= n;
+                    return p;
+                }
+            }
         }
         //make new chunk
 //        chunks_.emplace_back(std::max(minChunkSize_,n));
@@ -153,6 +167,8 @@ public:
 
     void deallocate(T* p, std::size_t)
     {
+//        std::lock_guard<std::mutex> lock(mutables_);
+
         //at the moment occupied chunk buffers are not given back
         auto it = std::find_if(begin(chunks_), end(chunks_),
                                [p](const chunk& c){ return c.owns(p); });
@@ -179,7 +195,9 @@ public:
     }
 
 private:
+//    std::mutex mutables_;
     std::size_t minChunkSize_;
+    std::size_t freeSize_;
     std::vector<chunk> chunks_;
 };
 

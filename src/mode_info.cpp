@@ -149,7 +149,7 @@ void show_all_info(const args_parser& args)
     if(db.genome_count() < 1) return;
 
     std::cout << "Properties of database " << dbfilename << ":\n";
-    print_info(db);
+    print_statistics(db);
 
     std::cout << "Reference sequences in database:\n";
     for(genome_id gid = 0; gid < db.genome_count(); ++gid) {
