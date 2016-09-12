@@ -27,7 +27,7 @@
  *
  * 2008-2015 André Müller
  *
- * The parser distinguishes between non-prefixed and prefixed parameters
+ * The parser distinguishes between non-prefixed and prefixed arguments
  * based on the prefix setting. The default prefix is '-'.
  *
  *
@@ -42,11 +42,11 @@
  *     args.get<type>(non_prefixed_parameter_index, not_provided_value)
  *
  *     args.get<type>("parameter_string", not_provided_value)
- *     args.get<type>("parameter_string", not_provided_value, default_result)
+ *     args.get<type>("parameter_string", not_provided_value, default_value)
  *
- *     not_provided_value: value if the parameter string couldn't be found
+ *     not_provided_value: if the parameter string couldn't be found
  *
- *     default_result:     value if the parameter string was found but
+ *     default_value:      if the parameter string was found but
  *                         no parameter value was defined
  *
  *   use the member function
@@ -105,13 +105,12 @@
 #ifndef MC_ARGS_PARSER_H_
 #define MC_ARGS_PARSER_H_
 
-
-
 #include <string>
 #include <vector>
 #include <cstdlib>
 #include <cstring>
 #include <cmath>
+#include <cstdint>
 
 
 namespace mc {
@@ -139,67 +138,56 @@ convert_string::to<bool>(const std::string& s) {
 
 //---------------------------------------------------------
 template<> inline
-unsigned char
-convert_string::to<unsigned char>(const std::string& s) {
+std::uint8_t
+convert_string::to<std::uint8_t>(const std::string& s) {
     return static_cast<unsigned char>(std::atoi(s.c_str()));
 }
 
 //---------------------------------------------------------
 template<> inline
-unsigned short
-convert_string::to<unsigned short>(const std::string& s) {
+std::uint16_t
+convert_string::to<std::uint16_t>(const std::string& s) {
     return static_cast<unsigned short>(std::atoi(s.c_str()));
 }
 //---------------------------------------------------------
 template<> inline
-unsigned
-convert_string::to<unsigned>(const std::string& s) {
+std::uint32_t
+convert_string::to<std::uint32_t>(const std::string& s) {
     return std::atoi(s.c_str());
 }
 //---------------------------------------------------------
 template<> inline
-unsigned long
-convert_string::to<unsigned long>(const std::string& s) {
-    return std::atol(s.c_str());
-}
-//---------------------------------------------------------
-template<> inline
-unsigned long long
-convert_string::to<unsigned long long>(const std::string& s)
-{
+std::uint64_t
+convert_string::to<std::uint64_t>(const std::string& s) {
     return std::atol(s.c_str());
 }
 
+
 //---------------------------------------------------------
 template<> inline
-char
-convert_string::to<char>(const std::string& s) {
+std::int8_t
+convert_string::to<std::int8_t>(const std::string& s) {
     return static_cast<char>(std::atoi(s.c_str()));
 }
 //---------------------------------------------------------
 template<> inline
-short int
-convert_string::to<short int>(const std::string& s) {
+std::int16_t
+convert_string::to<std::int16_t>(const std::string& s) {
     return static_cast<short int>(std::atoi(s.c_str()));
 }
 //---------------------------------------------------------
 template<> inline
-int
-convert_string::to<int>(const std::string& s) {
+std::int32_t
+convert_string::to<std::int32_t>(const std::string& s) {
     return std::atoi(s.c_str());
 }
 //---------------------------------------------------------
 template<> inline
-long
-convert_string::to<long>(const std::string& s) {
+std::int64_t
+convert_string::to<std::int64_t>(const std::string& s) {
     return std::atol(s.c_str());
 }
-//---------------------------------------------------------
-template<> inline
-long long
-convert_string::to<long long>(const std::string& s) {
-    return std::atol(s.c_str());
-}
+
 
 //---------------------------------------------------------
 template<> inline

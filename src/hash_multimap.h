@@ -88,7 +88,7 @@ struct allocator_config<Alloc,true>
  *          Each bucket contains only one key and all values mapped to that key.
  *
  * @details Hash conflicts are resolved through open addressing with
- *          linear probing augmented with the 'Robin Hood Hashing' strategy.
+ *          linear probing.
  *          Deletion uses 'back shifting' instead of 'tombstoning'.
  *
  * @tparam  Key:    key type
@@ -117,6 +117,7 @@ class hash_multimap
     using alloc_config = allocator_config<ValueAllocator>;
 
     using probelen_t = std::uint8_t;
+
 
 public:
     //---------------------------------------------------------------
@@ -156,11 +157,11 @@ public:
 
         bucket_type():
             values_{nullptr}, key_{},
-            size_(0), capacity_(0), probelen_(0)
+            size_(0), capacity_(0)//, probelen_(0)
         {}
         bucket_type(key_type&& key):
             values_{nullptr}, key_{std::move(key)},
-            size_(0), capacity_(0), probelen_(0)
+            size_(0), capacity_(0)//, probelen_(0)
         {}
 
         size_type size()     const noexcept { return size_; }
@@ -185,7 +186,8 @@ public:
         const_iterator  end() const noexcept { return values_ + size_; }
         const_iterator cend() const noexcept { return values_ + size_; }
 
-        probelen_t probe_length() const noexcept { return probelen_; }
+//        probelen_t probe_length() const noexcept { return probelen_; }
+        probelen_t probe_length() const noexcept { return 0; }
 
     private:
         //-----------------------------------------------------
@@ -211,7 +213,6 @@ public:
             return true;
         }
 
-
         //-------------------------------------------
         void clear(value_allocator& alloc) {
             if(empty()) return;
@@ -224,7 +225,7 @@ public:
             values_ = nullptr;
             size_ = 0;
             capacity_ = 0;
-            probelen_ = 0;
+//            probelen_ = 0;
         }
 
         //-----------------------------------------------------
@@ -290,7 +291,7 @@ public:
         key_type key_;
         size_type size_;
         size_type capacity_;
-        probelen_t probelen_;
+//        probelen_t probelen_;
     };
 
 
@@ -305,9 +306,9 @@ private:
 
 public:
     //-----------------------------------------------------
-    using size_type        = typename bucket_store_t::size_type;
-    using reference        = bucket_type&;
-    using const_reference  = const bucket_type&;
+    using size_type       = typename bucket_store_t::size_type;
+    using reference       = bucket_type&;
+    using const_reference = const bucket_type&;
     //-----------------------------------------------------
     using iterator        = typename bucket_store_t::iterator;
     using const_iterator  = typename bucket_store_t::const_iterator;
@@ -319,7 +320,8 @@ public:
     //---------------------------------------------------------------
     explicit
     hash_multimap(const value_allocator& valloc = value_allocator{},
-                  const bucket_allocator& kalloc = bucket_allocator{}):
+                  const bucket_allocator& kalloc = bucket_allocator{})
+    :
         numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
         hash_{}, keyEqual_{}, alloc_{valloc},
         buckets_{kalloc}
@@ -517,7 +519,7 @@ public:
 
         if(it->empty()) {
             if(!it->insert(std::forward<V>(value), alloc_)) {
-                it->probelen_ = 0;
+//                it->probelen_ = 0;
                 return end();
             }
             ++numKeys_;
@@ -544,7 +546,7 @@ public:
 
         if(it->empty()) {
             if(!it->insert(first, last, alloc_)) {
-                it->probelen_ = 0;
+//                it->probelen_ = 0;
                 return end();
             }
             ++numKeys_;
@@ -867,39 +869,41 @@ private:
     {
         auto fst = buckets_.begin() + (hash_(key) % buckets_.size());
         auto end = buckets_.end();
-        auto ins = end;
+//        auto ins = end;
         auto it = fst;
 
         //find bucket by linear probing
-        bucket_type dummy{std::move(key)};
+//        bucket_type dummy{std::move(key)};
         while(it < end) {
             //new slot found
             if(it->empty()) {
-                *it = std::move(dummy);
-                return ins != buckets_.end() ? ins : it;
+//                *it = std::move(dummy);
+//                return ins != buckets_.end() ? ins : it;
+                it->key(std::move(key));
+                return it;
             }
             //key already inserted
-            if(keyEqual_(it->key(), dummy.key())) {
+//            if(keyEqual_(it->key(), dummy.key())) {
+            if(keyEqual_(it->key(), key)) {
                 return it;
             }
             //Robin Hood criterion
-            if(dummy.probelen_ < std::numeric_limits<probelen_t>::max()) {
-                if(it->probelen_ < dummy.probelen_) {
+//            if(dummy.probelen_ < std::numeric_limits<probelen_t>::max()) {
+//                if(it->probelen_ < dummy.probelen_) {
                     //check if no insert position has been found yet
                     //after the first swap (*ins) will have the key to be inserted
                     //and we'll continue with (*it)'s old key
-                    if(ins == buckets_.end()) ins = it;
-                    std::swap(*it,dummy);
-                }
-                ++dummy.probelen_;
-            }
+//                    if(ins == buckets_.end()) ins = it;
+//                    std::swap(*it,dummy);
+//                }
+//                ++dummy.probelen_;
+//            }
             ++it;
             if(it == buckets_.end()) {
                 it = buckets_.begin();
                 end = fst;
             }
         }
-
         return it;
     }
 
@@ -922,12 +926,13 @@ private:
                 nxt = buckets_.begin();
                 end = del;
             }
-            if(nxt->empty() || nxt->probelen_ == 0) {
+//            if(nxt->empty() || nxt->probelen_ == 0) {
+            if(nxt->empty()) {
                 break;
             }
             else {
                 std::swap(*del, *nxt);
-                --del->probelen_;
+//                --del->probelen_;
             }
             ++del;
             if(del == buckets_.end()) del = buckets_.begin();
