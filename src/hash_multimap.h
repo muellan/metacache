@@ -790,8 +790,6 @@ private:
         uint64_t nvalues = 0;
         read_binary(is, nvalues);
 
-        std::cout << "key " << nkeys << "    value " << nvalues << std::endl;
-
         if(nkeys < 1 || nvalues < 1) return;
         reserve_values(nvalues);
         reserve_keys(nkeys);
