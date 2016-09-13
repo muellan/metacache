@@ -105,7 +105,7 @@ template<
     class KeyEqual = std::equal_to<Key>,
     class ValueAllocator = chunk_allocator<ValueT>,
     class BucketAllocator = std::allocator<Key>,
-    class BucketSizeT = std::uint8_t //256
+    class BucketSizeT = std::uint8_t
 >
 class hash_multimap
 {
@@ -830,8 +830,8 @@ private:
                 write_binary(os, bucket.key());
                 write_binary(os, bucket.size());
 
-                for(const auto& ref : bucket) {
-                    write_binary(os, ref);
+                for(const auto& v : bucket) {
+                    write_binary(os, v);
                 }
             }
         }

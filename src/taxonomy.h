@@ -50,7 +50,7 @@ public:
     using taxon_id = std::uint64_t;
 
     //-----------------------------------------------------
-    enum class taxon_rank : std::uint16_t {
+    enum class taxon_rank : std::uint8_t {
         Sequence,
                 Form,
                 Variety,
@@ -80,10 +80,12 @@ public:
 
     };
     inline friend void write_binary(std::ostream& os, taxon_rank r) {
-        write_binary(os, r);
+        write_binary(os, std::uint8_t(r));
     }
     inline friend void read_binary(std::istream& is, taxon_rank& r) {
-        read_binary(is, r);
+        std::uint8_t n = 0;
+        read_binary(is, n);
+        r = taxon_rank(n);
     }
 
     //---------------------------------------------------------------
@@ -528,7 +530,7 @@ public:
     {
         write_binary(os, std::uint64_t(tax.taxa_.size()));
         for(const auto& t : tax.taxa_) {
-           write_binary(os, t);
+            write_binary(os, t);
         }
     }
 
