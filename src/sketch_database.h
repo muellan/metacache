@@ -657,18 +657,9 @@ public:
         //taxon metadata
         read_binary(is, taxa_);
 
-        //number of sequences
         read_binary(is, nextGenomeId_);
-        if(nextGenomeId_ < 1) return;
-
-        //read genome metainformation
-        genomes_.clear();
-        genomes_.reserve(nextGenomeId_);
-        for(uint64_t i = 0; i < nextGenomeId_; ++i) {
-            genome_property p;
-            read_binary(is, p);
-            genomes_.push_back(std::move(p));
-        }
+        read_binary(is, genomes_);
+        if(genomes_.size() < 1) return;
 
         sid2gid_.clear();
         for(genome_id i = 0; i < genome_id(genomes_.size()); ++i) {
