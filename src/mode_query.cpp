@@ -941,7 +941,7 @@ sequence_classification(std::ostream& os,
     }
 
     //either top 2 are the same sequences with at least 'hitsMin' many hits
-    //or hit difference between these top 2 is above threshhold
+    //(checked before) or hit difference between these top 2 is above threshhold
     if( (cand.genome_id(0) == cand.genome_id(1))
         || (cand.hits(0) - cand.hits(1)) >= param.hitsMin)
     {
