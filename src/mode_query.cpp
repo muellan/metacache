@@ -42,8 +42,8 @@ using taxon_rank     = database::taxon_rank;
 using taxon          = database::taxon;
 using genome_id      = database::genome_id;
 using taxon_id       = database::taxon_id;
-using ranked_lineage = database::ranked_lineage_type;
-using match_result   = database::match_result_type;
+using ranked_lineage = database::ranked_lineage;
+using match_result   = database::match_result;
 
 
 
@@ -291,7 +291,7 @@ get_query_param(const args_parser& args)
     //database tuning parameters
     param.maxLoadFactor = args.get<float>("max_load_fac", defaults.maxLoadFactor);
 
-    param.maxGenomesPerSketchVal = args.get<int>("max_genomes_per_sketch_value",
+    param.maxGenomesPerSketchVal = args.get<int>("max_genomes_per_feature",
                                                  defaults.maxGenomesPerSketchVal);
 
     return param;
@@ -304,7 +304,7 @@ get_query_param(const args_parser& args)
  *
  *
  *****************************************************************************/
-void show_ranked_lineage(
+void show_ranks(
     std::ostream& os,
     const database& db,
     const ranked_lineage& lineage,
@@ -359,7 +359,7 @@ void show_ranked_lineage(
  *
  *
  *****************************************************************************/
-void show_ranked_lineage_of_genome(
+void show_ranks_of_genome(
     std::ostream& os,
     const database& db,
     genome_id gid,
@@ -379,7 +379,7 @@ void show_ranked_lineage_of_genome(
 
     if(lowest == taxon_rank::Sequence) os << ',';
 
-    show_ranked_lineage(os, db, db.ranked_lineage_of_genome(gid),
+    show_ranks(os, db, db.ranks_of_genome(gid),
                         mode, lowest, highest);
 }
 
@@ -406,7 +406,7 @@ void show_matches(std::ostream& os,
     }
     else {
         for(const auto& r : matches) {
-            auto taxid = db.ranked_lineage_of_genome(r.first.gid)[int(lowest)];
+            auto taxid = db.ranks_of_genome(r.first.gid)[int(lowest)];
             os << taxid << ':' << int(r.second) << ',';
         }
     }
@@ -433,14 +433,14 @@ void show_matches(std::ostream& os,
     }
     else {
         if(cand.hits(0) > 0) {
-            auto taxid = db.ranked_lineage_of_genome(
+            auto taxid = db.ranks_of_genome(
                          cand.genome_id(0))[int(lowest)];
 
             os << taxid << ':' << cand.hits(0);
         }
 
         for(int i = 1; i < n && cand.hits(i) > 0; ++i) {
-            auto taxid = db.ranked_lineage_of_genome(
+            auto taxid = db.ranks_of_genome(
                          cand.genome_id(i))[int(lowest)];
 
             os << ',' << taxid << ':' << cand.hits(i);
@@ -871,7 +871,7 @@ lowest_common_taxon(
             int totalscore = 0;
             for(int i = 0, n = cand.count(); i < n; ++i) {
                 //use genome id instead of taxon if at sequence level
-                auto tid = db.ranked_lineage_of_genome(cand.genome_id(i))[int(r)];
+                auto tid = db.ranks_of_genome(cand.genome_id(i))[int(r)];
                 if(tid > 0) {
                     auto score = cand.hits(i);
                     totalscore += score;
@@ -984,7 +984,7 @@ void show_classification(std::ostream& os,
     if(cls.sequence_level()) {
         auto rmax = param.showLineage ? param.highestRank : param.lowestRank;
 
-        show_ranked_lineage_of_genome(os, db, cls.gid(),
+        show_ranks_of_genome(os, db, cls.gid(),
                                       param.showTaxaAs, param.lowestRank, rmax);
     }
     else if(cls.has_taxon()) {
@@ -995,7 +995,7 @@ void show_classification(std::ostream& os,
             auto rmin = param.lowestRank < cls.rank() ? cls.rank() : param.lowestRank;
             auto rmax = param.showLineage ? param.highestRank : rmin;
 
-            show_ranked_lineage(os, db, db.ranked_lineage(cls.tax()),
+            show_ranks(os, db, db.ranks(cls.tax()),
                                 param.showTaxaAs, rmin, rmax);
         }
     }
@@ -1072,7 +1072,7 @@ void remove_hits_on_rank(const database& db,
 {
     auto maskedRes = res;
     for(const auto& orig : res) {
-        auto r = db.ranked_lineage_of_genome(orig.first.gid)[int(rank)];
+        auto r = db.ranks_of_genome(orig.first.gid)[int(rank)];
         if(r != taxid) {
             maskedRes.insert(orig);
         }
@@ -1094,7 +1094,7 @@ void update_coverage_statistics(
     const classification& result, const classification& truth,
     rank_statistics& stats)
 {
-    const auto& lin = db.ranked_lineage(truth.tax());
+    const auto& lin = db.ranks(truth.tax());
     //check if taxa are covered in DB
     for(auto tid : lin) {
         auto r = db.taxon_with_id(tid).rank;
@@ -1139,7 +1139,7 @@ void process_database_answer(std::ostream& os,
 
     //preprocess
     if(param.excludedRank != taxon_rank::none && groundTruth.has_taxon()) {
-        auto exclTaxid = db.ranked_lineage(groundTruth.tax())[int(param.excludedRank)];
+        auto exclTaxid = db.ranks(groundTruth.tax())[int(param.excludedRank)];
         remove_hits_on_rank(db, param.excludedRank, exclTaxid, hits);
     }
 
@@ -1158,12 +1158,12 @@ void process_database_answer(std::ostream& os,
 
         if(param.showGroundTruth) {
             if(groundTruth.sequence_level()) {
-                show_ranked_lineage_of_genome(os, db, groundTruth.gid(),
+                show_ranks_of_genome(os, db, groundTruth.gid(),
                     param.showTaxaAs, param.lowestRank,
                     param.showLineage ? param.highestRank : param.lowestRank);
             }
             else if(groundTruth.has_taxon()) {
-                show_ranked_lineage(os, db, db.ranked_lineage(groundTruth.tax()),
+                show_ranks(os, db, db.ranks(groundTruth.tax()),
                     param.showTaxaAs, param.lowestRank,
                     param.showLineage ? param.highestRank : param.lowestRank);
             }
@@ -1481,7 +1481,7 @@ void main_mode_query(const args_parser& args)
         db.max_load_factor(param.maxLoadFactor);
     }
     if(param.maxGenomesPerSketchVal > 1) {
-        db.erase_sketch_values_with_more_genomes_than(param.maxGenomesPerSketchVal);
+        db.erase_features_with_more_genomes_than(param.maxGenomesPerSketchVal);
     }
 
     //deduced query parameters

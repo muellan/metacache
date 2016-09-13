@@ -85,7 +85,7 @@ get_build_param(const args_parser& args)
     param.winstride = args.get<int>("winstride", param.winlen - param.kmerlen + 1);
 
     param.maxLoadFactor = args.get<float>("max_load_fac", -1);
-    param.maxGenomesPerSketchVal = args.get<int>("max_genomes_per_sketch_value",
+    param.maxGenomesPerSketchVal = args.get<int>("max_genomes_per_feature",
                                                  defaults.maxGenomesPerSketchVal);
 
     param.taxonomy = get_taxonomy_param(args);
@@ -537,7 +537,7 @@ void add_to_database(database& db,
     using taxon_id   = database::taxon_id;
 
     if(param.maxGenomesPerSketchVal > 1)
-        db.max_genomes_per_sketch_value(param.maxGenomesPerSketchVal);
+        db.max_genomes_per_feature(param.maxGenomesPerSketchVal);
 
     if(param.maxLoadFactor > 0)
         db.max_load_factor(param.maxLoadFactor);
@@ -667,7 +667,7 @@ void main_mode_build(const args_parser& args)
     db.genome_window_stride(param.winstride);
 
     if(param.maxGenomesPerSketchVal > 1)
-        db.max_genomes_per_sketch_value(param.maxGenomesPerSketchVal);
+        db.max_genomes_per_feature(param.maxGenomesPerSketchVal);
 
     if(param.maxLoadFactor > 0)
         db.max_load_factor(param.maxLoadFactor);
@@ -715,7 +715,7 @@ void main_mode_build_add(const args_parser& args)
     auto db = make_database<database>(param.dbfile);
 
     if(param.maxGenomesPerSketchVal > 1)
-        db.max_genomes_per_sketch_value(param.maxGenomesPerSketchVal);
+        db.max_genomes_per_feature(param.maxGenomesPerSketchVal);
 
     if(param.maxLoadFactor > 0)
         db.max_load_factor(param.maxLoadFactor);

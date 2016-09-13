@@ -88,8 +88,8 @@ public:
     using taxon      = taxonomy::taxon;
     using taxon_rank = taxonomy::taxon_rank;
     //-----------------------------------------------------
-    using ranked_lineage_type = taxonomy::ranked_lineage_type;
-    using full_lineage_type   = taxonomy::full_lineage_type;
+    using ranked_lineage = taxonomy::ranked_lineage;
+    using full_lineage   = taxonomy::full_lineage;
 
 
     //---------------------------------------------------------------
@@ -119,7 +119,7 @@ private:
         :
             id(std::move(identifier)),
             taxonId(tax),
-            rankedLineage{}, fullLineage{},
+            ranks{}, lineage{},
             origin{std::move(origin)}
         {}
 
@@ -127,8 +127,8 @@ private:
         read_binary(std::istream& is, genome_property& p) {
             read_binary(is, p.id);
             read_binary(is, p.taxonId);
-            read_binary(is, p.rankedLineage);
-            read_binary(is, p.fullLineage);
+            read_binary(is, p.ranks);
+            read_binary(is, p.lineage);
             read_binary(is, p.origin.filename);
             read_binary(is, p.origin.index);
         }
@@ -137,24 +137,24 @@ private:
         write_binary(std::ostream& os, const genome_property& p) {
             write_binary(os, p.id);
             write_binary(os, p.taxonId);
-            write_binary(os, p.rankedLineage);
-            write_binary(os, p.fullLineage);
+            write_binary(os, p.ranks);
+            write_binary(os, p.lineage);
             write_binary(os, p.origin.filename);
             write_binary(os, p.origin.index);
         }
 
         std::string id;
         taxon_id taxonId;
-        ranked_lineage_type rankedLineage;
-        full_lineage_type fullLineage;
+        ranked_lineage ranks;
+        full_lineage lineage;
         sequence_origin origin;
     };
 
 
 public:
     //-----------------------------------------------------
-    using sketch_type  = typename sketcher::result_type;
-    using sketch_value = typename sketch_type::value_type;
+    using sketch  = typename sketcher::result_type;
+    using feature = typename sketch::value_type;
 
     //-----------------------------------------------------
     struct reference_pos
@@ -187,13 +187,13 @@ public:
 
 private:
     //-----------------------------------------------------
-    using feature_store = hash_multimap<sketch_value,reference_pos>;
+    using feature_store = hash_multimap<feature,reference_pos>;
 
 
 public:
     //-------------------------------------------------------------------
     using bucket_size_type  = typename feature_store::bucket_size_type;
-    using match_result_type = std::map<reference_pos,std::uint16_t>;
+    using match_result = std::map<reference_pos,std::uint16_t>;
 
 
     //---------------------------------------------------------------
@@ -205,7 +205,7 @@ public:
         genomeWindowStride_(128-15),
         queryWindowSize_(genomeWindowSize_),
         queryWindowStride_(genomeWindowStride_),
-        maxRefsPerSketchVal_(features_.max_bucket_size()-1),
+        maxRefsPerFeature_(features_.max_bucket_size()-1),
         nextGenomeId_(0),
         genomes_{},
         features_{},
@@ -221,7 +221,7 @@ public:
         genomeWindowStride_(128-15),
         queryWindowSize_(genomeWindowSize_),
         queryWindowStride_(genomeWindowStride_),
-        maxRefsPerSketchVal_(features_.max_bucket_size()-1),
+        maxRefsPerFeature_(features_.max_bucket_size()-1),
         nextGenomeId_(0),
         genomes_{},
         features_{},
@@ -296,26 +296,26 @@ public:
 
 
     //---------------------------------------------------------------
-    void max_genomes_per_sketch_value(bucket_size_type n)
+    void max_genomes_per_feature(bucket_size_type n)
     {
         if(n < 1) n = 1;
         if(n >= features_.max_bucket_size()) {
             n = features_.max_bucket_size() - 1;
         }
-        else if(n < maxRefsPerSketchVal_) {
+        else if(n < maxRefsPerFeature_) {
             for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
                 if(i->size() > n) features_.shrink(i, n);
             }
         }
-        maxRefsPerSketchVal_ = n;
+        maxRefsPerFeature_ = n;
     }
     //-----------------------------------------------------
-    bucket_size_type max_genomes_per_sketch_value() const noexcept {
-        return maxRefsPerSketchVal_;
+    bucket_size_type max_genomes_per_feature() const noexcept {
+        return maxRefsPerFeature_;
     }
 
     //-----------------------------------------------------
-    void erase_sketch_values_with_more_genomes_than(bucket_size_type n)
+    void erase_features_with_more_genomes_than(bucket_size_type n)
     {
         for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
             if(i->size() > n) features_.erase(i);
@@ -353,12 +353,12 @@ public:
         window_id win = 0;
         for_each_window(seq, genomeWindowSize_, genomeWindowStride_,
             [this, &win] (iter_t b, iter_t e) {
-                auto sketch = genomeSketcher_(b,e);
-                //insert values from sketch into database
-                for(const auto& s : sketch) {
-                    auto it = features_.insert(s, reference_pos{nextGenomeId_, win});
-                    if(it->size() > maxRefsPerSketchVal_) {
-                        features_.shrink(it, maxRefsPerSketchVal_);
+                auto sk = genomeSketcher_(b,e);
+                //insert features from sketch into database
+                for(const auto& f : sk) {
+                    auto it = features_.insert(f, reference_pos{nextGenomeId_, win});
+                    if(it->size() > maxRefsPerFeature_) {
+                        features_.shrink(it, maxRefsPerFeature_);
                     }
                 }
                 ++win;
@@ -458,25 +458,25 @@ public:
     }
 
     //-----------------------------------------------------
-    full_lineage_type
-    full_lineage(const taxon& tax) const noexcept {
-        return taxa_.full_lineage(tax.id);
+    full_lineage
+    lineage(const taxon& tax) const noexcept {
+        return taxa_.lineage(tax.id);
     }
     //-----------------------------------------------------
-    const full_lineage_type&
-    full_lineage_of_genome(genome_id id) const noexcept {
-        return genomes_[id].fullLineage;
+    const full_lineage&
+    lineage_of_genome(genome_id id) const noexcept {
+        return genomes_[id].lineage;
     }
 
     //-----------------------------------------------------
-    ranked_lineage_type
-    ranked_lineage(const taxon& tax) const noexcept {
-        return taxa_.ranked_lineage(tax.id);
+    ranked_lineage
+    ranks(const taxon& tax) const noexcept {
+        return taxa_.ranks(tax.id);
     }
     //-----------------------------------------------------
-    const ranked_lineage_type&
-    ranked_lineage_of_genome(genome_id id) const noexcept {
-        return genomes_[id].rankedLineage;
+    const ranked_lineage&
+    ranks_of_genome(genome_id id) const noexcept {
+        return genomes_[id].ranks;
     }
 
     //---------------------------------------------------------------
@@ -489,8 +489,8 @@ public:
     const taxon&
     lca_of_genomes(genome_id ga, genome_id gb) const
     {
-        return taxa_[taxonomy::lca_id(full_lineage_of_genome(ga),
-                                      full_lineage_of_genome(gb))];
+        return taxa_[taxonomy::lca_id(lineage_of_genome(ga),
+                                      lineage_of_genome(gb))];
     }
 
     //---------------------------------------------------------------
@@ -503,8 +503,8 @@ public:
     const taxon&
     ranked_lca_of_genomes(genome_id ga, genome_id gb) const
     {
-        return taxa_[taxonomy::ranked_lca_id(ranked_lineage_of_genome(ga),
-                                             ranked_lineage_of_genome(gb))];
+        return taxa_[taxonomy::ranked_lca_id(ranks_of_genome(ga),
+                                             ranks_of_genome(gb))];
     }
 
     //---------------------------------------------------------------
@@ -529,7 +529,7 @@ public:
         int cover = 0;
 
         for(const auto& g : genomes_) {
-            for(taxon_id tid : g.fullLineage) {
+            for(taxon_id tid : g.lineage) {
                 if(tid == id) ++cover;
             }
         }
@@ -545,7 +545,7 @@ public:
     }
     bool covers_taxon(taxon_id id) const {
         for(const auto& g : genomes_) {
-            for(taxon_id tid : g.fullLineage) {
+            for(taxon_id tid : g.lineage) {
                 if(tid == id) return true;
             }
         }
@@ -564,9 +564,9 @@ public:
 
         for_each_window(query, queryWindowSize_, queryWindowStride_,
             [this, &consume] (iter_t b, iter_t e) {
-                auto sketch = querySketcher_(b,e);
-                for(auto s : sketch) {
-                    auto sit = features_.find(s);
+                auto sk = querySketcher_(b,e);
+                for(auto f : sk) {
+                    auto sit = features_.find(f);
                     if(sit != features_.end()) {
                         for(const auto& pos : *sit) {
                             consume(pos);
@@ -578,17 +578,17 @@ public:
 
 
     //---------------------------------------------------------------
-    match_result_type
+    match_result
     matches(const sequence& query) const
     {
-        auto res = match_result_type{};
+        auto res = match_result{};
         accumulate_matches(query, res);
         return res;
     }
     //---------------------------------------------------------------
     void
     accumulate_matches(const sequence& query,
-                       match_result_type& res) const
+                       match_result& res) const
     {
         for_each_match(query,
             [this, &res] (const reference_pos& pos) {
@@ -652,7 +652,7 @@ public:
         read_binary(is, queryWindowSize_);
         read_binary(is, queryWindowStride_);
 
-        read_binary(is, maxRefsPerSketchVal_);
+        read_binary(is, maxRefsPerFeature_);
 
         //taxon metadata
         read_binary(is, taxa_);
@@ -706,7 +706,7 @@ public:
         write_binary(os, queryWindowSize_);
         write_binary(os, queryWindowStride_);
 
-        write_binary(os, maxRefsPerSketchVal_);
+        write_binary(os, maxRefsPerFeature_);
 
         //taxon metadata
         write_binary(os, taxa_);
@@ -744,8 +744,8 @@ private:
     void update_lineages(genome_property& gp)
     {
         if(gp.taxonId > 0) {
-            gp.fullLineage = taxa_.full_lineage(gp.taxonId);
-            gp.rankedLineage = taxa_.ranked_lineage(gp.taxonId);
+            gp.lineage = taxa_.lineage(gp.taxonId);
+            gp.ranks = taxa_.ranks(gp.taxonId);
         }
     }
 
@@ -757,7 +757,7 @@ private:
     std::uint64_t genomeWindowStride_;
     std::uint64_t queryWindowSize_;
     std::uint64_t queryWindowStride_;
-    std::uint64_t maxRefsPerSketchVal_;
+    std::uint64_t maxRefsPerFeature_;
     genome_id nextGenomeId_;
     std::vector<genome_property> genomes_;
     feature_store features_;

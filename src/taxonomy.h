@@ -294,8 +294,8 @@ public:
 
 
     //-----------------------------------------------------
-    using full_lineage_type = std::vector<taxon_id>;
-    using ranked_lineage_type = std::array<taxon_id,num_ranks>;
+    using full_lineage   = std::vector<taxon_id>;
+    using ranked_lineage = std::array<taxon_id,num_ranks>;
 
 
     //-------------------------------------------------------------------
@@ -391,7 +391,7 @@ public:
     const taxon&
     lca(taxon_id a, taxon_id b) const
     {
-        return operator[](lca_id(full_lineage(a), full_lineage(b) ));
+        return operator[](lca_id(lineage(a), lineage(b) ));
     }
 
     //---------------------------------------------------------------
@@ -404,15 +404,15 @@ public:
     const taxon&
     ranked_lca(taxon_id a, taxon_id b) const
     {
-        return operator[](ranked_lca_id(ranked_lineage(a),
-                                        ranked_lineage(b) ));
+        return operator[](ranked_lca_id(ranks(a),
+                                        ranks(b) ));
     }
 
 
     //---------------------------------------------------------------
     static taxon_id
-    ranked_lca_id(const ranked_lineage_type& lina,
-                  const ranked_lineage_type& linb)
+    ranked_lca_id(const ranked_lineage& lina,
+                  const ranked_lineage& linb)
     {
         for(int i = 0; i < int(taxon_rank::root); ++i) {
             if((lina[i] > 0) && (lina[i] == linb[i])) return lina[i];
@@ -423,8 +423,8 @@ public:
 
     //-----------------------------------------------------
     static taxon_id
-    lca_id(const full_lineage_type& lina,
-           const full_lineage_type& linb)
+    lca_id(const full_lineage& lina,
+           const full_lineage& linb)
     {
         for(auto ta : lina) {
             for(auto tb : linb) {
@@ -437,17 +437,17 @@ public:
 
 
     //---------------------------------------------------------------
-    ranked_lineage_type
-    ranked_lineage(const taxon& tax) const {
-        return ranked_lineage(tax.id);
+    ranked_lineage
+    ranks(const taxon& tax) const {
+        return ranks(tax.id);
     }
 
     //-----------------------------------------------------
-    ranked_lineage_type
-    ranked_lineage(taxon_id id) const
+    ranked_lineage
+    ranks(taxon_id id) const
     {
 //        std::cout << "      main rank lineage:" << std::endl;
-        auto lin = ranked_lineage_type{};
+        auto lin = ranked_lineage{};
         for(auto& x : lin) x = 0;
 
         while(id) {
@@ -478,16 +478,16 @@ public:
 
 
     //---------------------------------------------------------------
-    full_lineage_type
-    full_lineage(const taxon& tax) const {
-        return full_lineage(tax.id);
+    full_lineage
+    lineage(const taxon& tax) const {
+        return lineage(tax.id);
     }
 
     //-----------------------------------------------------
-    full_lineage_type
-    full_lineage(taxon_id id) const
+    full_lineage
+    lineage(taxon_id id) const
     {
-        auto lin = full_lineage_type{};
+        auto lin = full_lineage{};
 
         while(id) {
             auto it = taxa_.find(taxon{id});

@@ -47,12 +47,12 @@ void show_database_statistics(const args_parser& args)
  *
  *
  *****************************************************************************/
-void show_ranked_lineage_of_genome(const database& db, database::genome_id gid)
+void show_ranks_of_genome(const database& db, database::genome_id gid)
 {
     //if genomes don't have their own taxonId, print their sequence id
     std::cout << "    sequence:   " << db.sequence_id_of_genome(gid);
 
-    for(auto taxid : db.ranked_lineage_of_genome(gid)) {
+    for(auto taxid : db.ranks_of_genome(gid)) {
         if(taxid > 1) {
             auto&& taxon = db.taxon_with_id(taxid);
             auto rn = taxon.rank_name() + ":";
@@ -79,7 +79,7 @@ void show_sequence_info(const database& db, database::genome_id gid)
         << "    origin:     " << db.origin_of_genome(gid).filename << " / "
         << db.origin_of_genome(gid).index << '\n';
 
-    show_ranked_lineage_of_genome(db, gid);
+    show_ranks_of_genome(db, gid);
 }
 
 
@@ -139,7 +139,7 @@ void show_lineage_table(const args_parser& args)
     //rows
     for(genome_id gid = 0; gid < db.genome_count(); ++gid) {
         std::cout << db.sequence_id_of_genome(gid);
-        for(auto taxid : db.ranked_lineage_of_genome(gid)) {
+        for(auto taxid : db.ranks_of_genome(gid)) {
             std::cout << '\t' << taxid;
         }
         std::cout << '\n';
@@ -192,7 +192,7 @@ void show_rank_statistics(const args_parser& args)
     std::map<taxonomy::taxon_id, std::size_t> stat;
 
     for(genome_id i = 0; i < db.genome_count(); ++i) {
-        auto tax = db.ranked_lineage_of_genome(i)[int(rank)];
+        auto tax = db.ranks_of_genome(i)[int(rank)];
         auto it = stat.find(tax);
         if(it != stat.end()) {
             ++(it->second);

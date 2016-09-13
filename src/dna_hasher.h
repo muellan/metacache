@@ -366,7 +366,7 @@ private:
 
 /*****************************************************************************
  *
- * @brief min-hasher that uses a different hash function for each sketch value
+ * @brief min-hasher that uses a different hash function for each feature
  *
  *****************************************************************************/
 class multi_function_min_hasher
@@ -445,9 +445,9 @@ public:
 
         auto sketch = result_type(sketchsize, hash_type(~0));
 
-        //least significant 32 bits of sketch values = kmer hash
-        //most significant bits of sketch values = hash function index
-        //=> sketch values of different hash functions won't collide
+        //least significant 32 bits of features = kmer hash
+        //most significant bits of features = hash function index
+        //=> features of different hash functions won't collide
         for_each_kmer_2bit<kmer_type>(kmerSize_, first, last,
             [&] (kmer_type kmer, half_size_t<kmer_type> ambiguous) {
                 if(!ambiguous) {
