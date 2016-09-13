@@ -234,7 +234,7 @@ public:
         //-----------------------------------------------------
         bool resize(size_type n, value_allocator& alloc) {
             if(size_ < n) {
-                return reserve(n, alloc);
+                if(reserve(n, alloc)) size_ = n;
             }
             else if(size_ > n) {
                 size_ = n;
@@ -783,14 +783,16 @@ private:
     {
         using std::uint64_t;
 
+        clear();
+
         uint64_t nkeys = 0;
         read_binary(is, nkeys);
-        if(nkeys < 1) return;
         uint64_t nvalues = 0;
         read_binary(is, nvalues);
-        if(nvalues < 1) return;
 
-        clear();
+        std::cout << "key " << nkeys << "    value " << nvalues << std::endl;
+
+        if(nkeys < 1 || nvalues < 1) return;
         reserve_values(nvalues);
         reserve_keys(nkeys);
 
@@ -800,8 +802,7 @@ private:
             read_binary(is, key);
             read_binary(is, nvals);
 
-            auto it = find_slot_for_insertion(key);
-            it->key(key);
+            auto it = find_slot_for_insertion(std::move(key));
             it->resize(nvals, alloc_);
 
             for(auto v = it->values_, e = v+nvals; v < e; ++v) {
