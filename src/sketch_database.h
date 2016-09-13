@@ -695,8 +695,7 @@ public:
         }
 
         //database version info
-        using std::uint64_t;
-        write_binary(os, uint64_t(METACACHE_DB_VERSION));
+        write_binary(os, std::uint64_t(METACACHE_DB_VERSION));
 
         //sketching parameters
         write_binary(os, genomeSketcher_);
@@ -994,7 +993,7 @@ void print_statistics(const sketch_database<S,K>& db)
               << "ranked sequences: " << numRankedGenomes << '\n'
               << "window length:    " << db.genome_window_size() << '\n'
               << "window stride:    " << db.genome_window_stride() << '\n'
-              << "kmer size:        " << db.genome_sketcher().kmer_size() << '\n'
+              << "kmer size:        " << int(db.genome_sketcher().kmer_size()) << '\n'
               << "sketch size:      " << db.genome_sketcher().sketch_size() << '\n'
               << "taxa in tree:     " << db.taxon_count() << '\n';
 

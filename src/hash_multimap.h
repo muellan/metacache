@@ -662,7 +662,7 @@ public:
 
     //---------------------------------------------------------------
     static constexpr float default_max_load_factor() noexcept {
-        return 0.85;
+        return 0.80;
     }
     //-----------------------------------------------------
     float max_load_factor() const noexcept {
@@ -781,10 +781,12 @@ private:
      */
     void read_binary_(std::istream& is)
     {
-        size_type nkeys = 0;
+        using std::uint64_t;
+
+        uint64_t nkeys = 0;
         read_binary(is, nkeys);
         if(nkeys < 1) return;
-        size_type nvalues = 0;
+        uint64_t nvalues = 0;
         read_binary(is, nvalues);
         if(nvalues < 1) return;
 
@@ -792,7 +794,7 @@ private:
         reserve_values(nvalues);
         reserve_keys(nkeys);
 
-        for(size_type i = 0; i < nkeys; ++i) {
+        for(uint64_t i = 0; i < nkeys; ++i) {
             key_type key;
             bucket_size_type nvals;
             read_binary(is, key);
@@ -817,8 +819,10 @@ private:
      */
     void write_binary_(std::ostream& os) const
     {
-        write_binary(os, key_count());
-        write_binary(os, value_count());
+        using std::uint64_t;
+
+        write_binary(os, uint64_t(key_count()));
+        write_binary(os, uint64_t(value_count()));
 
         for(const auto& bucket : buckets_) {
             //store non-empty buckets only

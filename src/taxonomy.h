@@ -51,25 +51,36 @@ public:
 
     //-----------------------------------------------------
     enum class taxon_rank : std::uint16_t {
-                                            Sequence,
-//                                            Strain,
-//                               subForm,     Form,
-//                               subVariety,  Variety,
-                               subSpecies,  Species,
-                               subGenus,    Genus,
-                               subTribe,    Tribe,
-                               subFamily,   Family,   superFamily,
-        parvOrder, infraOrder, subOrder,    Order,    superOrder,
-                   infraClass, subClass,    Class,    superClass,
-                               subPhylum,   Phylum,   superPhylum,
-                               subKingdom,  Kingdom,
-                                            Domain,
+        Sequence,
+                Form,
+                Variety,
+                    subSpecies,
+            Species,
+                    subGenus,
+            Genus,
+//                    subTribe,
+                Tribe,
+//                    subFamily,
+            Family,
+//                    superFamily,
+//                    subOrder,
+            Order,
+//                    superOrder,
+//                    subClass,
+            Class,
+//                    superClass,
+//                    subPhylum,
+            Phylum,
+//                    superPhylum,
+//                    subKingdom,
+            Kingdom,
+            Domain,
         root,
         none
 
     };
     inline friend void write_binary(std::ostream& os, taxon_rank r) {
-        write_binary(os, std::uint16_t(r));
+        write_binary(os, r);
     }
     inline friend void read_binary(std::istream& is, taxon_rank& r) {
         read_binary(is, r);
@@ -83,33 +94,27 @@ public:
     next_main_rank(taxon_rank r) noexcept {
         switch(r) {
             case taxon_rank::Sequence:     return taxon_rank::Species;
-//            case taxon_rank::Strain:       return taxon_rank::Species;
-//            case taxon_rank::subForm:      return taxon_rank::Species;
-//            case taxon_rank::Form:         return taxon_rank::Species;
-//            case taxon_rank::subVariety:   return taxon_rank::Species;
-//            case taxon_rank::Variety:      return taxon_rank::Species;
+            case taxon_rank::Form:         return taxon_rank::Species;
+            case taxon_rank::Variety:      return taxon_rank::Species;
             case taxon_rank::subSpecies:   return taxon_rank::Species;
             case taxon_rank::Species:      return taxon_rank::Genus;
             case taxon_rank::subGenus:     return taxon_rank::Genus;
             case taxon_rank::Genus:        return taxon_rank::Family;
-            case taxon_rank::subTribe:     return taxon_rank::Family;
+//            case taxon_rank::subTribe:     return taxon_rank::Family;
             case taxon_rank::Tribe:        return taxon_rank::Family;
-            case taxon_rank::subFamily:    return taxon_rank::Family;
+//            case taxon_rank::subFamily:    return taxon_rank::Family;
             case taxon_rank::Family:       return taxon_rank::Order;
-            case taxon_rank::superFamily:  return taxon_rank::Order;
-            case taxon_rank::parvOrder:    return taxon_rank::Order;
-            case taxon_rank::infraOrder:   return taxon_rank::Order;
-            case taxon_rank::subOrder:     return taxon_rank::Order;
+//            case taxon_rank::superFamily:  return taxon_rank::Order;
+//            case taxon_rank::subOrder:     return taxon_rank::Order;
             case taxon_rank::Order:        return taxon_rank::Class;
-            case taxon_rank::superOrder:   return taxon_rank::Class;
-            case taxon_rank::infraClass:   return taxon_rank::Class;
-            case taxon_rank::subClass:     return taxon_rank::Class;
+//            case taxon_rank::superOrder:   return taxon_rank::Class;
+//            case taxon_rank::subClass:     return taxon_rank::Class;
             case taxon_rank::Class:        return taxon_rank::Phylum;
-            case taxon_rank::superClass:   return taxon_rank::Phylum;
-            case taxon_rank::subPhylum:    return taxon_rank::Phylum;
+//            case taxon_rank::superClass:   return taxon_rank::Phylum;
+//            case taxon_rank::subPhylum:    return taxon_rank::Phylum;
             case taxon_rank::Phylum:       return taxon_rank::Kingdom;
-            case taxon_rank::superPhylum:  return taxon_rank::Kingdom;
-            case taxon_rank::subKingdom:   return taxon_rank::Kingdom;
+//            case taxon_rank::superPhylum:  return taxon_rank::Kingdom;
+//            case taxon_rank::subKingdom:   return taxon_rank::Kingdom;
             case taxon_rank::Kingdom:      return taxon_rank::Domain;
             case taxon_rank::Domain:       return taxon_rank::root;
             default:
@@ -121,33 +126,27 @@ public:
     prev_main_rank(taxon_rank r) noexcept {
         switch(r) {
             case taxon_rank::Sequence:     return taxon_rank::none;
-//            case taxon_rank::Strain:       return taxon_rank::Sequence;
-//            case taxon_rank::subForm:      return taxon_rank::Sequence;
-//            case taxon_rank::Form:         return taxon_rank::Sequence;
-//            case taxon_rank::subVariety:   return taxon_rank::Sequence;
-//            case taxon_rank::Variety:      return taxon_rank::Sequence;
+            case taxon_rank::Form:         return taxon_rank::Sequence;
+            case taxon_rank::Variety:      return taxon_rank::Sequence;
             case taxon_rank::subSpecies:   return taxon_rank::Sequence;
             case taxon_rank::Species:      return taxon_rank::Sequence;
             case taxon_rank::subGenus:     return taxon_rank::Species;
             case taxon_rank::Genus:        return taxon_rank::Species;
-            case taxon_rank::subTribe:     return taxon_rank::Genus;
+//            case taxon_rank::subTribe:     return taxon_rank::Genus;
             case taxon_rank::Tribe:        return taxon_rank::Genus;
-            case taxon_rank::subFamily:    return taxon_rank::Genus;
+//            case taxon_rank::subFamily:    return taxon_rank::Genus;
             case taxon_rank::Family:       return taxon_rank::Genus;
-            case taxon_rank::superFamily:  return taxon_rank::Family;
-            case taxon_rank::parvOrder:    return taxon_rank::Family;
-            case taxon_rank::infraOrder:   return taxon_rank::Family;
-            case taxon_rank::subOrder:     return taxon_rank::Family;
+//            case taxon_rank::superFamily:  return taxon_rank::Family;
+//            case taxon_rank::subOrder:     return taxon_rank::Family;
             case taxon_rank::Order:        return taxon_rank::Family;
-            case taxon_rank::superOrder:   return taxon_rank::Order;
-            case taxon_rank::infraClass:   return taxon_rank::Order;
-            case taxon_rank::subClass:     return taxon_rank::Order;
+//            case taxon_rank::superOrder:   return taxon_rank::Order;
+//            case taxon_rank::subClass:     return taxon_rank::Order;
             case taxon_rank::Class:        return taxon_rank::Order;
-            case taxon_rank::superClass:   return taxon_rank::Class;
-            case taxon_rank::subPhylum:    return taxon_rank::Class;
+//            case taxon_rank::superClass:   return taxon_rank::Class;
+//            case taxon_rank::subPhylum:    return taxon_rank::Class;
             case taxon_rank::Phylum:       return taxon_rank::Class;
-            case taxon_rank::superPhylum:  return taxon_rank::Phylum;
-            case taxon_rank::subKingdom:   return taxon_rank::Phylum;
+//            case taxon_rank::superPhylum:  return taxon_rank::Phylum;
+//            case taxon_rank::subKingdom:   return taxon_rank::Phylum;
             case taxon_rank::Kingdom:      return taxon_rank::Phylum;
             case taxon_rank::Domain:       return taxon_rank::Kingdom;
             case taxon_rank::root:         return taxon_rank::Domain;
@@ -171,36 +170,30 @@ public:
     rank_from_name(const std::string& name) noexcept {
         if(name == "sequence")      return taxon_rank::Sequence;
         if(name == "genome")        return taxon_rank::Sequence;
-//        if(name == "strain")        return taxon_rank::Strain;
-//        if(name == "subform")       return taxon_rank::subForm;
-//        if(name == "form")          return taxon_rank::Form;
-//        if(name == "forma")         return taxon_rank::Form;
-//        if(name == "subvariety")    return taxon_rank::subVariety;
-//        if(name == "variety")       return taxon_rank::Variety;
-//        if(name == "varietas")      return taxon_rank::Variety;
+        if(name == "form")          return taxon_rank::Form;
+        if(name == "forma")         return taxon_rank::Form;
+        if(name == "variety")       return taxon_rank::Variety;
+        if(name == "varietas")      return taxon_rank::Variety;
         if(name == "subspecies")    return taxon_rank::subSpecies;
         if(name == "species")       return taxon_rank::Species;
         if(name == "subgenus")      return taxon_rank::subGenus;
         if(name == "genus")         return taxon_rank::Genus;
-        if(name == "subtribe")      return taxon_rank::subTribe;
+//        if(name == "subtribe")      return taxon_rank::subTribe;
         if(name == "tribe")         return taxon_rank::Tribe;
-        if(name == "subfamily")     return taxon_rank::subFamily;
+//        if(name == "subfamily")     return taxon_rank::subFamily;
         if(name == "family")        return taxon_rank::Family;
-        if(name == "superfamily")   return taxon_rank::superFamily;
-        if(name == "parvorder")     return taxon_rank::parvOrder;
-        if(name == "infraorder")    return taxon_rank::infraOrder;
-        if(name == "suborder")      return taxon_rank::subOrder;
+//        if(name == "superfamily")   return taxon_rank::superFamily;
+//        if(name == "suborder")      return taxon_rank::subOrder;
         if(name == "order")         return taxon_rank::Order;
-        if(name == "superorder")    return taxon_rank::superOrder;
-        if(name == "infraclass")    return taxon_rank::infraClass;
-        if(name == "subclass")      return taxon_rank::subClass;
+//        if(name == "superorder")    return taxon_rank::superOrder;
+//        if(name == "subclass")      return taxon_rank::subClass;
         if(name == "class")         return taxon_rank::Class;
-        if(name == "superclass")    return taxon_rank::superClass;
-        if(name == "subphylum")     return taxon_rank::subPhylum;
+//        if(name == "superclass")    return taxon_rank::superClass;
+//        if(name == "subphylum")     return taxon_rank::subPhylum;
         if(name == "phylum")        return taxon_rank::Phylum;
         if(name == "division")      return taxon_rank::Phylum;
-        if(name == "superphylum")   return taxon_rank::superPhylum;
-        if(name == "subkingdom")    return taxon_rank::subKingdom;
+//        if(name == "superphylum")   return taxon_rank::superPhylum;
+//        if(name == "subkingdom")    return taxon_rank::subKingdom;
         if(name == "kingdom")       return taxon_rank::Kingdom;
         if(name == "superkingdom")  return taxon_rank::Domain;
         if(name == "domain")        return taxon_rank::Domain;
@@ -213,34 +206,28 @@ public:
     static std::string
     rank_name(taxon_rank r) {
         switch(r) {
-            case taxon_rank::Sequence:       return "sequence";
-//            case taxon_rank::Strain:       return "strain";
-//            case taxon_rank::subForm:      return "subform";
-//            case taxon_rank::Form:         return "form";
-//            case taxon_rank::subVariety:   return "subvariety";
-//            case taxon_rank::Variety:      return "variety";
+            case taxon_rank::Sequence:     return "sequence";
+            case taxon_rank::Form:         return "form";
+            case taxon_rank::Variety:      return "variety";
             case taxon_rank::subSpecies:   return "subspecies";
             case taxon_rank::Species:      return "species";
             case taxon_rank::subGenus:     return "subgenus";
             case taxon_rank::Genus:        return "genus";
-            case taxon_rank::subTribe:     return "subtribe";
+//            case taxon_rank::subTribe:     return "subtribe";
             case taxon_rank::Tribe:        return "tribe";
-            case taxon_rank::subFamily:    return "subfamily";
+//            case taxon_rank::subFamily:    return "subfamily";
             case taxon_rank::Family:       return "family";
-            case taxon_rank::superFamily:  return "superfamily";
-            case taxon_rank::parvOrder:    return "parvorder";
-            case taxon_rank::infraOrder:   return "infraorder";
-            case taxon_rank::subOrder:     return "suborder";
+//            case taxon_rank::superFamily:  return "superfamily";
+//            case taxon_rank::subOrder:     return "suborder";
             case taxon_rank::Order:        return "order";
-            case taxon_rank::superOrder:   return "superorder";
-            case taxon_rank::infraClass:   return "infraclass";
-            case taxon_rank::subClass:     return "subclass";
+//            case taxon_rank::superOrder:   return "superorder";
+//            case taxon_rank::subClass:     return "subclass";
             case taxon_rank::Class:        return "class";
-            case taxon_rank::superClass:   return "superclass";
-            case taxon_rank::subPhylum:    return "supphylum";
+//            case taxon_rank::superClass:   return "superclass";
+//            case taxon_rank::subPhylum:    return "supphylum";
             case taxon_rank::Phylum:       return "phylum";
-            case taxon_rank::superPhylum:  return "superphylum";
-            case taxon_rank::subKingdom:   return "subkingdom";
+//            case taxon_rank::superPhylum:  return "superphylum";
+//            case taxon_rank::subKingdom:   return "subkingdom";
             case taxon_rank::Kingdom:      return "kingdom";
             case taxon_rank::Domain:       return "domain";
             case taxon_rank::root:         return "root";
