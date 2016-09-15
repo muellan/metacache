@@ -1004,7 +1004,7 @@ void print_statistics(const sketch_database<S,K>& db)
     auto hbs = db.bucket_sizes();
 
     std::cout << "buckets:          " << db.bucket_count() << '\n'
-              << "bucket size:      " << hbs.mean() << " +/- " << hbs.stddev()
+              << "bucket size:      " << hbs.mean() << " +/- " << hbs.stddev() << '\n'
               << "features:         " << db.feature_count() << '\n'
               << "references:       " << db.reference_count() << '\n'
               << std::endl;
