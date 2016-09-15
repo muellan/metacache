@@ -52,7 +52,6 @@ class chunk_allocator
                 bof_ = new T[size];
                 mem_.reset(bof_);
                 end_ = bof_ + size;
-//                std::cout << "allocated chunk of size " << size << std::endl;
             } catch (std::exception&) {
                 bof_ = nullptr;
             }
@@ -147,10 +146,9 @@ public:
     T* allocate(std::size_t n)
     {
 //        std::lock_guard<std::mutex> lock(mutables_);
-
         //at the moment chunks will only be used,
         //if they have been reserved explicitly
-        if(n >= freeSize_) {
+        if(n <= freeSize_) {
             for(auto& c : chunks_) {
                 auto p = c.next_buffer(n);
                 if(p) {
@@ -164,7 +162,6 @@ public:
 //        auto p = chunks_.back().next_buffer(n);
 //        if(p) return p;
         //fallback
-//        std::cout << "allocated small piece of size " << n << std::endl;
         return new T[n];
     }
 
