@@ -841,15 +841,16 @@ public:
     {
         using std::begin;
         using std::end;
+        using std::int_least64_t;
 
         for(int i = 0; i < maxNo; ++i) {
             gid_[i] = -1;
             hits_[i] = 0;
         }
 
-        int gid = -1;
-        int hits = 0;
-        int win = -1;
+        int_least64_t gid = -1;
+        int_least64_t hits = 0;
+        int_least64_t win = -1;
 
         //check hits per query sequence
         auto fst = begin(matches);

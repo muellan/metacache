@@ -595,7 +595,7 @@ struct classification
     }
 
 private:
-    int gid_;
+    std::int_least64_t gid_;
     const taxon* tax_;
 };
 
