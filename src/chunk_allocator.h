@@ -27,6 +27,7 @@
 #include <vector>
 #include <memory>
 #include <algorithm>
+#include <iostream>
 //#include <mutex>
 
 
@@ -51,6 +52,7 @@ class chunk_allocator
                 bof_ = new T[size];
                 mem_.reset(bof_);
                 end_ = bof_ + size;
+//                std::cout << "allocated chunk of size " << size << std::endl;
             } catch (std::exception&) {
                 bof_ = nullptr;
             }
@@ -162,6 +164,7 @@ public:
 //        auto p = chunks_.back().next_buffer(n);
 //        if(p) return p;
         //fallback
+//        std::cout << "allocated small piece of size " << n << std::endl;
         return new T[n];
     }
 

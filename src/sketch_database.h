@@ -71,7 +71,8 @@ namespace mc {
  *****************************************************************************/
 template<
     class SequenceType,
-    class Sketcher
+    class Sketcher,
+    class GenomeId = std::uint16_t
 >
 class sketch_database
 {
@@ -80,7 +81,7 @@ public:
     using sequence = SequenceType;
     using sketcher = Sketcher;
     //-----------------------------------------------------
-    using genome_id   = std::uint16_t;
+    using genome_id   = GenomeId;
     using window_id   = std::uint16_t;
     using sequence_id = std::string;
     //-----------------------------------------------------
@@ -731,7 +732,7 @@ public:
 
     //---------------------------------------------------------------
     variance_accumulator<double>
-    bucket_sizes() const {
+    bucket_size_statistics() const {
         auto priSize = variance_accumulator<double>{};
 
         for(const auto& bucket : features_) {
@@ -739,6 +740,18 @@ public:
         }
 
         return priSize;
+    }
+
+
+    //---------------------------------------------------------------
+    void print_feature_map(std::ostream& os) const {
+        for(const auto& bucket : features_) {
+            os << bucket.key() << " -> ";
+            for(reference_pos p : bucket) {
+                os << '(' << p.gid << ',' << p.win << ')';
+            }
+            os << '\n';
+        }
     }
 
 
@@ -1001,7 +1014,7 @@ void print_statistics(const sketch_database<S,K>& db)
               << "sketch size:      " << db.genome_sketcher().sketch_size() << '\n'
               << "taxa in tree:     " << db.taxon_count() << '\n';
 
-    auto hbs = db.bucket_sizes();
+    auto hbs = db.bucket_size_statistics();
 
     std::cout << "buckets:          " << db.bucket_count() << '\n'
               << "bucket size:      " << hbs.mean() << " +/- " << hbs.stddev() << '\n'

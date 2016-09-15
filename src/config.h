@@ -54,7 +54,12 @@ using sequence = std::string;
 #endif
 
 
-using database   = sketch_database<sequence,sketcher>;
+#ifdef MC_GENOME_ID_TYPE
+    using database = sketch_database<sequence,sketcher, MC_GENOME_ID_TYPE >;
+#else
+    using database = sketch_database<sequence,sketcher>;
+#endif
+
 using taxon_rank = database::taxon_rank;
 using genome_id  = database::genome_id;
 

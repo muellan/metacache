@@ -47,6 +47,22 @@ void show_database_statistics(const args_parser& args)
  *
  *
  *****************************************************************************/
+void show_feature_map(const args_parser& args)
+{
+    auto dbfilename = database_name(args);
+    auto db = make_database<database>(dbfilename);
+    print_statistics(db);
+    std::cout << "===================================================\n";
+    db.print_feature_map(std::cout);
+    std::cout << "===================================================\n";
+}
+
+
+
+/*****************************************************************************
+ *
+ *
+ *****************************************************************************/
 void show_ranks_of_genome(const database& db, database::genome_id gid)
 {
     //if genomes don't have their own taxonId, print their sequence id
@@ -219,13 +235,17 @@ void show_rank_statistics(const args_parser& args)
 void main_mode_info(const args_parser& args)
 {
     if(args.non_prefixed_count() > 2) {
-        if(args.non_prefixed(2) == "statistics") {
-            show_database_statistics(args);
-        } else if(args.non_prefixed(2) == "lineages") {
+        if(args.non_prefixed(2) == "lineages") {
             show_lineage_table(args);
         }
         else if(args.non_prefixed(2) == "rank" && args.non_prefixed_count() > 3) {
             show_rank_statistics(args);
+        }
+        else if(args.non_prefixed(2) == "statistics") {
+            show_database_statistics(args);
+        }
+        else if(args.non_prefixed(2) == "featuremap") {
+            show_feature_map(args);
         }
         else {
             show_sequence_info(args);

@@ -613,7 +613,7 @@ void add_to_database(database& db,
                     bool added = db.add_genome(sequ.data, seqId, taxid, origin);
 
                     if(param.showDetailedBuildInfo && !added) {
-                        std::cout << seqId << " already in database" << std::endl;
+                        std::cout << seqId << " not added to database" << std::endl;
                     }
                 }
                 ++origin.index; //track sequence index in file
