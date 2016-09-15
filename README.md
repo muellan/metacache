@@ -22,6 +22,23 @@ Visit MetaCache's github repository [repo].
 #### Compile
 Run 'make' in the directory containing the Makefile.
 
+There are some compilation options that give MetaCache more flexibility but can seriously  affect its memory requirements. These options are configured by macro definitions.
+
+* support for kmer lengths greater than 16:
+  ```
+  make MACROS=-DMC_64BIT_KMERS
+  ```
+
+* support for more than 65535 reference sequences:
+  ```
+  make MACROS=-DMC_GENOME_ID_TYPE=uint32_t
+  ```
+
+* both of the above:
+  ```
+  make MACROS=-DMC_GENOME_ID_TYPE=uint32_t -DMC_64BIT_KMERS
+  ```
+
 
 ## Usage
 

@@ -93,6 +93,7 @@ TARGETDIR=$2
 FILTER=0
 if [ $# -gt 2 ]; then
   if [ "$3" == "contigs" ]; then
+    echo "PLEASE NOTE: Make sure you have MetaCache compiled with support for more than 65536 reference genomes!"
     FILTER=1
   else
     echo "unknown filter option $3"
