@@ -96,6 +96,17 @@ void main_mode_make_reads(const args_parser&);
 void main_mode_query(const args_parser&);
 
 
+
+
+/*****************************************************************************
+ *
+ *
+ *****************************************************************************/
+enum class taxon_print_mode : unsigned char {
+    name_only = 1, id_only = 2, id_name = 3
+};
+
+
 } // namespace mc
 
 

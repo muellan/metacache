@@ -2,9 +2,6 @@ REL_ARTIFACT  = metacache
 DBG_ARTIFACT  = metacache_debug
 TEST_ARTIFACT = run-tests
 
-INCLUDES = 
-MACROS   =
-
 #COMPILER     = nvcc
 COMPILER     = g++
 MPI_COMPILER = mpicxx

@@ -39,18 +39,33 @@ namespace mc {
 
 using sequence = std::string;
 
-using sketcher = single_function_min_hasher; //default, for 0 <= k <= 32
-// using sketcher = single_function_min_hasher64; //for 33 <= k <= 64
-// using sketcher = multi_function_min_hasher; //different hash fun for each feature
+
+#ifdef MC_MF_MINHASH
+    //different hash function for each feature in sketch
+    using sketcher = multi_function_min_hasher;
+#else
+    #ifdef MC_64BIT_KMERS
+        //for 33 <= k <= 64
+        using sketcher = single_function_min_hasher_64;
+    #else
+        //default, for 0 <= k <= 32
+        using sketcher = single_function_min_hasher;
+    #endif
+#endif
+
 
 using database   = sketch_database<sequence,sketcher>;
 using taxon_rank = database::taxon_rank;
 using genome_id  = database::genome_id;
 
-using top_matches_in_contiguous_window_range
-        = matches_in_contiguous_window_range_top<2>;
-//        = matches_in_contiguous_window_range_top<8>;  //will use majority voting scheme
 
+#ifdef MC_VOTE8
+    using top_matches_in_contiguous_window_range
+            = matches_in_contiguous_window_range_top<8>;  //will use majority voting scheme
+#else
+    using top_matches_in_contiguous_window_range
+            = matches_in_contiguous_window_range_top<2>;
+#endif
 
 } // namespace mc
 
