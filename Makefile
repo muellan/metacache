@@ -49,6 +49,7 @@ SOURCES = \
           src/filesys_utility.cpp \
           src/mode_annotate.cpp \
           src/mode_build.cpp \
+          src/mode_evaluate.cpp \
           src/mode_help.cpp \
           src/mode_info.cpp \
           src/mode_query.cpp \
@@ -123,6 +124,9 @@ $(REL_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)
 $(REL_DIR)/mode_build.o : src/mode_build.cpp $(HEADERS)
 	$(REL_COMPILE)
 	
+$(REL_DIR)/mode_evaluate.o : src/mode_evaluate.cpp $(HEADERS)
+	$(REL_COMPILE)
+	
 $(REL_DIR)/mode_help.o : src/mode_help.cpp src/modes.h
 	$(REL_COMPILE)
 
@@ -165,6 +169,9 @@ $(DBG_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)
 	$(DBG_COMPILE)
 	
 $(DBG_DIR)/mode_build.o : src/mode_build.cpp $(HEADERS)
+	$(DBG_COMPILE)
+	
+$(DBG_DIR)/mode_evaluate.o : src/mode_evaluate.cpp $(HEADERS)
 	$(DBG_COMPILE)
 	
 $(DBG_DIR)/mode_help.o : src/mode_help.cpp src/modes.h

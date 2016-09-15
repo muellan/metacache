@@ -76,19 +76,19 @@ void main_mode_info(const args_parser&);
 
 /*****************************************************************************
  *
- * @brief generates random reads (with errors) from sequences
+ * @brief run query reads against pre-built database
  *
  *****************************************************************************/
-void main_mode_make_reads(const args_parser&);
+void main_mode_query(const args_parser&);
 
 
 
 /*****************************************************************************
  *
- * @brief run query reads against pre-built database
+ * @brief evaluate classification results against ground truth
  *
  *****************************************************************************/
-void main_mode_query(const args_parser&);
+void main_mode_evaluate(const args_parser&);
 
 
 } // namespace mc

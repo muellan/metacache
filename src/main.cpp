@@ -64,6 +64,9 @@ int main(int argc, char* argv[])
         else if(modestr == "info") {
             main_mode_info(args);
         }
+        else if(modestr == "evaluate") {
+            main_mode_evaluate(args);
+        }
         else if(modestr == "annotate") {
             main_mode_annotate(args);
         }
