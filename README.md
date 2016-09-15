@@ -41,7 +41,7 @@ There are some compilation options that give MetaCache more flexibility but can 
 
 
 ## Usage
-
+   
 #### Build A Reference Database
 Use the ```metacache-build-refseq``` script to build a MetaCache database based on complete genomes from the latest NCBI RefSeq or Genbank. Note that the genomes will be downloaded first, which can take some time.
 Currently you can choose between three default settings: standard, big and small.
@@ -51,14 +51,12 @@ Currently you can choose between three default settings: standard, big and small
 ./metacache-build-refseq small
 ```
 
-If you want full control over the individual steps, there are several
-helper scripts:
-- ```download-ncbi-genomes``` downloads NCBI reference genomes.
-- ```download-ncbi-taxonomy``` downloads NCBI taxonomy.
-- ```download-ncbi-taxmap``` downloads NCBI accession to taxon ID maps.
-  Note that these maps are not needed for the latest NCBI RefSeq releases.
+If you want full control over the individual steps, there are several helper scripts:
+* ```download-ncbi-genomes``` downloads NCBI reference genomes.
+* ```download-ncbi-taxonomy``` downloads NCBI taxonomy.
+* ```download-ncbi-taxmaps``` downloads NCBI accession to taxon ID maps. Note that these maps are not needed for the latest NCBI RefSeq releases.
 
-Metacache has different modes, one of them is the 'build mode.
+Metacache has different modes, one of them is the 'build' mode.
 See its documentation for more information:
 ```
 ./metacache help build
@@ -69,22 +67,22 @@ Note: In rare cases databases that were built on one platform might not work on 
 
 #### Classification TL;DR 
 Metacache has different modes, one of them is the 'query' mode. Once a database (e.g. the standard 'refseq'), is built you can classify reads.
-a single FASTA file with reads:
-```
-./metacache query refseq my_reads.fa -out results.txt
-```
-an entire directory with reads:
-```
-./metacache query refseq my_read_folder -out results.txt
-```
-paired-end reads in separate files:
-```
-./metacache query refseq -pair_files my_reads1.fa my_reads2.fa -out results.txt
-```
-paired-end reads in one file:
-```
-./metacache query refseq -pair_sequences my_paired_reads.fa -out results.txt
-```
+* a single FASTA file with reads:
+  ```
+  ./metacache query refseq my_reads.fa -out results.txt
+  ```
+* an entire directory with reads:
+  ```
+  ./metacache query refseq my_read_folder -out results.txt
+  ```
+* paired-end reads in separate files:
+  ```
+  ./metacache query refseq -pair_files my_reads1.fa my_reads2.fa -out results.txt
+  ```
+* paired-end reads in one file:
+  ```
+  ./metacache query refseq -pair_sequences my_paired_reads.fa -out results.txt
+  ```
 
 #### View Documentation
 The operating manual consists of several text files (one for each mode) located in the 'docs' directory.
