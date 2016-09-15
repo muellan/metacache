@@ -25,7 +25,7 @@
 #include "args_handling.h"
 #include "sequence_io.h"
 
-#include "modes.h"
+#include "modes_common.h"
 
 
 namespace mc {

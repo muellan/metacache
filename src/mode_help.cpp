@@ -24,7 +24,7 @@
 #include <string>
 #include <fstream>
 
-#include "modes.h"
+#include "modes_common.h"
 #include "filesys_utility.h"
 
 

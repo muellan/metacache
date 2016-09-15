@@ -29,23 +29,10 @@
 #include "sequence_view.h"
 #include "alignment.h"
 
-#include "modes.h"
+#include "modes_common.h"
 
 
 namespace mc {
-
-/*****************************************************************************
- *
- *
- *****************************************************************************/
-using taxon_rank     = database::taxon_rank;
-using taxon          = database::taxon;
-using genome_id      = database::genome_id;
-using taxon_id       = database::taxon_id;
-using ranked_lineage = database::ranked_lineage;
-using match_result   = database::match_result;
-
-
 
 
 
@@ -293,160 +280,6 @@ get_query_param(const args_parser& args)
 
 /*****************************************************************************
  *
- *
- *
- *****************************************************************************/
-void show_ranks(
-    std::ostream& os,
-    const database& db,
-    const ranked_lineage& lineage,
-    taxon_print_mode mode = taxon_print_mode::name_only,
-    taxon_rank lowest  = taxon_rank::Species,
-    taxon_rank highest = taxon_rank::Domain)
-{
-    //one rank only
-    if(lowest == highest) {
-        auto taxid = lineage[int(lowest)];
-        os << taxonomy::rank_name(lowest) << ':';
-        if(mode != taxon_print_mode::id_only) {
-            if(taxid > 1)
-                os << db.taxon_with_id(taxid).name;
-            else
-                os << "n/a";
-            if(mode != taxon_print_mode::name_only)
-                os << "(" << taxid << ")";
-        }
-        else {
-            os << taxid;
-        }
-    }
-    //range of ranks
-    else {
-        for(auto r = lowest; r <= highest; ++r) {
-            auto taxid = lineage[int(r)];
-            if(taxid > 1) {
-                auto&& taxon = db.taxon_with_id(taxid);
-                if(taxon.rank >= lowest && taxon.rank <= highest) {
-                    os << taxon.rank_name() << ':';
-                    if(mode != taxon_print_mode::id_only) {
-                        os << taxon.name;
-                        if(mode != taxon_print_mode::name_only) {
-                            os << "(" << taxon.id << ")";
-                        }
-                    }
-                    else {
-                        os << taxon.id;
-                    }
-                }
-                if(r < highest) os << ',';
-            }
-        }
-    }
-}
-
-
-
-/*****************************************************************************
- *
- *
- *
- *****************************************************************************/
-void show_ranks_of_genome(
-    std::ostream& os,
-    const database& db,
-    genome_id gid,
-    taxon_print_mode mode = taxon_print_mode::name_only,
-    taxon_rank lowest  = taxon_rank::Sequence,
-    taxon_rank highest = taxon_rank::Domain)
-{
-    //since genomes don't have their own taxonId, print their sequence id
-    if(lowest == taxon_rank::Sequence) {
-        if(mode != taxon_print_mode::id_only) {
-            os << "sequence:" << db.sequence_id_of_genome(gid);
-        } else {
-            os << db.sequence_id_of_genome(gid);
-        }
-    }
-    if(highest == taxon_rank::Sequence) return;
-
-    if(lowest == taxon_rank::Sequence) os << ',';
-
-    show_ranks(os, db, db.ranks_of_genome(gid),
-                        mode, lowest, highest);
-}
-
-
-
-/*****************************************************************************
- *
- * @brief  print genome.window hit statistics from database
- *
- *****************************************************************************/
-void show_matches(std::ostream& os,
-    const database& db,
-    const match_result& matches,
-    taxon_rank lowest = taxon_rank::Sequence)
-{
-    if(matches.empty()) return;
-
-    if(lowest == taxon_rank::Sequence) {
-        for(const auto& r : matches) {
-            os << db.sequence_id_of_genome(r.first.gid)
-               << '/' << int(r.first.win)
-               << ':' << int(r.second) << ',';
-        }
-    }
-    else {
-        for(const auto& r : matches) {
-            auto taxid = db.ranks_of_genome(r.first.gid)[int(lowest)];
-            os << taxid << ':' << int(r.second) << ',';
-        }
-    }
-}
-
-//-------------------------------------------------------------------
-template<int n>
-void show_matches(std::ostream& os,
-    const database& db,
-    const matches_in_contiguous_window_range_top<n>& cand,
-    taxon_rank lowest = taxon_rank::Sequence)
-{
-    if(lowest == taxon_rank::Sequence) {
-        if(cand.hits(0) > 0) {
-            os  << db.sequence_id_of_genome(cand.genome_id(0))
-                << ':' << cand.hits(0);
-        }
-
-        for(int i = 1; i < n && cand.hits(i) > 0; ++i) {
-            os  << ',' << db.sequence_id_of_genome(cand.genome_id(i))
-                << ':' << cand.hits(i);
-            ++i;
-        }
-    }
-    else {
-        if(cand.hits(0) > 0) {
-            auto taxid = db.ranks_of_genome(
-                         cand.genome_id(0))[int(lowest)];
-
-            os << taxid << ':' << cand.hits(0);
-        }
-
-        for(int i = 1; i < n && cand.hits(i) > 0; ++i) {
-            auto taxid = db.ranks_of_genome(
-                         cand.genome_id(i))[int(lowest)];
-
-            os << ',' << taxid << ':' << cand.hits(i);
-            ++i;
-        }
-    }
-}
-
-
-
-
-
-/*****************************************************************************
- *
  * @brief  print genome.window hit statistics from database
  *
  *****************************************************************************/
@@ -462,142 +295,6 @@ void show_candidate_ranges(std::ostream& os,
            << ',' << (w * cand.window(i).end) << "] ";
     }
 }
-
-
-
-
-/*****************************************************************************
- *
- * @brief
- *
- *****************************************************************************/
-void show_per_rank_statistics(
-    std::ostream& os,
-    const rank_statistics& stats,
-    const std::string& prefix = "")
-{
-    constexpr taxon_rank ranks[] {
-          taxon_rank::Sequence,
-          taxon_rank::subSpecies, taxon_rank::Species,
-          taxon_rank::subGenus,   taxon_rank::Genus,
-          taxon_rank::Family,     taxon_rank::Order,
-          taxon_rank::Class,      taxon_rank::Phylum,
-          taxon_rank::Kingdom,    taxon_rank::Domain,
-          taxon_rank::root
-    };
-
-    if(stats.classified() < 1) {
-        os << "None of the input sequences could be classified.\n";
-        return;
-    }
-
-    if(stats.unclassified() > 0) {
-        os << prefix << "unclassified: "
-           << (100 * stats.unclassified_rate())
-           << "% (" << stats.unclassified() << ")\n";
-    }
-    os << prefix << "classified:\n";
-    for(auto r : ranks) {
-        if(stats.classified(r) > 0) {
-            auto rn = taxonomy::rank_name(r);
-            rn.resize(11, ' ');
-            os  << prefix <<"  "<< rn
-                << (100 * stats.classification_rate(r))
-                << "% (" << stats.classified(r) << ")\n";
-        }
-    }
-
-    if(stats.known() > 0) {
-        if(stats.unknown() > 0) {
-            os << prefix << "ground truth unknown: "
-               << (100 * stats.unknown_rate())
-               << "% (" << stats.unknown() << ")\n";
-        }
-        os << prefix << "ground truth known:\n";
-        for(auto r : ranks) {
-            auto rn = taxonomy::rank_name(r);
-            rn.resize(11, ' ');
-            os  << prefix <<"  "<< rn
-                << (100 * stats.known_rate(r))
-                << "% (" << stats.known(r) << ")\n";
-        }
-
-        os << prefix << "correctly classified:\n";
-        for(auto r : ranks) {
-            auto rn = taxonomy::rank_name(r);
-            rn.resize(11, ' ');
-            os << prefix <<"  "<< rn << stats.correct(r) << '\n';
-        }
-
-        os << prefix << "precision (correctly classified / classified):\n";
-        for(auto r : ranks) {
-            auto rn = taxonomy::rank_name(r);
-            rn.resize(11, ' ');
-            os << prefix <<"  "<< rn << (100 * stats.precision(r)) << "%\n";
-        }
-
-        os << prefix << "sensitivity (correctly classified / all):\n";
-        for(auto r : ranks) {
-            if(stats.classified(r) > 0) {
-                auto rn = taxonomy::rank_name(r);
-                rn.resize(11, ' ');
-                os << prefix <<"  "<< rn << (100 * stats.sensitivity(r)) << "%\n";
-            }
-        }
-
-        if(stats.coverage(taxon_rank::Domain).total() > 0) {
-            os << prefix << "false positives (hit on taxa not covered in DB):\n";
-            for(auto r : ranks) {
-                if(stats.classified(r) > 0) {
-                    auto rn = taxonomy::rank_name(r);
-                    rn.resize(11, ' ');
-                    os << prefix <<"  "<< rn
-                       << stats.coverage(r).false_pos() << "\n";
-                }
-            }
-        }
-    }
-
-}
-
-
-
-/*****************************************************************************
- *
- * @brief  needed because the NCBI does not define taxon ids on sequence level
- *
- *****************************************************************************/
-struct classification
-{
-
-    explicit constexpr
-    classification(const taxon* tax = nullptr) noexcept:
-        gid_{-1}, tax_{tax}
-    {}
-
-    explicit constexpr
-    classification(genome_id gid, const taxon* tax = nullptr) noexcept:
-        gid_{gid}, tax_{tax}
-    {}
-
-    bool has_taxon() const noexcept      { return tax_; }
-    bool sequence_level() const noexcept { return gid_ >= 0; }
-    bool none() const noexcept { return !sequence_level() && !has_taxon(); }
-
-    genome_id gid() const noexcept {
-        return gid_ < 0 ? database::invalid_genome_id() : genome_id(gid_);
-    }
-    const taxon& tax() const noexcept { return *tax_; }
-
-    taxon_rank rank() const noexcept {
-        return sequence_level() ? taxon_rank::Sequence
-                                : (tax_ ? tax_->rank : taxon_rank::none);
-    }
-
-private:
-    std::int_least64_t gid_;
-    const taxon* tax_;
-};
 
 
 
@@ -690,6 +387,7 @@ best_kmer_intersection_candidate(std::ostream&,
     //largest isec size significantly greater thean second largest?
     return (fstVal >= param.kmerCountDiff * sndVal) ? fstIdx : sndIdx;
 }
+
 
 
 
@@ -827,6 +525,7 @@ best_alignment_candidate(std::ostream& os,
     }
     return -1;
 }
+
 
 
 /*****************************************************************************
@@ -968,7 +667,11 @@ sequence_classification(std::ostream& os,
 
 
 
-//-------------------------------------------------------------------
+/*****************************************************************************
+ *
+ *
+ *
+ *****************************************************************************/
 void show_classification(std::ostream& os,
                          const database& db, const query_param& param,
                          const classification& cls)
@@ -1000,60 +703,6 @@ void show_classification(std::ostream& os,
 
 /*****************************************************************************
  *
- * @brief returns query taxon (ground truth for precision tests)
- *
- *****************************************************************************/
-classification
-ground_truth(const database& db, const std::string& header)
-{
-    //try to extract query id and find the corresponding genome in database
-    auto gid = db.genome_id_of_sequence(extract_ncbi_accession_version_number(header));
-    //not found yet
-    if(!db.is_valid(gid)) {
-        gid = db.genome_id_of_sequence(extract_ncbi_accession_number(header));
-        //not found yet
-//        if(!db.is_valid(gid)) {
-//            gid = db.genome_id_of_sequence(extract_genbank_identifier(header));
-//        }
-    }
-
-    auto taxid = extract_taxon_id(header);
-
-    //if genome known and in db
-    if(db.is_valid(gid)) {
-        //if taxid could not be determined solely from header, use the one
-        //from the genome in the db
-        if(taxid < 1) db.taxon_id_of_genome(gid);
-
-        return classification { gid, taxid > 0 ? &db.taxon_with_id(taxid) : nullptr };
-    }
-
-    return classification { taxid > 0 ? &db.taxon_with_id(taxid) : nullptr };
-}
-
-
-
-//-------------------------------------------------------------------
-taxon_rank
-lowest_common_rank(const database& db,
-                   const classification& a,
-                   const classification& b)
-{
-    if(a.sequence_level() && b.sequence_level() &&
-        a.gid() == b.gid()) return taxon_rank::Sequence;
-
-    if(a.has_taxon() && b.has_taxon()) {
-        return db.ranked_lca(a.tax(), b.tax()).rank;
-    }
-
-    return taxon_rank::none;
-}
-
-
-
-
-/*****************************************************************************
- *
  * @brief  clade exclusion
            masks out hits of a taxon; can be very slow!
  *
@@ -1071,40 +720,6 @@ void remove_hits_on_rank(const database& db,
     }
     using std::swap;
     swap(maskedRes,res);
-}
-
-
-
-
-/*****************************************************************************
- *
- * @brief
- *
- *****************************************************************************/
-void update_coverage_statistics(
-    const database& db,
-    const classification& result, const classification& truth,
-    rank_statistics& stats)
-{
-    const auto& lin = db.ranks(truth.tax());
-    //check if taxa are covered in DB
-    for(auto tid : lin) {
-        auto r = db.taxon_with_id(tid).rank;
-        if(db.covers_taxon(tid)) {
-            if(r < result.rank()) { //unclassified on rank
-                stats.count_coverage_false_neg(r);
-            } else { //classified on rank
-                stats.count_coverage_true_pos(r);
-            }
-        }
-        else {
-            if(r < result.rank()) { //unclassified on rank
-                stats.count_coverage_true_neg(r);
-            } else { //classified on rank
-                stats.count_coverage_false_pos(r);
-            }
-        }
-    }
 }
 
 
@@ -1211,7 +826,6 @@ void process_database_answer(
 
 
 
-
 /*****************************************************************************
  *
  * @brief classifies paired-end sequences in file pairs
@@ -1257,7 +871,6 @@ void classify_on_file_pairs(
         }
     }
 }
-
 
 
 
@@ -1318,7 +931,6 @@ void classify_per_file(
         }
     }
 }
-
 
 
 
@@ -1446,7 +1058,6 @@ void process_input_files(const database& db,
         }
     }
 }
-
 
 
 

@@ -21,13 +21,8 @@
  *
  *****************************************************************************/
 
-#ifndef MC_MODE_BUILD_H_
-#define MC_MODE_BUILD_H_
-
-#include "args_parser.h"
-
-//contains all important typedefs
-#include "config.h"
+#ifndef MC_MODES_H_
+#define MC_MODES_H_
 
 
 namespace mc {
@@ -94,17 +89,6 @@ void main_mode_make_reads(const args_parser&);
  *
  *****************************************************************************/
 void main_mode_query(const args_parser&);
-
-
-
-
-/*****************************************************************************
- *
- *
- *****************************************************************************/
-enum class taxon_print_mode : unsigned char {
-    name_only = 1, id_only = 2, id_name = 3
-};
 
 
 } // namespace mc

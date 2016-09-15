@@ -34,6 +34,7 @@ HEADERS = \
           src/io_error.h \
           src/io_serialize.h \
           src/modes.h \
+          src/modes_common.h \
           src/sequence_io.h \
           src/sequence_view.h \
           src/sketch_database.h \
@@ -51,6 +52,7 @@ SOURCES = \
           src/mode_help.cpp \
           src/mode_info.cpp \
           src/mode_query.cpp \
+          src/modes_common.cpp \
           src/sequence_io.cpp
           
 TEST_HEADERS = \
@@ -130,6 +132,9 @@ $(REL_DIR)/mode_info.o : src/mode_info.cpp $(HEADERS)
 $(REL_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 	$(REL_COMPILE)
 
+$(REL_DIR)/modes_common.o : src/modes_common.cpp $(HEADERS)
+	$(REL_COMPILE)
+
 $(REL_DIR)/sequence_io.o : src/sequence_io.cpp src/sequence_io.h src/io_error.h
 	$(REL_COMPILE)
 
@@ -171,6 +176,9 @@ $(DBG_DIR)/mode_info.o : src/mode_info.cpp $(HEADERS)
 $(DBG_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
+$(DBG_DIR)/modes_common.o : src/modes_common.cpp $(HEADERS)
+	$(DBG_COMPILE)
+	
 $(DBG_DIR)/sequence_io.o : src/sequence_io.cpp src/sequence_io.h src/io_error.h
 	$(DBG_COMPILE)
 

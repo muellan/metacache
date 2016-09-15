@@ -31,6 +31,7 @@
 #include "cmdline_utility.h"
 #include "sequence_io.h"
 
+#include "modes_common.h"
 #include "modes.h"
 
 
