@@ -972,9 +972,9 @@ make_database_metadata_only(const std::string& filename)
  * @brief writes database to file
  *
  *****************************************************************************/
-template<class S, class K>
+template<class S, class K, class G>
 void
-write_database(const sketch_database<S,K>& db, const std::string& filename)
+write_database(const sketch_database<S,K,G>& db, const std::string& filename)
 {
     std::cout << "Writing database to file'"
               << filename << "' ... " << std::flush;
@@ -997,10 +997,10 @@ write_database(const sketch_database<S,K>& db, const std::string& filename)
  * @brief prints database properties to stdout
  *
  *****************************************************************************/
-template<class S, class K>
-void print_statistics(const sketch_database<S,K>& db)
+template<class S, class K, class G>
+void print_statistics(const sketch_database<S,K,G>& db)
 {
-    using genome_id = typename sketch_database<S,K>::genome_id;
+    using genome_id = typename sketch_database<S,K,G>::genome_id;
     int numRankedGenomes = 0;
     for(genome_id i = 0; i < db.genome_count(); ++i) {
         if(!db.taxon_of_genome(i).none()) ++numRankedGenomes;
