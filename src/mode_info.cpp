@@ -131,16 +131,18 @@ void show_lineage_table(const args_parser& args)
     if(db.genome_count() < 1) return;
 
     //table header
-    auto r = rank::Sequence;
-    std::cout << taxonomy::rank_name(r);
-    for(++r; r < rank::Domain; ++r) std::cout << '\t' << taxonomy::rank_name(r);
+    std::cout << taxonomy::rank_name(rank::Sequence);
+    for(auto r = rank::Sequence; r <= rank::Domain; ++r) {
+        std::cout << '\t' << taxonomy::rank_name(r);
+    }
     std::cout << '\n';
 
     //rows
     for(genome_id gid = 0; gid < db.genome_count(); ++gid) {
         std::cout << db.sequence_id_of_genome(gid);
-        for(auto taxid : db.ranks_of_genome(gid)) {
-            std::cout << '\t' << taxid;
+        auto ranks = db.ranks_of_genome(gid);
+        for(auto r = rank::Sequence; r <= rank::Domain; ++r) {
+            std::cout << '\t' << ranks[int(r)];
         }
         std::cout << '\n';
     }

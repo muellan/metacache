@@ -1,7 +1,6 @@
 
 #include <iostream>
 
-#include "sketch_database_test.h"
 
 namespace mc_test {
 

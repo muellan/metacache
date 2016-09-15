@@ -374,11 +374,15 @@ public:
     is_valid(genome_id gid) const noexcept {
         return gid < nextGenomeId_;
     }
+    static constexpr genome_id
+    invalid_genome_id() noexcept {
+        return std::numeric_limits<genome_id>::max();
+    }
     std::uint64_t
     genome_count() const noexcept {
         return genomes_.size();
     }
-    static std::uint64_t
+    static constexpr std::uint64_t
     max_genome_count() noexcept {
         return std::numeric_limits<genome_id>::max();
     }
@@ -710,9 +714,18 @@ public:
         write_binary(os, features_);
     }
 
+
     //---------------------------------------------------------------
-    size_t bucket_count() const noexcept {
+    std::uint64_t bucket_count() const noexcept {
         return features_.bucket_count();
+    }
+    //---------------------------------------------------------------
+    std::uint64_t feature_count() const noexcept {
+        return features_.key_count();
+    }
+    //---------------------------------------------------------------
+    std::uint64_t reference_count() const noexcept {
+        return features_.value_count();
     }
 
 
@@ -992,6 +1005,8 @@ void print_statistics(const sketch_database<S,K>& db)
 
     std::cout << "buckets:          " << db.bucket_count() << '\n'
               << "bucket size:      " << hbs.mean() << " +/- " << hbs.stddev()
+              << "features:         " << db.feature_count() << '\n'
+              << "references:       " << db.reference_count() << '\n'
               << std::endl;
 }
 

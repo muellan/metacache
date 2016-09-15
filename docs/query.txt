@@ -23,8 +23,8 @@ OPTIONS:
                        so that the nth read from file m and the nth read
                        from file m+1 will be treated as a pair.
                        If more than two files are provided, their names
-                       will be sorted before processing. Thus the order
-                       defined by the file names determines the pairing and not
+                       will be sorted before processing. Thus, the order
+                       defined by the filenames determines the pairing not
                        the order in which they were given in the command line.
 
     -pair_sequences    Two consecutive sequences (1+2, 3+4, ...) from each file
@@ -54,7 +54,7 @@ OPTIONS:
     -lineage           Report complete lineage for per-read classification
                        starting with the lowest rank found or allowed and
                        ending with the highest rank allowed. See also
-                       options '-lowest' and 'highest'.
+                       options '-lowest' and '-highest'.
                        default: off
 
     -ground_truth      Report correct query taxa, if known.
@@ -91,7 +91,7 @@ OPTIONS:
                        sequence; show summaries only (useful for quick tests).
                        default: off
 
-    -separator <text>  string separating output fields (sequence name, 
+    -separator <text>  string that separates output fields (sequence name, 
                        ground truth, classification result, etc.)
                        default: "\t|\t"
 

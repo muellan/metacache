@@ -47,6 +47,8 @@ See its documentation for more information:
 ./metacache help build
 ```
 
+Note: In rare cases databases that were built on one platform might not work on other platforms due to bit-endianness and data type width differences. Especially mixing 32-bit and 64-bit compilers might be probelematic.
+
 
 #### Classification TL;DR 
 Metacache has different modes, one of them is the 'query' mode. Once a database (e.g. the standard 'refseq'), is built you can classify reads.

@@ -157,11 +157,11 @@ public:
 
         bucket_type():
             values_{nullptr}, key_{},
-            size_(0), capacity_(0)//, probelen_(0)
+            size_(0), capacity_(0), probelen_(0)
         {}
         bucket_type(key_type&& key):
             values_{nullptr}, key_{std::move(key)},
-            size_(0), capacity_(0)//, probelen_(0)
+            size_(0), capacity_(0), probelen_(0)
         {}
 
         size_type size()     const noexcept { return size_; }
@@ -186,55 +186,58 @@ public:
         const_iterator  end() const noexcept { return values_ + size_; }
         const_iterator cend() const noexcept { return values_ + size_; }
 
-//        probelen_t probe_length() const noexcept { return probelen_; }
-        probelen_t probe_length() const noexcept { return 0; }
+        probelen_t probe_length() const noexcept { return probelen_; }
 
     private:
         //-----------------------------------------------------
         template<class V>
-        bool insert(V&& v, value_allocator& alloc) {
-            if(!reserve(size_+1, alloc)) return false;
+        bool insert(value_allocator& alloc, V&& v) {
+            if(!reserve(alloc, size_+1)) return false;
             values_[size_] = std::forward<V>(v);
             ++size_;
             return true;
         }
         //-------------------------------------------
         template<class InputIterator, class EndSentinel>
-        bool insert(InputIterator first, EndSentinel last,
-                    value_allocator& alloc)
+        bool insert(value_allocator& alloc,
+                    InputIterator first, EndSentinel last)
         {
             using std::distance;
             auto nsize = size_ + size_type(distance(first,last));
-            if(!reserve(nsize, alloc)) return false;
+            if(!reserve(alloc, nsize)) return false;
             for(auto p = values_+size_; first != last; ++p, ++first) {
                 *p = *first;
             }
             size_ = nsize;
             return true;
         }
+        //-------------------------------------------
+        bool insert(value_allocator&,
+                    value_type* values, size_type size, size_type capacity)
+        {
+            values_ = values;
+            size_ = size;
+            capacity_ = capacity;
+            return true;
+        }
 
         //-------------------------------------------
         void clear(value_allocator& alloc) {
             if(empty()) return;
-            if(!std::is_pod<value_type>::value) {
-                for(auto i = values_, e = i + size_; i < e; ++i) {
-                    value_alloc::destroy(alloc, i);
-                }
-            }
-            value_alloc::deallocate(alloc, values_, capacity_);
+            deallocate(alloc);
             values_ = nullptr;
             size_ = 0;
             capacity_ = 0;
-//            probelen_ = 0;
+            probelen_ = 0;
         }
 
         //-----------------------------------------------------
         void key(const key_type& key) noexcept { key_ = key; }
 
         //-----------------------------------------------------
-        bool resize(size_type n, value_allocator& alloc) {
+        bool resize(value_allocator& alloc, size_type n) {
             if(size_ < n) {
-                if(reserve(n, alloc)) size_ = n;
+                if(reserve(alloc, n)) size_ = n;
             }
             else if(size_ > n) {
                 size_ = n;
@@ -243,8 +246,18 @@ public:
         }
 
         //-----------------------------------------------------
+        void deallocate(value_allocator& alloc) {
+            if(!std::is_pod<value_type>::value) {
+                for(auto i = values_, e = i + size_; i < e; ++i) {
+                    value_alloc::destroy(alloc, i);
+                }
+            }
+            value_alloc::deallocate(alloc, values_, capacity_);
+        }
+
+        //-----------------------------------------------------
         /// @brief does not change size!
-        bool reserve(std::size_t n, value_allocator& alloc) {
+        bool reserve(value_allocator& alloc, std::size_t n) {
             if(n > max_bucket_size()) return false;
 
             if(values_) {
@@ -253,6 +266,7 @@ public:
                     if(ncap > max_bucket_size()) ncap = max_bucket_size();
                     //make new array
                     auto nvals = value_alloc::allocate(alloc, ncap);
+                    if(!nvals) return false;
                     if(!std::is_pod<value_type>::value) {
                         for(auto i = nvals, e = i + ncap; i < e; ++i) {
                             value_alloc::construct(alloc, i);
@@ -264,7 +278,7 @@ public:
                     for(size_type i = 0; i < size_; ++i, ++ov, ++nv) {
                         *nv = std::move(*ov);
                     }
-                    clear(alloc);
+                    deallocate(alloc);
                     values_ = nvals;
                     capacity_ = size_type(ncap);
                 }
@@ -275,13 +289,15 @@ public:
                 }
             }
             else {
-                values_ = value_alloc::allocate(alloc, n);
+                auto nvals = value_alloc::allocate(alloc, n);
+                if(!nvals) return false;
+                values_ = nvals;
+                capacity_ = size_type(n);
                 if(!std::is_pod<value_type>::value) {
-                    for(auto i = values_, e = i + n; i < e; ++i) {
+                    for(auto i = values_, e = i + capacity_; i < e; ++i) {
                         value_alloc::construct(alloc, i);
                     }
                 }
-                capacity_ = n;
             }
             return true;
         }
@@ -291,7 +307,7 @@ public:
         key_type key_;
         size_type size_;
         size_type capacity_;
-//        probelen_t probelen_;
+        probelen_t probelen_;
     };
 
 
@@ -409,7 +425,9 @@ public:
 
     //-------------------------------------------------------------------
     ~hash_multimap() {
-        clear();
+        for(auto& b : buckets_) {
+            b.deallocate(alloc_);
+        }
     }
 
 
@@ -493,11 +511,8 @@ public:
         //this should use only non-throwing operations
         for(auto& b : buckets_) {
             if(!b.empty()) {
-                auto it = newmap.find_slot_for_insertion(std::move(b.key_));
-                it->values_ = b.values_;
-                it->size_ = b.size_;
-                it->capacity_ = b.capacity_;
-                //probe length was set by find_slot_for_insertion
+                newmap.insert_into_slot(std::move(b.key_),
+                                        b.values_, b.size_, b.capacity_);
             }
         }
 
@@ -509,56 +524,45 @@ public:
 
 
     //---------------------------------------------------------------
-    template<class K, class V>
     iterator
-    insert(K&& key, V&& value)
+    insert(const key_type& key, const value_type& value)
     {
         make_sure_enough_buckets_left(1);
-
-        auto it = find_slot_for_insertion(std::forward<K>(key));
-
-        if(it->empty()) {
-            if(!it->insert(std::forward<V>(value), alloc_)) {
-//                it->probelen_ = 0;
-                return end();
-            }
-            ++numKeys_;
-            numValues_ += it->size();
-            return it;
-        }
-        else { //key already inserted
-            auto oldsize = it->size();
-            if(!it->insert(std::forward<V>(value), alloc_)) return end();
-            numValues_ += it->size() - oldsize;
-            return it;
-        }
+        return insert_into_slot(key, value);
+    }
+    iterator
+    insert(const key_type& key, value_type&& value)
+    {
+        make_sure_enough_buckets_left(1);
+        return insert_into_slot(key, std::move(value));
+    }
+    iterator
+    insert(key_type&& key, const value_type& value)
+    {
+        make_sure_enough_buckets_left(1);
+        return insert_into_slot(std::move(key), value);
+    }
+    iterator
+    insert(key_type&& key, value_type&& value)
+    {
+        make_sure_enough_buckets_left(1);
+        return insert_into_slot(std::move(key), std::move(value));
     }
 
-
-    //---------------------------------------------------------------
-    template<class K, class InputIterator, class EndSentinel>
+    //-----------------------------------------------------
+    template<class InputIterator, class EndSentinel>
     iterator
-    insert(K&& key, InputIterator first, EndSentinel last)
+    insert(const key_type& key, InputIterator first, EndSentinel last)
     {
         make_sure_enough_buckets_left(1);
-
-        auto it = find_slot_for_insertion(std::forward<K>(key));
-
-        if(it->empty()) {
-            if(!it->insert(first, last, alloc_)) {
-//                it->probelen_ = 0;
-                return end();
-            }
-            ++numKeys_;
-            numValues_ += it->size();
-            return it;
-        }
-        else { //key already inserted
-            auto oldsize = it->size();
-            if(!it->insert(first, last, alloc_)) return end();
-            numValues_ += it->size() - oldsize;
-            return it;
-        }
+        return insert_into_slot(key, first, last);
+    }
+    template<class InputIterator, class EndSentinel>
+    iterator
+    insert(key_type&& key, InputIterator first, EndSentinel last)
+    {
+        make_sure_enough_buckets_left(1);
+        return insert_into_slot(std::move(key), first, last);
     }
 
 
@@ -599,7 +603,7 @@ public:
     void
     shrink(const_iterator it, bucket_size_type n)
     {
-        if(it->size() > n) const_cast<bucket_type*>(&(*it))->resize(n, alloc_);
+        if(it->size() > n) const_cast<bucket_type*>(&(*it))->resize(alloc_, n);
     }
 
 
@@ -764,44 +768,46 @@ public:
     }
 
 
-    //---------------------------------------------------------------
+    /****************************************************************
+     * @brief deserialize hashmap from input stream
+     */
     friend void read_binary(std::istream& is, hash_multimap& m) {
-        m.read_binary_(is);
+        m.deserialize(is);
     }
+
+    /****************************************************************
+     * @brief serialize hashmap to output stream
+     */
     friend void write_binary(std::ostream& os, const hash_multimap& m) {
-        m.write_binary_(os);
+        m.serialize(os);
     }
 
 
 private:
-    /****************************************************************
-     * @brief deserialize hashmap from input stream
-     * @param is:        input stream
-     * @param memconfig: callback that can be used to configurate allocators
-     */
-    void read_binary_(std::istream& is)
+    //---------------------------------------------------------------
+    void deserialize(std::istream& is)
     {
-        using std::uint64_t;
+        using len_t = std::uint64_t;
 
         clear();
 
-        uint64_t nkeys = 0;
+        len_t nkeys = 0;
         read_binary(is, nkeys);
-        uint64_t nvalues = 0;
+        len_t nvalues = 0;
         read_binary(is, nvalues);
 
         if(nkeys < 1 || nvalues < 1) return;
         reserve_values(nvalues);
         reserve_keys(nkeys);
 
-        for(uint64_t i = 0; i < nkeys; ++i) {
+        for(len_t i = 0; i < nkeys; ++i) {
             key_type key;
             bucket_size_type nvals;
             read_binary(is, key);
             read_binary(is, nvals);
 
-            auto it = find_slot_for_insertion(std::move(key));
-            it->resize(nvals, alloc_);
+            auto it = insert_into_slot(std::move(key), nullptr, 0, 0);
+            it->resize(alloc_, nvals);
 
             for(auto v = it->values_, e = v+nvals; v < e; ++v) {
                 read_binary(is, *v);
@@ -813,15 +819,12 @@ private:
 
 
     //---------------------------------------------------------------
-    /**
-     * @brief serialize hashmap to output stream
-     */
-    void write_binary_(std::ostream& os) const
+    void serialize(std::ostream& os) const
     {
-        using std::uint64_t;
+        using len_t = std::uint64_t;
 
-        write_binary(os, uint64_t(key_count()));
-        write_binary(os, uint64_t(value_count()));
+        write_binary(os, len_t(key_count()));
+        write_binary(os, len_t(value_count()));
 
         for(const auto& bucket : buckets_) {
             //store non-empty buckets only
@@ -841,7 +844,7 @@ private:
     iterator
     find_occupied_slot(const key_type& key)
     {
-//        probelen_t probelen = 0;
+        probelen_t probelen = 0;
 
         auto fst = buckets_.begin() + (hash_(key) % buckets_.size());
         auto it = fst;
@@ -852,10 +855,10 @@ private:
             if(it->empty()) return buckets_.end();
             if(keyEqual_(it->key(), key)) return it;
             //early out, possible due to Robin Hood invariant
-//            if(probelen < std::numeric_limits<probelen_t>::max()) {
-//                if(probelen > it->probelen_) return buckets_.end();
-//                ++probelen;
-//            }
+            if(probelen < std::numeric_limits<probelen_t>::max()) {
+                if(probelen > it->probelen_) return buckets_.end();
+                ++probelen;
+            }
             ++it;
             if(it == buckets_.end()) {
                 it = buckets_.begin();
@@ -867,47 +870,86 @@ private:
     }
 
     //-----------------------------------------------------
+    template<class... Values>
     iterator
-    find_slot_for_insertion(key_type key)
+    insert_into_slot(key_type key, Values&&... newvalues)
     {
         auto fst = buckets_.begin() + (hash_(key) % buckets_.size());
         auto end = buckets_.end();
-//        auto ins = end;
-        auto it = fst;
+
+        bool inserted = false;
+        value_type* values = nullptr;
+        bucket_size_type size = 0;
+        bucket_size_type capacity = 0;
+        probelen_t probelen = 0;
 
         //find bucket by linear probing
-//        bucket_type dummy{std::move(key)};
+        auto it = fst;
         while(it < end) {
             //new slot found
             if(it->empty()) {
-//                *it = std::move(dummy);
-//                return ins != buckets_.end() ? ins : it;
-                it->key(std::move(key));
-                return it;
+                if(inserted) { //last in a "swap chain"
+                    it->key_ = std::move(key);
+                    it->values_ = values;
+                    it->size_ = size;
+                    it->capacity_ = capacity;
+                    it->probelen_ = probelen;
+                    return it;
+                }
+                if(it->insert(alloc_, std::forward<Values>(newvalues)...)) {
+                    it->probelen_ = probelen;
+                    it->key_ = std::move(key);
+                    ++numKeys_;
+                    numValues_ += it->size();
+                    return it;
+                }
+                //could not insert
+                return buckets_.end();
             }
             //key already inserted
-//            if(keyEqual_(it->key(), dummy.key())) {
             if(keyEqual_(it->key(), key)) {
-                return it;
+                auto oldsize = it->size();
+                if(it->insert(alloc_, std::forward<Values>(newvalues)...)) {
+                    numValues_ += it->size() - oldsize;
+                    return it;
+                }
+                return buckets_.end();
             }
-            //Robin Hood criterion
-//            if(dummy.probelen_ < std::numeric_limits<probelen_t>::max()) {
-//                if(it->probelen_ < dummy.probelen_) {
-                    //check if no insert position has been found yet
-                    //after the first swap (*ins) will have the key to be inserted
-                    //and we'll continue with (*it)'s old key
-//                    if(ins == buckets_.end()) ins = it;
-//                    std::swap(*it,dummy);
-//                }
-//                ++dummy.probelen_;
-//            }
+            //neither empty slot nor key found
+            if(probelen < std::numeric_limits<probelen_t>::max()) {
+                //Robin Hood criterion
+                if(probelen > it->probelen_) {
+                    //swap current key/values with it's
+                    std::swap(it->key_, key);
+                    std::swap(it->probelen_, probelen);
+                    std::swap(it->values_, values);
+                    std::swap(it->size_, size);
+                    std::swap(it->capacity_, capacity);
+                    //did we already insert our key/values somewhere?
+                    if(!inserted) {
+                        if(!(it->insert(alloc_, std::forward<Values>(newvalues)...))) {
+                            //not enough memory -> change back and abort
+                            it->key_ = std::move(key);
+                            it->probelen_ = probelen;
+                            it->values_ = values;
+                            it->size_ = size;
+                            it->capacity_ = capacity;
+                            return buckets_.end();
+                        }
+                        numValues_ += it->size();
+                        ++numKeys_;
+                        inserted = true;
+                    }
+                }
+                ++probelen;
+            }
             ++it;
             if(it == buckets_.end()) {
                 it = buckets_.begin();
                 end = fst;
             }
         }
-        return it;
+        return buckets_.end();
     }
 
     //---------------------------------------------------------------
@@ -929,13 +971,12 @@ private:
                 nxt = buckets_.begin();
                 end = del;
             }
-//            if(nxt->empty() || nxt->probelen_ == 0) {
-            if(nxt->empty()) {
+            if(nxt->empty() || nxt->probelen_ == 0) {
                 break;
             }
             else {
                 std::swap(*del, *nxt);
-//                --del->probelen_;
+                --del->probelen_;
             }
             ++del;
             if(del == buckets_.end()) del = buckets_.begin();

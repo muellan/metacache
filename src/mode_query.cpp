@@ -593,7 +593,7 @@ struct classification
     bool none() const noexcept { return !sequence_level() && !has_taxon(); }
 
     genome_id gid() const noexcept {
-        return gid_ < 0 ? std::numeric_limits<genome_id>::max() : genome_id(gid_);
+        return gid_ < 0 ? database::invalid_genome_id() : genome_id(gid_);
     }
     const taxon& tax() const noexcept { return *tax_; }
 
@@ -1122,12 +1122,11 @@ void update_coverage_statistics(
  * @brief process database hit results
  *
  *****************************************************************************/
-void process_database_answer(std::ostream& os,
+void process_database_answer(
      const database& db, const query_param& param,
      const std::string& header,
      const sequence& query1, const sequence& query2,
-     match_result&& hits,
-     rank_statistics& stats)
+     match_result&& hits, std::ostream& os, rank_statistics& stats)
 {
     classification groundTruth;
     if(param.testPrecision ||
@@ -1223,13 +1222,13 @@ void process_database_answer(std::ostream& os,
 
 /*****************************************************************************
  *
- * @brief
+ * @brief classifies paired-end sequences in file pairs
  *
  *****************************************************************************/
-void classify_on_file_pairs(std::ostream& os,
+void classify_on_file_pairs(
     const database& db, const query_param& param,
     const std::vector<std::string>& infilenames,
-    rank_statistics& stats)
+    std::ostream& os, rank_statistics& stats)
 {
     //pair up reads from two consecutive files in the list
     for(size_t i = 0; i < infilenames.size(); i += 2) {
@@ -1253,9 +1252,9 @@ void classify_on_file_pairs(std::ostream& os,
                     auto res = db.matches(query1.data);
                     db.accumulate_matches(query2.data, res);
 
-                    process_database_answer(os, db, param,
+                    process_database_answer(db, param,
                         query1.header, query1.data, query2.data,
-                        std::move(res), stats);
+                        std::move(res), os, stats);
                 }
             }
         }
@@ -1272,13 +1271,13 @@ void classify_on_file_pairs(std::ostream& os,
 
 /*****************************************************************************
  *
- * @brief
+ * @brief classify sequences per input file
  *
  *****************************************************************************/
-void classify_per_file(std::ostream& os,
+void classify_per_file(
     const database& db, const query_param& param,
     const std::vector<std::string>& infilenames,
-    rank_statistics& stats)
+    std::ostream& os, rank_statistics& stats)
 {
 
     for(size_t i = 0; i < infilenames.size(); ++i) {
@@ -1308,14 +1307,14 @@ void classify_per_file(std::ostream& os,
                         query = reader->next();
                         db.accumulate_matches(query.data, res);
 
-                        process_database_answer(os, db, param,
+                        process_database_answer(db, param,
                             header, query1, query.data,
-                            std::move(res), stats);
+                            std::move(res), os, stats);
                     }
                     else {
-                        process_database_answer(os, db, param,
+                        process_database_answer(db, param,
                             query.header, query.data, sequence{},
-                            std::move(res), stats);
+                            std::move(res), os, stats);
                     }
                 }
             }
@@ -1333,13 +1332,14 @@ void classify_per_file(std::ostream& os,
 
 /*****************************************************************************
  *
- *
+ * @brief prints classification parameters & results
+ *        decides how to handle paired sequences
  *
  *****************************************************************************/
-void classify_sequences(std::ostream& os,
-                        const database& db,
+void classify_sequences(const database& db,
                         const query_param& param,
-                        const std::vector<std::string>& infilenames)
+                        const std::vector<std::string>& infilenames,
+                        std::ostream& os)
 {
     const auto& comment = param.comment;
 
@@ -1397,10 +1397,10 @@ void classify_sequences(std::ostream& os,
 
     rank_statistics stats;
     if(param.pairing == pairing_mode::files) {
-        classify_on_file_pairs(os, db, param, infilenames, stats);
+        classify_on_file_pairs(db, param, infilenames, os, stats);
     }
     else {
-        classify_per_file(os, db, param, infilenames, stats);
+        classify_per_file(db, param, infilenames, os, stats);
     }
     if(!param.outfile.empty() || !param.showMappings) {
         clear_current_line();
@@ -1427,7 +1427,7 @@ void classify_sequences(std::ostream& os,
 
 /*****************************************************************************
  *
- * @brief
+ * @brief descides where to put the classification results
  *
  *****************************************************************************/
 void process_input_files(const database& db,
@@ -1437,7 +1437,7 @@ void process_input_files(const database& db,
 {
 
     if(outfilename.empty()) {
-        classify_sequences(std::cout, db, param, infilenames);
+        classify_sequences(db, param, infilenames, std::cout);
     }
     else {
         std::ofstream os {outfilename, std::ios::out};
@@ -1446,7 +1446,7 @@ void process_input_files(const database& db,
             std::cout << "Output will be redirected to file: "
                       << param.outfile << std::endl;
 
-            classify_sequences(os, db, param, infilenames);
+            classify_sequences(db, param, infilenames, os);
         }
         else {
             throw file_write_error{
@@ -1461,6 +1461,7 @@ void process_input_files(const database& db,
 /*****************************************************************************
  *
  * @brief    run query reads against pre-built database
+ *           entry point for query mode
  *
  * @details  note that precision (positive predictive value) and
  *           clade exclusion testing is much slower and only intended
