@@ -77,7 +77,7 @@ public:
 
     result_type next() override;
 
-    bool has_next() const noexcept override { return valid_; }
+    bool has_next() const noexcept override;
 
 private:
     std::mutex mutables_;
@@ -103,7 +103,7 @@ public:
 
     result_type next() override;
 
-    bool has_next() const noexcept override { return valid_; }
+    bool has_next() const noexcept override;
 
 private:
     std::mutex mutables_;
@@ -128,7 +128,7 @@ public:
 
     result_type next() override;
 
-    bool has_next() const noexcept override { return valid_; }
+    bool has_next() const noexcept override;
 
 private:
     std::mutex mutables_;

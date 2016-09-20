@@ -65,14 +65,14 @@ struct supports_reserve : public decltype(check_supports_reserve<T>(0)) {};
 template<class Alloc, bool = detail::supports_reserve<Alloc>::value>
 struct allocator_config
 {
-    static void reserve(Alloc&, std::size_t) {}
+    static bool reserve(Alloc&, std::size_t) { return false; }
 };
 
 template<class Alloc>
 struct allocator_config<Alloc,true>
 {
-    static void reserve(Alloc& alloc, std::size_t n) {
-        alloc.reserve(n);
+    static bool reserve(Alloc& alloc, std::size_t n) {
+        return alloc.reserve(n);
     }
 };
 
@@ -470,36 +470,37 @@ public:
      * @brief if the value_allocator supports pre-allocation
      *        storage space for 'n' values will be allocated
      *
-     * @param n: number of values for which memory should be reserved
+     * @param  n: number of values for which memory should be reserved
+     * @return true on success
      */
-    void reserve_values(size_type n)
+    bool reserve_values(size_type n)
     {
-        alloc_config::reserve(alloc_, n);
-    }
-
-
-    //---------------------------------------------------------------
-    void reserve_keys(size_type nkeys)
-    {
-        rehash(size_type(1 + (1/max_load_factor() * nkeys)));
+        return alloc_config::reserve(alloc_, n);
     }
 
 
     /****************************************************************
-     * @brief forces
+     * @brief  rehashes to accomodate a specific number of keys
+     * @param  n: number of keys for which memory should be reserved
+     * @return true on success
+     */
+    bool reserve_keys(size_type n)
+    {
+        return rehash(size_type(1 + (1/max_load_factor() * n)));
+    }
+
+
+    /****************************************************************
+     * @brief forces a specific number of buckets
      *
      * @param n: number of buckets in the hash table
+     *
+     * @return false, if n is less than the key count or is too small
+     *         to keep the load factor below the allowed maximum
      */
     bool rehash(size_type n)
     {
-        //number of buckets must be greater or equal to the number of keys
-        if(n == bucket_count() || n < key_count()) return false;
-
-        //make sure we stay below the maximum load factor
-        auto newload = (load_factor() * (float(n)/bucket_count()));
-        if(n < bucket_count() && newload > max_load_factor()) return false;
-
-//        std::cout << "\nREHASH to " << n << std::endl;
+        if(!rehash_possible(n)) return false;
 
         //make temporary new map
         hash_multimap newmap{};
@@ -997,6 +998,19 @@ private:
                 size_type(1 + 1.8 * n),
                 size_type(1 + 1.8 * (n / maxLoadFactor_)) ));
         }
+    }
+
+
+    //---------------------------------------------------------------
+    bool rehash_possible(size_type n) const noexcept
+    {
+        //number of buckets must be greater or equal to the number of keys
+        if(n == bucket_count() || n < key_count()) return false;
+
+        //make sure we stay below the maximum load factor
+        auto newload = (load_factor() * (float(n)/bucket_count()));
+        if(n < bucket_count() && newload > max_load_factor()) return false;
+        return true;
     }
 
 

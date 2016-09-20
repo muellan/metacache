@@ -22,21 +22,36 @@ Visit MetaCache's github repository [repo].
 #### Compile
 Run 'make' in the directory containing the Makefile.
 
-There are some compilation options that give MetaCache more flexibility but can seriously  affect its memory requirements. These options are configured by macro definitions.
+There are some compilation options that you can use to make MetaCache more flexible or make it use less memory:
 
-* support for kmer lengths greater than 16:
+* if kmer lengths smaller of equal 16 are sufficient (needs less memory):
   ```
-  make MACROS=-DMC_64BIT_KMERS
-  ```
-
-* support for more than 65535 reference sequences:
-  ```
-  make MACROS=-DMC_GENOME_ID_TYPE=uint32_t
+  make MACROS="-DMC_KMER_TYPE=uint32_t"
   ```
 
-* both of the above:
+* support for kmer lengths greater than 16 (default):
   ```
-  make MACROS=-DMC_GENOME_ID_TYPE=uint32_t -DMC_64BIT_KMERS
+  make MACROS="-DMC_KMER_TYPE=uint64_t"
+  ```
+
+* support for up to 65535 reference sequences (default, need less memory):
+  ```
+  make MACROS="-DMC_GENOME_ID_TYPE=uint16_t"
+  ```
+
+* support for more than 65535 reference sequences (needs more memory):
+  ```
+  make MACROS="-DMC_GENOME_ID_TYPE=uint32_t"
+  ```
+
+* support for more than 4,294,967,295 reference sequences (needs even more memory)
+  ```
+  make MACROS="-DMC_GENOME_ID_TYPE=uint64_t"
+  ```
+
+You can of course combine these options (don't forget the quotes):
+  ```
+  make MACROS="-DMC_GENOME_ID_TYPE=uint32_t -DMC_KMER_TYPE=uint32_t"
   ```
 
 

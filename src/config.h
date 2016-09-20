@@ -44,12 +44,10 @@ using sequence = std::string;
     //different hash function for each feature in sketch
     using sketcher = multi_function_min_hasher;
 #else
-    #ifdef MC_64BIT_KMERS
-        //for 33 <= k <= 64
-        using sketcher = single_function_min_hasher_64;
+    #ifdef MC_KMER_TYPE
+        using sketcher = single_function_min_hasher< MC_KMER_TYPE >;
     #else
-        //default, for 0 <= k <= 32
-        using sketcher = single_function_min_hasher;
+        using sketcher = single_function_min_hasher<std::uint64_t>;
     #endif
 #endif
 

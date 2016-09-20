@@ -109,6 +109,10 @@ OPTIONS:
                        This will decrease querying speed!
                        default: off
 
+    -threads <no>      use <no> many parallel threads
+                       default: guess optimum for hardware
+
+
 EXAMPLES:
     Query all sequences in 'myreads.fna' against pre-built database 'refseq':
         ./metacache query refseq myreads.fna -out results.txt

@@ -46,27 +46,40 @@
 
 namespace mc {
 
+//helps to distinguish potentially incompatible database versions
 #define METACACHE_DB_VERSION 20160912
-
-
 
 
 /*****************************************************************************
  *
- * @brief
+ * @brief  maps 'features' (e.g. hash values obtained by min-hashing)
+ *         to reference positions in genomes
  *
  * @details
- *   terminology:
- *   (genome)      reference sequence whose sketches are stored in the DB
+ *   terminology
+ *   genome:      reference sequence whose sketches are stored in the DB
  *
- *   query       sequence (usually short reads) that shall be classified
- *               (ideally a slightly modified version of a genome's sub-sequence)
+ *   query:       sequence (usually short reads) that shall be matched against
+ *                the reference genomes
  *
- *   genome_id   numeric database identifier of reference sequence
- *               in the range [0,n-1] where n is the number of genomes in the DB
+ *   genome_id:   numeric database identifier of reference genomes
+ *                in the range [0,n-1] where n is the number of genomes in the DB
  *
- *   sequence_id alphanumeric sequence identifier
- *   taxon_id    numeric taxon identifier
+ *   window_id:   window index (starting with 0) within a reference genome
+ *
+ *   sequence_id: alphanumeric sequence identifier (e.g. an NCBI accession)
+ *
+ *   taxon_id:    numeric taxon identifier
+ *
+ * @tparam
+ *   SequenceType:  type of reference and query sequence, usually std::string
+ *
+ *   Sketcher:      function object type, that maps reference sequence
+ *                  windows (= sequence interval) to
+ *                  sketches (= collection of features of the same C++ type)
+ *   GenomeId:      type for reference sequence identification;
+ *
+ *                  may have heavy impact on memory footprint of database
  *
  *****************************************************************************/
 template<

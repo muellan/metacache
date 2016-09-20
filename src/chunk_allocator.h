@@ -133,14 +133,14 @@ public:
         return minChunkSize_;
     }
 
-    void reserve(std::size_t total)
+    bool reserve(std::size_t total)
     {
 //        std::lock_guard<std::mutex> lock(mutables_);
-
         if(total > freeSize_) {
             chunks_.emplace_back(total - freeSize_);
             freeSize_ += chunks_.back().free_size();
         }
+        return (freeSize_ >= total);
     }
 
     T* allocate(std::size_t n)
@@ -162,7 +162,12 @@ public:
 //        auto p = chunks_.back().next_buffer(n);
 //        if(p) return p;
         //fallback
-        return new T[n];
+        try {
+            auto p = new T[n];
+            return p;
+        } catch(std::exception&) {
+            return nullptr;
+        }
     }
 
     void deallocate(T* p, std::size_t)

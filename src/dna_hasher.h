@@ -43,16 +43,28 @@ namespace mc {
 
 /*****************************************************************************
  *
- * @brief default min-hasher (0 <= k <= 32)
+ * @brief default min-hasher that uses the 'sketch_size' lexicographically
+ *        smallest hash values of *one* hash function
  *
  *****************************************************************************/
-class single_function_min_hasher
+template<class KmerT>
+class single_function_min_hasher;
+
+
+
+/*****************************************************************************
+ *
+ * @brief min-hasher for (0 <= k <= 32)
+ *
+ *****************************************************************************/
+template<>
+class single_function_min_hasher<std::uint32_t>
 {
 public:
     //---------------------------------------------------------------
-    using kmer_type = std::uint32_t;
-    using hash_type = std::uint32_t;
-    using result_type = std::vector<hash_type>;
+    using kmer_type    = std::uint32_t;
+    using feature_type = kmer_type;
+    using result_type  = std::vector<feature_type>;
     //-----------------------------------------------------
     using kmer_size_type   = numk_t;
     using sketch_size_type = typename result_type::size_type;
@@ -118,7 +130,7 @@ public:
         const auto numkmers = sketch_size_type(distance(first, last) - kmerSize_ + 1);
         const auto sketchsize = std::min(maxSketchSize_, numkmers);
 
-        auto sketch = result_type(sketchsize, hash_type(~0));
+        auto sketch = result_type(sketchsize, feature_type(~0));
 
         for_each_kmer_2bit<kmer_type>(kmerSize_, first, last,
             [&] (kmer_type kmer, half_size_t<kmer_type> ambiguous) {
@@ -218,16 +230,17 @@ private:
 
 /*****************************************************************************
  *
- * @brief min-hasher for 0 <= k <= 64
+ * @brief min-hasher for 0 <= k <= 32
  *
  *****************************************************************************/
-class single_function_min_hasher_64
+template<>
+class single_function_min_hasher<std::uint64_t>
 {
 public:
     //---------------------------------------------------------------
-    using kmer_type = std::uint64_t;
-    using hash_type = std::uint64_t;
-    using result_type = std::vector<hash_type>;
+    using kmer_type    = std::uint64_t;
+    using feature_type = kmer_type;
+    using result_type  = std::vector<feature_type>;
     //-----------------------------------------------------
     using kmer_size_type   = numk_t;
     using sketch_size_type = typename result_type::size_type;
@@ -243,7 +256,7 @@ public:
 
 
     //---------------------------------------------------------------
-    single_function_min_hasher_64():
+    single_function_min_hasher():
         kmerSize_(16), maxSketchSize_(32)
     {}
 
@@ -293,7 +306,7 @@ public:
         const auto numkmers = sketch_size_type(distance(first, last) - kmerSize_ + 1);
         const auto sketchsize = std::min(maxSketchSize_, numkmers);
 
-        auto sketch = result_type(sketchsize, hash_type(~0));
+        auto sketch = result_type(sketchsize, feature_type(~0));
 
         for_each_kmer_2bit<kmer_type>(kmerSize_, first, last,
             [&] (kmer_type kmer, half_size_t<kmer_type> ambiguous) {
@@ -319,7 +332,7 @@ public:
 
     //---------------------------------------------------------------
     friend void
-    write_binary(std::ostream& os, const single_function_min_hasher_64& h)
+    write_binary(std::ostream& os, const single_function_min_hasher& h)
     {
         write_binary(os, std::uint64_t(h.kmerSize_));
         write_binary(os, std::uint64_t(h.maxSketchSize_));
@@ -327,7 +340,7 @@ public:
 
     //---------------------------------------------------------------
     friend void
-    read_binary(std::istream& is, single_function_min_hasher_64& h)
+    read_binary(std::istream& is, single_function_min_hasher& h)
     {
         std::uint64_t n = 0;
         read_binary(is, n);
@@ -374,9 +387,9 @@ class multi_function_min_hasher
 
 public:
     //---------------------------------------------------------------
-    using kmer_type = std::uint32_t;
-    using hash_type = std::uint64_t;
-    using result_type = std::vector<hash_type>;
+    using kmer_type    = std::uint32_t;
+    using feature_type = std::uint64_t;
+    using result_type  = std::vector<feature_type>;
     //-----------------------------------------------------
     using kmer_size_type   = numk_t;
     using sketch_size_type = typename result_type::size_type;
@@ -443,7 +456,7 @@ public:
         const auto numkmers = sketch_size_type(distance(first, last) - kmerSize_ + 1);
         const auto sketchsize = std::min(maxSketchSize_, numkmers);
 
-        auto sketch = result_type(sketchsize, hash_type(~0));
+        auto sketch = result_type(sketchsize, feature_type(~0));
 
         //least significant 32 bits of features = kmer hash
         //most significant bits of features = hash function index
@@ -508,21 +521,20 @@ private:
  *
  *
  *****************************************************************************/
-struct kmer_statistics
+template<class T, std::size_t n>
+struct kmer_histogram
 {
-    using num_t = std::uint8_t;
+    T  operator [] (std::size_t i) const noexcept { return f[i]; }
+    T& operator [] (std::size_t i)       noexcept { return f[i]; }
 
-    num_t  operator [] (std::size_t i) const noexcept { return f[i]; }
-    num_t& operator [] (std::size_t i)       noexcept { return f[i]; }
+          T* begin()       noexcept { return f; }
+    const T* begin() const noexcept { return f; }
 
-          num_t* begin()       noexcept { return f; }
-    const num_t* begin() const noexcept { return f; }
-
-          num_t* end()         noexcept { return f + 64; }
-    const num_t* end()   const noexcept { return f + 64; }
+          T* end()         noexcept { return f + n; }
+    const T* end()   const noexcept { return f + n; }
 
 private:
-    num_t f[64];
+    T f[n];
 };
 
 } //namespace mc
@@ -535,22 +547,24 @@ private:
  *****************************************************************************/
 namespace std {
 
-template<>
-struct hash<mc::kmer_statistics> {
+template<class T, std::size_t n>
+struct hash<mc::kmer_histogram<T,n>> {
     std::size_t
-    operator () (const mc::kmer_statistics& h) const noexcept {
-        std::size_t n = h[0];
+    operator () (const mc::kmer_histogram<T,n>& h) const noexcept {
+        std::size_t x = h[0];
         for(int i = 1; i < 64; ++i) {
-            n ^= h[i];
+            x ^= h[i];
         }
-        return n;
+        return x;
     }
 };
 
-template<>
-struct equal_to<mc::kmer_statistics> {
+template<class T, std::size_t n>
+struct equal_to<mc::kmer_histogram<T,n>> {
     bool
-    operator () (const mc::kmer_statistics& h1, const mc::kmer_statistics& h2) const noexcept {
+    operator () (const mc::kmer_histogram<T,n>& h1,
+                 const mc::kmer_histogram<T,n>& h2) const noexcept
+    {
         for(int i = 0; i < 64; ++i) {
             if(h1[i] != h2[i]) return false;
         }
@@ -574,9 +588,9 @@ class kmer_statistics_hasher
 
 public:
     //---------------------------------------------------------------
-    using kmer_type = std::uint32_t;
-    using hash_type = kmer_statistics;
-    using result_type = std::array<hash_type,1>;
+    using kmer_type    = std::uint32_t;
+    using feature_type = kmer_histogram<std::uint8_t,64>;
+    using result_type  = std::array<feature_type,1>;
 
     //-----------------------------------------------------
     using kmer_size_type   = numk_t;
