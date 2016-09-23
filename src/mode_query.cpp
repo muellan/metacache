@@ -856,12 +856,12 @@ void classify(parallel_queue& queue,
     const database& db, const query_param& param,
     sequence_reader& reader, std::ostream& os, rank_statistics& stats)
 {
-    const auto batchSize = 4 * queue.concurrency();
+    const auto batchSize = 32 * queue.concurrency();
 
     while(reader.has_next()) {
-        auto matches = std::vector<match_result>(2*batchSize);
-        auto headers = std::vector<std::string>(2*batchSize);
-        auto queries = std::vector<sequence>(2*batchSize);
+        auto matches = std::vector<match_result>(batchSize);
+        auto headers = std::vector<std::string>(batchSize);
+        auto queries = std::vector<sequence>(batchSize);
 
         size_t bno = 0;
         for(; bno < batchSize && reader.has_next(); ++bno) {
@@ -897,7 +897,7 @@ void classify_consecutive_pairs(parallel_queue& queue,
     const database& db, const query_param& param,
     sequence_reader& reader, std::ostream& os, rank_statistics& stats)
 {
-    const auto batchSize = 4 * queue.concurrency();
+    const auto batchSize = 16 * queue.concurrency();
 
     while(reader.has_next()) {
         auto matches = std::vector<match_result>(batchSize);
@@ -941,7 +941,7 @@ void classify_pairs(parallel_queue& queue,
                     sequence_reader& reader1, sequence_reader& reader2,
                     std::ostream& os, rank_statistics& stats)
 {
-    const auto batchSize = 4 * queue.concurrency();
+    const auto batchSize = 16 * queue.concurrency();
 
     while(reader1.has_next() && reader2.has_next()) {
         //read a batch of queries from both input files in parallel
