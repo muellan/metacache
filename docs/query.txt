@@ -19,7 +19,7 @@ OPTIONS:
                        to the output filename (see '-out').
                        default: off
 
-    -pair_files        Interleave paired-end reads from two consecutive files,
+    -pairfiles         Interleave paired-end reads from two consecutive files,
                        so that the nth read from file m and the nth read
                        from file m+1 will be treated as a pair.
                        If more than two files are provided, their names
@@ -27,7 +27,7 @@ OPTIONS:
                        defined by the filenames determines the pairing not
                        the order in which they were given in the command line.
 
-    -pair_sequences    Two consecutive sequences (1+2, 3+4, ...) from each file
+    -pairseq          Two consecutive sequences (1+2, 3+4, ...) from each file
                        will be treated as paired-end reads.
 
     -insertsize        Maximum insert size to consider.

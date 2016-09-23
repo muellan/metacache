@@ -39,6 +39,7 @@ HEADERS = \
           src/sequence_view.h \
           src/sketch_database.h \
           src/stat_moments.h \
+          src/parallel_task_queue.h \
           src/taxonomy.h \
           src/timer.h
 

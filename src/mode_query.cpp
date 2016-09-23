@@ -21,6 +21,8 @@
  *
  *****************************************************************************/
 
+#include <functional>
+
 #include "args_handling.h"
 #include "timer.h"
 #include "filesys_utility.h"
@@ -28,12 +30,17 @@
 #include "sequence_io.h"
 #include "sequence_view.h"
 #include "alignment.h"
+#include "parallel_task_queue.h"
 
 #include "modes_common.h"
 
 
 namespace mc {
 
+/*****************************************************************************
+ * @brief type aliases
+ *****************************************************************************/
+using parallel_queue = parallel_task_queue<std::function<void()>>;
 
 
 /*****************************************************************************
@@ -85,7 +92,7 @@ struct query_param
     //separates individual mapping fields
     std::string outSeparator = "\t|\t";
 
-    //-------------------------------------------
+    //-----------------------------------------------------
     //classification options
     //-----------------------------------------------------
     pairing_mode pairing = pairing_mode::none;
@@ -117,21 +124,23 @@ struct query_param
     //additional file with query -> ground truth mapping
     std::string sequ2taxonPreFile;
 
-    //-------------------------------------------
+    //-----------------------------------------------------
     //query sampling scheme
     //-----------------------------------------------------
     int sketchlen = -1;  //< 0 : use value from database
     int winlen = -1;     //< 0 : use value from database
     int winstride = -1;  //< 0 : use value from database
 
-    //-------------------------------------------
-    //database tuning parameters
+    //-----------------------------------------------------
+    // tuning parameters
     //-----------------------------------------------------
     float maxLoadFactor = -1;        //< 0 : use value from database
     int maxGenomesPerSketchVal = -1; //< 0 : use value from database
+    int numThreads = 1;
 
-    //-------------------------------------------
+    //-----------------------------------------------------
     //filenames
+    //-----------------------------------------------------
     std::string dbfile;
     std::vector<std::string> infiles;
     std::string outfile;
@@ -161,13 +170,20 @@ get_query_param(const args_parser& args)
     }
 
     //pairing
-    if(args.contains("paired_files") || args.contains("pair_files")) {
+    if(args.contains("paired_files") ||
+       args.contains("pair_files") ||
+       args.contains("pairfiles") )
+    {
         if(param.infiles.size() > 1) {
             param.pairing = pairing_mode::files;
             std::sort(param.infiles.begin(), param.infiles.end());
         }
     }
-    else if(args.contains("paired_sequences") || args.contains("pair_sequences")) {
+    else if(args.contains("paired_sequences") ||
+            args.contains("pair_sequences") ||
+            args.contains("pairseq") ||
+            args.contains("paired") )
+    {
         param.pairing = pairing_mode::sequences;
     }
 
@@ -272,6 +288,9 @@ get_query_param(const args_parser& args)
 
     param.maxGenomesPerSketchVal = args.get<int>("max_genomes_per_feature",
                                                  defaults.maxGenomesPerSketchVal);
+
+    param.numThreads = args.get<int>("threads",
+                                     std::thread::hardware_concurrency());
 
     return param;
 }
@@ -735,6 +754,8 @@ void process_database_answer(
      const sequence& query1, const sequence& query2,
      match_result&& hits, std::ostream& os, rank_statistics& stats)
 {
+    if(header.empty()) return;
+
     classification groundTruth;
     if(param.testPrecision ||
        (param.showMappings && param.showGroundTruth) ||
@@ -828,40 +849,169 @@ void process_database_answer(
 
 /*****************************************************************************
  *
- * @brief classifies paired-end sequences in file pairs
+ * @brief classifies single sequences from a single source
  *
  *****************************************************************************/
-void classify_on_file_pairs(
+void classify(parallel_queue& queue,
     const database& db, const query_param& param,
-    const std::vector<std::string>& infilenames,
-    std::ostream& os, rank_statistics& stats)
+    sequence_reader& reader, std::ostream& os, rank_statistics& stats)
 {
-    //pair up reads from two consecutive files in the list
-    for(size_t i = 0; i < infilenames.size(); i += 2) {
-        const auto& fname1 = infilenames[i];
-        const auto& fname2 = infilenames[i + 1];
+    const auto batchSize = 2 * queue.concurrency();
+
+    while(reader.has_next()) {
+        auto matches = std::vector<match_result>(batchSize);
+        auto headers = std::vector<std::string>(batchSize);
+        auto queries = std::vector<sequence>(batchSize);
+
+        size_t bno = 0;
+        for(; bno < batchSize && reader.has_next(); ++bno) {
+            auto query = reader.next();
+            headers[bno] = std::move(query.header);
+            queries[bno] = std::move(query.data);
+        }
+        //query batch of reads against database
+        for(size_t j = 0; j < bno; ++j) {
+            queue.enqueue([&,j](){
+                db.accumulate_matches(queries[j], matches[j]);
+            });
+        }
+        //wait for all enqueued tasks to finish
+        queue.wait();
+        //process results of batch
+        for(size_t j = 0; j < bno; ++j) {
+            process_database_answer(db, param,
+                headers[j], queries[j], sequence{},
+                std::move(matches[j]), os, stats);
+        }
+    }
+}
+
+
+
+/*****************************************************************************
+ *
+ * @brief classifies consecutive pairs of sequences from one source
+ *
+ *****************************************************************************/
+void classify_consecutive_pairs(parallel_queue& queue,
+    const database& db, const query_param& param,
+    sequence_reader& reader, std::ostream& os, rank_statistics& stats)
+{
+    const auto batchSize = 2 * queue.concurrency();
+
+    while(reader.has_next()) {
+        auto matches = std::vector<match_result>(batchSize);
+        auto headers = std::vector<std::string>(2*batchSize);
+        auto queries = std::vector<sequence>(2*batchSize);
+
+        size_t bno = 0;
+        for(; bno < 2*batchSize && reader.has_next(); ++bno) {
+            auto query = reader.next();
+            headers[bno] = std::move(query.header);
+            queries[bno] = std::move(query.data);
+        }
+        bno /= 2;
+        //query batch of reads against database
+        for(size_t j = 0; j < bno; ++j) {
+            queue.enqueue([&,j](){
+                db.accumulate_matches(queries[2*j],   matches[j]);
+                db.accumulate_matches(queries[2*j+1], matches[j]);
+            });
+        }
+        //wait for all enqueued tasks to finish
+        queue.wait();
+        //process results of batch
+        for(size_t j = 0; j < bno; ++j) {
+            process_database_answer(db, param,
+                headers[2*j], queries[2*j], queries[2*j+1],
+                std::move(matches[j]), os, stats);
+        }
+    }
+}
+
+
+
+/*****************************************************************************
+ *
+ * @brief classifies pairs of sequences from 2 sources
+ *
+ *****************************************************************************/
+void classify_pairs(parallel_queue& queue,
+                    const database& db, const query_param& param,
+                    sequence_reader& reader1, sequence_reader& reader2,
+                    std::ostream& os, rank_statistics& stats)
+{
+    const auto batchSize = 2 * queue.concurrency();
+
+    while(reader1.has_next() && reader2.has_next()) {
+        //read a batch of queries from both input files in parallel
+        auto matches = std::vector<match_result>(batchSize);
+        auto headers = std::vector<std::string>(2*batchSize);
+        auto queries = std::vector<sequence>(2*batchSize);
+        queue.enqueue([&](){
+            for(size_t j = 0; j < batchSize && reader1.has_next(); ++j) {
+                auto query1 = reader1.next();
+                if(!query1.data.empty()) {
+                    headers[2*j] = std::move(query1.header);
+                    queries[2*j] = std::move(query1.data);
+                }
+            }
+        });
+        queue.enqueue([&](){
+            for(size_t j = 0; j < batchSize && reader2.has_next(); ++j) {
+                auto query2 = reader2.next();
+                if(!query2.data.empty()) {
+                    headers[2*j+1] = std::move(query2.header);
+                    queries[2*j+1] = std::move(query2.data);
+                }
+            }
+        });
+        queue.wait();
+        //query batch against database in parallel
+        for(size_t j = 0; j < batchSize; ++j) {
+            queue.enqueue([&,j](){
+                if(!queries[2*j].empty())
+                    db.accumulate_matches(queries[2*j], matches[j]);
+                if(!queries[2*j+1].empty())
+                    db.accumulate_matches(queries[2*j+1], matches[j]);
+            });
+        }
+        queue.wait();
+        //process results
+        for(size_t j = 0; j < batchSize; ++j) {
+            process_database_answer(db, param,
+                                    headers[2*j], queries[2*j], queries[2*j+1],
+                                    std::move(matches[j]), os, stats);
+        }
+    }
+}
+
+
+
+/*****************************************************************************
+ *
+ * @brief classify sequences per input file
+ *
+ *****************************************************************************/
+void classify_per_file(parallel_queue& queue,
+                       const database& db, const query_param& param,
+                       const std::vector<std::string>& infilenames,
+                       std::ostream& os, rank_statistics& stats)
+{
+    for(size_t i = 0; i < infilenames.size(); ++i) {
+        const auto& fname = infilenames[i];
         if(param.showMappings) {
-            os << param.comment << fname1 << " + " << fname2 << '\n';
+            os << param.comment << fname << '\n';
         }
         else if(!param.outfile.empty() && infilenames.size() > 1) {
             show_progress_indicator(i / float(infilenames.size()));
         }
-
         try {
-            auto reader1 = make_sequence_reader(fname1);
-            auto reader2 = make_sequence_reader(fname2);
-            while(reader1->has_next() && reader2->has_next()) {
-                auto query1 = reader1->next();
-                auto query2 = reader2->next();
-                if(!query1.data.empty() && !query2.data.empty() ) {
-                    //merge sketches of both reads
-                    auto res = db.matches(query1.data);
-                    db.accumulate_matches(query2.data, res);
-
-                    process_database_answer(db, param,
-                        query1.header, query1.data, query2.data,
-                        std::move(res), os, stats);
-                }
+            auto reader = make_sequence_reader(fname);
+            if(param.pairing == pairing_mode::sequences) {
+                classify_consecutive_pairs(queue, db, param, *reader, os, stats);
+            } else {
+                classify(queue, db, param, *reader, os, stats);
             }
         }
         catch(std::exception& e) {
@@ -876,53 +1026,29 @@ void classify_on_file_pairs(
 
 /*****************************************************************************
  *
- * @brief classify sequences per input file
+ * @brief classifies paired-end sequences in pairs of files
  *
  *****************************************************************************/
-void classify_per_file(
-    const database& db, const query_param& param,
-    const std::vector<std::string>& infilenames,
-    std::ostream& os, rank_statistics& stats)
+void classify_on_file_pairs(parallel_queue& queue,
+                            const database& db, const query_param& param,
+                            const std::vector<std::string>& infilenames,
+                            std::ostream& os, rank_statistics& stats)
 {
-
-    for(size_t i = 0; i < infilenames.size(); ++i) {
-        const auto& fname = infilenames[i];
+    //pair up reads from two consecutive files in the list
+    for(size_t i = 0; i < infilenames.size(); i += 2) {
+        const auto& fname1 = infilenames[i];
+        const auto& fname2 = infilenames[i+1];
         if(param.showMappings) {
-            os << param.comment << fname << '\n';
+            os << param.comment << fname1 << " + " << fname2 << '\n';
         }
         else if(!param.outfile.empty() && infilenames.size() > 1) {
             show_progress_indicator(i / float(infilenames.size()));
         }
-
         try {
-            auto reader = make_sequence_reader(fname);
-            while(reader->has_next()) {
-                auto query = reader->next();
-                if(!query.data.empty()) {
-                    //make sure we use the first read's header in case of pairing
-                    auto res = db.matches(query.data);
-
-                    //pair up with next read?
-                    if(param.pairing == pairing_mode::sequences &&
-                        reader->has_next())
-                    {
-                        auto query1 = std::move(query.data);
-                        auto header = std::move(query.header);
-
-                        query = reader->next();
-                        db.accumulate_matches(query.data, res);
-
-                        process_database_answer(db, param,
-                            header, query1, query.data,
-                            std::move(res), os, stats);
-                    }
-                    else {
-                        process_database_answer(db, param,
-                            query.header, query.data, sequence{},
-                            std::move(res), os, stats);
-                    }
-                }
-            }
+            classify_pairs(queue, db, param,
+                           *make_sequence_reader(fname1),
+                           *make_sequence_reader(fname2),
+                           os, stats);
         }
         catch(std::exception& e) {
             if(param.showMappings) {
@@ -940,8 +1066,7 @@ void classify_per_file(
  *        decides how to handle paired sequences
  *
  *****************************************************************************/
-void classify_sequences(const database& db,
-                        const query_param& param,
+void classify_sequences(const database& db, const query_param& param,
                         const std::vector<std::string>& infilenames,
                         std::ostream& os)
 {
@@ -994,17 +1119,21 @@ void classify_sequences(const database& db,
     if(param.useAlignment > 0) {
         os << comment << "Classification uses semi-global alignment.\n";
     }
+
+    os << comment << "Using " << param.numThreads << " threads\n";
     if(param.outfile.empty()) os.flush();
+
+    parallel_queue queue(param.numThreads);
 
     timer time;
     time.start();
 
     rank_statistics stats;
     if(param.pairing == pairing_mode::files) {
-        classify_on_file_pairs(db, param, infilenames, os, stats);
+        classify_on_file_pairs(queue, db, param, infilenames, os, stats);
     }
     else {
-        classify_per_file(db, param, infilenames, os, stats);
+        classify_per_file(queue, db, param, infilenames, os, stats);
     }
     if(!param.outfile.empty() || !param.showMappings) {
         clear_current_line();
@@ -1034,8 +1163,7 @@ void classify_sequences(const database& db,
  * @brief descides where to put the classification results
  *
  *****************************************************************************/
-void process_input_files(const database& db,
-                         const query_param& param,
+void process_input_files(const database& db, const query_param& param,
                          const std::vector<std::string>& infilenames,
                          const std::string& outfilename)
 {
@@ -1090,8 +1218,14 @@ void main_mode_query(const args_parser& args)
 
     //deduced query parameters
     if(param.hitsMin < 1) {
-        param.hitsMin = db.genome_sketcher().sketch_size() / 2 - 1;
-        if(param.hitsMin < 1) param.hitsMin = 1;
+        auto sks = db.genome_sketcher().sketch_size();
+        if(sks >= 6) {
+            param.hitsMin = static_cast<int>(sks / 3.0);
+        } else if (sks >= 4) {
+            param.hitsMin = 2;
+        } else {
+            param.hitsMin = 1;
+        }
     }
 
     //use a different sketching scheme for querying?

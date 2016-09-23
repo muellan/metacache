@@ -80,7 +80,7 @@ public:
     bool has_next() const noexcept override;
 
 private:
-    std::mutex mutables_;
+    mutable std::mutex mutables_;
     std::ifstream file_;
     std::string linebuffer_;
     bool valid_;
@@ -106,7 +106,7 @@ public:
     bool has_next() const noexcept override;
 
 private:
-    std::mutex mutables_;
+    mutable std::mutex mutables_;
     std::ifstream file_;
     bool valid_;
 };
@@ -131,7 +131,7 @@ public:
     bool has_next() const noexcept override;
 
 private:
-    std::mutex mutables_;
+    mutable std::mutex mutables_;
     std::ifstream file_;
     bool valid_;
 };
