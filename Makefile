@@ -12,9 +12,9 @@ REL_FLAGS   = $(INCLUDES) $(MACROS) $(DIALECT) -O3 $(WARNINGS)
 DBG_FLAGS   = $(INCLUDES) $(MACROS) $(DIALECT) -O0 -g $(WARNINGS)
 TEST_FLAGS  = $(INCLUDES) $(MACROS) $(DIALECT) -O3 $(WARNINGS)
 
-REL_LDFLAGS  = -s
-DBG_LDFLAGS  =  
-TEST_LDFLAGS = -s
+REL_LDFLAGS  = -pthread -s
+DBG_LDFLAGS  = -pthread 
+TEST_LDFLAGS = -pthread -s
 
 
 #--------------------------------------------------------------------
