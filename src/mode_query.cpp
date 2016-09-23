@@ -858,7 +858,6 @@ void classify(parallel_queue& queue,
 {
     const auto batchSize = 4 * queue.concurrency();
 
-    int buf = 0;
     while(reader.has_next()) {
         auto matches = std::vector<match_result>(2*batchSize);
         auto headers = std::vector<std::string>(2*batchSize);
