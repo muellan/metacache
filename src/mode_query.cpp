@@ -856,7 +856,7 @@ void classify(parallel_queue& queue,
     const database& db, const query_param& param,
     sequence_reader& reader, std::ostream& os, rank_statistics& stats)
 {
-    const auto batchSize = 32 * queue.concurrency();
+    const auto batchSize = 256 * queue.concurrency();
 
     std::mutex mtx;
 
@@ -890,7 +890,7 @@ void classify_consecutive_pairs(parallel_queue& queue,
     const database& db, const query_param& param,
     sequence_reader& reader, std::ostream& os, rank_statistics& stats)
 {
-    const auto batchSize = 16 * queue.concurrency();
+    const auto batchSize = 128 * queue.concurrency();
 
     std::mutex mtx1;
     std::mutex mtx2;
@@ -932,7 +932,7 @@ void classify_pairs(parallel_queue& queue,
                     sequence_reader& reader1, sequence_reader& reader2,
                     std::ostream& os, rank_statistics& stats)
 {
-    const auto batchSize = 16 * queue.concurrency();
+    const auto batchSize = 128 * queue.concurrency();
 
     std::mutex mtx1;
     std::mutex mtx2;
