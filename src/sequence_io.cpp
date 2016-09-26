@@ -64,17 +64,6 @@ fasta_reader::fasta_reader(std::string filename):
 
 
 //-------------------------------------------------------------------
-bool
-fasta_reader::has_next() const noexcept
-{
-
-    std::lock_guard<std::mutex> lock(mutables_);
-    return valid_;
-}
-
-
-
-//-------------------------------------------------------------------
 sequence_reader::result_type
 fasta_reader::next()
 {
@@ -147,17 +136,6 @@ fastq_reader::fastq_reader(std::string filename):
 
 
 //-------------------------------------------------------------------
-bool
-fastq_reader::has_next() const noexcept
-{
-
-    std::lock_guard<std::mutex> lock(mutables_);
-    return valid_;
-}
-
-
-
-//-------------------------------------------------------------------
 sequence_reader::result_type
 fastq_reader::next()
 {
@@ -214,17 +192,6 @@ sequence_header_reader::sequence_header_reader(std::string filename):
     }
 
     valid_ = true;
-}
-
-
-
-//-------------------------------------------------------------------
-bool
-sequence_header_reader::has_next() const noexcept
-{
-
-    std::lock_guard<std::mutex> lock(mutables_);
-    return valid_;
 }
 
 

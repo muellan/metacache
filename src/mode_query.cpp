@@ -856,68 +856,30 @@ void classify(parallel_queue& queue,
     const database& db, const query_param& param,
     sequence_reader& reader, std::ostream& os, rank_statistics& stats)
 {
-    const auto batchSize = 256 * queue.concurrency();
-
     std::mutex mtx;
 
-    while(reader.has_next()) {
-        for(size_t j = 0; j < batchSize; ++j) {
-            queue.enqueue([&]{
-                if(reader.has_next()) {
-                    auto query = reader.next(); //concurrency-safe
-                    auto matches = db.matches(query.data);
+    const auto load = 8 * queue.concurrency();
+    const auto batchSize = 4 * queue.concurrency();
 
-                    std::lock_guard<std::mutex> lock(mtx);
-                    process_database_answer(db, param,
-                        query.header, query.data, sequence{},
-                        std::move(matches), os, stats);
+    while(reader.has_next()) {
+        if(queue.unsafe_waiting() < load) {
+            queue.enqueue([&]{
+                for(std::size_t i = 0; i < batchSize; ++i) {
+                    auto query = reader.next();
+                    if(!query.header.empty()) {
+                        auto matches = db.matches(query.data);
+
+                        std::lock_guard<std::mutex> lock(mtx);
+                        process_database_answer(db, param,
+                            query.header, query.data, sequence{},
+                            std::move(matches), os, stats);
+                    }
                 }
             }); //enqueue
         }
-        //wait for all enqueued tasks to finish current batch
-        queue.wait();
     }
-}
-
-
-
-/*****************************************************************************
- *
- * @brief classifies consecutive pairs of sequences from one source
- *
- *****************************************************************************/
-void classify_consecutive_pairs(parallel_queue& queue,
-    const database& db, const query_param& param,
-    sequence_reader& reader, std::ostream& os, rank_statistics& stats)
-{
-    const auto batchSize = 128 * queue.concurrency();
-
-    std::mutex mtx1;
-    std::mutex mtx2;
-
-    while(reader.has_next()) {
-        for(size_t j = 0; j < batchSize; ++j) {
-            queue.enqueue([&]{
-                std::unique_lock<std::mutex> lock1(mtx1);
-                if(reader.has_next()) {
-                    //make sure that both queries are read in sequence
-                    auto query1 = reader.next();
-                    auto query2 = reader.next();
-                    lock1.unlock();
-
-                    auto matches = db.matches(query1.data);
-                    db.accumulate_matches(query2.data, matches);
-
-                    std::lock_guard<std::mutex> lock2(mtx2);
-                    process_database_answer(db, param,
-                        query1.header, query1.data, query2.data,
-                        std::move(matches), os, stats);
-                }
-            }); //enqueue
-        }
-        //wait for all enqueued tasks to finish current batch
-        queue.wait();
-    }
+    //wait for all enqueued tasks to finish
+    queue.wait();
 }
 
 
@@ -932,34 +894,37 @@ void classify_pairs(parallel_queue& queue,
                     sequence_reader& reader1, sequence_reader& reader2,
                     std::ostream& os, rank_statistics& stats)
 {
-    const auto batchSize = 128 * queue.concurrency();
+    const auto load = 8 * queue.concurrency();
+    const auto batchSize = 4 * queue.concurrency();
 
     std::mutex mtx1;
     std::mutex mtx2;
 
     while(reader1.has_next() && reader2.has_next()) {
-        for(size_t j = 0; j < batchSize; ++j) {
+        if(queue.unsafe_waiting() < load) {
             queue.enqueue([&]{
-                std::unique_lock<std::mutex> lock1(mtx1);
-                if(reader1.has_next() && reader2.has_next()) {
+                for(std::size_t i = 0; i < batchSize; ++i) {
+                    std::unique_lock<std::mutex> lock1(mtx1);
                     //make sure that both queries are read in sequence
                     auto query1 = reader1.next();
                     auto query2 = reader2.next();
                     lock1.unlock();
 
-                    auto matches = db.matches(query1.data);
-                    db.accumulate_matches(query2.data, matches);
+                    if(!query1.header.empty()) {
+                        auto matches = db.matches(query1.data);
+                        db.accumulate_matches(query2.data, matches);
 
-                    std::lock_guard<std::mutex> lock2(mtx2);
-                    process_database_answer(db, param,
-                        query1.header, query1.data, query2.data,
-                        std::move(matches), os, stats);
+                        std::lock_guard<std::mutex> lock2(mtx2);
+                        process_database_answer(db, param,
+                            query1.header, query1.data, query2.data,
+                            std::move(matches), os, stats);
+                    }
                 }
             }); //enqueue
         }
-        //wait for all enqueued tasks to finish current batch
-        queue.wait();
     }
+    //wait for all enqueued tasks to finish
+    queue.wait();
 }
 
 
@@ -985,7 +950,7 @@ void classify_per_file(parallel_queue& queue,
         try {
             auto reader = make_sequence_reader(fname);
             if(param.pairing == pairing_mode::sequences) {
-                classify_consecutive_pairs(queue, db, param, *reader, os, stats);
+                classify_pairs(queue, db, param, *reader, *reader, os, stats);
             } else {
                 classify(queue, db, param, *reader, os, stats);
             }

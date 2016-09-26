@@ -33,6 +33,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <atomic>
 
 #include "io_error.h"
 
@@ -77,13 +78,13 @@ public:
 
     result_type next() override;
 
-    bool has_next() const noexcept override;
+    bool has_next() const noexcept override { return valid_.load(); }
 
 private:
     mutable std::mutex mutables_;
     std::ifstream file_;
     std::string linebuffer_;
-    bool valid_;
+    std::atomic<bool> valid_;
 };
 
 
@@ -103,12 +104,12 @@ public:
 
     result_type next() override;
 
-    bool has_next() const noexcept override;
+    bool has_next() const noexcept override { return valid_.load(); }
 
 private:
     mutable std::mutex mutables_;
     std::ifstream file_;
-    bool valid_;
+    std::atomic<bool> valid_;
 };
 
 
@@ -128,12 +129,12 @@ public:
 
     result_type next() override;
 
-    bool has_next() const noexcept override;
+    bool has_next() const noexcept override { return valid_.load(); }
 
 private:
     mutable std::mutex mutables_;
     std::ifstream file_;
-    bool valid_;
+    std::atomic<bool> valid_;
 };
 
 
