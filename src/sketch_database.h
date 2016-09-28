@@ -53,7 +53,7 @@ namespace mc {
 /*****************************************************************************
  *
  * @brief  maps 'features' (e.g. hash values obtained by min-hashing)
- *         to reference positions in genomes
+ *         to 'targets' = positions in reference genomes
  *
  * @details
  *   terminology
@@ -171,10 +171,10 @@ public:
     using feature = typename sketch::value_type;
 
     //-----------------------------------------------------
-    struct reference_pos
+    struct target
     {
         constexpr
-        reference_pos(genome_id g = 0, window_id w = 0) noexcept :
+        target(genome_id g = 0, window_id w = 0) noexcept :
             gid{g}, win{w}
         {}
 
@@ -182,17 +182,17 @@ public:
         window_id win;
 
         friend bool
-        operator < (const reference_pos& a, const reference_pos& b) noexcept {
+        operator < (const target& a, const target& b) noexcept {
             if(a.gid < b.gid) return true;
             if(a.gid > b.gid) return false;
             return (a.win < b.win);
         }
 
-        friend void read_binary(std::istream& is, reference_pos& p) {
+        friend void read_binary(std::istream& is, target& p) {
             read_binary(is, p.gid);
             read_binary(is, p.win);
         }
-        friend void write_binary(std::ostream& os, const reference_pos& p) {
+        friend void write_binary(std::ostream& os, const target& p) {
             write_binary(os, p.gid);
             write_binary(os, p.win);
         }
@@ -201,13 +201,13 @@ public:
 
 private:
     //-----------------------------------------------------
-    using feature_store = hash_multimap<feature,reference_pos>;
+    using feature_store = hash_multimap<feature,target>;
 
 
 public:
     //-------------------------------------------------------------------
     using bucket_size_type  = typename feature_store::bucket_size_type;
-    using match_result = std::map<reference_pos,std::uint16_t>;
+    using match_result = std::map<target,std::uint16_t>; //features per target
 
 
     //---------------------------------------------------------------
@@ -370,7 +370,7 @@ public:
                 auto sk = genomeSketcher_(b,e);
                 //insert features from sketch into database
                 for(const auto& f : sk) {
-                    auto it = features_.insert(f, reference_pos{nextGenomeId_, win});
+                    auto it = features_.insert(f, target{nextGenomeId_, win});
                     if(it->size() > maxRefsPerFeature_) {
                         features_.shrink(it, maxRefsPerFeature_);
                     }
@@ -609,13 +609,13 @@ public:
                        match_result& res) const
     {
         for_each_match(query,
-            [this, &res] (const reference_pos& pos) {
-                auto it = res.find(pos);
+            [this, &res] (const target& t) {
+                auto it = res.find(t);
                 if(it != res.end()) {
                     ++(it->second);
                 }
                 else {
-                    res.insert(it, {pos, 1});
+                    res.insert(it, {t, 1});
                 }
             });
     }
@@ -760,7 +760,7 @@ public:
     void print_feature_map(std::ostream& os) const {
         for(const auto& bucket : features_) {
             os << bucket.key() << " -> ";
-            for(reference_pos p : bucket) {
+            for(target p : bucket) {
                 os << '(' << p.gid << ',' << p.win << ')';
             }
             os << '\n';
@@ -863,7 +863,10 @@ public:
 
         int_least64_t gid = -1;
         int_least64_t hits = 0;
+        int_least64_t maxHits = 0;
         int_least64_t win = -1;
+        int_least64_t maxWinBeg = -1;
+        int_least64_t maxWinEnd = -1;
 
         //check hits per query sequence
         auto fst = begin(matches);
@@ -884,18 +887,27 @@ public:
                     ++fst;
                     win = fst->first.win;
                 }
+                //track best of the local sub-ranges
+                if(hits > maxHits) {
+                    maxHits = hits;
+                    maxWinBeg = win;
+                    maxWinEnd = win + distance(fst,lst);
+                }
             }
             else {
                 //reset to new genome
                 win = lst->first.win;
                 gid = lst->first.gid;
                 hits = lst->second;
+                maxHits = hits;
+                maxWinBeg = win;
+                maxWinEnd = win;
                 fst = lst;
             }
             //keep track of 'maxNo' largest
-            //TODO binary search?
+            //TODO binary search for large maxNo?
             for(int i = 0; i < maxNo; ++i) {
-                if(hits >= hits_[i]) {
+                if(maxHits >= hits_[i]) {
                     //shift to the right
                     for(int j = maxNo-1; j > i; --j) {
                         hits_[j] = hits_[j-1];
@@ -903,10 +915,10 @@ public:
                         pos_[j] = pos_[j-1];
                     }
                     //set hits & associated sequence (position)
-                    hits_[i] = hits;
+                    hits_[i] = maxHits;
                     gid_[i] = gid;
-                    pos_[i].beg = win;
-                    pos_[i].end = win + distance(fst,lst) + 1;
+                    pos_[i].beg = maxWinBeg;
+                    pos_[i].end = maxWinEnd;
                     break;
                 }
             }
