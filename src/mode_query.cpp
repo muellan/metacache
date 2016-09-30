@@ -858,8 +858,8 @@ void classify(parallel_queue& queue,
 {
     std::mutex mtx;
 
-    const auto load = 8 * queue.concurrency();
-    const auto batchSize = 1024 * queue.concurrency();
+    const auto load = 32 * queue.concurrency();
+    const auto batchSize = 4096 * queue.concurrency();
 
 //    std::vector<std::ostringstream> outbufs(load);
 
@@ -900,8 +900,8 @@ void classify_pairs(parallel_queue& queue,
                     sequence_reader& reader1, sequence_reader& reader2,
                     std::ostream& os, rank_statistics& stats)
 {
-    const auto load = 8 * queue.concurrency();
-    const auto batchSize = 1024 * queue.concurrency();
+    const auto load = 32 * queue.concurrency();
+    const auto batchSize = 4096 * queue.concurrency();
 
     std::mutex mtx1;
     std::mutex mtx2;
