@@ -9,6 +9,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <functional>
 
 
 namespace mc {
@@ -505,6 +506,13 @@ private:
     std::condition_variable isDone_;
     std::thread scheduler_;
 };
+
+
+
+//-------------------------------------------------------------------
+/// @brief convenience alias
+using parallel_function_queue = parallel_task_queue<std::function<void()>>;
+
 
 
 } // namespace mc

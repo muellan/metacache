@@ -40,7 +40,7 @@ namespace mc {
 /*****************************************************************************
  * @brief type aliases
  *****************************************************************************/
-using parallel_queue = parallel_task_queue<std::function<void()>>;
+using parallel_queue = parallel_function_queue;
 
 
 /*****************************************************************************
@@ -859,22 +859,28 @@ void classify(parallel_queue& queue,
     std::mutex mtx;
 
     const auto load = 8 * queue.concurrency();
-    const auto batchSize = 4 * queue.concurrency();
+    const auto batchSize = 1024 * queue.concurrency();
+
+//    std::vector<std::ostringstream> outbufs(load);
 
     while(reader.has_next()) {
         if(queue.unsafe_waiting() < load) {
             queue.enqueue([&]{
+                std::ostringstream obuf;
+
                 for(std::size_t i = 0; i < batchSize; ++i) {
                     auto query = reader.next();
                     if(!query.header.empty()) {
                         auto matches = db.matches(query.data);
 
-                        std::lock_guard<std::mutex> lock(mtx);
                         process_database_answer(db, param,
                             query.header, query.data, sequence{},
-                            std::move(matches), os, stats);
+                            std::move(matches), obuf, stats);
                     }
                 }
+                //flush output buffer
+                std::lock_guard<std::mutex> lock(mtx);
+                os << obuf.str();
             }); //enqueue
         }
     }
@@ -895,7 +901,7 @@ void classify_pairs(parallel_queue& queue,
                     std::ostream& os, rank_statistics& stats)
 {
     const auto load = 8 * queue.concurrency();
-    const auto batchSize = 4 * queue.concurrency();
+    const auto batchSize = 1024 * queue.concurrency();
 
     std::mutex mtx1;
     std::mutex mtx2;
@@ -903,6 +909,8 @@ void classify_pairs(parallel_queue& queue,
     while(reader1.has_next() && reader2.has_next()) {
         if(queue.unsafe_waiting() < load) {
             queue.enqueue([&]{
+                std::ostringstream obuf;
+
                 for(std::size_t i = 0; i < batchSize; ++i) {
                     std::unique_lock<std::mutex> lock1(mtx1);
                     //make sure that both queries are read in sequence
@@ -914,11 +922,13 @@ void classify_pairs(parallel_queue& queue,
                         auto matches = db.matches(query1.data);
                         db.accumulate_matches(query2.data, matches);
 
-                        std::lock_guard<std::mutex> lock2(mtx2);
                         process_database_answer(db, param,
                             query1.header, query1.data, query2.data,
-                            std::move(matches), os, stats);
+                            std::move(matches), obuf, stats);
                     }
+                    //flush output buffer
+                    std::lock_guard<std::mutex> lock(mtx2);
+                    os << obuf.str();
                 }
             }); //enqueue
         }
