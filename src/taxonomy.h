@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iostream>
+#include <atomic>
 
 #include "confusion.h"
 #include "io_serialize.h"
@@ -574,6 +575,7 @@ public:
     }
 
     //---------------------------------------------------------------
+    /// @brief concurrency-safe
     void assign(taxon_rank assigned) noexcept
     {
         if(assigned == taxon_rank::none) {
@@ -587,6 +589,7 @@ public:
     }
 
     //---------------------------------------------------------------
+    /// @brief concurrency-safe
     void assign_known_correct(taxon_rank assigned,
                               taxon_rank known,
                               taxon_rank correct) noexcept
@@ -614,15 +617,19 @@ public:
 
 
     //---------------------------------------------------------------
+    /// @brief concurrency-safe
     void count_coverage_true_pos(taxon_rank r) {
         coverage_[int(r)].count_true_pos();
     }
+    /// @brief concurrency-safe
     void count_coverage_false_pos(taxon_rank r) {
         coverage_[int(r)].count_false_pos();
     }
+    /// @brief concurrency-safe
     void count_coverage_true_neg(taxon_rank r) {
         coverage_[int(r)].count_true_neg();
     }
+    /// @brief concurrency-safe
     void count_coverage_false_neg(taxon_rank r) {
         coverage_[int(r)].count_false_neg();
     }
@@ -694,9 +701,9 @@ public:
 
 private:
     //---------------------------------------------------------------
-    count_t classified_[taxonomy::num_ranks+1];
-    count_t known_[taxonomy::num_ranks+1];
-    count_t correct_[taxonomy::num_ranks+1];
+    std::atomic<count_t> classified_[taxonomy::num_ranks+1];
+    std::atomic<count_t> known_[taxonomy::num_ranks+1];
+    std::atomic<count_t> correct_[taxonomy::num_ranks+1];
     confusion_statistics coverage_[taxonomy::num_ranks+1];
 };
 

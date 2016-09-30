@@ -25,6 +25,7 @@
 #define MC_CONFUSION_H_
 
 #include <cstdint>
+#include <atomic>
 
 
 namespace mc {
@@ -41,8 +42,22 @@ public:
     using count_t = std::uint_least64_t;
 
     confusion_statistics() noexcept:
-        num_{0,0,0,0}
+        tp_{0}, fp_{0}, tn_{0}, fn_{0}
     {}
+
+    confusion_statistics(const confusion_statistics& src) noexcept:
+        tp_{src.tp_.load()}, fp_{src.fp_.load()},
+        tn_{src.tn_.load()}, fn_{src.fn_.load()}
+    {}
+
+    confusion_statistics&
+    operator = (const confusion_statistics& src) {
+        tp_.store(src.tp_.load());
+        fp_.store(src.fp_.load());
+        tn_.store(src.tn_.load());
+        fn_.store(src.fn_.load());
+        return *this;
+    }
 
     void count_outcome_truth(bool outcome, bool truth) {
         if(outcome) {
@@ -52,15 +67,15 @@ public:
         }
     }
 
-    void count_true_pos(count_t times = 1)  noexcept { num_[0] += times; }
-    void count_false_pos(count_t times = 1) noexcept { num_[1] += times; }
-    void count_true_neg(count_t times = 1)  noexcept { num_[2] += times; }
-    void count_false_neg(count_t times = 1) noexcept { num_[3] += times; }
+    void count_true_pos(count_t times = 1)  noexcept { tp_ += times; }
+    void count_false_pos(count_t times = 1) noexcept { fp_ += times; }
+    void count_true_neg(count_t times = 1)  noexcept { tn_ += times; }
+    void count_false_neg(count_t times = 1) noexcept { fn_ += times; }
 
-    count_t true_pos() const noexcept  { return num_[0]; }
-    count_t false_pos() const noexcept { return num_[1]; }
-    count_t true_neg() const noexcept  { return num_[2]; }
-    count_t false_neg() const noexcept { return num_[3]; }
+    count_t true_pos() const noexcept  { return tp_.load(); }
+    count_t false_pos() const noexcept { return fp_.load(); }
+    count_t true_neg() const noexcept  { return tn_.load(); }
+    count_t false_neg() const noexcept { return fn_.load(); }
 
     count_t condition_pos() const noexcept { return true_pos() + false_neg(); }
     count_t condition_neg() const noexcept { return true_neg() + false_pos(); }
@@ -118,7 +133,10 @@ public:
 
 
 private:
-    count_t num_[4];
+    std::atomic<count_t> tp_;
+    std::atomic<count_t> fp_;
+    std::atomic<count_t> tn_;
+    std::atomic<count_t> fn_;
 };
 
 } // namespace mc
