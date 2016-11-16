@@ -61,7 +61,7 @@ sequence_filenames(const args_parser& args)
 
     auto files = std::vector<std::string>{};
     files.reserve(n-2);
-    for(int i = 2; i < n; ++i) {
+    for(std::size_t i = 2; i < n; ++i) {
         if(args.is_preceded_by_prefixed_arg(i)) break;
         auto name = args.non_prefixed(i);
 
@@ -96,10 +96,16 @@ get_taxonomy_param(const args_parser& args)
 
     param.mappingPreFiles.push_back("assembly_summary.txt");
 
+    auto postm = args.get<std::string>("taxpostmap", "");
+    if(!postm.empty()) {
+        param.mappingPostFiles.push_back(postm);
+    }
+
     param.mappingPostFiles.push_back("nucl_gb.accession2taxid");
     param.mappingPostFiles.push_back("nucl_wgs.accession2taxid");
     param.mappingPostFiles.push_back("nucl_est.accession2taxid");
     param.mappingPostFiles.push_back("nucl_gss.accession2taxid");
+
 
     return param;
 }

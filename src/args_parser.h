@@ -117,9 +117,11 @@ namespace mc {
 
 namespace detail {
 
-//---------------------------------------------------------------
-// type conversion helper
-//---------------------------------------------------------------
+/*****************************************************************************
+ *
+ * @brief type conversion helper
+ *
+ *****************************************************************************/
 struct convert_string
 {
     template<class T>
@@ -129,62 +131,76 @@ struct convert_string
     }
 };
 
-//-------------------------------------------------------------------
+
+//---------------------------------------------------------
 template<> inline
 bool
 convert_string::to<bool>(const std::string& s) {
     return static_cast<bool>(std::atoi(s.c_str()));
 }
 
+
 //---------------------------------------------------------
 template<> inline
-std::uint8_t
-convert_string::to<std::uint8_t>(const std::string& s) {
+unsigned char
+convert_string::to<unsigned char>(const std::string& s) {
     return static_cast<unsigned char>(std::atoi(s.c_str()));
 }
 
 //---------------------------------------------------------
 template<> inline
-std::uint16_t
-convert_string::to<std::uint16_t>(const std::string& s) {
-    return static_cast<unsigned short>(std::atoi(s.c_str()));
+unsigned short int
+convert_string::to<unsigned short int>(const std::string& s) {
+    return static_cast<unsigned short int>(std::atoi(s.c_str()));
 }
 //---------------------------------------------------------
 template<> inline
-std::uint32_t
-convert_string::to<std::uint32_t>(const std::string& s) {
+unsigned int
+convert_string::to<unsigned int>(const std::string& s) {
     return std::atoi(s.c_str());
 }
 //---------------------------------------------------------
 template<> inline
-std::uint64_t
-convert_string::to<std::uint64_t>(const std::string& s) {
+unsigned long int
+convert_string::to<unsigned long int>(const std::string& s) {
+    return std::atol(s.c_str());
+}
+//---------------------------------------------------------
+template<> inline
+unsigned long long int
+convert_string::to<unsigned long long int>(const std::string& s) {
     return std::atol(s.c_str());
 }
 
 
 //---------------------------------------------------------
 template<> inline
-std::int8_t
-convert_string::to<std::int8_t>(const std::string& s) {
+char
+convert_string::to<char>(const std::string& s) {
     return static_cast<char>(std::atoi(s.c_str()));
 }
 //---------------------------------------------------------
 template<> inline
-std::int16_t
-convert_string::to<std::int16_t>(const std::string& s) {
+short int
+convert_string::to<short int>(const std::string& s) {
     return static_cast<short int>(std::atoi(s.c_str()));
 }
 //---------------------------------------------------------
 template<> inline
-std::int32_t
-convert_string::to<std::int32_t>(const std::string& s) {
+int
+convert_string::to<int>(const std::string& s) {
     return std::atoi(s.c_str());
 }
 //---------------------------------------------------------
 template<> inline
-std::int64_t
-convert_string::to<std::int64_t>(const std::string& s) {
+long int
+convert_string::to<long int>(const std::string& s) {
+    return std::atol(s.c_str());
+}
+//---------------------------------------------------------
+template<> inline
+long long int
+convert_string::to<long long int>(const std::string& s) {
     return std::atol(s.c_str());
 }
 
@@ -216,7 +232,19 @@ convert_string::to<std::string>(const std::string& s) {
 }
 
 
-}  // namespace detail
+
+/*****************************************************************************
+ *
+ * @brief default values for fundamental types
+ *
+ *****************************************************************************/
+template<class T, bool = std::is_fundamental<T>::value>
+struct make_default { static constexpr T value = T(); };
+
+template<class T>
+struct make_default<T,true> { static constexpr T value = T(0); };
+
+}  // namespace detai
 
 
 
@@ -227,7 +255,7 @@ convert_string::to<std::string>(const std::string& s) {
 
 /*****************************************************************************
  *
- * @brief command line argument parser class
+ * @brief ad-hoc command line argument parser
  *
  *
  *****************************************************************************/
@@ -235,7 +263,7 @@ class args_parser
 {
 public:
     //---------------------------------------------------------------
-    using size_type = int;
+    using size_type = std::size_t;
 
 
     //---------------------------------------------------------------
@@ -292,6 +320,10 @@ public:
         return parse(arg);
     }
 
+    bool contains_singleton(const std::string& arg) const {
+        return parse(arg,false);
+    }
+
 
     //---------------------------------------------------------------
     bool is_prefixed(size_type i) const noexcept {
@@ -329,7 +361,9 @@ public:
     // get attached value(s)
     //---------------------------------------------------------------
     template<class T>
-    T get(size_type i, T notProvidedValue) const {
+    T get(size_type i,
+          const T& notProvidedValue = detail::make_default<T>::value) const
+    {
         std::string p = non_prefixed_str(i);
         if(p != "")
             return detail::convert_string::to<T>(p);
@@ -340,7 +374,9 @@ public:
 
     //-----------------------------------------------------
     template<class T>
-    T get(const std::string& arg, T notProvidedValue) const {
+    T get(const std::string& arg,
+          const T& notProvidedValue = detail::make_default<T>::value) const
+    {
         std::string p;
         if(parse(arg, p)) {
             if(p != "")
@@ -353,7 +389,10 @@ public:
 
     //-----------------------------------------------------
     template<class T>
-    T get(const std::string& arg, T notProvidedValue, T defaultValue) const {
+    T get(const std::string& arg,
+          const T& notProvidedValue,
+          const T& defaultValue) const
+    {
         std::string p;
         if(parse(arg, p)) {
             if(p != "")
@@ -391,7 +430,7 @@ public:
 private:
     //---------------------------------------------------------------
     bool
-    parse(const std::string& arg) const {
+    parse(const std::string& arg, bool subarg = true) const {
         if(argc_ < 2) return false;
 
         for(int i = 1; i < argc_; ++i) {
@@ -400,8 +439,9 @@ private:
                 std::string s = "";
                 for(size_type j = 1; j < len; ++j) {
                     s += argv_[i][j];
-                    if(s == arg) return true;
+                    if(subarg && s == arg) return true;
                 }
+                if(s == arg) return true;
             }
         }
         return false;

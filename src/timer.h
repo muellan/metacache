@@ -36,14 +36,12 @@ namespace mc {
 
 /*****************************************************************************
  *
- *
- * @brief simple timer class
- *
+ * @brief simple std::chrono based timer class
  *
  *****************************************************************************/
 class timer
 {
-    using basic_duration_t = std::chrono::milliseconds;
+    using basic_duration_t = std::chrono::microseconds;
 
 public:
     //---------------------------------------------------------------
@@ -84,29 +82,39 @@ public:
         return running_;
     }
 
+
+    //---------------------------------------------------------------
+    template<class Unit>
+    Unit
+    elapsed() const noexcept {
+        return std::chrono::duration_cast<Unit>(current());
+    }
+
+
     //-----------------------------------------------------
     int64_t
+    microseconds() const noexcept {
+        return elapsed<std::chrono::microseconds>().count();
+    }
+
+    int64_t
     milliseconds() const noexcept {
-        return std::chrono::duration_cast<
-            std::chrono::milliseconds>(current()).count();
+        return elapsed<std::chrono::milliseconds>().count();
     }
 
     int64_t
     full_seconds() const noexcept {
-        return std::chrono::duration_cast<
-            std::chrono::seconds>(current()).count();
+        return elapsed<std::chrono::seconds>().count();
     }
 
     int
     full_minutes() const noexcept {
-        return std::chrono::duration_cast<
-            std::chrono::minutes>(current()).count();
+        return elapsed<std::chrono::minutes>().count();
     }
 
     int
     full_hours() const noexcept {
-        return std::chrono::duration_cast<
-            std::chrono::hours>(current()).count();
+        return elapsed<std::chrono::hours>().count();
     }
 
 
