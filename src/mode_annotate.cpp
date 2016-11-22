@@ -91,7 +91,7 @@ mapping_filenames(const args_parser& args)
 
     auto files = std::vector<std::string>{};
     files.reserve(n-3);
-    for(int i = 3; i < n; ++i) {
+    for(std::size_t i = 3; i < n; ++i) {
         if(args.is_preceded_by_prefixed_arg(i)) break;
         auto name = args.non_prefixed(i);
 

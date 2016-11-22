@@ -33,7 +33,7 @@
 
 /*****************************************************************************
  *
- * @brief  select mode and display usage info
+ * @brief  select mode or display quick help
  *
  *****************************************************************************/
 int main(int argc, char* argv[])

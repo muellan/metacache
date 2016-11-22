@@ -106,7 +106,6 @@ get_taxonomy_param(const args_parser& args)
     param.mappingPostFiles.push_back("nucl_est.accession2taxid");
     param.mappingPostFiles.push_back("nucl_gss.accession2taxid");
 
-
     return param;
 }
 

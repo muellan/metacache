@@ -45,9 +45,11 @@ using sequence = std::string;
     using sketcher = multi_function_min_hasher;
 #else
     #ifdef MC_KMER_TYPE
+        //make sure MC_KMER_TYPE refers to a valid C++ unsigned integer datatype!
         using sketcher = single_function_min_hasher< MC_KMER_TYPE >;
     #else
-        using sketcher = single_function_min_hasher<std::uint64_t>;
+        //default = 0 <= k <= 16
+        using sketcher = single_function_min_hasher<std::uint32_t>;
     #endif
 #endif
 
@@ -62,10 +64,12 @@ using taxon_rank = database::taxon_rank;
 using genome_id  = database::genome_id;
 
 
-#ifdef MC_VOTE8
+#ifdef MC_VOTE_TOP
+    //will use majority voting scheme if MC_VOTE_TOP > 2
     using top_matches_in_contiguous_window_range
-            = matches_in_contiguous_window_range_top<8>;  //will use majority voting scheme
+            = matches_in_contiguous_window_range_top< MC_VOTE_TOP >; 
 #else
+    //default = top 2 voting scheme
     using top_matches_in_contiguous_window_range
             = matches_in_contiguous_window_range_top<2>;
 #endif

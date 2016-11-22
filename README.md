@@ -29,16 +29,6 @@ Run 'make' in the directory containing the Makefile.
 There are some compilation options that you can use to make MetaCache more
 flexible or make it use less memory:
 
-* if kmer lengths smaller of equal 16 are sufficient (needs less memory):
-  ```
-  make MACROS="-DMC_KMER_TYPE=uint32_t"
-  ```
-
-* support for kmer lengths greater than 16 (default):
-  ```
-  make MACROS="-DMC_KMER_TYPE=uint64_t"
-  ```
-
 * support for up to 65535 reference sequences (default, needs less memory):
   ```
   make MACROS="-DMC_GENOME_ID_TYPE=uint16_t"
@@ -52,6 +42,16 @@ flexible or make it use less memory:
 * support for more than 4,294,967,295 reference sequences (needs more memory)
   ```
   make MACROS="-DMC_GENOME_ID_TYPE=uint64_t"
+  ```
+
+* if kmer lengths smaller of equal 16 are sufficient (default, needs less memory):
+  ```
+  make MACROS="-DMC_KMER_TYPE=uint32_t"
+  ```
+
+* support for kmer lengths greater than 16 (needs more memory):
+  ```
+  make MACROS="-DMC_KMER_TYPE=uint64_t"
   ```
 
 You can of course combine these options (don't forget the surrounding quotes):
