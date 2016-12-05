@@ -195,7 +195,7 @@ get_query_param(const args_parser& args)
     auto lowestRank = args.get<std::string>("lowest", "");
     if(!lowestRank.empty()) {
         auto r = taxonomy::rank_from_name(lowestRank);
-        if(r < taxonomy::taxon_rank::root) {
+        if(r < taxonomy::rank::root) {
             param.lowestRank = r;
         }
     }

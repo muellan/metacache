@@ -100,7 +100,7 @@ public:
     //-----------------------------------------------------
     using taxon_id   = taxonomy::taxon_id;
     using taxon      = taxonomy::taxon;
-    using taxon_rank = taxonomy::taxon_rank;
+    using taxon_rank = taxonomy::rank;
     //-----------------------------------------------------
     using ranked_lineage = taxonomy::ranked_lineage;
     using full_lineage   = taxonomy::full_lineage;

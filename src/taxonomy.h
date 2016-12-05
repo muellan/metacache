@@ -51,7 +51,7 @@ public:
     using taxon_id = std::uint64_t;
 
     //-----------------------------------------------------
-    enum class taxon_rank : std::uint8_t {
+    enum class rank : std::uint8_t {
         Sequence,
                 Form,
                 Variety,
@@ -75,146 +75,146 @@ public:
         root,
         none
     };
-    inline friend void write_binary(std::ostream& os, taxon_rank r) {
+    inline friend void write_binary(std::ostream& os, rank r) {
         write_binary(os, std::uint8_t(r));
     }
-    inline friend void read_binary(std::istream& is, taxon_rank& r) {
+    inline friend void read_binary(std::istream& is, rank& r) {
         std::uint8_t n = 0;
         read_binary(is, n);
-        r = taxon_rank(n);
+        r = rank(n);
     }
 
     //---------------------------------------------------------------
-    static constexpr int num_ranks = static_cast<int>(taxon_rank::none);
+    static constexpr int num_ranks = static_cast<int>(rank::none);
 
     //---------------------------------------------------------------
-    static taxon_rank
-    next_main_rank(taxon_rank r) noexcept {
+    static rank
+    next_main_rank(rank r) noexcept {
         switch(r) {
-            case taxon_rank::Sequence:     return taxon_rank::Species;
-            case taxon_rank::Form:         return taxon_rank::Species;
-            case taxon_rank::Variety:      return taxon_rank::Species;
-            case taxon_rank::subSpecies:   return taxon_rank::Species;
-            case taxon_rank::Species:      return taxon_rank::Genus;
-            case taxon_rank::subGenus:     return taxon_rank::Genus;
-            case taxon_rank::Genus:        return taxon_rank::Family;
-            case taxon_rank::subTribe:     return taxon_rank::Family;
-            case taxon_rank::Tribe:        return taxon_rank::Family;
-            case taxon_rank::subFamily:    return taxon_rank::Family;
-            case taxon_rank::Family:       return taxon_rank::Order;
-            case taxon_rank::subOrder:     return taxon_rank::Order;
-            case taxon_rank::Order:        return taxon_rank::Class;
-            case taxon_rank::subClass:     return taxon_rank::Class;
-            case taxon_rank::Class:        return taxon_rank::Phylum;
-            case taxon_rank::subPhylum:    return taxon_rank::Phylum;
-            case taxon_rank::Phylum:       return taxon_rank::Kingdom;
-            case taxon_rank::subKingdom:   return taxon_rank::Kingdom;
-            case taxon_rank::Kingdom:      return taxon_rank::Domain;
-            case taxon_rank::Domain:       return taxon_rank::root;
+            case rank::Sequence:     return rank::Species;
+            case rank::Form:         return rank::Species;
+            case rank::Variety:      return rank::Species;
+            case rank::subSpecies:   return rank::Species;
+            case rank::Species:      return rank::Genus;
+            case rank::subGenus:     return rank::Genus;
+            case rank::Genus:        return rank::Family;
+            case rank::subTribe:     return rank::Family;
+            case rank::Tribe:        return rank::Family;
+            case rank::subFamily:    return rank::Family;
+            case rank::Family:       return rank::Order;
+            case rank::subOrder:     return rank::Order;
+            case rank::Order:        return rank::Class;
+            case rank::subClass:     return rank::Class;
+            case rank::Class:        return rank::Phylum;
+            case rank::subPhylum:    return rank::Phylum;
+            case rank::Phylum:       return rank::Kingdom;
+            case rank::subKingdom:   return rank::Kingdom;
+            case rank::Kingdom:      return rank::Domain;
+            case rank::Domain:       return rank::root;
             default:
-            case taxon_rank::root:
-            case taxon_rank::none: return taxon_rank::none;
+            case rank::root:
+            case rank::none: return rank::none;
         }
     }
-    static taxon_rank
-    prev_main_rank(taxon_rank r) noexcept {
+    static rank
+    prev_main_rank(rank r) noexcept {
         switch(r) {
-            case taxon_rank::Sequence:     return taxon_rank::none;
-            case taxon_rank::Form:         return taxon_rank::Sequence;
-            case taxon_rank::Variety:      return taxon_rank::Sequence;
-            case taxon_rank::subSpecies:   return taxon_rank::Sequence;
-            case taxon_rank::Species:      return taxon_rank::Sequence;
-            case taxon_rank::subGenus:     return taxon_rank::Species;
-            case taxon_rank::Genus:        return taxon_rank::Species;
-            case taxon_rank::subTribe:     return taxon_rank::Genus;
-            case taxon_rank::Tribe:        return taxon_rank::Genus;
-            case taxon_rank::subFamily:    return taxon_rank::Genus;
-            case taxon_rank::Family:       return taxon_rank::Genus;
-            case taxon_rank::subOrder:     return taxon_rank::Family;
-            case taxon_rank::Order:        return taxon_rank::Family;
-            case taxon_rank::subClass:     return taxon_rank::Order;
-            case taxon_rank::Class:        return taxon_rank::Order;
-            case taxon_rank::subPhylum:    return taxon_rank::Class;
-            case taxon_rank::Phylum:       return taxon_rank::Class;
-            case taxon_rank::subKingdom:   return taxon_rank::Phylum;
-            case taxon_rank::Kingdom:      return taxon_rank::Phylum;
-            case taxon_rank::Domain:       return taxon_rank::Kingdom;
-            case taxon_rank::root:         return taxon_rank::Domain;
+            case rank::Sequence:     return rank::none;
+            case rank::Form:         return rank::Sequence;
+            case rank::Variety:      return rank::Sequence;
+            case rank::subSpecies:   return rank::Sequence;
+            case rank::Species:      return rank::Sequence;
+            case rank::subGenus:     return rank::Species;
+            case rank::Genus:        return rank::Species;
+            case rank::subTribe:     return rank::Genus;
+            case rank::Tribe:        return rank::Genus;
+            case rank::subFamily:    return rank::Genus;
+            case rank::Family:       return rank::Genus;
+            case rank::subOrder:     return rank::Family;
+            case rank::Order:        return rank::Family;
+            case rank::subClass:     return rank::Order;
+            case rank::Class:        return rank::Order;
+            case rank::subPhylum:    return rank::Class;
+            case rank::Phylum:       return rank::Class;
+            case rank::subKingdom:   return rank::Phylum;
+            case rank::Kingdom:      return rank::Phylum;
+            case rank::Domain:       return rank::Kingdom;
+            case rank::root:         return rank::Domain;
             default:
-            case taxon_rank::none: return taxon_rank::none;
+            case rank::none: return rank::none;
         }
     }
 
 
     //---------------------------------------------------------------
-    inline friend taxon_rank& operator ++ (taxon_rank& r) {
-        return int(r) < num_ranks ? (r = taxon_rank(int(r) + 1)) : r;
+    inline friend rank& operator ++ (rank& r) {
+        return int(r) < num_ranks ? (r = rank(int(r) + 1)) : r;
     }
-    inline friend taxon_rank& operator -- (taxon_rank& r) {
-        return int(r) > 1 ? (r = taxon_rank(int(r) - 1)) : r;
+    inline friend rank& operator -- (rank& r) {
+        return int(r) > 1 ? (r = rank(int(r) - 1)) : r;
     }
 
 
     //---------------------------------------------------------------
-    static taxon_rank
+    static rank
     rank_from_name(const std::string& name) noexcept {
-        if(name == "sequence")      return taxon_rank::Sequence;
-        if(name == "genome")        return taxon_rank::Sequence;
-        if(name == "form")          return taxon_rank::Form;
-        if(name == "forma")         return taxon_rank::Form;
-        if(name == "variety")       return taxon_rank::Variety;
-        if(name == "varietas")      return taxon_rank::Variety;
-        if(name == "subspecies")    return taxon_rank::subSpecies;
-        if(name == "species")       return taxon_rank::Species;
-        if(name == "subgenus")      return taxon_rank::subGenus;
-        if(name == "genus")         return taxon_rank::Genus;
-        if(name == "subtribe")      return taxon_rank::subTribe;
-        if(name == "tribe")         return taxon_rank::Tribe;
-        if(name == "subfamily")     return taxon_rank::subFamily;
-        if(name == "family")        return taxon_rank::Family;
-        if(name == "suborder")      return taxon_rank::subOrder;
-        if(name == "order")         return taxon_rank::Order;
-        if(name == "subclass")      return taxon_rank::subClass;
-        if(name == "class")         return taxon_rank::Class;
-        if(name == "subphylum")     return taxon_rank::subPhylum;
-        if(name == "phylum")        return taxon_rank::Phylum;
-        if(name == "division")      return taxon_rank::Phylum;
-        if(name == "subkingdom")    return taxon_rank::subKingdom;
-        if(name == "kingdom")       return taxon_rank::Kingdom;
-        if(name == "superkingdom")  return taxon_rank::Domain;
-        if(name == "domain")        return taxon_rank::Domain;
-        if(name == "root")          return taxon_rank::root;
-        return taxon_rank::none;
+        if(name == "sequence")      return rank::Sequence;
+        if(name == "genome")        return rank::Sequence;
+        if(name == "form")          return rank::Form;
+        if(name == "forma")         return rank::Form;
+        if(name == "variety")       return rank::Variety;
+        if(name == "varietas")      return rank::Variety;
+        if(name == "subspecies")    return rank::subSpecies;
+        if(name == "species")       return rank::Species;
+        if(name == "subgenus")      return rank::subGenus;
+        if(name == "genus")         return rank::Genus;
+        if(name == "subtribe")      return rank::subTribe;
+        if(name == "tribe")         return rank::Tribe;
+        if(name == "subfamily")     return rank::subFamily;
+        if(name == "family")        return rank::Family;
+        if(name == "suborder")      return rank::subOrder;
+        if(name == "order")         return rank::Order;
+        if(name == "subclass")      return rank::subClass;
+        if(name == "class")         return rank::Class;
+        if(name == "subphylum")     return rank::subPhylum;
+        if(name == "phylum")        return rank::Phylum;
+        if(name == "division")      return rank::Phylum;
+        if(name == "subkingdom")    return rank::subKingdom;
+        if(name == "kingdom")       return rank::Kingdom;
+        if(name == "superkingdom")  return rank::Domain;
+        if(name == "domain")        return rank::Domain;
+        if(name == "root")          return rank::root;
+        return rank::none;
     }
 
 
     //---------------------------------------------------------------
     static std::string
-    rank_name(taxon_rank r) {
+    rank_name(rank r) {
         switch(r) {
-            case taxon_rank::Sequence:     return "sequence";
-            case taxon_rank::Form:         return "form";
-            case taxon_rank::Variety:      return "variety";
-            case taxon_rank::subSpecies:   return "subspecies";
-            case taxon_rank::Species:      return "species";
-            case taxon_rank::subGenus:     return "subgenus";
-            case taxon_rank::Genus:        return "genus";
-            case taxon_rank::subTribe:     return "subtribe";
-            case taxon_rank::Tribe:        return "tribe";
-            case taxon_rank::subFamily:    return "subfamily";
-            case taxon_rank::Family:       return "family";
-            case taxon_rank::subOrder:     return "suborder";
-            case taxon_rank::Order:        return "order";
-            case taxon_rank::subClass:     return "subclass";
-            case taxon_rank::Class:        return "class";
-            case taxon_rank::subPhylum:    return "supphylum";
-            case taxon_rank::Phylum:       return "phylum";
-            case taxon_rank::subKingdom:   return "subkingdom";
-            case taxon_rank::Kingdom:      return "kingdom";
-            case taxon_rank::Domain:       return "domain";
-            case taxon_rank::root:         return "root";
+            case rank::Sequence:     return "sequence";
+            case rank::Form:         return "form";
+            case rank::Variety:      return "variety";
+            case rank::subSpecies:   return "subspecies";
+            case rank::Species:      return "species";
+            case rank::subGenus:     return "subgenus";
+            case rank::Genus:        return "genus";
+            case rank::subTribe:     return "subtribe";
+            case rank::Tribe:        return "tribe";
+            case rank::subFamily:    return "subfamily";
+            case rank::Family:       return "family";
+            case rank::subOrder:     return "suborder";
+            case rank::Order:        return "order";
+            case rank::subClass:     return "subclass";
+            case rank::Class:        return "class";
+            case rank::subPhylum:    return "supphylum";
+            case rank::Phylum:       return "phylum";
+            case rank::subKingdom:   return "subkingdom";
+            case rank::Kingdom:      return "kingdom";
+            case rank::Domain:       return "domain";
+            case rank::root:         return "root";
             default:
-            case taxon_rank::none:         return "none";
+            case rank::none:         return "none";
         }
     }
 
@@ -224,15 +224,16 @@ public:
      * @brief taxonomic node information
      */
     class taxon {
+        using rank_t = taxonomy::rank;
     public:
         explicit
         taxon(taxon_id taxonId = 0,
               taxon_id parentId = 0,
               std::string taxonName = "--",
-              taxon_rank taxonRank = taxon_rank::none)
+              rank_t rk = rank_t::none)
         :
             id(taxonId), parent(parentId),
-            rank(taxonRank),
+            rank(rk),
             name(std::move(taxonName))
         {}
 
@@ -270,7 +271,7 @@ public:
         //-----------------------------------------------------
         taxon_id id;
         taxon_id parent;
-        taxon_rank rank;
+        rank_t rank;
         std::string name;
     };
 
@@ -307,7 +308,7 @@ public:
     emplace(taxon_id taxonId,
             taxon_id parentId = 0,
             const std::string& taxonName = "",
-            taxon_rank rank = taxon_rank::none)
+            rank rank = rank::none)
     {
         taxa_.emplace(taxonId, parentId, taxonName, rank);
     }
@@ -331,10 +332,10 @@ public:
     assign_ranks_to_all()
     {
         for(auto& tax : taxa_) {
-            if(tax.rank == taxon_rank::none) {
+            if(tax.rank == rank::none) {
                 auto lr = lowest_rank(tax);
-                if(lr != taxon_rank::none) {
-                    if(lr > taxon_rank::subSpecies) --lr;
+                if(lr != rank::none) {
+                    if(lr > rank::subSpecies) --lr;
                     const_cast<taxon*>(&tax)->rank = lr;
                 }
             }
@@ -396,7 +397,7 @@ public:
     ranked_lca_id(const ranked_lineage& lina,
                   const ranked_lineage& linb)
     {
-        for(int i = 0; i < int(taxon_rank::root); ++i) {
+        for(int i = 0; i < int(rank::root); ++i) {
             if((lina[i] > 0) && (lina[i] == linb[i])) return lina[i];
         }
 
@@ -436,7 +437,7 @@ public:
             auto it = taxa_.find(taxon{id});
             if(it != taxa_.end()) {
 
-                if(it->rank != taxon_rank::none) {
+                if(it->rank != rank::none) {
                     lin[static_cast<int>(it->rank)] = it->id;
 
 //                    std::cout << "        " << id << " (" << it->rank_name()
@@ -517,13 +518,13 @@ public:
 
 private:
     //---------------------------------------------------------------
-    taxon_rank
+    rank
     lowest_rank(taxon_id id) const
     {
        while(id) {
             auto it = taxa_.find(taxon{id});
             if(it != taxa_.end()) {
-                if(it->rank != taxon_rank::none) {
+                if(it->rank != rank::none) {
                     return it->rank;
                 }
                 if(it->parent != id) {
@@ -535,10 +536,10 @@ private:
                 id = 0;
             }
         }
-        return taxon_rank::none;
+        return rank::none;
     }
     //-----------------------------------------------------
-    taxon_rank
+    rank
     lowest_rank(const taxon& tax) const {
         return lowest_rank(tax.id);
     }
@@ -563,119 +564,146 @@ class rank_statistics
 public:
     //---------------------------------------------------------------
     using count_t = std::uint_least64_t;
-    using taxon_rank = taxonomy::taxon_rank;
+    using rank = taxonomy::rank;
 
     //---------------------------------------------------------------
     rank_statistics() noexcept :
-        classified_{}, known_{}, correct_{}, coverage_{}
+        assigned_{}, known_{}, correct_{}, wrong_{}, coverage_{}
     {
-        for(auto& x : classified_) x = 0;
-        for(auto& x : known_)      x = 0;
-        for(auto& x : correct_)    x = 0;
+        for(auto& x : assigned_) x = 0;
+        for(auto& x : known_)    x = 0;
+        for(auto& x : correct_)  x = 0;
+        for(auto& x : wrong_)    x = 0;
     }
 
     //---------------------------------------------------------------
     /// @brief concurrency-safe
-    void assign(taxon_rank assigned) noexcept
+    void assign(rank assigned) noexcept
     {
-        if(assigned == taxon_rank::none) {
-            ++classified_[int(taxon_rank::none)];
+        if(assigned == rank::none) {
+            ++assigned_[int(rank::none)];
         }
         else {
-            for(auto i = int(assigned); i <= int(taxon_rank::root); ++i) {
-                ++classified_[i];
-            }
+            for(rank r = assigned; r <= rank::root; ++r) ++assigned_[int(r)];
         }
     }
 
     //---------------------------------------------------------------
-    /// @brief concurrency-safe
-    void assign_known_correct(taxon_rank assigned,
-                              taxon_rank known,
-                              taxon_rank correct) noexcept
+    /**
+     * @details concurrency-safe
+     *
+     * @param assigned  lowest rank of current assignment
+     * @param known     lowest rank for which ground truth was known
+     * @param correct   lowest rank for which current assignment is correct
+     */
+    void assign_known_correct(rank assigned, rank known, rank correct) noexcept
     {
         assign(assigned);
 
-        if(known == taxon_rank::none) {
-            ++known_[int(taxon_rank::none)];
+        //plausibility check
+        if(correct < assigned) correct = assigned;
+        if(correct < known)    correct = known;
+
+        //if ground truth known -> count correct and wrong assignments
+        if(known == rank::none) {
+            ++known_[int(rank::none)];
         }
         else {
-            for(auto i = int(known); i <= int(taxon_rank::root); ++i) {
-                ++known_[i];
-            }
+            for(rank r = known; r <= rank::root; ++r) ++known_[int(r)];
 
-            if(correct == taxon_rank::none) {
-                ++correct_[int(taxon_rank::none)];
+            if(correct == rank::none) {
+                ++correct_[int(rank::none)];
             }
             else {
-                for(auto i = int(correct); i <= int(taxon_rank::root); ++i) {
-                    ++correct_[i];
-                }
+                for(rank r = correct; r <= rank::root; ++r) ++correct_[int(r)];
             }
+
+            //wrong = all ranks below lowest correct one for which
+            //ground truth is known
+            for(rank r = known; r < correct; ++r) ++wrong_[int(r)];
         }
     }
 
 
     //---------------------------------------------------------------
     /// @brief concurrency-safe
-    void count_coverage_true_pos(taxon_rank r) {
+    void count_coverage_true_pos(rank r) {
         coverage_[int(r)].count_true_pos();
     }
     /// @brief concurrency-safe
-    void count_coverage_false_pos(taxon_rank r) {
+    void count_coverage_false_pos(rank r) {
         coverage_[int(r)].count_false_pos();
     }
     /// @brief concurrency-safe
-    void count_coverage_true_neg(taxon_rank r) {
+    void count_coverage_true_neg(rank r) {
         coverage_[int(r)].count_true_neg();
     }
     /// @brief concurrency-safe
-    void count_coverage_false_neg(taxon_rank r) {
+    void count_coverage_false_neg(rank r) {
         coverage_[int(r)].count_false_neg();
     }
 
     //-----------------------------------------------------
     const confusion_statistics&
-    coverage(taxon_rank r) const noexcept {
+    coverage(rank r) const noexcept {
         return coverage_[int(r)];
     }
 
 
-    //---------------------------------------------------------------
-    count_t classified() const noexcept {
-        return classified_[int(taxon_rank::root)];
+    count_t assigned() const noexcept {
+        return assigned_[int(rank::root)];
     }
-    count_t classified(taxon_rank r) const noexcept {
-        return classified_[int(r)];
+    /**
+     * @brief number of assignments on a taxonomix rank (and above)
+     */
+    count_t assigned(rank r) const noexcept {
+        return assigned_[int(r)];
     }
-    count_t unclassified() const noexcept {
-        return classified_[int(taxon_rank::none)];
+    count_t unassigned() const noexcept {
+        return assigned_[int(rank::none)];
     }
 
+    //---------------------------------------------------------------
     count_t total() const noexcept {
-        return classified() + unclassified();
+        return assigned() + unassigned();
     }
 
     count_t known() const noexcept {
-        return known_[int(taxon_rank::root)];
+        return known_[int(rank::root)];
     }
-    count_t known(taxon_rank r) const noexcept {
+    /**
+     * @brief number of cases with ground truth known on ranks >= r
+     */
+    count_t known(rank r) const noexcept {
         return known_[int(r)];
     }
     count_t unknown() const noexcept {
-        return known_[int(taxon_rank::none)];
+        return known_[int(rank::none)];
     }
 
-    count_t correct(taxon_rank r) const noexcept {
+    /**
+     * @brief number of known correct assignments on ranks >= r
+     */
+    count_t correct(rank r) const noexcept {
         return correct_[int(r)];
     }
     count_t correct() const noexcept {
-        return correct_[int(taxon_rank::root)];
+        return correct_[int(rank::root)];
+    }
+
+    /**
+     * @brief number of known wrong assignments on ranks <= r
+     */
+    count_t wrong(rank r) const noexcept {
+        return wrong_[int(r)];
+    }
+    count_t wrong() const noexcept {
+        return wrong_[int(rank::root)];
     }
 
 
     //---------------------------------------------------------------
-    double known_rate(taxon_rank r) const noexcept {
+    double known_rate(rank r) const noexcept {
         return total() > 0 ?  known(r) / double(total()) : 0;
     }
     double known_rate() const noexcept {
@@ -684,26 +712,28 @@ public:
     double unknown_rate() const noexcept {
         return total() > 0 ?  unknown() / double(total()) : 0;
     }
-
-    double classification_rate(taxon_rank r) const noexcept {
-        return total() > 0 ? classified(r) / double(total()) : 0;
+    double classification_rate(rank r) const noexcept {
+        return total() > 0 ? assigned(r) / double(total()) : 0;
     }
     double unclassified_rate() const noexcept {
-        return total() > 0 ? unclassified() / double(total()) : 0;
+        return total() > 0 ? unassigned() / double(total()) : 0;
     }
 
-    double sensitivity(taxon_rank r) const noexcept {
+    double sensitivity(rank r) const noexcept {
         return known(r) > 0 ? correct(r) / double(known(r)) : 0;
     }
-    double precision(taxon_rank r) const noexcept {
-        return classified(r) > 0 ? correct(r) / double(classified(r)) : 0;
+    double precision(rank r) const noexcept {
+        //note that in general tot != assigned(r) and tot != known(r)
+        double tot = correct(r) + wrong(r);
+        return tot > 0 ? correct(r) / tot : 0;
     }
 
 private:
     //---------------------------------------------------------------
-    std::atomic<count_t> classified_[taxonomy::num_ranks+1];
+    std::atomic<count_t> assigned_[taxonomy::num_ranks+1];
     std::atomic<count_t> known_[taxonomy::num_ranks+1];
     std::atomic<count_t> correct_[taxonomy::num_ranks+1];
+    std::atomic<count_t> wrong_[taxonomy::num_ranks+1];
     confusion_statistics coverage_[taxonomy::num_ranks+1];
 };
 

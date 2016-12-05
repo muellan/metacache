@@ -110,7 +110,7 @@ void show_sequence_info(const args_parser& args)
     auto dbfilename = database_name(args);
 
     auto sids = std::vector<std::string>{};
-    for(int i = 2; i < args.non_prefixed_count(); ++i) {
+    for(std::size_t i = 2; i < args.non_prefixed_count(); ++i) {
         sids.push_back(args.non_prefixed(i));
     }
 
@@ -139,7 +139,7 @@ void show_sequence_info(const args_parser& args)
  *****************************************************************************/
 void show_lineage_table(const args_parser& args)
 {
-    using rank = taxonomy::taxon_rank;
+    using rank = taxonomy::rank;
 
     auto dbfilename = database_name(args);
 
@@ -198,7 +198,7 @@ void show_rank_statistics(const args_parser& args)
 {
     auto rankName = args.non_prefixed(3);
     auto rank = taxonomy::rank_from_name(rankName);
-    if(rank == taxonomy::taxon_rank::none) {
+    if(rank == taxonomy::rank::none) {
         std::cout << "rank not recognized" << std::endl;
         return;
     }

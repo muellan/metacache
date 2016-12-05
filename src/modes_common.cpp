@@ -191,24 +191,24 @@ void show_per_rank_statistics(std::ostream& os,
           taxon_rank::root
     };
 
-    if(stats.classified() < 1) {
+    if(stats.assigned() < 1) {
         os << "None of the input sequences could be classified.\n";
         return;
     }
 
-    if(stats.unclassified() > 0) {
+    if(stats.unassigned() > 0) {
         os << prefix << "unclassified: "
            << (100 * stats.unclassified_rate())
-           << "% (" << stats.unclassified() << ")\n";
+           << "% (" << stats.unassigned() << ")\n";
     }
     os << prefix << "classified:\n";
     for(auto r : ranks) {
-        if(stats.classified(r) > 0) {
+        if(stats.assigned(r) > 0) {
             auto rn = taxonomy::rank_name(r);
             rn.resize(11, ' ');
             os  << prefix <<"  "<< rn
                 << (100 * stats.classification_rate(r))
-                << "% (" << stats.classified(r) << ")\n";
+                << "% (" << stats.assigned(r) << ")\n";
         }
     }
 
@@ -243,7 +243,7 @@ void show_per_rank_statistics(std::ostream& os,
 
         os << prefix << "sensitivity (correctly classified / all):\n";
         for(auto r : ranks) {
-            if(stats.classified(r) > 0) {
+            if(stats.assigned(r) > 0) {
                 auto rn = taxonomy::rank_name(r);
                 rn.resize(11, ' ');
                 os << prefix <<"  "<< rn << (100 * stats.sensitivity(r)) << "%\n";
@@ -253,7 +253,7 @@ void show_per_rank_statistics(std::ostream& os,
         if(stats.coverage(taxon_rank::Domain).total() > 0) {
             os << prefix << "false positives (hit on taxa not covered in DB):\n";
             for(auto r : ranks) {
-                if(stats.classified(r) > 0) {
+                if(stats.assigned(r) > 0) {
                     auto rn = taxonomy::rank_name(r);
                     rn.resize(11, ' ');
                     os << prefix <<"  "<< rn
