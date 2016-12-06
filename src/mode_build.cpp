@@ -45,7 +45,7 @@ struct build_param
 {
     bool showDetailedBuildInfo = false;
 
-    int kmerlen = 20;
+    int kmerlen = 16;
     int sketchlen = 16;
     int winlen = 128;
     int winstride = 113;
