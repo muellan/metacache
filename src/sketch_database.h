@@ -116,6 +116,16 @@ public:
         everything, metadata_only
     };
 
+
+    //-----------------------------------------------------
+    class genome_limit_exceeded_error : public std::runtime_error {
+    public:
+        genome_limit_exceeded_error():
+            std::runtime_error{"genome count limit exceeded"}
+        {}
+    };
+
+
 private:
     //-----------------------------------------------------
     /**
@@ -347,7 +357,9 @@ public:
         using std::end;
 
         //reached hard limit for number of genomes
-        if(nextGenomeId_ >= max_genome_count()) return false;
+        if(nextGenomeId_ >= max_genome_count()) {
+            throw genome_limit_exceeded_error{};
+        }
 
         using iter_t = typename sequence::const_iterator;
 
@@ -390,7 +402,7 @@ public:
     }
     static constexpr genome_id
     invalid_genome_id() noexcept {
-        return std::numeric_limits<genome_id>::max();
+        return max_genome_count();
     }
     std::uint64_t
     genome_count() const noexcept {

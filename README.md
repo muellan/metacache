@@ -3,13 +3,9 @@
 ## Installation Instructions
 
 #### Requirements
-MetaCache itself should compile on any platform for which a C++11 conforming
-compiler is available.
+MetaCache itself should compile on any platform with a C++11 conforming compiler.
 
-The helper scripts (for downloading genomes, taxonomy etc.) however require the
-Bash shell to run. So on Windows you need a working bash executable, for
-example "Git Bash" which comes with git for Windows as well as some common GNU
-utilities like 'awk' and 'wget'.
+The helper scripts (for downloading genomes, taxonomy etc.) however require the Bash shell to run. So on Windows you need a working bash executable, for example "Git Bash" which comes with git for Windows as well as some common GNU utilities like 'awk' and 'wget'.
 
 There are no dependencies on third party libraries.
 Compilation was successfully tested on the following platforms:
@@ -20,36 +16,42 @@ Compilation was successfully tested on the following platforms:
 
 
 #### Get The Latest Sources
-Visit MetaCache's github repository [repo].
+Visit MetaCache's github [repository].
 
 
 #### Compile
 Run 'make' in the directory containing the Makefile.
 
-There are some compilation options that you can use to make MetaCache more
-flexible or make it use less memory:
+The default supports databases with up to 65535 reference sequences (genomes) and k-mer sizes up to 16 and offers the best database space efficiency.
 
-* support for up to 65535 reference sequences (default, needs less memory):
+There are some compilation options that you can use to make MetaCache more flexible:
+
+* support for up to 255 reference sequences (needs less memory than default):
+  ```
+  make MACROS="-DMC_GENOME_ID_TYPE=uint8_t"
+  ```
+
+* support for up to 65535 reference sequences (default):
   ```
   make MACROS="-DMC_GENOME_ID_TYPE=uint16_t"
   ```
 
-* support for up to 4,294,967,295 reference sequences (needs more memory):
+* support for up to 4,294,967,295 reference sequences (needs more memory than default):
   ```
   make MACROS="-DMC_GENOME_ID_TYPE=uint32_t"
   ```
 
-* support for more than 4,294,967,295 reference sequences (needs more memory)
+* support for more than 4,294,967,295 reference sequences (needs even more memory than default)
   ```
   make MACROS="-DMC_GENOME_ID_TYPE=uint64_t"
   ```
 
-* if kmer lengths smaller of equal 16 are sufficient (default, needs less memory):
+* support for kmer lengths up to 16 (default):
   ```
   make MACROS="-DMC_KMER_TYPE=uint32_t"
   ```
 
-* support for kmer lengths greater than 16 (needs more memory):
+* support for kmer lengths up to 32 (needs more memory than default):
   ```
   make MACROS="-DMC_KMER_TYPE=uint64_t"
   ```
@@ -59,47 +61,45 @@ You can of course combine these options (don't forget the surrounding quotes):
   make MACROS="-DMC_GENOME_ID_TYPE=uint32_t -DMC_KMER_TYPE=uint32_t"
   ```
 
+**Note that you can query databases built with one of these variants of MetaCache only with the variant it was built with.**
+
 
 ## Usage
    
-#### Build A Reference Database
-Use the ```metacache-build-refseq``` script to build a MetaCache database based
-on complete genomes from the latest NCBI RefSeq or Genbank. Note that the
-genomes will be downloaded first, which can take some time.
-Currently you can choose between three default settings: standard, big and small.
+#### Build a Reference Database
+
+##### Building the Default RefSeq Database
+Use the ```metacache-build-refseq``` script to build a MetaCache database based on complete bacterial, viral and archaea genomes from the latest NCBI RefSeq release. Note that the genomes will be downloaded first, which can take some time. Currently you can choose between three default settings: standard, big and small.
 ```
 ./metacache-build-refseq standard
 ./metacache-build-refseq big
 ./metacache-build-refseq small
 ```
 
-If you want full control over all steps you can use several helper scripts:
+##### Custom Builds
+Metacache has different modes. The 'build' mode is used for creating databases. See its documentation for more information:
+```
+./metacache help build
+```
+
+MetaCache also comes with these helper scripts:
 * ```download-ncbi-genomes``` downloads NCBI reference genomes.
 * ```download-ncbi-taxonomy``` downloads NCBI taxonomy.
 * ```download-ncbi-taxmaps``` downloads NCBI accession to taxon ID maps.
      Note that these maps are not needed for the latest NCBI RefSeq releases.
 
-Metacache has different modes. The 'build' mode is used for creating databases.
-See its documentation for more information:
-```
-./metacache help build
-```
-
-Note: In rare cases databases that were built on one platform might not work on
-other platforms due to bit-endianness and data type width differences.
-Especially mixing 32-bit and 64-bit compilers might be probelematic.
+Note: In rare cases databases built on one platform might not work with MetaCache on other platforms due to bit-endianness and data type width differences. Especially mixing MetaCache executables compiled with 32-bit and 64-bit compilers might be probelematic.
 
 
 #### Classification TL;DR 
-Metacache has different modes, one of them is the 'query' mode. Once a database
-(e.g. the standard 'refseq'), is built you can classify reads.
+Metacache has different modes, one of them is the 'query' mode. Once a database (e.g. the standard 'refseq'), is built you can classify reads.
 * a single FASTA file with reads:
   ```
   ./metacache query refseq my_reads.fa -out results.txt
   ```
 * an entire directory with reads:
   ```
-  ./metacache query refseq my_read_folder -out results.txt
+  ./metacache query refseq my_folder -out results.txt
   ```
 * paired-end reads in separate files:
   ```
@@ -111,8 +111,7 @@ Metacache has different modes, one of them is the 'query' mode. Once a database
   ```
 
 #### View Documentation
-The operating manual consists of several text files (one for each mode) located
-in the 'docs' directory.
+The operating manual consists of several text files (one for each mode) located in the 'docs' directory.
 Once MetaCache is installed you can also view the documentation with 
 ```
 ./metacache help
@@ -129,4 +128,4 @@ This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain
 conditions. See the file 'LICENSE' for details.
 
-[repo]: https://github.com/muellan/metacache
+[repository]: https://github.com/muellan/metacache

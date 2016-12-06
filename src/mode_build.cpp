@@ -611,7 +611,6 @@ void add_to_database(database& db,
 
                     //try to add to database
                     bool added = db.add_genome(sequ.data, seqId, taxid, origin);
-
                     if(param.showDetailedBuildInfo && !added) {
                         std::cout << seqId << " not added to database" << std::endl;
                     }
@@ -621,6 +620,16 @@ void add_to_database(database& db,
             if(param.showDetailedBuildInfo) {
                 std::cout << "done." << std::endl;
             }
+        }
+        catch(database::genome_limit_exceeded_error&) {
+            std::cout << std::endl;
+            std::cerr
+                << "Reached maximum number of genomes per database ("
+                << db.max_genome_count() << ").\n"
+                << "See 'README.md' on how to compile MetaCache with "
+                << "support for databases with more reference genomes.\n"
+                << std::endl;
+            break;
         }
         catch(std::exception& e) {
             if(param.showDetailedBuildInfo) {

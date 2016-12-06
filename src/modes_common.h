@@ -58,7 +58,7 @@ struct classification
 
     explicit constexpr
     classification(const taxon* tax = nullptr) noexcept:
-        gid_{-1}, tax_{tax}
+        gid_{database::invalid_genome_id()}, tax_{tax}
     {}
 
     explicit constexpr
@@ -66,12 +66,18 @@ struct classification
         gid_{gid}, tax_{tax}
     {}
 
-    bool has_taxon() const noexcept      { return tax_; }
-    bool sequence_level() const noexcept { return gid_ >= 0; }
-    bool none() const noexcept { return !sequence_level() && !has_taxon(); }
+    bool has_taxon() const noexcept {
+        return tax_;
+    }
+    bool sequence_level() const noexcept {
+        return gid_ != database::invalid_genome_id();
+    }
+    bool none() const noexcept {
+        return !sequence_level() && !has_taxon();
+    }
 
     genome_id gid() const noexcept {
-        return gid_ < 0 ? database::invalid_genome_id() : genome_id(gid_);
+        return gid_;
     }
     const taxon& tax() const noexcept { return *tax_; }
 
@@ -81,7 +87,7 @@ struct classification
     }
 
 private:
-    int gid_;
+    genome_id gid_;
     const taxon* tax_;
 };
 
