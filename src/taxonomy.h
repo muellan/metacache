@@ -577,7 +577,8 @@ public:
     }
 
     //---------------------------------------------------------------
-    /// @brief concurrency-safe
+    /** @details concurrency-safe
+     */
     void assign(rank assigned) noexcept
     {
         if(assigned == rank::none) {
@@ -618,9 +619,13 @@ public:
                 for(rank r = correct; r <= rank::root; ++r) ++correct_[int(r)];
             }
 
-            //wrong = all ranks below lowest correct one for which
-            //ground truth is known
-            for(rank r = known; r < correct; ++r) ++wrong_[int(r)];
+            //if ranks above and including the current rank of assignment
+            //are wrong => levels below of current assignment must be wrong, too
+            if(correct > assigned) {
+                for(rank r = known; r < correct; ++r) {
+                    ++wrong_[int(r)];
+                }
+            }
         }
     }
 
