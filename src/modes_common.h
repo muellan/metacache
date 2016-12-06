@@ -191,7 +191,7 @@ void show_matches(std::ostream&,
 template<int n>
 void show_matches(std::ostream& os,
     const database& db,
-    const matches_in_contiguous_window_range_top<n>& cand,
+    const matches_in_contiguous_window_range_top<n,genome_id>& cand,
     taxon_rank lowest = taxon_rank::Sequence)
 {
     if(lowest == taxon_rank::Sequence) {

@@ -67,11 +67,11 @@ using genome_id  = database::genome_id;
 #ifdef MC_VOTE_TOP
     //will use majority voting scheme if MC_VOTE_TOP > 2
     using top_matches_in_contiguous_window_range
-            = matches_in_contiguous_window_range_top< MC_VOTE_TOP >; 
+            = matches_in_contiguous_window_range_top< MC_VOTE_TOP , database::genome_id >;
 #else
     //default = top 2 voting scheme
     using top_matches_in_contiguous_window_range
-            = matches_in_contiguous_window_range_top<2>;
+            = matches_in_contiguous_window_range_top<2,database::genome_id>;
 #endif
 
 } // namespace mc

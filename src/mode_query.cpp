@@ -102,7 +102,7 @@ struct query_param
     //ground truth rank to exclude (for clade exclusion test)
     taxon_rank excludedRank = taxon_rank::none;
     //
-    int hitsMin  = -1;  //< 0 : deduced from database parameters
+    std::uint16_t hitsMin  = 0;  //< 1 : deduced from database parameters
     float hitsDiff = 0.5;
     //use full kmer counting (if sequence files available) for ambiguous cases
     int useCommonKmerCount = 0;
@@ -225,7 +225,7 @@ get_query_param(const args_parser& args)
                                     param.winlen > 0 ? param.winlen : defaults.winstride);
 
     //query classification
-    param.hitsMin  = args.get<int>("hitmin", defaults.hitsMin);
+    param.hitsMin  = args.get<std::uint16_t>("hitmin", defaults.hitsMin);
     param.hitsDiff = args.get<float>("hitdiff", defaults.hitsDiff);
 
     //kmer counting
@@ -305,7 +305,7 @@ get_query_param(const args_parser& args)
 template<int n>
 void show_candidate_ranges(std::ostream& os,
     const database& db,
-    const matches_in_contiguous_window_range_top<n>& cand)
+    const matches_in_contiguous_window_range_top<n,genome_id>& cand)
 {
     const auto w = db.genome_window_stride();
 
@@ -348,7 +348,7 @@ int
 best_kmer_intersection_candidate(std::ostream&,
     const database& db, const query_param& param,
     const sequence& query1, const sequence& query2,
-    const matches_in_contiguous_window_range_top<n>& cand)
+    const matches_in_contiguous_window_range_top<n,genome_id>& cand)
 {
     std::size_t fstVal = 0;
     std::size_t sndVal = 0;
@@ -425,7 +425,7 @@ int
 best_alignment_candidate(std::ostream& os,
     const database& db, const query_param& param,
     const sequence& query1, const sequence& query2,
-    const matches_in_contiguous_window_range_top<n>& cand)
+    const matches_in_contiguous_window_range_top<n,genome_id>& cand)
 {
     //check which of the top sequences has a better alignment
     const auto& origin0 = db.origin_of_genome(cand.genome_id(0));
@@ -556,7 +556,7 @@ template<int maxn>
 const taxon*
 lowest_common_taxon(
     const database& db,
-    const matches_in_contiguous_window_range_top<maxn>& cand,
+    const matches_in_contiguous_window_range_top<maxn,genome_id>& cand,
     float trustedMajority,
     taxon_rank lowestRank = taxon_rank::subSpecies,
     taxon_rank highestRank = taxon_rank::Domain)
@@ -643,7 +643,7 @@ classification
 sequence_classification(std::ostream& os,
     const database& db, const query_param& param,
     const sequence& query1, const sequence& query2,
-    const matches_in_contiguous_window_range_top<n>& cand)
+    const matches_in_contiguous_window_range_top<n,genome_id>& cand)
 {
     //sum of top-2 hits < threshold => considered not classifiable
     if((cand.hits(0) + cand.hits(1)) < param.hitsMin) {
@@ -656,7 +656,7 @@ sequence_classification(std::ostream& os,
         || (cand.hits(0) - cand.hits(1)) >= param.hitsMin)
     {
         //return top candidate
-        auto gid = genome_id(cand.genome_id(0));
+        auto gid = cand.genome_id(0);
         return classification{gid, &db.taxon_of_genome(gid)};
     }
 
@@ -665,7 +665,7 @@ sequence_classification(std::ostream& os,
         int bac = best_kmer_intersection_candidate(os, db, param,
                                                    query1, query2, cand);
         if(bac >= 0) {
-            auto gid = genome_id(cand.genome_id(bac));
+            auto gid = cand.genome_id(bac);
             return classification{gid, &db.taxon_of_genome(gid)};
         }
     }
@@ -674,7 +674,7 @@ sequence_classification(std::ostream& os,
     if(param.useAlignment) {
         int bac = best_alignment_candidate(os, db, param, query1, query2, cand);
         if(bac >= 0) {
-            auto gid = genome_id(cand.genome_id(bac));
+            auto gid = cand.genome_id(bac);
             return classification{gid, &db.taxon_of_genome(gid)};
         }
     }

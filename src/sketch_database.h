@@ -842,20 +842,33 @@ struct index_range
 
 /*****************************************************************************
 *
-* @brief
+* @brief processes a database hit list and
+*        stores the top (in terms of accumulated hits) 'maxNo' contiguous
+*        window ranges
 *
 *****************************************************************************/
-template<int maxNo>
+template<int maxNo, class GidT = std::uint_least64_t>
 class matches_in_contiguous_window_range_top
 {
-public:
     static_assert(maxNo > 1, "no must be > 1");
 
-    using window_range = index_range<int>;
 
+public:
+
+    //---------------------------------------------------------------
+    using window_range = index_range<int>;
+    using hit_t = std::uint_least64_t;
+    using gid_t = GidT;
+
+    //---------------------------------------------------------------
     static constexpr int max_count() noexcept { return maxNo; }
 
-    /**
+    static constexpr gid_t invalid_gid() noexcept {
+        return std::numeric_limits<gid_t>::max();
+    }
+
+
+    /****************************************************************
      * @pre matches must be sorted by genome (first) and window (second)
      */
     template<class MatchResult>
@@ -866,19 +879,18 @@ public:
     {
         using std::begin;
         using std::end;
-        using std::int_least64_t;
 
         for(int i = 0; i < maxNo; ++i) {
-            gid_[i] = -1;
+            gid_[i] = invalid_gid();
             hits_[i] = 0;
         }
 
-        int_least64_t gid = -1;
-        int_least64_t hits = 0;
-        int_least64_t maxHits = 0;
-        int_least64_t win = -1;
-        int_least64_t maxWinBeg = -1;
-        int_least64_t maxWinEnd = -1;
+        gid_t gid = invalid_gid();
+        hit_t hits = 0;
+        hit_t maxHits = 0;
+        hit_t win = 0;
+        hit_t maxWinBeg = 0;
+        hit_t maxWinEnd = 0;
 
         //check hits per query sequence
         auto fst = begin(matches);
@@ -940,15 +952,15 @@ public:
 
     int count() const noexcept {
         for(int i = 0; i < maxNo; ++i) {
-            if(gid_[i] < 0 || hits_[i] < 1) return i;
+            if(hits_[i] < 1) return i;
         }
         return maxNo;
     }
 
-    int genome_id(int rank)   const noexcept { return gid_[rank];  }
-    int hits(int rank) const noexcept { return hits_[rank]; }
+    gid_t genome_id(int rank)   const noexcept { return gid_[rank];  }
+    hit_t hits(int rank) const noexcept { return hits_[rank]; }
 
-    int total_hits() const noexcept {
+    hit_t total_hits() const noexcept {
         int h = 0;
         for(int i = 0; i < maxNo; ++i) h += hits_[i];
         return h;
@@ -958,8 +970,8 @@ public:
     window(int rank) const noexcept { return pos_[rank]; }
 
 private:
-    int gid_[maxNo];
-    int hits_[maxNo];
+    gid_t gid_[maxNo];
+    hit_t hits_[maxNo];
     window_range pos_[maxNo];
 };
 
