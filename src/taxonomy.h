@@ -618,7 +618,6 @@ public:
             else {
                 for(rank r = correct; r <= rank::root; ++r) ++correct_[int(r)];
             }
-
             //if ranks above and including the current rank of assignment
             //are wrong => levels below of current assignment must be wrong, too
             if(correct > assigned) {
