@@ -96,7 +96,7 @@ public:
     using sketcher = Sketcher;
     //-----------------------------------------------------
     using genome_id   = GenomeId;
-    using window_id   = std::uint16_t;
+    using window_id   = WindowId;
     using sequence_id = std::string;
     //-----------------------------------------------------
     using taxon_id   = taxonomy::taxon_id;
@@ -852,7 +852,7 @@ struct index_range
 *        window ranges
 *
 *****************************************************************************/
-template<int maxNo, class GidT = std::uint_least64_t>
+template<int maxNo, class GidT>
 class matches_in_contiguous_window_range_top
 {
     static_assert(maxNo > 1, "no must be > 1");
@@ -861,9 +861,10 @@ class matches_in_contiguous_window_range_top
 public:
 
     //---------------------------------------------------------------
-    using window_range = index_range<int>;
-    using hit_t = std::uint_least64_t;
     using gid_t = GidT;
+    using hit_t = std::uint_least64_t;
+    using win_t = std::uint_least64_t;
+    using window_range = index_range<win_t>;
 
     //---------------------------------------------------------------
     static constexpr int max_count() noexcept { return maxNo; }
@@ -878,7 +879,7 @@ public:
      */
     template<class MatchResult>
     matches_in_contiguous_window_range_top(
-        const MatchResult& matches, int numWindows = 3)
+        const MatchResult& matches, win_t numWindows = 3)
     :
         gid_{}, hits_{}, pos_{}
     {
@@ -894,8 +895,8 @@ public:
         hit_t hits = 0;
         hit_t maxHits = 0;
         hit_t win = 0;
-        hit_t maxWinBeg = 0;
-        hit_t maxWinEnd = 0;
+        win_t maxWinBeg = 0;
+        win_t maxWinEnd = 0;
 
         //check hits per query sequence
         auto fst = begin(matches);

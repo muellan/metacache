@@ -22,18 +22,13 @@ Visit MetaCache's github [repository].
 #### Compile
 Run 'make' in the directory containing the Makefile.
 
-The default supports databases with up to 65535 reference sequences (genomes) with a length
-of 8,388,480 nucleotides each and k-mer sizes up to 16. This offers a good database space efficiency and should be sufficient for bacterial and viral genomes.
-Using the following compilation options you can compile MetaCache with support for more reference sequences of longer size.
+The default supports databases with up to 65,535 reference sequences (genomes) and k-mer sizes up to 16. This offers a good database space efficiency.
+
+Using the following compilation options you can compile MetaCache with support for more reference sequences and greater k-mer lengths.
 
 ##### number of referece sequences (genomes)
 
-* support for up to 255 reference sequences (needs less memory):
-  ```
-  make MACROS="-DMC_GENOME_ID_TYPE=uint8_t"
-  ```
-
-* support for up to 65535 reference sequences (default):
+* support for up to 65,535 reference sequences (default):
   ```
   make MACROS="-DMC_GENOME_ID_TYPE=uint16_t"
   ```
@@ -49,18 +44,18 @@ Using the following compilation options you can compile MetaCache with support f
   ```
 
 ##### reference sequence lenghts
+* support for genomes up to a length of 4,294,967,295 windows (default)
+  if window size is 128 (default) then the sequence length must not exceed 485.3 billion nucleotides
+  ```
+  make MACROS="-DMC_WINDOW_ID_TYPE=uint32_t"
+  ```
 
-* support for genomes up to a length of 65536 windows (default)
-  if window size is 128 (default) then max. genome length supported is 8,388,480 nucleotides
+* support for genomes up to a length of 65536 windows (needs less memory)
+  if window size is 128 (default) then the sequence length must not exceed 7.4 million nucleotides
   ```
   make MACROS="-DMC_WINDOW_ID_TYPE=uint16_t"
   ```
 
-* support for genomes up to a length of 4,294,967,295 windows (needs more memory)
-  if window size is 128 (default) then max. genome length supported is 549,755,813,760 nucleotides
-  ```
-  make MACROS="-DMC_WINDOW_ID_TYPE=uint32_t"
-  ```
 
 ##### kmer lengths
 * support for kmer lengths up to 16 (default):
@@ -78,7 +73,7 @@ You can of course combine these options (don't forget the surrounding quotes):
   make MACROS="-DMC_GENOME_ID_TYPE=uint32_t -DMC_WINDOW_ID_TYPE=uint32_t"
   ```
 
-**Note that a database can only be queried with the variant of MetaCache that it was built with.**
+**Note that a database can only be queried with the same compiled variant of MetaCache that it was built with.**
 
 
 ## Usage

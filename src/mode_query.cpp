@@ -802,9 +802,9 @@ void process_database_answer(
     }
 
     //classify
-    int numWindows = 2 + (
+    auto numWindows = std::uint_least64_t( 2 + (
         std::max(query1.size() + query2.size(), param.insertSizeMax) /
-        db.genome_window_stride() );
+        db.genome_window_stride() ));
 
     top_matches_in_contiguous_window_range tophits {hits, numWindows};
     auto cls = sequence_classification(os, db, param, query1, query2, tophits);
