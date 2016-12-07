@@ -53,15 +53,20 @@ using sequence = std::string;
     #endif
 #endif
 
-
 #ifdef MC_GENOME_ID_TYPE
-    using database = sketch_database<sequence,sketcher, MC_GENOME_ID_TYPE >;
+    using genome_id = MC_GENOME_ID_TYPE ;
 #else
-    using database = sketch_database<sequence,sketcher>;
+    using genome_id = std::uint16_t;
 #endif
 
+#ifdef MC_WINDOW_ID_TYPE
+    using window_id = MC_WINDOW_ID_TYPE ;
+#else
+    using window_id = std::uint16_t;
+#endif
+
+using database   = sketch_database<sequence,sketcher,genome_id,window_id>;
 using taxon_rank = database::taxon_rank;
-using genome_id  = database::genome_id;
 
 
 #ifdef MC_VOTE_TOP

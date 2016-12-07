@@ -85,7 +85,8 @@ namespace mc {
 template<
     class SequenceType,
     class Sketcher,
-    class GenomeId = std::uint16_t
+    class GenomeId = std::uint16_t,
+    class WindowId = std::uint16_t
 >
 class sketch_database
 {
@@ -235,7 +236,9 @@ public:
         features_{},
         sid2gid_{},
         taxa_{}
-    {}
+    {
+        features_.max_load_factor(0.8);
+    }
     //-----------------------------------------------------
     explicit
     sketch_database(sketcher genomeSketcher, sketcher querySketcher) :
@@ -251,7 +254,9 @@ public:
         features_{},
         sid2gid_{},
         taxa_{}
-    {}
+    {
+        features_.max_load_factor(0.8);
+    }
 
     sketch_database(const sketch_database&) = delete;
     sketch_database(sketch_database&&)      = default;
@@ -1022,9 +1027,9 @@ make_database_metadata_only(const std::string& filename)
  * @brief writes database to file
  *
  *****************************************************************************/
-template<class S, class K, class G>
+template<class S, class K, class G, class W>
 void
-write_database(const sketch_database<S,K,G>& db, const std::string& filename)
+write_database(const sketch_database<S,K,G,W>& db, const std::string& filename)
 {
     std::cout << "Writing database to file'"
               << filename << "' ... " << std::flush;
@@ -1047,10 +1052,10 @@ write_database(const sketch_database<S,K,G>& db, const std::string& filename)
  * @brief prints database properties to stdout
  *
  *****************************************************************************/
-template<class S, class K, class G>
-void print_statistics(const sketch_database<S,K,G>& db)
+template<class S, class K, class G, class W>
+void print_statistics(const sketch_database<S,K,G,W>& db)
 {
-    using genome_id = typename sketch_database<S,K,G>::genome_id;
+    using genome_id = typename sketch_database<S,K,G,W>::genome_id;
     int numRankedGenomes = 0;
     for(genome_id i = 0; i < db.genome_count(); ++i) {
         if(!db.taxon_of_genome(i).none()) ++numRankedGenomes;

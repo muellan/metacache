@@ -22,11 +22,13 @@ Visit MetaCache's github [repository].
 #### Compile
 Run 'make' in the directory containing the Makefile.
 
-The default supports databases with up to 65535 reference sequences (genomes) and k-mer sizes up to 16 and offers the best database space efficiency.
+The default supports databases with up to 65535 reference sequences (genomes) with a length
+of 8,388,480 nucleotides each and k-mer sizes up to 16. This offers a good database space efficiency and should be sufficient for bacterial and viral genomes.
+Using the following compilation options you can compile MetaCache with support for more reference sequences of longer size.
 
-There are some compilation options that you can use to make MetaCache more flexible:
+##### number of referece sequences (genomes)
 
-* support for up to 255 reference sequences (needs less memory than default):
+* support for up to 255 reference sequences (needs less memory):
   ```
   make MACROS="-DMC_GENOME_ID_TYPE=uint8_t"
   ```
@@ -36,32 +38,47 @@ There are some compilation options that you can use to make MetaCache more flexi
   make MACROS="-DMC_GENOME_ID_TYPE=uint16_t"
   ```
 
-* support for up to 4,294,967,295 reference sequences (needs more memory than default):
+* support for up to 4,294,967,295 reference sequences (needs more memory):
   ```
   make MACROS="-DMC_GENOME_ID_TYPE=uint32_t"
   ```
 
-* support for more than 4,294,967,295 reference sequences (needs even more memory than default)
+* support for more than 4,294,967,295 reference sequences (needs even more memory)
   ```
   make MACROS="-DMC_GENOME_ID_TYPE=uint64_t"
   ```
 
+##### reference sequence lenghts
+
+* support for genomes up to a length of 65536 windows (default)
+  if window size is 128 (default) then max. genome length supported is 8,388,480 nucleotides
+  ```
+  make MACROS="-DMC_WINDOW_ID_TYPE=uint16_t"
+  ```
+
+* support for genomes up to a length of 4,294,967,295 windows (needs more memory)
+  if window size is 128 (default) then max. genome length supported is 549,755,813,760 nucleotides
+  ```
+  make MACROS="-DMC_WINDOW_ID_TYPE=uint32_t"
+  ```
+
+##### kmer lengths
 * support for kmer lengths up to 16 (default):
   ```
   make MACROS="-DMC_KMER_TYPE=uint32_t"
   ```
 
-* support for kmer lengths up to 32 (needs more memory than default):
+* support for kmer lengths up to 32 (needs more memory):
   ```
   make MACROS="-DMC_KMER_TYPE=uint64_t"
   ```
 
 You can of course combine these options (don't forget the surrounding quotes):
   ```
-  make MACROS="-DMC_GENOME_ID_TYPE=uint32_t -DMC_KMER_TYPE=uint32_t"
+  make MACROS="-DMC_GENOME_ID_TYPE=uint32_t -DMC_WINDOW_ID_TYPE=uint32_t"
   ```
 
-**Note that you can query databases built with one of these variants of MetaCache only with the variant it was built with.**
+**Note that a database can only be queried with the variant of MetaCache that it was built with.**
 
 
 ## Usage
@@ -93,11 +110,11 @@ Note: In rare cases databases built on one platform might not work with MetaCach
 
 #### Classification TL;DR 
 Metacache has different modes, one of them is the 'query' mode. Once a database (e.g. the standard 'refseq'), is built you can classify reads.
-* a single FASTA file with reads:
+* a single FASTA file containing some reads:
   ```
   ./metacache query refseq my_reads.fa -out results.txt
   ```
-* an entire directory with reads:
+* an entire directory containing FASTA/FASTQ files:
   ```
   ./metacache query refseq my_folder -out results.txt
   ```
