@@ -51,7 +51,7 @@ struct build_param
     int winstride = 113;
 
     float maxLoadFactor = -1;           //< 0 : use database default
-    int maxGenomesPerFeature = 1024;
+    int maxGenomesPerFeature = 128;
 
     taxonomy_param taxonomy;
 
