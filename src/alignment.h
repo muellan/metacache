@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * version 1.0
+ * version 0.1
  *
  * alignment algorithms implementation by Christian Hundt
  *

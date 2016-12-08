@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * version 1.0
+ * version 0.1
  *
  * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
  *
@@ -21,8 +21,8 @@
  *
  *****************************************************************************/
 
-#ifndef SRCG_SEQUENCE_VIEW_H_
-#define SRCG_SEQUENCE_VIEW_H_
+#ifndef MC_SEQUENCE_VIEW_H_
+#define MC_SEQUENCE_VIEW_H_
 
 
 #include <type_traits>

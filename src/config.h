@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * version 1.0
+ * version 0.1
  *
  * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
  *
