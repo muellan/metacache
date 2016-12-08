@@ -1079,26 +1079,34 @@ write_database(const sketch_database<S,K,G,W>& db, const std::string& filename)
 template<class S, class K, class G, class W>
 void print_statistics(const sketch_database<S,K,G,W>& db)
 {
-    using target_id = typename sketch_database<S,K,G,W>::target_id;
+    using db_t = sketch_database<S,K,G,W>;
+    using target_id = typename db_t::target_id;
+    using window_id = typename db_t::window_id;
+    using feature_t = typename db_t::feature;
+
     int numRankedTargets = 0;
     for(target_id i = 0; i < db.target_count(); ++i) {
         if(!db.taxon_of_target(i).none()) ++numRankedTargets;
     }
 
-    std::cout << "targets:        " << db.target_count() << '\n'
-              << "ranked targets: " << numRankedTargets << '\n'
-              << "window length:  " << db.target_window_size() << '\n'
-              << "window stride:  " << db.target_window_stride() << '\n'
-              << "kmer size:      " << int(db.target_sketcher().kmer_size()) << '\n'
-              << "sketch size:    " << db.target_sketcher().sketch_size() << '\n'
-              << "taxa in tree:   " << db.taxon_count() << '\n';
+    std::cout << "database version " << METACACHE_DB_VERSION << '\n'
+              << "kmer type:       " << (sizeof(feature_t)*8) << " bits\n"
+              << "target id type:  " << (sizeof(target_id)*8) << " bits\n"
+              << "window id type:  " << (sizeof(window_id)*8) << " bits\n"
+              << "targets:         " << db.target_count() << '\n'
+              << "ranked targets:  " << numRankedTargets << '\n'
+              << "window length:   " << db.target_window_size() << '\n'
+              << "window stride:   " << db.target_window_stride() << '\n'
+              << "kmer size:       " << int(db.target_sketcher().kmer_size()) << '\n'
+              << "sketch size:     " << db.target_sketcher().sketch_size() << '\n'
+              << "taxa in tree:    " << db.taxon_count() << '\n';
 
     auto hbs = db.bucket_size_statistics();
 
-    std::cout << "buckets:        " << db.bucket_count() << '\n'
-              << "bucket size:    " << hbs.mean() << " +/- " << hbs.stddev() << '\n'
-              << "features:       " << db.feature_count() << '\n'
-              << "locations:      " << db.reference_count() << '\n'
+    std::cout << "buckets:         " << db.bucket_count() << '\n'
+              << "bucket size:     " << hbs.mean() << " +/- " << hbs.stddev() << '\n'
+              << "features:        " << db.feature_count() << '\n'
+              << "locations:       " << db.reference_count() << '\n'
               << std::endl;
 }
 
