@@ -1,14 +1,36 @@
-# MetaCache taxonomic classification system
+# MetaCache
 
-## Installation Instructions
+MetaCache is a taxnomomic classification system intended for metagenomic read mapping.
+
+
+
+## Super Quick Installation & Usage
+This will download MetaCache, compile it, download the complete bacterial, viral and archaea genomes from the latest NCBI RefSeq release (this can take some time) and build a classification database from them:
+
+```
+git clone https://github.com/muellan/metacache.git 
+make
+./metacache-build-refseq
+```
+
+Once the default database is built you can classify reads:
+  ```
+  ./metacache query refseq myReads.fa -out results.txt
+  ./metacache query refseq anyFolderWithFastaOrFastqFiles -out results.txt
+  ./metacache query refseq -pair_files myReads1.fa myReads2.fa -out results.txt
+  ./metacache query refseq -pair_sequences myPairedReads.fa -out results.txt
+  ```
+
+
+## Detailed Installation Instructions
 
 #### Requirements
-MetaCache itself should compile on any platform with a C++11 conforming compiler.
+MetaCache itself should compile on any platform for which a C++11 conforming compiler is available.
 
-The helper scripts (for downloading genomes, taxonomy etc.) however require the Bash shell to run. So on Windows you need a working bash executable, for example "Git Bash" which comes with git for Windows as well as some common GNU utilities like 'awk' and 'wget'.
+The helper scripts (for downloading genomes, taxonomy etc.) however require the Bash shell to run. So on Windows you need a working bash executable as well as some common GNU utilities like "awk" and "wget". There is for example "Git Bash" which comes with git for Windows.
 
 There are no dependencies on third party libraries.
-Compilation was successfully tested on the following platforms:
+MetaCache was successfully tested on the following platforms (all 64 bit + 64 bit compilers):
 - Ubuntu 14.04 with g++ 4.9 and g++ 5.2
 - Ubuntu 16.04 with g++ 4.9 and g++ 5.3
 - Windows 10.1511 with MinGW-w64 g++ 5.1 and MinGW-w64 g++ 5.3
@@ -20,38 +42,37 @@ Visit MetaCache's github [repository].
 
 
 #### Compile
-Run 'make' in the directory containing the Makefile.
-
-The default supports databases with up to 65,535 reference sequences (genomes) and k-mer sizes up to 16. This offers a good database space efficiency.
+Run 'make' in the directory containing the Makefile. 
+This will compile MetaCache with the default data type settings which support databases with up to 65,535 reference sequences (targets) and k-mer sizes up to 16. This offers a good database space efficiency and is enough for the complete bacterial, viral and archaea genomes from the NCBI RefSeq.
 
 Using the following compilation options you can compile MetaCache with support for more reference sequences and greater k-mer lengths.
 
-##### number of referece sequences (genomes)
+##### number of referece sequences (targets)
 
 * support for up to 65,535 reference sequences (default):
   ```
-  make MACROS="-DMC_GENOME_ID_TYPE=uint16_t"
+  make MACROS="-DMC_TARGET_ID_TYPE=uint16_t"
   ```
 
 * support for up to 4,294,967,295 reference sequences (needs more memory):
   ```
-  make MACROS="-DMC_GENOME_ID_TYPE=uint32_t"
+  make MACROS="-DMC_TARGET_ID_TYPE=uint32_t"
   ```
 
 * support for more than 4,294,967,295 reference sequences (needs even more memory)
   ```
-  make MACROS="-DMC_GENOME_ID_TYPE=uint64_t"
+  make MACROS="-DMC_TARGET_ID_TYPE=uint64_t"
   ```
 
 ##### reference sequence lenghts
-* support for genomes up to a length of 4,294,967,295 windows (default)
-  if window size is 128 (default) then the sequence length must not exceed 485.3 billion nucleotides
+* support for targets up to a length of 4,294,967,295 windows (default)
+  with default settings (window length, k-mer size) no sequence length must exceed 485.3 billion nucleotides
   ```
   make MACROS="-DMC_WINDOW_ID_TYPE=uint32_t"
   ```
 
-* support for genomes up to a length of 65536 windows (needs less memory)
-  if window size is 128 (default) then the sequence length must not exceed 7.4 million nucleotides
+* support for targets up to a length of 65,535 windows (needs less memory)
+  with default settings (window length, k-mer size) no sequence length must exceed 7.4 million nocleotides
   ```
   make MACROS="-DMC_WINDOW_ID_TYPE=uint16_t"
   ```
@@ -70,10 +91,10 @@ Using the following compilation options you can compile MetaCache with support f
 
 You can of course combine these options (don't forget the surrounding quotes):
   ```
-  make MACROS="-DMC_GENOME_ID_TYPE=uint32_t -DMC_WINDOW_ID_TYPE=uint32_t"
+  make MACROS="-DMC_TARGET_ID_TYPE=uint32_t -DMC_WINDOW_ID_TYPE=uint32_t"
   ```
 
-**Note that a database can only be queried with the same compiled variant of MetaCache that it was built with.**
+**Note that a database can only be queried with the same variant of MetaCache (regarding data type sizes) that it was built with.**
 
 
 ## Usage
@@ -103,7 +124,7 @@ MetaCache also comes with these helper scripts:
 Note: In rare cases databases built on one platform might not work with MetaCache on other platforms due to bit-endianness and data type width differences. Especially mixing MetaCache executables compiled with 32-bit and 64-bit compilers might be probelematic.
 
 
-#### Classification TL;DR 
+#### Classification 
 Metacache has different modes, one of them is the 'query' mode. Once a database (e.g. the standard 'refseq'), is built you can classify reads.
 * a single FASTA file containing some reads:
   ```

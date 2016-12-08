@@ -40,7 +40,7 @@ namespace mc {
  *****************************************************************************/
 using taxon_rank     = database::taxon_rank;
 using taxon          = database::taxon;
-using genome_id      = database::genome_id;
+using target_id      = database::target_id;
 using taxon_id       = database::taxon_id;
 using ranked_lineage = database::ranked_lineage;
 using match_result   = database::match_result;

@@ -39,7 +39,7 @@ void main_mode_annotate(const args_parser&);
 
 /*****************************************************************************
  *
- * @brief builds a database from reference input sequences
+ * @brief builds a database from reference input sequences (= targets)
  *
  *****************************************************************************/
 void main_mode_build(const args_parser&);
@@ -48,7 +48,7 @@ void main_mode_build(const args_parser&);
 
 /*****************************************************************************
  *
- * @brief adds reference sequences to an existing database
+ * @brief adds reference sequences (= targets) to an existing database
  *
  *****************************************************************************/
 void main_mode_build_add(const args_parser&);
@@ -57,7 +57,7 @@ void main_mode_build_add(const args_parser&);
 
 /*****************************************************************************
  *
- * @brief generates random reads (with errors) from sequences
+ * @brief help
  *
  *****************************************************************************/
 void main_mode_help(const args_parser&);

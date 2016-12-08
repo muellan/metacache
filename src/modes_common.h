@@ -41,7 +41,7 @@ namespace mc {
  *****************************************************************************/
 using taxon_rank     = database::taxon_rank;
 using taxon          = database::taxon;
-using genome_id      = database::genome_id;
+using target_id      = database::target_id;
 using taxon_id       = database::taxon_id;
 using ranked_lineage = database::ranked_lineage;
 using match_result   = database::match_result;
@@ -58,25 +58,25 @@ struct classification
 
     explicit constexpr
     classification(const taxon* tax = nullptr) noexcept:
-        gid_{database::invalid_genome_id()}, tax_{tax}
+        gid_{database::invalid_target_id()}, tax_{tax}
     {}
 
     explicit constexpr
-    classification(genome_id gid, const taxon* tax = nullptr) noexcept:
-        gid_{gid}, tax_{tax}
+    classification(target_id tid, const taxon* tax = nullptr) noexcept:
+        gid_{tid}, tax_{tax}
     {}
 
     bool has_taxon() const noexcept {
         return tax_;
     }
     bool sequence_level() const noexcept {
-        return gid_ != database::invalid_genome_id();
+        return gid_ != database::invalid_target_id();
     }
     bool none() const noexcept {
         return !sequence_level() && !has_taxon();
     }
 
-    genome_id gid() const noexcept {
+    target_id tid() const noexcept {
         return gid_;
     }
     const taxon& tax() const noexcept { return *tax_; }
@@ -87,7 +87,7 @@ struct classification
     }
 
 private:
-    genome_id gid_;
+    target_id gid_;
     const taxon* tax_;
 };
 
@@ -141,12 +141,12 @@ void show_ranks(std::ostream&,
 
 /*****************************************************************************
  *
- * @brief print ranked lineage of genome
+ * @brief print ranked lineage of target
  *
  *****************************************************************************/
-void show_ranks_of_genome(std::ostream&,
+void show_ranks_of_target(std::ostream&,
                           const database&,
-                          genome_id,
+                          target_id,
                           taxon_print_mode = taxon_print_mode::name_only,
                           taxon_rank lowest  = taxon_rank::Sequence,
                           taxon_rank highest = taxon_rank::Domain);
@@ -178,7 +178,7 @@ void update_coverage_statistics(
 
 /*****************************************************************************
  *
- * @brief  print genome.window hit matches
+ * @brief  print target.window hit matches
  *
  *****************************************************************************/
 void show_matches(std::ostream&,
@@ -191,32 +191,32 @@ void show_matches(std::ostream&,
 template<int n>
 void show_matches(std::ostream& os,
     const database& db,
-    const matches_in_contiguous_window_range_top<n,genome_id>& cand,
+    const matches_in_contiguous_window_range_top<n,target_id>& cand,
     taxon_rank lowest = taxon_rank::Sequence)
 {
     if(lowest == taxon_rank::Sequence) {
         if(cand.hits(0) > 0) {
-            os  << db.sequence_id_of_genome(cand.genome_id(0))
+            os  << db.sequence_id_of_target(cand.target_id(0))
                 << ':' << cand.hits(0);
         }
 
         for(int i = 1; i < n && cand.hits(i) > 0; ++i) {
-            os  << ',' << db.sequence_id_of_genome(cand.genome_id(i))
+            os  << ',' << db.sequence_id_of_target(cand.target_id(i))
                 << ':' << cand.hits(i);
             ++i;
         }
     }
     else {
         if(cand.hits(0) > 0) {
-            auto taxid = db.ranks_of_genome(
-                         cand.genome_id(0))[int(lowest)];
+            auto taxid = db.ranks_of_target(
+                         cand.target_id(0))[int(lowest)];
 
             os << taxid << ':' << cand.hits(0);
         }
 
         for(int i = 1; i < n && cand.hits(i) > 0; ++i) {
-            auto taxid = db.ranks_of_genome(
-                         cand.genome_id(i))[int(lowest)];
+            auto taxid = db.ranks_of_target(
+                         cand.target_id(i))[int(lowest)];
 
             os << ',' << taxid << ':' << cand.hits(i);
             ++i;

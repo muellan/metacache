@@ -135,7 +135,7 @@ struct query_param
     // tuning parameters
     //-----------------------------------------------------
     float maxLoadFactor = -1;        //< 0 : use value from database
-    int maxGenomesPerSketchVal = -1; //< 0 : use value from database
+    int maxTargetsPerSketchVal = -1; //< 0 : use value from database
     int numThreads = 1;
 
     //-----------------------------------------------------
@@ -286,8 +286,8 @@ get_query_param(const args_parser& args)
     //database tuning parameters
     param.maxLoadFactor = args.get<float>("max_load_fac", defaults.maxLoadFactor);
 
-    param.maxGenomesPerSketchVal = args.get<int>("max_genomes_per_feature",
-                                                 defaults.maxGenomesPerSketchVal);
+    param.maxTargetsPerSketchVal = args.get<int>("max_locations_per_feature",
+                                                 defaults.maxTargetsPerSketchVal);
 
     param.numThreads = args.get<int>("threads",
                                      std::thread::hardware_concurrency());
@@ -299,15 +299,15 @@ get_query_param(const args_parser& args)
 
 /*****************************************************************************
  *
- * @brief  print genome.window hit statistics from database
+ * @brief  print target.window hit statistics from database
  *
  *****************************************************************************/
 template<int n>
 void show_candidate_ranges(std::ostream& os,
     const database& db,
-    const matches_in_contiguous_window_range_top<n,genome_id>& cand)
+    const matches_in_contiguous_window_range_top<n,target_id>& cand)
 {
-    const auto w = db.genome_window_stride();
+    const auto w = db.target_window_stride();
 
     for(int i = 0; i < n; ++i) {
         os << '[' << (w * cand.window(i).beg)
@@ -348,7 +348,7 @@ int
 best_kmer_intersection_candidate(std::ostream&,
     const database& db, const query_param& param,
     const sequence& query1, const sequence& query2,
-    const matches_in_contiguous_window_range_top<n,genome_id>& cand)
+    const matches_in_contiguous_window_range_top<n,target_id>& cand)
 {
     std::size_t fstVal = 0;
     std::size_t sndVal = 0;
@@ -361,7 +361,7 @@ best_kmer_intersection_candidate(std::ostream&,
     //largest kmer intersection
     for(int i = 0; i < n; ++i) {
         try {
-            const auto& origin = db.origin_of_genome(cand.genome_id(i));
+            const auto& origin = db.origin_of_target(cand.target_id(i));
             if(!origin.filename.empty()) {
                 //open sequence file, forward to index in file
                 auto reader = make_sequence_reader(origin.filename);
@@ -370,7 +370,7 @@ best_kmer_intersection_candidate(std::ostream&,
 
                     auto subject = reader->next().data;
                     //make views to candidate window ranges
-                    auto w = db.genome_window_stride();
+                    auto w = db.target_window_stride();
                     auto win = make_view_from_window_range(subject, cand.window(i), w);
 
                     auto s = kmer_intersection_size(param.useCommonKmerCount, query1, win);
@@ -425,12 +425,12 @@ int
 best_alignment_candidate(std::ostream& os,
     const database& db, const query_param& param,
     const sequence& query1, const sequence& query2,
-    const matches_in_contiguous_window_range_top<n,genome_id>& cand)
+    const matches_in_contiguous_window_range_top<n,target_id>& cand)
 {
     //check which of the top sequences has a better alignment
-    const auto& origin0 = db.origin_of_genome(cand.genome_id(0));
+    const auto& origin0 = db.origin_of_target(cand.target_id(0));
     if(origin0.filename.empty()) return -1;
-    const auto& origin1 = db.origin_of_genome(cand.genome_id(1));
+    const auto& origin1 = db.origin_of_target(cand.target_id(1));
     if(origin1.filename.empty()) return -1;
 
     //open sequence files & forward to sequence index
@@ -448,7 +448,7 @@ best_alignment_candidate(std::ostream& os,
         auto subject1 = reader1->next().data;
 
         //make views to candidate window ranges
-        auto w = db.genome_window_stride();
+        auto w = db.target_window_stride();
 
         auto s0 = make_view_from_window_range(subject0, cand.window(0), w);
         auto s1 = make_view_from_window_range(subject1, cand.window(1), w);
@@ -556,14 +556,14 @@ template<int maxn>
 const taxon*
 lowest_common_taxon(
     const database& db,
-    const matches_in_contiguous_window_range_top<maxn,genome_id>& cand,
+    const matches_in_contiguous_window_range_top<maxn,target_id>& cand,
     float trustedMajority,
     taxon_rank lowestRank = taxon_rank::subSpecies,
     taxon_rank highestRank = taxon_rank::Domain)
 {
     if(maxn < 3 || cand.count() < 3) {
-        auto tax = &db.ranked_lca_of_genomes(cand.genome_id(0),
-                                             cand.genome_id(1));
+        auto tax = &db.ranked_lca_of_targets(cand.target_id(0),
+                                             cand.target_id(1));
 
         //classify if rank is below or at the highest rank of interest
         if(tax->rank <= highestRank) return tax;
@@ -580,16 +580,16 @@ lowest_common_taxon(
             //hash-count taxon id occurrences on rank 'r'
             int totalscore = 0;
             for(int i = 0, n = cand.count(); i < n; ++i) {
-                //use genome id instead of taxon if at sequence level
-                auto tid = db.ranks_of_genome(cand.genome_id(i))[int(r)];
-                if(tid > 0) {
+                //use target id instead of taxon if at sequence level
+                auto taxid = db.ranks_of_target(cand.target_id(i))[int(r)];
+                if(taxid > 0) {
                     auto score = cand.hits(i);
                     totalscore += score;
-                    auto it = scores.find(tid);
+                    auto it = scores.find(taxid);
                     if(it != scores.end()) {
                         it->second += score;
                     } else {
-                        scores.insert(it, {tid, score});
+                        scores.insert(it, {taxid, score});
                     }
                 }
             }
@@ -643,7 +643,7 @@ classification
 sequence_classification(std::ostream& os,
     const database& db, const query_param& param,
     const sequence& query1, const sequence& query2,
-    const matches_in_contiguous_window_range_top<n,genome_id>& cand)
+    const matches_in_contiguous_window_range_top<n,target_id>& cand)
 {
     //sum of top-2 hits < threshold => considered not classifiable
     if((cand.hits(0) + cand.hits(1)) < param.hitsMin) {
@@ -652,12 +652,12 @@ sequence_classification(std::ostream& os,
 
     //either top 2 are the same sequences with at least 'hitsMin' many hits
     //(checked before) or hit difference between these top 2 is above threshhold
-    if( (cand.genome_id(0) == cand.genome_id(1))
+    if( (cand.target_id(0) == cand.target_id(1))
         || (cand.hits(0) - cand.hits(1)) >= param.hitsMin)
     {
         //return top candidate
-        auto gid = cand.genome_id(0);
-        return classification{gid, &db.taxon_of_genome(gid)};
+        auto tid = cand.target_id(0);
+        return classification{tid, &db.taxon_of_target(tid)};
     }
 
     //use kmer counting to disambiguate?
@@ -665,8 +665,8 @@ sequence_classification(std::ostream& os,
         int bac = best_kmer_intersection_candidate(os, db, param,
                                                    query1, query2, cand);
         if(bac >= 0) {
-            auto gid = cand.genome_id(bac);
-            return classification{gid, &db.taxon_of_genome(gid)};
+            auto tid = cand.target_id(bac);
+            return classification{tid, &db.taxon_of_target(tid)};
         }
     }
 
@@ -674,8 +674,8 @@ sequence_classification(std::ostream& os,
     if(param.useAlignment) {
         int bac = best_alignment_candidate(os, db, param, query1, query2, cand);
         if(bac >= 0) {
-            auto gid = cand.genome_id(bac);
-            return classification{gid, &db.taxon_of_genome(gid)};
+            auto tid = cand.target_id(bac);
+            return classification{tid, &db.taxon_of_target(tid)};
         }
     }
 
@@ -698,7 +698,7 @@ void show_classification(std::ostream& os,
     if(cls.sequence_level()) {
         auto rmax = param.showLineage ? param.highestRank : param.lowestRank;
 
-        show_ranks_of_genome(os, db, cls.gid(),
+        show_ranks_of_target(os, db, cls.tid(),
                                       param.showTaxaAs, param.lowestRank, rmax);
     }
     else if(cls.has_taxon()) {
@@ -732,7 +732,7 @@ void remove_hits_on_rank(const database& db,
 {
     auto maskedRes = res;
     for(const auto& orig : res) {
-        auto r = db.ranks_of_genome(orig.first.gid)[int(rank)];
+        auto r = db.ranks_of_target(orig.first.tid)[int(rank)];
         if(r != taxid) {
             maskedRes.insert(orig);
         }
@@ -785,7 +785,7 @@ void process_database_answer(
 
         if(param.showGroundTruth) {
             if(groundTruth.sequence_level()) {
-                show_ranks_of_genome(os, db, groundTruth.gid(),
+                show_ranks_of_target(os, db, groundTruth.tid(),
                     param.showTaxaAs, param.lowestRank,
                     param.showLineage ? param.highestRank : param.lowestRank);
             }
@@ -804,7 +804,7 @@ void process_database_answer(
     //classify
     auto numWindows = std::uint_least64_t( 2 + (
         std::max(query1.size() + query2.size(), param.insertSizeMax) /
-        db.genome_window_stride() ));
+        db.target_window_stride() ));
 
     top_matches_in_contiguous_window_range tophits {hits, numWindows};
     auto cls = sequence_classification(os, db, param, query1, query2, tophits);
@@ -832,7 +832,7 @@ void process_database_answer(
         stats.assign_known_correct(cls.rank(), groundTruth.rank(),
                                    lowestCorrectRank);
 
-        //check if taxa of assigned genome are covered
+        //check if taxa of assigned target are covered
         if(param.testCoverage && groundTruth.has_taxon()) {
             update_coverage_statistics(db, cls, groundTruth, stats);
         }
@@ -1166,13 +1166,13 @@ void main_mode_query(const args_parser& args)
     if(param.maxLoadFactor > 0) {
         db.max_load_factor(param.maxLoadFactor);
     }
-    if(param.maxGenomesPerSketchVal > 1) {
-        db.erase_features_with_more_genomes_than(param.maxGenomesPerSketchVal);
+    if(param.maxTargetsPerSketchVal > 1) {
+        db.erase_features_with_more_locations_than(param.maxTargetsPerSketchVal);
     }
 
     //deduced query parameters
     if(param.hitsMin < 1) {
-        auto sks = db.genome_sketcher().sketch_size();
+        auto sks = db.target_sketcher().sketch_size();
         if(sks >= 6) {
             param.hitsMin = static_cast<int>(sks / 3.0);
         } else if (sks >= 4) {

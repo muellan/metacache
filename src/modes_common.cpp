@@ -32,26 +32,26 @@ namespace mc {
 classification
 ground_truth(const database& db, const std::string& header)
 {
-    //try to extract query id and find the corresponding genome in database
-    auto gid = db.genome_id_of_sequence(extract_ncbi_accession_version_number(header));
+    //try to extract query id and find the corresponding target in database
+    auto tid = db.target_id_of_sequence(extract_ncbi_accession_version_number(header));
     //not found yet
-    if(!db.is_valid(gid)) {
-        gid = db.genome_id_of_sequence(extract_ncbi_accession_number(header));
+    if(!db.is_valid(tid)) {
+        tid = db.target_id_of_sequence(extract_ncbi_accession_number(header));
         //not found yet
-//        if(!db.is_valid(gid)) {
-//            gid = db.genome_id_of_sequence(extract_genbank_identifier(header));
+//        if(!db.is_valid(tid)) {
+//            tid = db.target_id_of_sequence(extract_genbank_identifier(header));
 //        }
     }
 
     auto taxid = extract_taxon_id(header);
 
-    //if genome known and in db
-    if(db.is_valid(gid)) {
+    //if target known and in db
+    if(db.is_valid(tid)) {
         //if taxid could not be determined solely from header, use the one
-        //from the genome in the db
-        if(taxid < 1) db.taxon_id_of_genome(gid);
+        //from the target in the db
+        if(taxid < 1) db.taxon_id_of_target(tid);
 
-        return classification { gid, taxid > 0 ? &db.taxon_with_id(taxid) : nullptr };
+        return classification { tid, taxid > 0 ? &db.taxon_with_id(taxid) : nullptr };
     }
 
     return classification { taxid > 0 ? &db.taxon_with_id(taxid) : nullptr };
@@ -66,7 +66,7 @@ lowest_common_rank(const database& db,
                    const classification& b)
 {
     if(a.sequence_level() && b.sequence_level() &&
-        a.gid() == b.gid()) return taxon_rank::Sequence;
+        a.tid() == b.tid()) return taxon_rank::Sequence;
 
     if(a.has_taxon() && b.has_taxon()) {
         return db.ranked_lca(a.tax(), b.tax()).rank;
@@ -127,25 +127,25 @@ void show_ranks(
 
 
 //-------------------------------------------------------------------
-void show_ranks_of_genome(
+void show_ranks_of_target(
     std::ostream& os,
     const database& db,
-    genome_id gid,
+    target_id tid,
     taxon_print_mode mode, taxon_rank lowest, taxon_rank highest)
 {
-    //since genomes don't have their own taxonId, print their sequence id
+    //since targets don't have their own taxonId, print their sequence id
     if(lowest == taxon_rank::Sequence) {
         if(mode != taxon_print_mode::id_only) {
-            os << "sequence:" << db.sequence_id_of_genome(gid);
+            os << "sequence:" << db.sequence_id_of_target(tid);
         } else {
-            os << db.sequence_id_of_genome(gid);
+            os << db.sequence_id_of_target(tid);
         }
     }
     if(highest == taxon_rank::Sequence) return;
 
     if(lowest == taxon_rank::Sequence) os << ',';
 
-    show_ranks(os, db, db.ranks_of_genome(gid),
+    show_ranks(os, db, db.ranks_of_target(tid),
                         mode, lowest, highest);
 }
 
@@ -161,14 +161,14 @@ void show_matches(std::ostream& os,
 
     if(lowest == taxon_rank::Sequence) {
         for(const auto& r : matches) {
-            os << db.sequence_id_of_genome(r.first.gid)
+            os << db.sequence_id_of_target(r.first.tid)
                << '/' << int(r.first.win)
                << ':' << int(r.second) << ',';
         }
     }
     else {
         for(const auto& r : matches) {
-            auto taxid = db.ranks_of_genome(r.first.gid)[int(lowest)];
+            auto taxid = db.ranks_of_target(r.first.tid)[int(lowest)];
             os << taxid << ':' << int(r.second) << ',';
         }
     }
@@ -275,9 +275,9 @@ void update_coverage_statistics(
 {
     const auto& lin = db.ranks(truth.tax());
     //check if taxa are covered in DB
-    for(auto tid : lin) {
-        auto r = db.taxon_with_id(tid).rank;
-        if(db.covers_taxon(tid)) {
+    for(auto taxid : lin) {
+        auto r = db.taxon_with_id(taxid).rank;
+        if(db.covers_taxon(taxid)) {
             if(r < result.rank()) { //unclassified on rank
                 stats.count_coverage_false_neg(r);
             } else { //classified on rank

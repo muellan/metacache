@@ -47,25 +47,25 @@
 namespace mc {
 
 //helps to distinguish potentially incompatible database versions
-#define METACACHE_DB_VERSION 20160912
+#define METACACHE_DB_VERSION 20161208
 
 
 /*****************************************************************************
  *
  * @brief  maps 'features' (e.g. hash values obtained by min-hashing)
- *         to 'targets' = positions in reference genomes
+ *         to 'targets' = positions in reference targets
  *
  * @details
  *   terminology
- *   genome:      reference sequence whose sketches are stored in the DB
+ *   target:      reference sequence whose sketches are stored in the DB
  *
  *   query:       sequence (usually short reads) that shall be matched against
- *                the reference genomes
+ *                the reference targets
  *
- *   genome_id:   numeric database identifier of reference genomes
- *                in the range [0,n-1] where n is the number of genomes in the DB
+ *   target_id:   numeric database identifier of reference targets
+ *                in the range [0,n-1] where n is the number of targets in the DB
  *
- *   window_id:   window index (starting with 0) within a reference genome
+ *   window_id:   window index (starting with 0) within a reference target
  *
  *   sequence_id: alphanumeric sequence identifier (e.g. an NCBI accession)
  *
@@ -77,7 +77,7 @@ namespace mc {
  *   Sketcher:      function object type, that maps reference sequence
  *                  windows (= sequence interval) to
  *                  sketches (= collection of features of the same C++ type)
- *   GenomeId:      type for reference sequence identification;
+ *   TargetId:      type for reference sequence identification;
  *
  *                  may have heavy impact on memory footprint of database
  *
@@ -85,7 +85,7 @@ namespace mc {
 template<
     class SequenceType,
     class Sketcher,
-    class GenomeId = std::uint16_t,
+    class TargetId = std::uint16_t,
     class WindowId = std::uint16_t
 >
 class sketch_database
@@ -95,7 +95,7 @@ public:
     using sequence = SequenceType;
     using sketcher = Sketcher;
     //-----------------------------------------------------
-    using genome_id   = GenomeId;
+    using target_id   = TargetId;
     using window_id   = WindowId;
     using sequence_id = std::string;
     //-----------------------------------------------------
@@ -119,10 +119,10 @@ public:
 
 
     //-----------------------------------------------------
-    class genome_limit_exceeded_error : public std::runtime_error {
+    class target_limit_exceeded_error : public std::runtime_error {
     public:
-        genome_limit_exceeded_error():
-            std::runtime_error{"genome count limit exceeded"}
+        target_limit_exceeded_error():
+            std::runtime_error{"target count limit exceeded"}
         {}
     };
 
@@ -130,15 +130,15 @@ public:
 private:
     //-----------------------------------------------------
     /**
-     * @brief genome meta-information
+     * @brief target meta-information
      */
-    class genome_property
+    class target_property
     {
     public:
         using taxon_id = sketch_database::taxon_id;
 
         explicit
-        genome_property(std::string identifier = "",
+        target_property(std::string identifier = "",
                         taxon_id tax = 0,
                         sequence_origin origin = sequence_origin{})
         :
@@ -149,7 +149,7 @@ private:
         {}
 
         friend void
-        read_binary(std::istream& is, genome_property& p) {
+        read_binary(std::istream& is, target_property& p) {
             read_binary(is, p.id);
             read_binary(is, p.taxonId);
             read_binary(is, p.ranks);
@@ -159,7 +159,7 @@ private:
         }
 
         friend void
-        write_binary(std::ostream& os, const genome_property& p) {
+        write_binary(std::ostream& os, const target_property& p) {
             write_binary(os, p.id);
             write_binary(os, p.taxonId);
             write_binary(os, p.ranks);
@@ -182,29 +182,29 @@ public:
     using feature = typename sketch::value_type;
 
     //-----------------------------------------------------
-    struct target
+    struct location
     {
         constexpr
-        target(genome_id g = 0, window_id w = 0) noexcept :
-            gid{g}, win{w}
+        location(target_id g = 0, window_id w = 0) noexcept :
+            tid{g}, win{w}
         {}
 
-        genome_id gid;
+        target_id tid;
         window_id win;
 
         friend bool
-        operator < (const target& a, const target& b) noexcept {
-            if(a.gid < b.gid) return true;
-            if(a.gid > b.gid) return false;
+        operator < (const location& a, const location& b) noexcept {
+            if(a.tid < b.tid) return true;
+            if(a.tid > b.tid) return false;
             return (a.win < b.win);
         }
 
-        friend void read_binary(std::istream& is, target& p) {
-            read_binary(is, p.gid);
+        friend void read_binary(std::istream& is, location& p) {
+            read_binary(is, p.tid);
             read_binary(is, p.win);
         }
-        friend void write_binary(std::ostream& os, const target& p) {
-            write_binary(os, p.gid);
+        friend void write_binary(std::ostream& os, const location& p) {
+            write_binary(os, p.tid);
             write_binary(os, p.win);
         }
     };
@@ -212,27 +212,27 @@ public:
 
 private:
     //-----------------------------------------------------
-    using feature_store = hash_multimap<feature,target>;
+    using feature_store = hash_multimap<feature,location>;
 
 
 public:
     //-------------------------------------------------------------------
     using bucket_size_type  = typename feature_store::bucket_size_type;
-    using match_result = std::map<target,std::uint16_t>; //features per target
+    using match_result = std::map<location,std::uint16_t>; //features per target
 
 
     //---------------------------------------------------------------
     explicit
-    sketch_database(sketcher genomeSketcher = sketcher{}) :
-        genomeSketcher_{std::move(genomeSketcher)},
-        querySketcher_{genomeSketcher_},
-        genomeWindowSize_(128),
-        genomeWindowStride_(128-15),
-        queryWindowSize_(genomeWindowSize_),
-        queryWindowStride_(genomeWindowStride_),
-        maxRefsPerFeature_(features_.max_bucket_size()-1),
-        nextGenomeId_(0),
-        genomes_{},
+    sketch_database(sketcher targetSketcher = sketcher{}) :
+        targetSketcher_{std::move(targetSketcher)},
+        querySketcher_{targetSketcher_},
+        targetWindowSize_(128),
+        targetWindowStride_(128-15),
+        queryWindowSize_(targetWindowSize_),
+        queryWindowStride_(targetWindowStride_),
+        maxLocsPerFeature_(features_.max_bucket_size()-1),
+        nextTargetId_(0),
+        targets_{},
         features_{},
         sid2gid_{},
         taxa_{}
@@ -241,16 +241,16 @@ public:
     }
     //-----------------------------------------------------
     explicit
-    sketch_database(sketcher genomeSketcher, sketcher querySketcher) :
-        genomeSketcher_{std::move(genomeSketcher)},
+    sketch_database(sketcher targetSketcher, sketcher querySketcher) :
+        targetSketcher_{std::move(targetSketcher)},
         querySketcher_{std::move(querySketcher)},
-        genomeWindowSize_(128),
-        genomeWindowStride_(128-15),
-        queryWindowSize_(genomeWindowSize_),
-        queryWindowStride_(genomeWindowStride_),
-        maxRefsPerFeature_(features_.max_bucket_size()-1),
-        nextGenomeId_(0),
-        genomes_{},
+        targetWindowSize_(128),
+        targetWindowStride_(128-15),
+        queryWindowSize_(targetWindowSize_),
+        queryWindowStride_(targetWindowStride_),
+        maxLocsPerFeature_(features_.max_bucket_size()-1),
+        nextTargetId_(0),
+        targets_{},
         features_{},
         sid2gid_{},
         taxa_{}
@@ -267,8 +267,8 @@ public:
 
     //---------------------------------------------------------------
     const sketcher&
-    genome_sketcher() const noexcept {
-        return genomeSketcher_;
+    target_sketcher() const noexcept {
+        return targetSketcher_;
     }
     //-----------------------------------------------------
     const sketcher&
@@ -287,21 +287,21 @@ public:
 
 
     //---------------------------------------------------------------
-    void genome_window_size(std::size_t s) {
-        genomeWindowSize_ = s;
+    void target_window_size(std::size_t s) {
+        targetWindowSize_ = s;
     }
     //-----------------------------------------------------
-    size_t genome_window_size() const noexcept {
-        return genomeWindowSize_;
+    size_t target_window_size() const noexcept {
+        return targetWindowSize_;
     }
     //---------------------------------------------------------------
-    void genome_window_stride(std::size_t s) {
+    void target_window_stride(std::size_t s) {
         if(s < 1) s = 1;
-        genomeWindowStride_ = s;
+        targetWindowStride_ = s;
     }
     //-----------------------------------------------------
-    size_t genome_window_stride() const noexcept {
-        return genomeWindowStride_;
+    size_t target_window_stride() const noexcept {
+        return targetWindowStride_;
     }
 
 
@@ -325,26 +325,26 @@ public:
 
 
     //---------------------------------------------------------------
-    void max_genomes_per_feature(bucket_size_type n)
+    void max_locations_per_feature(bucket_size_type n)
     {
         if(n < 1) n = 1;
         if(n >= features_.max_bucket_size()) {
             n = features_.max_bucket_size() - 1;
         }
-        else if(n < maxRefsPerFeature_) {
+        else if(n < maxLocsPerFeature_) {
             for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
                 if(i->size() > n) features_.shrink(i, n);
             }
         }
-        maxRefsPerFeature_ = n;
+        maxLocsPerFeature_ = n;
     }
     //-----------------------------------------------------
-    bucket_size_type max_genomes_per_feature() const noexcept {
-        return maxRefsPerFeature_;
+    bucket_size_type max_locations_per_feature() const noexcept {
+        return maxLocsPerFeature_;
     }
 
     //-----------------------------------------------------
-    void erase_features_with_more_genomes_than(bucket_size_type n)
+    void erase_features_with_more_locations_than(bucket_size_type n)
     {
         for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
             if(i->size() > n) features_.erase(i);
@@ -353,7 +353,7 @@ public:
 
 
     //---------------------------------------------------------------
-    bool add_genome(const sequence& seq,
+    bool add_target(const sequence& seq,
                     sequence_id sid,
                     taxon_id taxonId = 0,
                     const sequence_origin& origin = sequence_origin{})
@@ -361,9 +361,9 @@ public:
         using std::begin;
         using std::end;
 
-        //reached hard limit for number of genomes
-        if(nextGenomeId_ >= max_genome_count()) {
-            throw genome_limit_exceeded_error{};
+        //reached hard limit for number of targets
+        if(nextTargetId_ >= max_target_count()) {
+            throw target_limit_exceeded_error{};
         }
 
         using iter_t = typename sequence::const_iterator;
@@ -374,48 +374,48 @@ public:
         auto it = sid2gid_.find(sid);
         if(it != sid2gid_.end()) return false;
 
-        sid2gid_.insert({sid, nextGenomeId_});
+        sid2gid_.insert({sid, nextTargetId_});
 
-        genomes_.emplace_back(std::move(sid), taxonId, origin);
+        targets_.emplace_back(std::move(sid), taxonId, origin);
         if(taxonId > 0 && !taxa_.empty()) {
-            rank_genome(nextGenomeId_, taxonId);
+            rank_target(nextTargetId_, taxonId);
         }
 
         window_id win = 0;
-        for_each_window(seq, genomeWindowSize_, genomeWindowStride_,
+        for_each_window(seq, targetWindowSize_, targetWindowStride_,
             [this, &win] (iter_t b, iter_t e) {
-                auto sk = genomeSketcher_(b,e);
+                auto sk = targetSketcher_(b,e);
                 //insert features from sketch into database
                 for(const auto& f : sk) {
-                    auto it = features_.insert(f, target{nextGenomeId_, win});
-                    if(it->size() > maxRefsPerFeature_) {
-                        features_.shrink(it, maxRefsPerFeature_);
+                    auto it = features_.insert(f, location{nextTargetId_, win});
+                    if(it->size() > maxLocsPerFeature_) {
+                        features_.shrink(it, maxLocsPerFeature_);
                     }
                 }
                 ++win;
             });
 
-        ++nextGenomeId_;
+        ++nextTargetId_;
 
         return true;
     }
 
     //---------------------------------------------------------------
     bool
-    is_valid(genome_id gid) const noexcept {
-        return gid < nextGenomeId_;
+    is_valid(target_id tid) const noexcept {
+        return tid < nextTargetId_;
     }
-    static constexpr genome_id
-    invalid_genome_id() noexcept {
-        return max_genome_count();
+    static constexpr target_id
+    invalid_target_id() noexcept {
+        return max_target_count();
     }
     std::uint64_t
-    genome_count() const noexcept {
-        return genomes_.size();
+    target_count() const noexcept {
+        return targets_.size();
     }
     static constexpr std::uint64_t
-    max_genome_count() noexcept {
-        return std::numeric_limits<genome_id>::max();
+    max_target_count() noexcept {
+        return std::numeric_limits<target_id>::max();
     }
 
     //-----------------------------------------------------
@@ -426,7 +426,7 @@ public:
 
     //---------------------------------------------------------------
     void clear() {
-        genomes_.clear();
+        targets_.clear();
         features_.clear();
         sid2gid_.clear();
     }
@@ -434,26 +434,26 @@ public:
 
     //---------------------------------------------------------------
     const sequence_id&
-    sequence_id_of_genome(genome_id gid) const noexcept {
-        return genomes_[gid].id;
+    sequence_id_of_target(target_id tid) const noexcept {
+        return targets_[tid].id;
     }
     //-----------------------------------------------------
-    genome_id
-    genome_id_of_sequence(const sequence_id& sid) const noexcept {
+    target_id
+    target_id_of_sequence(const sequence_id& sid) const noexcept {
         auto it = sid2gid_.find(sid);
-        return (it != sid2gid_.end()) ? it->second : nextGenomeId_;
+        return (it != sid2gid_.end()) ? it->second : nextTargetId_;
     }
 
 
     //---------------------------------------------------------------
     void apply_taxonomy(const taxonomy& tax) {
         taxa_ = tax;
-        for(auto& g : genomes_) update_lineages(g);
+        for(auto& g : targets_) update_lineages(g);
     }
     //-----------------------------------------------------
     void apply_taxonomy(taxonomy&& tax) {
         taxa_ = std::move(tax);
-        for(auto& gp : genomes_) update_lineages(gp);
+        for(auto& gp : targets_) update_lineages(gp);
     }
 
 
@@ -470,26 +470,26 @@ public:
 
 
     //---------------------------------------------------------------
-    void rank_genome(genome_id gid, taxon_id taxid)
+    void rank_target(target_id tid, taxon_id taxid)
     {
-        genomes_[gid].taxonId = taxid;
-        update_lineages(genomes_[gid]);
+        targets_[tid].taxonId = taxid;
+        update_lineages(targets_[tid]);
     }
     //-----------------------------------------------------
     taxon_id
-    taxon_id_of_genome(genome_id id) const noexcept {
-        return taxa_[genomes_[id].taxonId].id;
+    taxon_id_of_target(target_id id) const noexcept {
+        return taxa_[targets_[id].taxonId].id;
     }
     //-----------------------------------------------------
     const taxon&
-    taxon_of_genome(genome_id id) const noexcept {
-        return taxa_[genomes_[id].taxonId];
+    taxon_of_target(target_id id) const noexcept {
+        return taxa_[targets_[id].taxonId];
     }
 
     //-----------------------------------------------------
     const sequence_origin&
-    origin_of_genome(genome_id id) const noexcept {
-        return genomes_[id].origin;
+    origin_of_target(target_id id) const noexcept {
+        return targets_[id].origin;
     }
 
     //-----------------------------------------------------
@@ -499,8 +499,8 @@ public:
     }
     //-----------------------------------------------------
     const full_lineage&
-    lineage_of_genome(genome_id id) const noexcept {
-        return genomes_[id].lineage;
+    lineage_of_target(target_id id) const noexcept {
+        return targets_[id].lineage;
     }
 
     //-----------------------------------------------------
@@ -510,8 +510,8 @@ public:
     }
     //-----------------------------------------------------
     const ranked_lineage&
-    ranks_of_genome(genome_id id) const noexcept {
-        return genomes_[id].ranks;
+    ranks_of_target(target_id id) const noexcept {
+        return targets_[id].ranks;
     }
 
     //---------------------------------------------------------------
@@ -522,10 +522,10 @@ public:
     }
     //---------------------------------------------------------------
     const taxon&
-    lca_of_genomes(genome_id ga, genome_id gb) const
+    lca_of_targets(target_id ta, target_id tb) const
     {
-        return taxa_[taxonomy::lca_id(lineage_of_genome(ga),
-                                      lineage_of_genome(gb))];
+        return taxa_[taxonomy::lca_id(lineage_of_target(ta),
+                                      lineage_of_target(tb))];
     }
 
     //---------------------------------------------------------------
@@ -536,10 +536,10 @@ public:
     }
     //---------------------------------------------------------------
     const taxon&
-    ranked_lca_of_genomes(genome_id ga, genome_id gb) const
+    ranked_lca_of_targets(target_id ta, target_id tb) const
     {
-        return taxa_[taxonomy::ranked_lca_id(ranks_of_genome(ga),
-                                             ranks_of_genome(gb))];
+        return taxa_[taxonomy::ranked_lca_id(ranks_of_target(ta),
+                                             ranks_of_target(tb))];
     }
 
     //---------------------------------------------------------------
@@ -555,7 +555,7 @@ public:
 
     //---------------------------------------------------------------
     /**
-     * @return number of times a taxon is covered by any genome in the DB
+     * @return number of times a taxon is covered by any target in the DB
      */
     int covering(const taxon& t) const {
         return covering_of_taxon(t.id);
@@ -563,9 +563,9 @@ public:
     int covering_of_taxon(taxon_id id) const {
         int cover = 0;
 
-        for(const auto& g : genomes_) {
-            for(taxon_id tid : g.lineage) {
-                if(tid == id) ++cover;
+        for(const auto& g : targets_) {
+            for(taxon_id taxid : g.lineage) {
+                if(taxid == id) ++cover;
             }
         }
         return cover;
@@ -573,15 +573,15 @@ public:
 
     //-----------------------------------------------------
     /**
-     * @return true, if taxon is covered by any genome in the DB
+     * @return true, if taxon is covered by any target in the DB
      */
     bool covers(const taxon& t) const {
         return covers_taxon(t.id);
     }
     bool covers_taxon(taxon_id id) const {
-        for(const auto& g : genomes_) {
-            for(taxon_id tid : g.lineage) {
-                if(tid == id) return true;
+        for(const auto& g : targets_) {
+            for(taxon_id taxid : g.lineage) {
+                if(taxid == id) return true;
             }
         }
         return false;
@@ -626,7 +626,7 @@ public:
                        match_result& res) const
     {
         for_each_match(query,
-            [this, &res] (const target& t) {
+            [this, &res] (const location& t) {
                 auto it = res.find(t);
                 if(it != res.end()) {
                     ++(it->second);
@@ -672,33 +672,51 @@ public:
         if(METACACHE_DB_VERSION != dbVer) {
             throw file_read_error{
                 "Database " + filename +
-                " was built with an incompatible version of MetaCache\n"
-            };
+                " was built with an incompatible version of MetaCache\n" };
+        }
+
+        //data type info
+        std::uint8_t featureSize = 0;
+        read_binary(is, featureSize);
+
+        std::uint8_t targetSize = 0;
+        read_binary(is, targetSize);
+
+        std::uint8_t windowSize = 0;
+        read_binary(is, windowSize);
+
+        if( (sizeof(feature) != featureSize) ||
+            (sizeof(target_id) != targetSize) ||
+            (sizeof(window_id) != windowSize) )
+        {
+            throw file_read_error{
+                "Database " + filename + " was built with a MetaCache " +
+                "executable using different data type widths.\n" };
         }
 
         clear();
 
         //sketching parameters
-        read_binary(is, genomeSketcher_);
-        read_binary(is, genomeWindowSize_);
-        read_binary(is, genomeWindowStride_);
+        read_binary(is, targetSketcher_);
+        read_binary(is, targetWindowSize_);
+        read_binary(is, targetWindowStride_);
 
         read_binary(is, querySketcher_);
         read_binary(is, queryWindowSize_);
         read_binary(is, queryWindowStride_);
 
-        read_binary(is, maxRefsPerFeature_);
+        read_binary(is, maxLocsPerFeature_);
 
         //taxon metadata
         read_binary(is, taxa_);
 
-        read_binary(is, nextGenomeId_);
-        read_binary(is, genomes_);
-        if(genomes_.size() < 1) return;
+        read_binary(is, nextTargetId_);
+        read_binary(is, targets_);
+        if(targets_.size() < 1) return;
 
         sid2gid_.clear();
-        for(genome_id i = 0; i < genome_id(genomes_.size()); ++i) {
-            sid2gid_.insert({genomes_[i].id, i});
+        for(target_id i = 0; i < target_id(targets_.size()); ++i) {
+            sid2gid_.insert({targets_[i].id, i});
         }
 
         if(what == scope::metadata_only) return;
@@ -723,23 +741,28 @@ public:
         //database version info
         write_binary(os, std::uint64_t(METACACHE_DB_VERSION));
 
+        //data type info
+        write_binary(os, std::uint8_t(sizeof(feature)));
+        write_binary(os, std::uint8_t(sizeof(target_id)));
+        write_binary(os, std::uint8_t(sizeof(window_id)));
+
         //sketching parameters
-        write_binary(os, genomeSketcher_);
-        write_binary(os, genomeWindowSize_);
-        write_binary(os, genomeWindowStride_);
+        write_binary(os, targetSketcher_);
+        write_binary(os, targetWindowSize_);
+        write_binary(os, targetWindowStride_);
 
         write_binary(os, querySketcher_);
         write_binary(os, queryWindowSize_);
         write_binary(os, queryWindowStride_);
 
-        write_binary(os, maxRefsPerFeature_);
+        write_binary(os, maxLocsPerFeature_);
 
         //taxon metadata
         write_binary(os, taxa_);
 
-        //genome metainformation
-        write_binary(os, nextGenomeId_);
-        write_binary(os, genomes_);
+        //target metainformation
+        write_binary(os, nextTargetId_);
+        write_binary(os, targets_);
 
         //hash table
         write_binary(os, features_);
@@ -777,8 +800,8 @@ public:
     void print_feature_map(std::ostream& os) const {
         for(const auto& bucket : features_) {
             os << bucket.key() << " -> ";
-            for(target p : bucket) {
-                os << '(' << p.gid << ',' << p.win << ')';
+            for(location p : bucket) {
+                os << '(' << p.tid << ',' << p.win << ')';
             }
             os << '\n';
         }
@@ -788,7 +811,7 @@ public:
 private:
 
     //---------------------------------------------------------------
-    void update_lineages(genome_property& gp)
+    void update_lineages(target_property& gp)
     {
         if(gp.taxonId > 0) {
             gp.lineage = taxa_.lineage(gp.taxonId);
@@ -798,17 +821,17 @@ private:
 
 
     //---------------------------------------------------------------
-    sketcher genomeSketcher_;
+    sketcher targetSketcher_;
     sketcher querySketcher_;
-    std::uint64_t genomeWindowSize_;
-    std::uint64_t genomeWindowStride_;
+    std::uint64_t targetWindowSize_;
+    std::uint64_t targetWindowStride_;
     std::uint64_t queryWindowSize_;
     std::uint64_t queryWindowStride_;
-    std::uint64_t maxRefsPerFeature_;
-    genome_id nextGenomeId_;
-    std::vector<genome_property> genomes_;
+    std::uint64_t maxLocsPerFeature_;
+    target_id nextTargetId_;
+    std::vector<target_property> targets_;
     feature_store features_;
-    std::map<sequence_id,genome_id> sid2gid_;
+    std::map<sequence_id,target_id> sid2gid_;
     taxonomy taxa_;
 };
 
@@ -852,7 +875,7 @@ struct index_range
 *        window ranges
 *
 *****************************************************************************/
-template<int maxNo, class GidT>
+template<int maxNo, class TgtId>
 class matches_in_contiguous_window_range_top
 {
     static_assert(maxNo > 1, "no must be > 1");
@@ -861,7 +884,7 @@ class matches_in_contiguous_window_range_top
 public:
 
     //---------------------------------------------------------------
-    using gid_t = GidT;
+    using tid_t = TgtId;
     using hit_t = std::uint_least64_t;
     using win_t = std::uint_least64_t;
     using window_range = index_range<win_t>;
@@ -869,13 +892,13 @@ public:
     //---------------------------------------------------------------
     static constexpr int max_count() noexcept { return maxNo; }
 
-    static constexpr gid_t invalid_gid() noexcept {
-        return std::numeric_limits<gid_t>::max();
+    static constexpr tid_t invalid_gid() noexcept {
+        return std::numeric_limits<tid_t>::max();
     }
 
 
     /****************************************************************
-     * @pre matches must be sorted by genome (first) and window (second)
+     * @pre matches must be sorted by target (first) and window (second)
      */
     template<class MatchResult>
     matches_in_contiguous_window_range_top(
@@ -891,7 +914,7 @@ public:
             hits_[i] = 0;
         }
 
-        gid_t gid = invalid_gid();
+        tid_t tid = invalid_gid();
         hit_t hits = 0;
         hit_t maxHits = 0;
         hit_t win = 0;
@@ -903,9 +926,9 @@ public:
         auto lst = fst;
         while(lst != end(matches)) {
             //look for neighboring windows with the highest total hit count
-            //as long as we are in the same genome and the windows are in a
+            //as long as we are in the same target and the windows are in a
             //contiguous range
-            if(lst->first.gid == gid) {
+            if(lst->first.tid == tid) {
                 //add new hits to the right
                 hits += lst->second;
                 //subtract hits to the left that fall out of range
@@ -925,9 +948,9 @@ public:
                 }
             }
             else {
-                //reset to new genome
+                //reset to new target
                 win = lst->first.win;
-                gid = lst->first.gid;
+                tid = lst->first.tid;
                 hits = lst->second;
                 maxHits = hits;
                 maxWinBeg = win;
@@ -946,7 +969,7 @@ public:
                     }
                     //set hits & associated sequence (position)
                     hits_[i] = maxHits;
-                    gid_[i] = gid;
+                    gid_[i] = tid;
                     pos_[i].beg = maxWinBeg;
                     pos_[i].end = maxWinEnd;
                     break;
@@ -963,7 +986,7 @@ public:
         return maxNo;
     }
 
-    gid_t genome_id(int rank)   const noexcept { return gid_[rank];  }
+    tid_t target_id(int rank)   const noexcept { return gid_[rank];  }
     hit_t hits(int rank) const noexcept { return hits_[rank]; }
 
     hit_t total_hits() const noexcept {
@@ -976,7 +999,7 @@ public:
     window(int rank) const noexcept { return pos_[rank]; }
 
 private:
-    gid_t gid_[maxNo];
+    tid_t gid_[maxNo];
     hit_t hits_[maxNo];
     window_range pos_[maxNo];
 };
@@ -1056,26 +1079,26 @@ write_database(const sketch_database<S,K,G,W>& db, const std::string& filename)
 template<class S, class K, class G, class W>
 void print_statistics(const sketch_database<S,K,G,W>& db)
 {
-    using genome_id = typename sketch_database<S,K,G,W>::genome_id;
-    int numRankedGenomes = 0;
-    for(genome_id i = 0; i < db.genome_count(); ++i) {
-        if(!db.taxon_of_genome(i).none()) ++numRankedGenomes;
+    using target_id = typename sketch_database<S,K,G,W>::target_id;
+    int numRankedTargets = 0;
+    for(target_id i = 0; i < db.target_count(); ++i) {
+        if(!db.taxon_of_target(i).none()) ++numRankedTargets;
     }
 
-    std::cout << "sequences:        " << db.genome_count() << '\n'
-              << "ranked sequences: " << numRankedGenomes << '\n'
-              << "window length:    " << db.genome_window_size() << '\n'
-              << "window stride:    " << db.genome_window_stride() << '\n'
-              << "kmer size:        " << int(db.genome_sketcher().kmer_size()) << '\n'
-              << "sketch size:      " << db.genome_sketcher().sketch_size() << '\n'
-              << "taxa in tree:     " << db.taxon_count() << '\n';
+    std::cout << "targets:        " << db.target_count() << '\n'
+              << "ranked targets: " << numRankedTargets << '\n'
+              << "window length:  " << db.target_window_size() << '\n'
+              << "window stride:  " << db.target_window_stride() << '\n'
+              << "kmer size:      " << int(db.target_sketcher().kmer_size()) << '\n'
+              << "sketch size:    " << db.target_sketcher().sketch_size() << '\n'
+              << "taxa in tree:   " << db.taxon_count() << '\n';
 
     auto hbs = db.bucket_size_statistics();
 
-    std::cout << "buckets:          " << db.bucket_count() << '\n'
-              << "bucket size:      " << hbs.mean() << " +/- " << hbs.stddev() << '\n'
-              << "features:         " << db.feature_count() << '\n'
-              << "references:       " << db.reference_count() << '\n'
+    std::cout << "buckets:        " << db.bucket_count() << '\n'
+              << "bucket size:    " << hbs.mean() << " +/- " << hbs.stddev() << '\n'
+              << "features:       " << db.feature_count() << '\n'
+              << "locations:      " << db.reference_count() << '\n'
               << std::endl;
 }
 

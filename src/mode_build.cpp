@@ -51,7 +51,7 @@ struct build_param
     int winstride = 113;
 
     float maxLoadFactor = -1;           //< 0 : use database default
-    int maxGenomesPerFeature = 128;
+    int maxLocationsPerFeature = 128;
 
     taxonomy_param taxonomy;
 
@@ -85,8 +85,8 @@ get_build_param(const args_parser& args)
     param.winstride = args.get<int>("winstride", param.winlen - param.kmerlen + 1);
 
     param.maxLoadFactor = args.get<float>("max_load_fac", -1);
-    param.maxGenomesPerFeature = args.get<int>("max_genomes_per_feature",
-                                               defaults.maxGenomesPerFeature);
+    param.maxLocationsPerFeature = args.get<int>("max_locations_per_feature",
+                                                 defaults.maxLocationsPerFeature);
 
     param.taxonomy = get_taxonomy_param(args);
 
@@ -392,8 +392,8 @@ make_sequence_to_taxon_id_map(const std::vector<std::string>& mappingFilenames,
  *        (like the NCBI's *.accession2version files)
  *
  *****************************************************************************/
-void rank_genomes_post_process(database& db,
-                               std::set<genome_id>& gids,
+void rank_targets_post_process(database& db,
+                               std::set<target_id>& gids,
                                const std::string& mappingFile)
 {
     if(gids.empty()) return;
@@ -421,21 +421,21 @@ void rank_genomes_post_process(database& db,
     acc.clear();
 
     while(is >> acc >> accver >> taxid >> gi) {
-        //genome in database?
+        //target in database?
         //accession.version is the default
-        auto gid = db.genome_id_of_sequence(accver);
-        if(!db.is_valid(gid)) {
-            gid = db.genome_id_of_sequence(acc);
-            if(!db.is_valid(gid)) {
-                gid = db.genome_id_of_sequence(gi);
+        auto tid = db.target_id_of_sequence(accver);
+        if(!db.is_valid(tid)) {
+            tid = db.target_id_of_sequence(acc);
+            if(!db.is_valid(tid)) {
+                tid = db.target_id_of_sequence(gi);
             }
         }
 
         //if in database then map to taxon
-        if(db.is_valid(gid)) {
-            auto it = gids.find(gid);
+        if(db.is_valid(tid)) {
+            auto it = gids.find(tid);
             if(it != gids.end()) {
-                db.rank_genome(gid, taxid);
+                db.rank_target(tid, taxid);
                 gids.erase(it);
                 if(gids.empty()) break;
             }
@@ -461,13 +461,13 @@ void rank_genomes_post_process(database& db,
  *
  *
  *****************************************************************************/
-std::set<genome_id>
-unranked_genomes(const database& db)
+std::set<target_id>
+unranked_targets(const database& db)
 {
-    auto res = std::set<genome_id>{};
+    auto res = std::set<target_id>{};
 
-    for(genome_id i = 0; i < db.genome_count(); ++i) {
-        if(db.taxon_of_genome(i).none()) {
+    for(target_id i = 0; i < db.target_count(); ++i) {
+        if(db.taxon_of_target(i).none()) {
              res.insert(i);
         }
     }
@@ -483,20 +483,20 @@ unranked_genomes(const database& db)
  *
  *
  *****************************************************************************/
-void try_to_rank_unranked_genomes(database& db, const build_param& param)
+void try_to_rank_unranked_targets(database& db, const build_param& param)
 {
-    auto unranked = unranked_genomes(db);
+    auto unranked = unranked_targets(db);
 
     if(!unranked.empty()) {
         std::cout << unranked.size()
                   << " sequences were not ranked." << std::endl;
 
         for(const auto& file : param.taxonomy.mappingPostFiles) {
-            rank_genomes_post_process(db, unranked, param.taxonomy.path + file);
+            rank_targets_post_process(db, unranked, param.taxonomy.path + file);
         }
     }
 
-    unranked = unranked_genomes(db);
+    unranked = unranked_targets(db);
     if(!unranked.empty()) {
         std::cout << unranked.size()
                   << " sequences remain unranked." << std::endl;
@@ -537,8 +537,8 @@ void add_to_database(database& db,
 {
     using taxon_id   = database::taxon_id;
 
-    if(param.maxGenomesPerFeature > 1)
-        db.max_genomes_per_feature(param.maxGenomesPerFeature);
+    if(param.maxLocationsPerFeature > 1)
+        db.max_locations_per_feature(param.maxLocationsPerFeature);
 
     if(param.maxLoadFactor > 0)
         db.max_load_factor(param.maxLoadFactor);
@@ -553,7 +553,7 @@ void add_to_database(database& db,
     int n = param.infiles.size();
     int i = 0;
 
-    auto initNumGenomes = db.genome_count();
+    auto initNumTargets = db.target_count();
 
     std::cout << "Processing reference sequences." << std::endl;
 
@@ -588,7 +588,7 @@ void add_to_database(database& db,
                     }
 
 
-                    //genomes need to have a sequence id
+                    //targets need to have a sequence id
                     //look up taxon id
                     taxon_id taxid = 0;
                     if(!sequ2taxid.empty()) {
@@ -610,7 +610,7 @@ void add_to_database(database& db,
                     }
 
                     //try to add to database
-                    bool added = db.add_genome(sequ.data, seqId, taxid, origin);
+                    bool added = db.add_target(sequ.data, seqId, taxid, origin);
                     if(param.showDetailedBuildInfo && !added) {
                         std::cout << seqId << " not added to database" << std::endl;
                     }
@@ -621,13 +621,13 @@ void add_to_database(database& db,
                 std::cout << "done." << std::endl;
             }
         }
-        catch(database::genome_limit_exceeded_error&) {
+        catch(database::target_limit_exceeded_error&) {
             std::cout << std::endl;
             std::cerr
-                << "Reached maximum number of genomes per database ("
-                << db.max_genome_count() << ").\n"
+                << "Reached maximum number of targets per database ("
+                << db.max_target_count() << ").\n"
                 << "See 'README.md' on how to compile MetaCache with "
-                << "support for databases with more reference genomes.\n"
+                << "support for databases with more reference targets.\n"
                 << std::endl;
             break;
         }
@@ -643,7 +643,7 @@ void add_to_database(database& db,
 
     if(!param.showDetailedBuildInfo) {
         clear_current_line();
-        std::cout << "Added " << (db.genome_count() - initNumGenomes)
+        std::cout << "Added " << (db.target_count() - initNumTargets)
                   << " reference sequences.\n";
     }
     std::cout << "Build time: " << time.seconds() << " s" << std::endl;
@@ -673,11 +673,11 @@ void main_mode_build(const args_parser& args)
     sketcher.sketch_size(param.sketchlen);
 
     auto db = database{sketcher};
-    db.genome_window_size(param.winlen);
-    db.genome_window_stride(param.winstride);
+    db.target_window_size(param.winlen);
+    db.target_window_stride(param.winstride);
 
-    if(param.maxGenomesPerFeature > 1)
-        db.max_genomes_per_feature(param.maxGenomesPerFeature);
+    if(param.maxLocationsPerFeature > 1)
+        db.max_locations_per_feature(param.maxLocationsPerFeature);
 
     if(param.maxLoadFactor > 0)
         db.max_load_factor(param.maxLoadFactor);
@@ -694,7 +694,7 @@ void main_mode_build(const args_parser& args)
 
     add_to_database(db, param);
 
-    try_to_rank_unranked_genomes(db, param);
+    try_to_rank_unranked_targets(db, param);
 
     print_statistics(db);
     write_database(db, param.dbfile);
@@ -724,8 +724,8 @@ void main_mode_build_add(const args_parser& args)
 
     auto db = make_database<database>(param.dbfile);
 
-    if(param.maxGenomesPerFeature > 1)
-        db.max_genomes_per_feature(param.maxGenomesPerFeature);
+    if(param.maxLocationsPerFeature > 1)
+        db.max_locations_per_feature(param.maxLocationsPerFeature);
 
     if(param.maxLoadFactor > 0)
         db.max_load_factor(param.maxLoadFactor);
@@ -742,7 +742,7 @@ void main_mode_build_add(const args_parser& args)
 
     add_to_database(db, param);
 
-    try_to_rank_unranked_genomes(db, param);
+    try_to_rank_unranked_targets(db, param);
 
     print_statistics(db);
     write_database(db, param.dbfile);

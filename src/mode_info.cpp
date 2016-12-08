@@ -63,12 +63,12 @@ void show_feature_map(const args_parser& args)
  *
  *
  *****************************************************************************/
-void show_ranks_of_genome(const database& db, database::genome_id gid)
+void show_ranks_of_target(const database& db, database::target_id tid)
 {
-    //if genomes don't have their own taxonId, print their sequence id
-    std::cout << "    sequence:   " << db.sequence_id_of_genome(gid);
+    //if targets don't have their own taxonId, print their sequence id
+    std::cout << "    sequence:   " << db.sequence_id_of_target(tid);
 
-    for(auto taxid : db.ranks_of_genome(gid)) {
+    for(auto taxid : db.ranks_of_target(tid)) {
         if(taxid > 1) {
             auto&& taxon = db.taxon_with_id(taxid);
             auto rn = taxon.rank_name() + ":";
@@ -87,15 +87,15 @@ void show_ranks_of_genome(const database& db, database::genome_id gid)
  * @brief
  *
  *****************************************************************************/
-void show_sequence_info(const database& db, database::genome_id gid)
+void show_sequence_info(const database& db, database::target_id tid)
 {
     std::cout
-        << "Reference sequence " << gid << " ("
-        << db.sequence_id_of_genome(gid) << "):\n"
-        << "    origin:     " << db.origin_of_genome(gid).filename << " / "
-        << db.origin_of_genome(gid).index << '\n';
+        << "Reference sequence " << tid << " ("
+        << db.sequence_id_of_target(tid) << "):\n"
+        << "    origin:     " << db.origin_of_target(tid).filename << " / "
+        << db.origin_of_target(tid).index << '\n';
 
-    show_ranks_of_genome(db, gid);
+    show_ranks_of_target(db, tid);
 }
 
 
@@ -119,9 +119,9 @@ void show_sequence_info(const args_parser& args)
     auto db = make_database_metadata_only<database>(dbfilename);
 
     for(const auto& sid : sids) {
-        auto gid = db.genome_id_of_sequence(sid);
-        if(gid < db.genome_count()) {
-            show_sequence_info(db, gid);
+        auto tid = db.target_id_of_sequence(sid);
+        if(tid < db.target_count()) {
+            show_sequence_info(db, tid);
         }
         else {
             std::cout << "Reference sequence " << sid
@@ -144,7 +144,7 @@ void show_lineage_table(const args_parser& args)
     auto dbfilename = database_name(args);
 
     auto db = make_database_metadata_only<database>(dbfilename);
-    if(db.genome_count() < 1) return;
+    if(db.target_count() < 1) return;
 
     //table header
     std::cout << taxonomy::rank_name(rank::Sequence);
@@ -154,9 +154,9 @@ void show_lineage_table(const args_parser& args)
     std::cout << '\n';
 
     //rows
-    for(genome_id gid = 0; gid < db.genome_count(); ++gid) {
-        std::cout << db.sequence_id_of_genome(gid);
-        auto ranks = db.ranks_of_genome(gid);
+    for(target_id tid = 0; tid < db.target_count(); ++tid) {
+        std::cout << db.sequence_id_of_target(tid);
+        auto ranks = db.ranks_of_target(tid);
         for(auto r = rank::Sequence; r <= rank::Domain; ++r) {
             std::cout << '\t' << ranks[int(r)];
         }
@@ -176,14 +176,14 @@ void show_all_meta_info(const args_parser& args)
     auto dbfilename = database_name(args);
 
     auto db = make_database_metadata_only<database>(dbfilename);
-    if(db.genome_count() < 1) return;
+    if(db.target_count() < 1) return;
 
     std::cout << "Properties of database " << dbfilename << ":\n";
     print_statistics(db);
 
-    std::cout << "Reference sequences in database:\n";
-    for(genome_id gid = 0; gid < db.genome_count(); ++gid) {
-        show_sequence_info(db, gid);
+    std::cout << "Targets in database:\n";
+    for(target_id tid = 0; tid < db.target_count(); ++tid) {
+        show_sequence_info(db, tid);
     }
 }
 
@@ -209,8 +209,8 @@ void show_rank_statistics(const args_parser& args)
 
     std::map<taxonomy::taxon_id, std::size_t> stat;
 
-    for(genome_id i = 0; i < db.genome_count(); ++i) {
-        auto tax = db.ranks_of_genome(i)[int(rank)];
+    for(target_id i = 0; i < db.target_count(); ++i) {
+        auto tax = db.ranks_of_target(i)[int(rank)];
         auto it = stat.find(tax);
         if(it != stat.end()) {
             ++(it->second);

@@ -54,10 +54,10 @@ using sequence = std::string;
 #endif
 
 
-#ifdef MC_GENOME_ID_TYPE
-    using genome_id = MC_GENOME_ID_TYPE ;
+#ifdef MC_TARGET_ID_TYPE
+    using target_id = MC_TARGET_ID_TYPE ;
 #else
-    using genome_id = std::uint16_t;
+    using target_id = std::uint16_t;
 #endif
 
 
@@ -68,18 +68,18 @@ using sequence = std::string;
 #endif
 
 
-using database   = sketch_database<sequence,sketcher,genome_id,window_id>;
+using database   = sketch_database<sequence,sketcher,target_id,window_id>;
 using taxon_rank = database::taxon_rank;
 
 
 #ifdef MC_VOTE_TOP
     //will use majority voting scheme if MC_VOTE_TOP > 2
     using top_matches_in_contiguous_window_range
-            = matches_in_contiguous_window_range_top< MC_VOTE_TOP , genome_id>;
+            = matches_in_contiguous_window_range_top< MC_VOTE_TOP , target_id>;
 #else
     //default = top 2 voting scheme
     using top_matches_in_contiguous_window_range
-            = matches_in_contiguous_window_range_top<2,genome_id>;
+            = matches_in_contiguous_window_range_top<2,target_id>;
 #endif
 
 } // namespace mc
