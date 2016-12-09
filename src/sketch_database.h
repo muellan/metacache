@@ -672,7 +672,7 @@ public:
         if(METACACHE_DB_VERSION != dbVer) {
             throw file_read_error{
                 "Database " + filename +
-                " was built with an incompatible version of MetaCache\n" };
+                " is incompatible with incompatible version of MetaCache" };
         }
 
         //data type info
@@ -690,8 +690,9 @@ public:
             (sizeof(window_id) != windowSize) )
         {
             throw file_read_error{
-                "Database " + filename + " was built with a MetaCache " +
-                "executable using different data type widths.\n" };
+                "Database " + filename +
+                " is incompatible with this variant of MetaCache" +
+                " due to different data type widths"};
         }
 
         clear();

@@ -32,7 +32,7 @@
 
 
 #include "sketch_database.h"
-#include "dna_hasher.h"
+#include "hash_dna.h"
 
 
 namespace mc {

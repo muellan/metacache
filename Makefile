@@ -26,9 +26,10 @@ HEADERS = \
           src/cmdline_utility.h \
           src/config.h \
           src/dna_encoding.h \
-          src/dna_hasher.h \
           src/chunk_allocator.h \
           src/filesys_utility.h \
+          src/hash_dna.h \
+          src/hash_int.h \
           src/hash_family.h \
           src/hash_multimap.h \
           src/io_error.h \

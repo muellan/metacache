@@ -587,7 +587,6 @@ void add_to_database(database& db,
                         }
                     }
 
-
                     //targets need to have a sequence id
                     //look up taxon id
                     taxon_id taxid = 0;
@@ -600,13 +599,15 @@ void add_to_database(database& db,
                             if(it != sequ2taxid.end()) taxid = it->second;
                         }
                     }
-                    //no valid taxid assigned -> try to find one in annotatino
+                    //no valid taxid assigned -> try to find one in annotation
                     if(taxid > 0) {
-                        std::cout << "[" << seqId << ":" << taxid << "] ";
+                        if(param.showDetailedBuildInfo)
+                            std::cout << "[" << seqId << ":" << taxid << "] ";
                     }
                     else {
                         taxid = extract_taxon_id(sequ.header);
-                        std::cout << "[" << seqId << "] ";
+                        if(param.showDetailedBuildInfo)
+                            std::cout << "[" << seqId << "] ";
                     }
 
                     //try to add to database
