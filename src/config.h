@@ -40,27 +40,22 @@ namespace mc {
 using sequence = std::string;
 
 
-#ifdef MC_MF_MINHASH
-    //different hash function for each feature in sketch
-    using sketcher = multi_function_min_hasher;
+//-------------------------------------------------------------------
+#ifdef MC_KMER_TYPE
+    using target_id = MC_TARGET_ID_TYPE ;
 #else
-    #ifdef MC_KMER_TYPE
-        //make sure MC_KMER_TYPE refers to a valid C++ unsigned integer datatype!
-        using sketcher = single_function_min_hasher< MC_KMER_TYPE >;
-    #else
-        //default = 0 <= k <= 16
-        using sketcher = single_function_min_hasher<std::uint32_t>;
-    #endif
+    using kmer_type = std::uint32_t;
+//    using kmer_type = std::uint64_t;
 #endif
 
-
+//-------------------------------------------------------------------
 #ifdef MC_TARGET_ID_TYPE
     using target_id = MC_TARGET_ID_TYPE ;
 #else
     using target_id = std::uint16_t;
 #endif
 
-
+//-------------------------------------------------------------------
 #ifdef MC_WINDOW_ID_TYPE
     using window_id = MC_WINDOW_ID_TYPE ;
 #else
@@ -68,10 +63,23 @@ using sequence = std::string;
 #endif
 
 
+//-------------------------------------------------------------------
+#ifdef MC_MF_MINHASH
+    //different hash function for each feature in sketch
+    using sketcher = multi_function_min_hasher;
+#else
+    using sketcher = single_function_min_hasher<kmer_type>;
+//    using sketcher = minimizer_hasher<std::uint64_t>;
+//    using sketcher = kmer_statistics_hasher;
+#endif
+
+
+//-------------------------------------------------------------------
 using database   = sketch_database<sequence,sketcher,target_id,window_id>;
 using taxon_rank = database::taxon_rank;
 
 
+//-------------------------------------------------------------------
 #ifdef MC_VOTE_TOP
     //will use majority voting scheme if MC_VOTE_TOP > 2
     using top_matches_in_contiguous_window_range
@@ -81,6 +89,7 @@ using taxon_rank = database::taxon_rank;
     using top_matches_in_contiguous_window_range
             = matches_in_contiguous_window_range_top<2,target_id>;
 #endif
+
 
 } // namespace mc
 

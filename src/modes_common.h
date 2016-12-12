@@ -41,7 +41,6 @@ namespace mc {
  *****************************************************************************/
 using taxon_rank     = database::taxon_rank;
 using taxon          = database::taxon;
-using target_id      = database::target_id;
 using taxon_id       = database::taxon_id;
 using ranked_lineage = database::ranked_lineage;
 using match_result   = database::match_result;

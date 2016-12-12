@@ -463,37 +463,42 @@ public:
         using std::begin;
         using std::end;
 
-        --last;
-
         //init
         for(auto& x : hf_) x = 0;
         for(auto& x : hr_) x = 0;
 
         //do statistics
+        --last;
         for(auto i = first; i < last; ++i) {
             ++(hf_[char2mer2num(i)]);
             ++(hr_[char2mer2num_rev(i)]);
         }
 
-        //discretize and cap at 15
+        //make fingerprint
         for(int i = 0; i < 16; ++i) {
-            hf_[i] = (16 * hf_[i]) / 16;
+//            hf_[i] /= 4;
             if(hf_[i] > 15) hf_[i] = 15;
-            hr_[i] = (16 * hr_[i]) / 16;
+        }
+        for(int i = 0; i < 16; ++i) {
+//            hr_[i] /= 4;
             if(hr_[i] > 15) hr_[i] = 15;
         }
 
         //encode
-        result_type res{0,0};
+        feature_type sf = 0;
+        feature_type sr = 0;
         for(int i = 0; i < 16; ++i) {
-            res[0] |= hf_[i] << (i*4);
-            res[1] |= hr_[i] << (i*4);
+            sf |= hf_[i] << (i*4);
+            sr |= hr_[i] << (i*4);
         }
 
-        res[0] = murmur_hash3_finalizer(res[0]);
-        res[1] = murmur_hash3_finalizer(res[1]);
+//        std::cout
+//            << hf_ << " => " << sf << '\n'
+//            << hr_ << " => " << sr << '\n';
 
-        return res;
+        return result_type{sf,sr};
+
+//        return result_type{default_hash(sf), default_hash(sh)};
     }
 
 
@@ -510,8 +515,8 @@ public:
 
 private:
     //---------------------------------------------------------------
-    histo_t hf_;
-    histo_t hr_;
+    mutable histo_t hf_;
+    mutable histo_t hr_;
 
     //---------------------------------------------------------------
     template<class InputIterator>
