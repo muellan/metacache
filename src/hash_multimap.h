@@ -86,9 +86,9 @@ struct allocator_config<Alloc,true>
  *          The main difference to std::[unordered_][multi]map is that
  *          iterators will not iterate over {key,value} pairs but over buckets.
  *          Each bucket contains only one key and all values mapped to that key.
+ *          Buckets may also be occupied AND empty ('key only').
  *
- * @details Hash conflicts are resolved through open addressing with
- *          linear probing.
+ * @details Hash conflicts are resolved with open addressing.
  *          Deletion uses 'back shifting' instead of 'tombstoning'.
  *
  * @tparam  Key:    key type
@@ -164,10 +164,12 @@ public:
             size_(0), capacity_(0), probelen_(0)
         {}
 
+        bool unused() const noexcept { return !values_; }
+        bool empty()  const noexcept { return (size_ < 1); }
+
         size_type size()     const noexcept { return size_; }
         size_type capacity() const noexcept { return capacity_; }
 
-        bool empty() const noexcept { return !values_; }
 
         const key_type& key() const noexcept { return key_; }
 
@@ -222,10 +224,16 @@ public:
         }
 
         //-------------------------------------------
-        void clear(value_allocator& alloc) {
-            if(empty()) return;
+        void free(value_allocator& alloc) {
+            if(unused()) return;
             deallocate(alloc);
             values_ = nullptr;
+            size_ = 0;
+            capacity_ = 0;
+            probelen_ = 0;
+        }
+        //-------------------------------------------
+        void clear() {
             size_ = 0;
             capacity_ = 0;
             probelen_ = 0;
@@ -385,7 +393,7 @@ public:
         reserve_values(src.numValues_);
 
         for(const auto& b : src.buckets_) {
-            if(!b.empty()) insert(b.key(), b.begin(), b.end());
+            if(!b.unused()) insert(b.key(), b.begin(), b.end());
         }
     }
 
@@ -458,6 +466,18 @@ public:
     size_type max_bucket_count() const noexcept {
         return buckets_.max_size();
     }
+    //-----------------------------------------------------
+    /**
+     * @return number of *occupied* buckets with no values
+     */
+    size_type non_empty_bucket_count() const
+    {
+        auto n = size_type(0);
+        for(const auto& b : buckets_) {
+            if(!b.empty()) ++n;
+        }
+        return n;
+    }
 
 
     //---------------------------------------------------------------
@@ -511,7 +531,7 @@ public:
         //move old bucket contents into new hash slots
         //this should use only non-throwing operations
         for(auto& b : buckets_) {
-            if(!b.empty()) {
+            if(!b.unused()) {
                 newmap.insert_into_slot(std::move(b.key_),
                                         b.values_, b.size_, b.capacity_);
             }
@@ -598,13 +618,31 @@ public:
     shrink(const key_type& key, bucket_size_type n)
     {
         auto it = find(key);
-        if(it != end()) shrink(it);
+        if(it != end()) shrink(it,n);
     }
     //-----------------------------------------------------
     void
     shrink(const_iterator it, bucket_size_type n)
     {
-        if(it->size() > n) const_cast<bucket_type*>(&(*it))->resize(alloc_, n);
+        if(it->size() > n) {
+            const auto old = it->size();
+            const_cast<bucket_type*>(&(*it))->resize(alloc_, n);
+            numValues_ -= (old - it->size());
+        }
+    }
+
+
+    /****************************************************************
+     * @brief discards all values in bucket, but keeps bucket with key
+     */
+    void
+    clear(const_iterator it)
+    {
+        if(!it->empty()) {
+            auto n = it->size();
+            const_cast<bucket_type*>(&(*it))->clear();
+            numValues_ -= n;
+        }
     }
 
 
@@ -615,7 +653,22 @@ public:
 
         //free bucket memory
         for(auto& b : buckets_) {
-            b.clear(alloc_);
+            b.free(alloc_);
+        }
+        numKeys_ = 0;
+        numValues_ = 0;
+    }
+
+
+    //---------------------------------------------------------------
+    /**
+     * @brief very dangerous!
+     *        clears buckets without memory deallocation
+     */
+    void clear_without_deallocation()
+    {
+        for(auto& b : buckets_) {
+            b.values_ = nullptr;
         }
         numKeys_ = 0;
         numValues_ = 0;
@@ -820,15 +873,17 @@ private:
 
 
     //---------------------------------------------------------------
+    /**
+     * @brief binary serialization of all non-emtpy buckets
+     */
     void serialize(std::ostream& os) const
     {
         using len_t = std::uint64_t;
 
-        write_binary(os, len_t(key_count()));
+        write_binary(os, len_t(non_empty_bucket_count()));
         write_binary(os, len_t(value_count()));
 
         for(const auto& bucket : buckets_) {
-            //store non-empty buckets only
             if(!bucket.empty()) {
                 write_binary(os, bucket.key());
                 write_binary(os, bucket.size());
@@ -853,7 +908,7 @@ private:
 
         //find bucket by linear probing
         while(it < end) {
-            if(it->empty()) return buckets_.end();
+            if(it->unused()) return buckets_.end();
             if(keyEqual_(it->key(), key)) return it;
             //early out, possible due to Robin Hood invariant
             if(probelen < std::numeric_limits<probelen_t>::max()) {
@@ -888,7 +943,7 @@ private:
         auto it = fst;
         while(it < end) {
             //new slot found
-            if(it->empty()) {
+            if(it->unused()) {
                 if(inserted) { //last in a "swap chain"
                     it->key_ = std::move(key);
                     it->values_ = values;
@@ -959,7 +1014,7 @@ private:
     {
         //delete element
         auto s = del->size();
-        del->clear(alloc_);
+        del->free(alloc_);
         --numKeys_;
         numValues_ -= s;
 
@@ -972,7 +1027,7 @@ private:
                 nxt = buckets_.begin();
                 end = del;
             }
-            if(nxt->empty() || nxt->probelen_ == 0) {
+            if(nxt->unused() || nxt->probelen_ == 0) {
                 break;
             }
             else {

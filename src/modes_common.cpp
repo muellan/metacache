@@ -66,7 +66,7 @@ lowest_common_rank(const database& db,
                    const classification& b)
 {
     if(a.sequence_level() && b.sequence_level() &&
-        a.tid() == b.tid()) return taxon_rank::Sequence;
+        a.target() == b.target()) return taxon_rank::Sequence;
 
     if(a.has_taxon() && b.has_taxon()) {
         return db.ranked_lca(a.tax(), b.tax()).rank;
@@ -161,14 +161,14 @@ void show_matches(std::ostream& os,
 
     if(lowest == taxon_rank::Sequence) {
         for(const auto& r : matches) {
-            os << db.sequence_id_of_target(r.first.tid)
+            os << db.sequence_id_of_target(r.first.tgt)
                << '/' << int(r.first.win)
                << ':' << int(r.second) << ',';
         }
     }
     else {
         for(const auto& r : matches) {
-            auto taxid = db.ranks_of_target(r.first.tid)[int(lowest)];
+            auto taxid = db.ranks_of_target(r.first.tgt)[int(lowest)];
             os << taxid << ':' << int(r.second) << ',';
         }
     }

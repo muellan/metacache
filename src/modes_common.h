@@ -57,26 +57,26 @@ struct classification
 
     explicit constexpr
     classification(const taxon* tax = nullptr) noexcept:
-        gid_{database::invalid_target_id()}, tax_{tax}
+        tid_{database::invalid_target_id()}, tax_{tax}
     {}
 
     explicit constexpr
     classification(target_id tid, const taxon* tax = nullptr) noexcept:
-        gid_{tid}, tax_{tax}
+        tid_{tid}, tax_{tax}
     {}
 
     bool has_taxon() const noexcept {
         return tax_;
     }
     bool sequence_level() const noexcept {
-        return gid_ != database::invalid_target_id();
+        return tid_ != database::invalid_target_id();
     }
     bool none() const noexcept {
         return !sequence_level() && !has_taxon();
     }
 
-    target_id tid() const noexcept {
-        return gid_;
+    target_id target() const noexcept {
+        return tid_;
     }
     const taxon& tax() const noexcept { return *tax_; }
 
@@ -86,7 +86,7 @@ struct classification
     }
 
 private:
-    target_id gid_;
+    target_id tid_;
     const taxon* tax_;
 };
 
@@ -94,7 +94,7 @@ private:
 
 /*****************************************************************************
  *
- *
+ * @brief how taxon formatting will be done
  *
  *****************************************************************************/
 enum class taxon_print_mode : unsigned char {

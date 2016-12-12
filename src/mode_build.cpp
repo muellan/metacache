@@ -35,6 +35,16 @@
 namespace mc {
 
 
+/*****************************************************************************
+ *
+ *
+ *
+ *****************************************************************************/
+enum class build_info : unsigned char {
+    silent, moderate, verbose
+};
+
+
 
 /*****************************************************************************
  *
@@ -43,17 +53,19 @@ namespace mc {
  *****************************************************************************/
 struct build_param
 {
-    bool showDetailedBuildInfo = false;
-
     int kmerlen = 16;
     int sketchlen = 16;
     int winlen = 128;
     int winstride = 113;
 
     float maxLoadFactor = -1;           //< 0 : use database default
-    int maxLocationsPerFeature = 128;
+    int maxLocationsPerFeature = database::max_supported_locations_per_feature();
+
+    taxon_rank uniqueFeaturesOnRank = taxon_rank::none;
 
     taxonomy_param taxonomy;
+
+    build_info infoMode = build_info::moderate;
 
     std::string dbfile;
     std::vector<std::string> infiles;
@@ -77,7 +89,11 @@ get_build_param(const args_parser& args)
 
     param.infiles = sequence_filenames(args);
 
-    param.showDetailedBuildInfo = args.contains("verbose");
+    if(args.contains("silent")) {
+        param.infoMode = build_info::silent;
+    } else if(args.contains("verbose")) {
+        param.infoMode = build_info::verbose;
+    }
 
     param.kmerlen   = args.get<int>("kmerlen", args.get<int>("k", defaults.kmerlen));
     param.sketchlen = args.get<int>("sketchlen", args.get<int>("s", defaults.sketchlen));
@@ -87,6 +103,9 @@ get_build_param(const args_parser& args)
     param.maxLoadFactor = args.get<float>("max_load_fac", -1);
     param.maxLocationsPerFeature = args.get<int>("max_locations_per_feature",
                                                  defaults.maxLocationsPerFeature);
+
+    param.uniqueFeaturesOnRank =
+        taxonomy::rank_from_name(args.get<std::string>("unique_kmers", "none"));
 
     param.taxonomy = get_taxonomy_param(args);
 
@@ -532,34 +551,17 @@ extract_sequence_id(const std::string& text)
  * @brief adds reference sequences to database
  *
  *****************************************************************************/
-void add_to_database(database& db,
-                     const build_param& param)
+void add_targets_to_database(database& db,
+    const std::vector<std::string>& infiles,
+    const std::map<std::string,database::taxon_id>& sequ2taxid,
+    build_info infoMode = build_info::moderate)
 {
-    using taxon_id   = database::taxon_id;
-
-    if(param.maxLocationsPerFeature > 1)
-        db.max_locations_per_feature(param.maxLocationsPerFeature);
-
-    if(param.maxLoadFactor > 0)
-        db.max_load_factor(param.maxLoadFactor);
-
-    timer time;
-    time.start();
-
-    auto sequ2taxid = make_sequence_to_taxon_id_map(
-                          param.taxonomy.mappingPreFiles,
-                          param.infiles);
-
-    int n = param.infiles.size();
+    int n = infiles.size();
     int i = 0;
 
-    auto initNumTargets = db.target_count();
-
-    std::cout << "Processing reference sequences." << std::endl;
-
     //read sequences
-    for(const auto& filename : param.infiles) {
-        if(param.showDetailedBuildInfo) {
+    for(const auto& filename : infiles) {
+        if(infoMode == build_info::verbose) {
             std::cout << "  " << filename << " ... " << std::flush;
         } else {
             show_progress_indicator(i/float(n));
@@ -601,24 +603,24 @@ void add_to_database(database& db,
                     }
                     //no valid taxid assigned -> try to find one in annotation
                     if(taxid > 0) {
-                        if(param.showDetailedBuildInfo)
+                        if(infoMode == build_info::verbose)
                             std::cout << "[" << seqId << ":" << taxid << "] ";
                     }
                     else {
                         taxid = extract_taxon_id(sequ.header);
-                        if(param.showDetailedBuildInfo)
+                        if(infoMode == build_info::verbose)
                             std::cout << "[" << seqId << "] ";
                     }
 
                     //try to add to database
                     bool added = db.add_target(sequ.data, seqId, taxid, origin);
-                    if(param.showDetailedBuildInfo && !added) {
+                    if(infoMode == build_info::verbose && !added) {
                         std::cout << seqId << " not added to database" << std::endl;
                     }
                 }
                 ++origin.index; //track sequence index in file
             }
-            if(param.showDetailedBuildInfo) {
+            if(infoMode == build_info::verbose) {
                 std::cout << "done." << std::endl;
             }
         }
@@ -633,21 +635,103 @@ void add_to_database(database& db,
             break;
         }
         catch(std::exception& e) {
-            if(param.showDetailedBuildInfo) {
+            if(infoMode == build_info::verbose) {
                 std::cout << "FAIL: " << e.what() << std::endl;
             }
         }
 
         ++i;
     }
+}
+
+
+
+
+/*****************************************************************************
+ *
+ * @brief prepares datbase for build, adds targets and writes database to disk
+ *
+ *****************************************************************************/
+void add_to_database(database& db, const build_param& param)
+{
+    if(param.maxLocationsPerFeature > 0) {
+        db.max_locations_per_feature(param.maxLocationsPerFeature);
+    }
+
+    if(param.maxLoadFactor > 0) {
+        db.max_load_factor(param.maxLoadFactor);
+    }
+
+    if(!param.taxonomy.path.empty()) {
+        load_taxonomy_into_database(db, param);
+    }
+
+    if(db.taxon_count() < 1) {
+        std::cout << "The datbase doesn't contain a taxonomic hierarchy yet.\n"
+                  << "You can add one or update later via:\n"
+                  << "   ./metacache add <database> -taxonomy <directory>"
+                  << std::endl;
+    }
+
+    if(param.uniqueFeaturesOnRank != taxon_rank::none) {
+        if(db.taxon_count() > 1) {
+            std::cout << "Non-unique features on rank "
+                      << taxonomy::rank_name(param.uniqueFeaturesOnRank)
+                      << " will be deleted afterwards.\n";
+        } else {
+            std::cout << "Could not determine unique features "
+                      << "due to missing taxonomic information.\n";
+        }
+    }
+    
+    if(param.infoMode == build_info::verbose) {
+        print_config(db);
+    }
+
+    std::cout << "Processing reference sequences." << std::endl;
+    const auto initNumTargets = db.target_count();
+
+    timer time;
+    time.start();
+
+    add_targets_to_database(db,
+        param.infiles,
+        make_sequence_to_taxon_id_map(param.taxonomy.mappingPreFiles,
+                                      param.infiles),
+        param.infoMode);
+
+
+    if(param.infoMode == build_info::moderate) {
+        clear_current_line();
+    }
+    std::cout << "Added "
+              << (db.target_count() - initNumTargets) << " reference sequences "
+              << "in " << time.seconds() << " s" << std::endl;
+
+    try_to_rank_unranked_targets(db, param);
+
+    if(param.uniqueFeaturesOnRank != taxon_rank::none &&
+        db.taxon_count() > 1)
+    {
+        print_statistics(db);
+
+        std::cout << "Removing non-unique features on rank "
+                  << taxonomy::rank_name(param.uniqueFeaturesOnRank) << '\n';
+
+        db.erase_non_unique_features_on_rank(param.uniqueFeaturesOnRank);
+    }
+
+    print_config(db);
+    print_statistics(db);
+
+    write_database(db, param.dbfile);
+
     time.stop();
 
-    if(!param.showDetailedBuildInfo) {
-        clear_current_line();
-        std::cout << "Added " << (db.target_count() - initNumTargets)
-                  << " reference sequences.\n";
-    }
-    std::cout << "Build time: " << time.seconds() << " s" << std::endl;
+    std::cout << "Total build time: " << time.seconds() << " s" << std::endl;
+
+    //prevents slow deallocation
+    db.clear_without_deallocation();
 }
 
 
@@ -665,10 +749,11 @@ void main_mode_build(const args_parser& args)
     auto param = get_build_param(args);
 
     if(param.infiles.empty()) {
-        throw std::invalid_argument{"No sequence filenames provided."};
+        throw std::invalid_argument{
+            "Nothing to do - no reference sequences provided."};
     }
 
-    //configure database
+    //configure sketching scheme
     auto sketcher = database::sketcher{};
     sketcher.kmer_size(param.kmerlen);
     sketcher.sketch_size(param.sketchlen);
@@ -677,28 +762,7 @@ void main_mode_build(const args_parser& args)
     db.target_window_size(param.winlen);
     db.target_window_stride(param.winstride);
 
-    if(param.maxLocationsPerFeature > 1)
-        db.max_locations_per_feature(param.maxLocationsPerFeature);
-
-    if(param.maxLoadFactor > 0)
-        db.max_load_factor(param.maxLoadFactor);
-
-    if(!param.taxonomy.path.empty()) {
-        load_taxonomy_into_database(db, param);
-    }
-    else {
-        std::cout << "No taxonomic hierarchy given.\n"
-                  << "You can add one or update later via:\n"
-                  << "   ./metacache add <database> -taxonomy <directory>"
-                  << std::endl;
-    }
-
     add_to_database(db, param);
-
-    try_to_rank_unranked_targets(db, param);
-
-    print_statistics(db);
-    write_database(db, param.dbfile);
 }
 
 
@@ -717,36 +781,15 @@ void main_mode_build_add(const args_parser& args)
         std::cout << "Adding reference sequences to database." << std::endl;
     }
     else if(param.taxonomy.path.empty()) {
-        std::cout << "Nothing to do: "
-                  << "No reference sequences and no taxonomy provided."
+        std::cout << "Nothing to do - "
+                  << "neither any reference sequences nor a taxonomy provided."
                   << std::endl;
         return;
     }
 
     auto db = make_database<database>(param.dbfile);
 
-    if(param.maxLocationsPerFeature > 1)
-        db.max_locations_per_feature(param.maxLocationsPerFeature);
-
-    if(param.maxLoadFactor > 0)
-        db.max_load_factor(param.maxLoadFactor);
-
-    if(!param.taxonomy.path.empty()) {
-        load_taxonomy_into_database(db, param);
-    }
-    else if(db.taxon_count() < 1) {
-        std::cout << "The datbase doesn't contain a taxonomic hierarchy.\n"
-                  << "You can add one via:\n"
-                  << "   ./metacache add <database> -taxonomy <directory>"
-                  << std::endl;
-    }
-
     add_to_database(db, param);
-
-    try_to_rank_unranked_targets(db, param);
-
-    print_statistics(db);
-    write_database(db, param.dbfile);
 }
 
 

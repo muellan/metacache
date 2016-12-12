@@ -698,8 +698,8 @@ void show_classification(std::ostream& os,
     if(cls.sequence_level()) {
         auto rmax = param.showLineage ? param.highestRank : param.lowestRank;
 
-        show_ranks_of_target(os, db, cls.tid(),
-                                      param.showTaxaAs, param.lowestRank, rmax);
+        show_ranks_of_target(os, db, cls.target(),
+                             param.showTaxaAs, param.lowestRank, rmax);
     }
     else if(cls.has_taxon()) {
         if(cls.rank() > param.highestRank) {
@@ -732,7 +732,7 @@ void remove_hits_on_rank(const database& db,
 {
     auto maskedRes = res;
     for(const auto& orig : res) {
-        auto r = db.ranks_of_target(orig.first.tid)[int(rank)];
+        auto r = db.ranks_of_target(orig.first.tgt)[int(rank)];
         if(r != taxid) {
             maskedRes.insert(orig);
         }
@@ -785,7 +785,7 @@ void process_database_answer(
 
         if(param.showGroundTruth) {
             if(groundTruth.sequence_level()) {
-                show_ranks_of_target(os, db, groundTruth.tid(),
+                show_ranks_of_target(os, db, groundTruth.target(),
                     param.showTaxaAs, param.lowestRank,
                     param.showLineage ? param.highestRank : param.lowestRank);
             }

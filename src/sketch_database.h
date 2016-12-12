@@ -186,25 +186,25 @@ public:
     {
         constexpr
         location(target_id g = 0, window_id w = 0) noexcept :
-            tid{g}, win{w}
+            tgt{g}, win{w}
         {}
 
-        target_id tid;
+        target_id tgt;
         window_id win;
 
         friend bool
         operator < (const location& a, const location& b) noexcept {
-            if(a.tid < b.tid) return true;
-            if(a.tid > b.tid) return false;
+            if(a.tgt < b.tgt) return true;
+            if(a.tgt > b.tgt) return false;
             return (a.win < b.win);
         }
 
         friend void read_binary(std::istream& is, location& p) {
-            read_binary(is, p.tid);
+            read_binary(is, p.tgt);
             read_binary(is, p.win);
         }
         friend void write_binary(std::ostream& os, const location& p) {
-            write_binary(os, p.tid);
+            write_binary(os, p.tgt);
             write_binary(os, p.win);
         }
     };
@@ -230,7 +230,7 @@ public:
         targetWindowStride_(128-15),
         queryWindowSize_(targetWindowSize_),
         queryWindowStride_(targetWindowStride_),
-        maxLocsPerFeature_(features_.max_bucket_size()-1),
+        maxLocsPerFeature_(max_supported_locations_per_feature()),
         nextTargetId_(0),
         targets_{},
         features_{},
@@ -248,7 +248,7 @@ public:
         targetWindowStride_(128-15),
         queryWindowSize_(targetWindowSize_),
         queryWindowStride_(targetWindowStride_),
-        maxLocsPerFeature_(features_.max_bucket_size()-1),
+        maxLocsPerFeature_(max_supported_locations_per_feature()),
         nextTargetId_(0),
         targets_{},
         features_{},
@@ -328,8 +328,8 @@ public:
     void max_locations_per_feature(bucket_size_type n)
     {
         if(n < 1) n = 1;
-        if(n >= features_.max_bucket_size()) {
-            n = features_.max_bucket_size() - 1;
+        if(n >= max_supported_locations_per_feature()) {
+            n = max_supported_locations_per_feature();
         }
         else if(n < maxLocsPerFeature_) {
             for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
@@ -339,23 +339,51 @@ public:
         maxLocsPerFeature_ = n;
     }
     //-----------------------------------------------------
-    bucket_size_type max_locations_per_feature() const noexcept {
+    bucket_size_type
+    max_locations_per_feature() const noexcept {
         return maxLocsPerFeature_;
+    }
+    //-----------------------------------------------------
+    static bucket_size_type
+    max_supported_locations_per_feature() noexcept {
+        return (feature_store::max_bucket_size() - 1);
     }
 
     //-----------------------------------------------------
     void erase_features_with_more_locations_than(bucket_size_type n)
     {
         for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
-            if(i->size() > n) features_.erase(i);
+            if(i->size() > n) features_.clear(i);
         }
     }
 
 
     //---------------------------------------------------------------
-    bool add_target(const sequence& seq,
-                    sequence_id sid,
-                    taxon_id taxonId = 0,
+    void erase_non_unique_features_on_rank(taxon_rank r)
+    {
+        if(taxa_.empty()) {
+            throw std::runtime_error{"no taxonomy available!"};
+        }
+
+        for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
+            //check if any two locations refer to different taxa on rank r
+            if(!i->empty()) {
+                auto j = i->begin();
+                taxon_id taxid = targets_[j->tgt].ranks[int(r)];
+                for(++j; j != i->end(); ++j) {
+                    if(taxid != targets_[j->tgt].ranks[int(r)]) {
+                        features_.clear(i);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+
+    //---------------------------------------------------------------
+    bool add_target(const sequence& seq, sequence_id sid,
+                    taxon_id taxid = 0,
                     const sequence_origin& origin = sequence_origin{})
     {
         using std::begin;
@@ -376,9 +404,9 @@ public:
 
         sid2gid_.insert({sid, nextTargetId_});
 
-        targets_.emplace_back(std::move(sid), taxonId, origin);
-        if(taxonId > 0 && !taxa_.empty()) {
-            rank_target(nextTargetId_, taxonId);
+        targets_.emplace_back(std::move(sid), taxid, origin);
+        if(taxid > 0 && !taxa_.empty()) {
+            rank_target(nextTargetId_, taxid);
         }
 
         window_id win = 0;
@@ -427,8 +455,18 @@ public:
     //---------------------------------------------------------------
     void clear() {
         targets_.clear();
-        features_.clear();
         sid2gid_.clear();
+        features_.clear();
+    }
+
+    //-----------------------------------------------------
+    /**
+     * @brief very dangerous! clears feature map without memory deallocation
+     */
+    void clear_without_deallocation() {
+        targets_.clear();
+        sid2gid_.clear();
+        features_.clear_without_deallocation();
     }
 
 
@@ -776,10 +814,10 @@ public:
     }
     //---------------------------------------------------------------
     std::uint64_t feature_count() const noexcept {
-        return features_.key_count();
+        return features_.non_empty_bucket_count();
     }
     //---------------------------------------------------------------
-    std::uint64_t reference_count() const noexcept {
+    std::uint64_t location_count() const noexcept {
         return features_.value_count();
     }
 
@@ -802,7 +840,7 @@ public:
         for(const auto& bucket : features_) {
             os << bucket.key() << " -> ";
             for(location p : bucket) {
-                os << '(' << p.tid << ',' << p.win << ')';
+                os << '(' << p.tgt << ',' << p.win << ')';
             }
             os << '\n';
         }
@@ -893,7 +931,7 @@ public:
     //---------------------------------------------------------------
     static constexpr int max_count() noexcept { return maxNo; }
 
-    static constexpr tid_t invalid_gid() noexcept {
+    static constexpr tid_t invalid_tgt() noexcept {
         return std::numeric_limits<tid_t>::max();
     }
 
@@ -905,17 +943,17 @@ public:
     matches_in_contiguous_window_range_top(
         const MatchResult& matches, win_t numWindows = 3)
     :
-        gid_{}, hits_{}, pos_{}
+        tgt_{}, hits_{}, pos_{}
     {
         using std::begin;
         using std::end;
 
         for(int i = 0; i < maxNo; ++i) {
-            gid_[i] = invalid_gid();
+            tgt_[i] = invalid_tgt();
             hits_[i] = 0;
         }
 
-        tid_t tid = invalid_gid();
+        tid_t tgt = invalid_tgt();
         hit_t hits = 0;
         hit_t maxHits = 0;
         hit_t win = 0;
@@ -929,7 +967,7 @@ public:
             //look for neighboring windows with the highest total hit count
             //as long as we are in the same target and the windows are in a
             //contiguous range
-            if(lst->first.tid == tid) {
+            if(lst->first.tgt == tgt) {
                 //add new hits to the right
                 hits += lst->second;
                 //subtract hits to the left that fall out of range
@@ -951,7 +989,7 @@ public:
             else {
                 //reset to new target
                 win = lst->first.win;
-                tid = lst->first.tid;
+                tgt = lst->first.tgt;
                 hits = lst->second;
                 maxHits = hits;
                 maxWinBeg = win;
@@ -965,12 +1003,12 @@ public:
                     //shift to the right
                     for(int j = maxNo-1; j > i; --j) {
                         hits_[j] = hits_[j-1];
-                        gid_[j] = gid_[j-1];
+                        tgt_[j] = tgt_[j-1];
                         pos_[j] = pos_[j-1];
                     }
                     //set hits & associated sequence (position)
                     hits_[i] = maxHits;
-                    gid_[i] = tid;
+                    tgt_[i] = tgt;
                     pos_[i].beg = maxWinBeg;
                     pos_[i].end = maxWinEnd;
                     break;
@@ -987,7 +1025,7 @@ public:
         return maxNo;
     }
 
-    tid_t target_id(int rank)   const noexcept { return gid_[rank];  }
+    tid_t target_id(int rank)   const noexcept { return tgt_[rank];  }
     hit_t hits(int rank) const noexcept { return hits_[rank]; }
 
     hit_t total_hits() const noexcept {
@@ -1000,7 +1038,7 @@ public:
     window(int rank) const noexcept { return pos_[rank]; }
 
 private:
-    tid_t gid_[maxNo];
+    tid_t tgt_[maxNo];
     hit_t hits_[maxNo];
     window_range pos_[maxNo];
 };
@@ -1078,7 +1116,7 @@ write_database(const sketch_database<S,K,G,W>& db, const std::string& filename)
  *
  *****************************************************************************/
 template<class S, class K, class G, class W>
-void print_statistics(const sketch_database<S,K,G,W>& db)
+void print_config(const sketch_database<S,K,G,W>& db)
 {
     using db_t = sketch_database<S,K,G,W>;
     using target_id = typename db_t::target_id;
@@ -1100,14 +1138,21 @@ void print_statistics(const sketch_database<S,K,G,W>& db)
               << "window stride:   " << db.target_window_stride() << '\n'
               << "kmer size:       " << int(db.target_sketcher().kmer_size()) << '\n'
               << "sketch size:     " << db.target_sketcher().sketch_size() << '\n'
+              << "location limit:  " << db.max_locations_per_feature() << '\n'
               << "taxa in tree:    " << db.taxon_count() << '\n';
+}
 
+
+//-------------------------------------------------------------------
+template<class S, class K, class G, class W>
+void print_statistics(const sketch_database<S,K,G,W>& db)
+{
     auto hbs = db.bucket_size_statistics();
 
     std::cout << "buckets:         " << db.bucket_count() << '\n'
               << "bucket size:     " << hbs.mean() << " +/- " << hbs.stddev() << '\n'
               << "features:        " << db.feature_count() << '\n'
-              << "locations:       " << db.reference_count() << '\n'
+              << "locations:       " << db.location_count() << '\n'
               << std::endl;
 }
 

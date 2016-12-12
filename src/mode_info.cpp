@@ -38,6 +38,7 @@ void show_database_statistics(const args_parser& args)
 {
     auto dbfilename = database_name(args);
     auto db = make_database<database>(dbfilename);
+    print_config(db);
     print_statistics(db);
 }
 
@@ -51,6 +52,7 @@ void show_feature_map(const args_parser& args)
 {
     auto dbfilename = database_name(args);
     auto db = make_database<database>(dbfilename);
+    print_config(db);
     print_statistics(db);
     std::cout << "===================================================\n";
     db.print_feature_map(std::cout);
@@ -179,6 +181,7 @@ void show_all_meta_info(const args_parser& args)
     if(db.target_count() < 1) return;
 
     std::cout << "Properties of database " << dbfilename << ":\n";
+    print_config(db);
     print_statistics(db);
 
     std::cout << "Targets in database:\n";
