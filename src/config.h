@@ -65,7 +65,7 @@ using sequence   = std::string;
 
 //-------------------------------------------------------------------
 using sketcher = single_function_min_hasher<kmer_type>;
-//using sketcher = minimizer_hasher<std::uint64_t>;
+//using sketcher = minimizer_hasher<kmer_type>;
 //using sketcher = kmer_statistics_hasher;
 //using sketcher = entropy_hasher<kmer_type>;
 

@@ -1125,8 +1125,8 @@ void print_config(const sketch_database<S,K,G,W>& db)
     }
 
     std::cout
-        << "database format  " << MC_DB_VERSION << '\n'
-        << "sequence type    " << typeid(typename db_t::sequence).name() << '\n'
+        << "database format: " << MC_DB_VERSION << '\n'
+        << "sequence type:   " << typeid(typename db_t::sequence).name() << '\n'
         << "target id type:  " << typeid(target_id).name() << " " << (sizeof(target_id)*8) << " bits\n"
         << "window id type:  " << typeid(window_id).name() << " " << (sizeof(window_id)*8) << " bits\n"
         << "window length:   " << db.target_window_size() << '\n'
