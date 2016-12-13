@@ -724,7 +724,7 @@ public:
             throw file_read_error{
                 "Database " + filename +
                 " is incompatible with this variant of MetaCache" +
-                " due to different data type widths"};
+                " due to different data type sizes"};
         }
 
         clear();
@@ -809,6 +809,10 @@ public:
     //---------------------------------------------------------------
     std::uint64_t feature_count() const noexcept {
         return features_.non_empty_bucket_count();
+    }
+    //---------------------------------------------------------------
+    std::uint64_t discarded_feature_count() const noexcept {
+        return features_.key_count() - features_.non_empty_bucket_count();
     }
     //---------------------------------------------------------------
     std::uint64_t location_count() const noexcept {
@@ -1168,13 +1172,11 @@ void print_statistics(const sketch_database<S,K,G,W>& db)
         << "buckets:         " << db.bucket_count() << '\n'
         << "bucket size:     " << hbs.mean() << " +/- " << hbs.stddev() << '\n'
         << "features:        " << db.feature_count() << '\n'
+        << "discarded feat.: " << db.discarded_feature_count() << '\n'
         << "locations:       " << db.location_count() << '\n';
 }
 
 
 } // namespace mc
-
-
-#undef MC_DB_VERSION
 
 #endif
