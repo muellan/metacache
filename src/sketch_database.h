@@ -808,10 +808,10 @@ public:
     }
     //---------------------------------------------------------------
     std::uint64_t feature_count() const noexcept {
-        return features_.non_empty_bucket_count();
+        return features_.key_count();
     }
     //---------------------------------------------------------------
-    std::uint64_t discarded_feature_count() const noexcept {
+    std::uint64_t dead_feature_count() const noexcept {
         return features_.key_count() - features_.non_empty_bucket_count();
     }
     //---------------------------------------------------------------
@@ -826,7 +826,9 @@ public:
         auto priSize = variance_accumulator<double>{};
 
         for(const auto& bucket : features_) {
-            priSize += bucket.size();
+            if(!bucket.empty()) {
+                priSize += bucket.size();
+            }
         }
 
         return priSize;
@@ -1172,7 +1174,7 @@ void print_statistics(const sketch_database<S,K,G,W>& db)
         << "buckets:         " << db.bucket_count() << '\n'
         << "bucket size:     " << hbs.mean() << " +/- " << hbs.stddev() << '\n'
         << "features:        " << db.feature_count() << '\n'
-        << "discarded feat.: " << db.discarded_feature_count() << '\n'
+        << "dead features:   " << db.dead_feature_count() << '\n'
         << "locations:       " << db.location_count() << '\n';
 }
 

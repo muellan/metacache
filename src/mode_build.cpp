@@ -103,7 +103,7 @@ get_build_param(const args_parser& args)
                                                  defaults.maxLocationsPerFeature);
 
     param.uniqueFeaturesOnRank =
-        taxonomy::rank_from_name(args.get<std::string>("unique_kmers", "none"));
+        taxonomy::rank_from_name(args.get<std::string>("unique_features", "none"));
 
     param.taxonomy = get_taxonomy_param(args);
 
@@ -685,25 +685,28 @@ void add_to_database(database& db, const build_param& param)
     print_config(db);
     if(db.target_count() > 0) print_data_properties(db);
 
-    std::cout << "Processing reference sequences." << std::endl;
-    const auto initNumTargets = db.target_count();
-
     timer time;
     time.start();
 
-    add_targets_to_database(db,
-        param.infiles,
-        make_sequence_to_taxon_id_map(param.taxonomy.mappingPreFiles,
-                                      param.infiles),
-        param.infoMode);
+    if(!param.infiles.empty()) {
+        std::cout << "\nProcessing reference sequences." << std::endl;
+        const auto initNumTargets = db.target_count();
+
+        add_targets_to_database(db,
+            param.infiles,
+            make_sequence_to_taxon_id_map(param.taxonomy.mappingPreFiles,
+                                          param.infiles),
+            param.infoMode);
 
 
-    if(param.infoMode == build_info::moderate) {
-        clear_current_line();
+        if(param.infoMode == build_info::moderate) {
+            clear_current_line();
+        }
+        std::cout << "Added "
+                  << (db.target_count() - initNumTargets) << " reference sequences "
+                  << "in " << time.seconds() << " s" << std::endl;
+
     }
-    std::cout << "Added "
-              << (db.target_count() - initNumTargets) << " reference sequences "
-              << "in " << time.seconds() << " s" << std::endl;
 
     try_to_rank_unranked_targets(db, param);
 

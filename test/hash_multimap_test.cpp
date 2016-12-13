@@ -103,13 +103,47 @@ void print_hash_multimap(const HashMultimap& hm, OStream& os = std::cout)
 
 
 //-------------------------------------------------------------------
+template<class HashMultiMap>
+void hash_multimap_check_binary_IO(const HashMultiMap& hm)
+{
+    {
+        std::ofstream os {"test.map", std::ios::binary};
+        write_binary(os, hm);
+    }
+
+    HashMultiMap hm2;
+    {
+        std::ifstream is {"test.map", std::ios::binary};
+        read_binary(is, hm2);
+    }
+
+    if(hm.key_count() != hm2.key_count()) {
+        std::ofstream os1 {"test1.out"};
+        print_hash_multimap(hm, os1);
+
+        std::ofstream os2 {"test2.out"};
+        print_hash_multimap(hm2, os2);
+
+        throw std::runtime_error{
+            "hash_multimap::key_count() inconsistent after deserialization"};
+    }
+    if(hm.value_count() != hm2.value_count()) {
+
+        throw std::runtime_error{
+            "hash_multimap::value_count() inconsistent after deserialization"};
+    }
+}
+
+
+
+//-------------------------------------------------------------------
 template<class HashMultiMap, class K, class V>
 void hash_multimap_check_book_keeping(
     HashMultiMap&& hm,
     const std::vector<std::pair<K,V>>& kvpairs,
     const std::string& message = "")
 {
-    using key_t   = typename std::decay<HashMultiMap>::type::key_type;
+    using key_t = typename std::decay<HashMultiMap>::type::key_type;
 
     if(kvpairs.size() != hm.value_count()) {
         std::cout << kvpairs.size() << " != " << hm.value_count() << std::endl;
@@ -186,8 +220,6 @@ void hash_multimap_check_absence(HashMultiMap&& hm,
 template<class HashMultiMap, class KeyValGen>
 void hash_multimap_correctness(HashMultiMap&& hm, std::size_t n, KeyValGen&& keyValGen)
 {
-    using key_t = typename std::decay<HashMultiMap>::type::key_type;
-    using val_t = typename std::decay<HashMultiMap>::type::value_type;
 
 //    std::cout << "------------------" << std::endl;
 
@@ -215,10 +247,12 @@ void hash_multimap_correctness(HashMultiMap&& hm, std::size_t n, KeyValGen&& key
         hash_multimap_check_presence(hm2, kvpairs, "after copying");
     }
 
-    return;
-
     //erase
+/*
 //    std::cout << "erase & query" << std::endl;
+    using key_t = typename std::decay<HashMultiMap>::type::key_type;
+    using val_t = typename std::decay<HashMultiMap>::type::value_type;
+
     auto m = std::size_t(kvpairs.size() / 3);
     std::vector<key_t> erased;
     erased.reserve(m);
@@ -249,6 +283,9 @@ void hash_multimap_correctness(HashMultiMap&& hm, std::size_t n, KeyValGen&& key
     hash_multimap_check_presence(hm, kvpairs, "after erasing others");
     //query erased
     hash_multimap_check_absence(hm, erased, ": was erased before");
+*/
+
+    hash_multimap_check_binary_IO(hm);
 }
 
 

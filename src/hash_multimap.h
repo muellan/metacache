@@ -147,7 +147,6 @@ private:
  *          Buckets may also be occupied AND empty ('key only').
  *
  * @details Hash conflicts are resolved with open addressing.
- *          Deletion uses 'back shifting' instead of 'tombstoning'.
  *
  * @tparam  Key:    key type
  * @tparam  ValueT: value type
@@ -217,11 +216,11 @@ public:
 
         bucket_type():
             values_{nullptr}, key_{},
-            size_(0), capacity_(0), probelen_(0)
+            size_(0), capacity_(0)//, probelen_(0)
         {}
         bucket_type(key_type&& key):
             values_{nullptr}, key_{std::move(key)},
-            size_(0), capacity_(0), probelen_(0)
+            size_(0), capacity_(0)//, probelen_(0)
         {}
 
         bool unused() const noexcept { return !values_; }
@@ -248,7 +247,8 @@ public:
         const_iterator  end() const noexcept { return values_ + size_; }
         const_iterator cend() const noexcept { return values_ + size_; }
 
-        probelen_t probe_length() const noexcept { return probelen_; }
+//        probelen_t probe_length() const noexcept { return probelen_; }
+        static constexpr probelen_t probe_length() noexcept { return 0; }
 
     private:
         //-----------------------------------------------------
@@ -285,12 +285,12 @@ public:
 
         //-------------------------------------------
         void free(value_allocator& alloc) {
-            if(unused()) return;
+            if(!values_) return;
             deallocate(alloc);
             values_ = nullptr;
             size_ = 0;
             capacity_ = 0;
-            probelen_ = 0;
+//            probelen_ = 0;
         }
         //-------------------------------------------
         void clear() {
@@ -303,11 +303,9 @@ public:
         //-----------------------------------------------------
         bool resize(value_allocator& alloc, size_type n) {
             if(size_ < n) {
-                if(reserve(alloc, n)) size_ = n;
+                if(!reserve(alloc, n)) return false;
             }
-            else if(size_ > n) {
-                size_ = n;
-            }
+            size_ = n;
             return true;
         }
 
@@ -373,7 +371,7 @@ public:
         key_type key_;
         size_type size_;
         size_type capacity_;
-        probelen_t probelen_;
+//        probelen_t probelen_;
     };
 
 
@@ -510,7 +508,7 @@ public:
 
     //-----------------------------------------------------
     bool empty() const noexcept {
-        return (numValues_ < 1);
+        return (numKeys_ < 1);
     }
 
 
@@ -526,9 +524,10 @@ public:
     size_type max_bucket_count() const noexcept {
         return buckets_.max_size();
     }
+
     //-----------------------------------------------------
     /**
-     * @return number of *occupied* buckets with no values
+     * @return number of buckets (and keys) with at least one value
      */
     size_type non_empty_bucket_count() const
     {
@@ -648,6 +647,7 @@ public:
 
 
     //---------------------------------------------------------------
+    /*
     size_type
     erase(const key_type& key)
     {
@@ -668,6 +668,7 @@ public:
         using std::distance;
         return erase_slot(cbegin() + distance(cbegin(),it));
     }
+    */
 
 
     /****************************************************************
@@ -729,6 +730,9 @@ public:
     {
         for(auto& b : buckets_) {
             b.values_ = nullptr;
+            b.size_ = 0;
+            b.capacity_ = 0;
+//            b.probelen_ = 0;
         }
         numKeys_ = 0;
         numValues_ = 0;
@@ -910,25 +914,27 @@ private:
         len_t nvalues = 0;
         read_binary(is, nvalues);
 
-        if(nkeys < 1 || nvalues < 1) return;
-        reserve_values(nvalues);
-        reserve_keys(nkeys);
+        if(nkeys > 0) {
+            reserve_values(nvalues);
+            reserve_keys(nkeys);
 
-        for(len_t i = 0; i < nkeys; ++i) {
-            key_type key;
-            bucket_size_type nvals;
-            read_binary(is, key);
-            read_binary(is, nvals);
+            for(len_t i = 0; i < nkeys; ++i) {
+                key_type key;
+                bucket_size_type nvals = 0;
+                read_binary(is, key);
+                read_binary(is, nvals);
+                if(nvals > 0) {
+                    auto it = insert_into_slot(std::move(key), nullptr, 0, 0);
+                    it->resize(alloc_, nvals);
 
-            auto it = insert_into_slot(std::move(key), nullptr, 0, 0);
-            it->resize(alloc_, nvals);
-
-            for(auto v = it->values_, e = v+nvals; v < e; ++v) {
-                read_binary(is, *v);
+                    for(auto v = it->values_, e = v+nvals; v < e; ++v) {
+                        read_binary(is, *v);
+                    }
+                }
             }
+            numKeys_ = nkeys;
+            numValues_ = nvalues;
         }
-        numKeys_ = nkeys;
-        numValues_ = nvalues;
     }
 
 
@@ -970,11 +976,13 @@ private:
         do {
             if(it->unused()) return buckets_.end();
             if(keyEqual_(it->key(), key)) return iterator(it);
+            /*
             //early out, possible due to Robin Hood invariant
             if(probelen < std::numeric_limits<probelen_t>::max()) {
                 if(probelen > it->probelen_) return buckets_.end();
                 ++probelen;
             }
+            */
         } while(++it);
 
         return buckets_.end();
@@ -989,6 +997,31 @@ private:
             buckets_.begin() + (hash_(key) % buckets_.size()),
             buckets_.begin(), buckets_.end()};
 
+
+        do {
+            //empty slot found
+            if(it->unused()) {
+                if(it->insert(alloc_, std::forward<Values>(newvalues)...)) {
+                    it->key_ = std::move(key);
+                    ++numKeys_;
+                    numValues_ += it->size();
+                    return iterator(it);
+                }
+                //could not insert
+                return buckets_.end();
+            }
+            //key already inserted
+            if(keyEqual_(it->key(), key)) {
+                auto oldsize = it->size();
+                if(it->insert(alloc_, std::forward<Values>(newvalues)...)) {
+                    numValues_ += it->size() - oldsize;
+                    return iterator(it);
+                }
+                return buckets_.end();
+            }
+        } while(++it);
+
+        /*
         bool inserted = false;
         value_type* values = nullptr;
         bucket_size_type size = 0;
@@ -1055,11 +1088,12 @@ private:
                 ++probelen;
             }
         } while(++it);
-
+        */
         return buckets_.end();
     }
 
     //---------------------------------------------------------------
+    /*
     size_type
     erase_slot(iterator pos)
     {
@@ -1070,22 +1104,24 @@ private:
         numValues_ -= s;
 
         //shift backwards
-        probing_iterator nxt {pos, buckets_.begin(), buckets_.end()};
-        probing_iterator del {pos, buckets_.begin(), buckets_.end()};
+        auto prv = pos;
+        probing_iterator nxt {pos+1, buckets_.begin(), buckets_.end()};
 
-        while(++nxt) {
-            if(nxt->unused() || nxt->probelen_ == 0) {
+        do {
+//            if(nxt->unused() || nxt->probelen_ == 0) {
+            if(nxt->unused()) {
                 break;
             }
             else {
-                std::swap(*del, *nxt);
-                --(del->probelen_);
+                std::swap(*prv, *nxt);
+//                --(prv->probelen_);
             }
-            ++del;
-        }
+            prv = iterator(nxt);
+        } while(++nxt);
 
         return s;
     }
+    */
 
     //---------------------------------------------------------------
     void make_sure_enough_buckets_left(size_type more)
