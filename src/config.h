@@ -38,7 +38,7 @@ namespace mc {
 
 //-------------------------------------------------------------------
 #ifdef MC_KMER_TYPE
-    using target_id = MC_TARGET_ID_TYPE ;
+    using target_id = MC_KMER_TYPE ;
 #else
     using kmer_type = std::uint32_t;
 //    using kmer_type = std::uint64_t;
@@ -60,7 +60,7 @@ namespace mc {
 
 
 //-------------------------------------------------------------------
-using sequence   = std::string;
+using sequence = std::string;
 
 
 //-------------------------------------------------------------------

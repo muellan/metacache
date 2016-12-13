@@ -51,8 +51,8 @@ class single_function_min_hasher
 {
 public:
     //---------------------------------------------------------------
-    using hasher       = Hash;
     using kmer_type    = KmerT;
+    using hasher       = Hash;
     using feature_type = kmer_type;
     using result_type  = std::vector<feature_type>;
     //-----------------------------------------------------
