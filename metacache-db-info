@@ -11,6 +11,8 @@ DB=$1
 if [ -e $DB ]; then
   echo "collecting statistics for database $DB"
 
+  ./metacache info $DB statistics | tail -n+2 > ${DB}_statistics.txt
+
   ./metacache info $DB lineages | tail -n+2 > ${DB}_lineages.txt
 
   RANKSTAT=${DB}_ranks.txt

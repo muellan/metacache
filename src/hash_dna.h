@@ -808,6 +808,7 @@ private:
     static kmer_type
     entropy(kmer_type kmer) noexcept
     {
+
         return kmer;
     }
 
