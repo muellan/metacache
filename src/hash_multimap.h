@@ -2,8 +2,6 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * version 0.1
- *
  * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -81,6 +79,66 @@ struct allocator_config<Alloc,true>
 
 /*****************************************************************************
  *
+ * @brief  iterator adapter for linear probing within a given iterator range
+ *
+ * @tparam RAIterator :  random access iterator
+ *
+ *****************************************************************************/
+template<class RAIterator>
+class linear_probing_iterator
+{
+public:
+    explicit
+    linear_probing_iterator(RAIterator pos, RAIterator beg, RAIterator end):
+       pos_(pos), fst_(pos), beg_(beg), end_(end)
+    {}
+
+    auto operator -> () const
+        -> decltype(std::declval<RAIterator>().operator->())
+    {
+        return pos_.operator->();
+    }
+
+    auto operator * () const
+        -> decltype(*std::declval<RAIterator>())
+    {
+        return *pos_;
+    }
+
+    linear_probing_iterator& operator ++ () noexcept {
+        ++pos_;
+        if(pos_ >= end_) {
+            if(beg_ == end_) {
+                pos_ = end_;
+                return *this;
+            }
+            pos_ = beg_;
+            end_ = fst_;
+            beg_ = fst_;
+        }
+        return *this;
+    }
+
+    explicit operator bool() const noexcept {
+        return (pos_ < end_);
+    }
+    explicit operator RAIterator () const {
+        return pos_;
+    }
+
+private:
+    RAIterator pos_;
+    RAIterator fst_;
+    RAIterator beg_;
+    RAIterator end_;
+};
+
+
+
+
+
+/*****************************************************************************
+ *
  * @brief   (integer) key -> value hashed multimap
  *          optimized for many values per key (pay attention to max_bucket_size()!
  *          The main difference to std::[unordered_][multi]map is that
@@ -96,6 +154,7 @@ struct allocator_config<Alloc,true>
  * @tparam  Hash:   hash function (object) type
  * @tparam  ValueAllocator:  controls allocation of values
  * @tparam  BucketAllocator: controls allocation of buckets/keys
+ * @tparam  ProbingIterator: implements probing scheme
  *
  *****************************************************************************/
 template<
@@ -105,7 +164,8 @@ template<
     class KeyEqual = std::equal_to<Key>,
     class ValueAllocator = chunk_allocator<ValueT>,
     class BucketAllocator = std::allocator<Key>,
-    class BucketSizeT = std::uint8_t
+    class BucketSizeT = std::uint8_t,
+    template<class> class ProbingIterator = linear_probing_iterator
 >
 class hash_multimap
 {
@@ -339,6 +399,8 @@ public:
     //-----------------------------------------------------
     using local_iterator       = typename bucket_type::iterator;
     using const_local_iterator = typename bucket_type::const_iterator;
+    //-----------------------------------------------------
+    using probing_iterator = ProbingIterator<iterator>;
 
 
     //---------------------------------------------------------------
@@ -900,27 +962,22 @@ private:
     iterator
     find_occupied_slot(const key_type& key)
     {
+        probing_iterator it {
+            buckets_.begin() + (hash_(key) % buckets_.size()),
+            buckets_.begin(), buckets_.end()};
+
         probelen_t probelen = 0;
 
-        auto fst = buckets_.begin() + (hash_(key) % buckets_.size());
-        auto it = fst;
-        auto end = buckets_.end();
-
-        //find bucket by linear probing
-        while(it < end) {
+        //find bucket
+        do {
             if(it->unused()) return buckets_.end();
-            if(keyEqual_(it->key(), key)) return it;
+            if(keyEqual_(it->key(), key)) return iterator(it);
             //early out, possible due to Robin Hood invariant
             if(probelen < std::numeric_limits<probelen_t>::max()) {
                 if(probelen > it->probelen_) return buckets_.end();
                 ++probelen;
             }
-            ++it;
-            if(it == buckets_.end()) {
-                it = buckets_.begin();
-                end = fst;
-            }
-        }
+        } while(++it);
 
         return buckets_.end();
     }
@@ -930,8 +987,9 @@ private:
     iterator
     insert_into_slot(key_type key, Values&&... newvalues)
     {
-        auto fst = buckets_.begin() + (hash_(key) % buckets_.size());
-        auto end = buckets_.end();
+        probing_iterator it {
+            buckets_.begin() + (hash_(key) % buckets_.size()),
+            buckets_.begin(), buckets_.end()};
 
         bool inserted = false;
         value_type* values = nullptr;
@@ -939,9 +997,8 @@ private:
         bucket_size_type capacity = 0;
         probelen_t probelen = 0;
 
-        //find bucket by linear probing
-        auto it = fst;
-        while(it < end) {
+        //find bucket
+        do {
             //new slot found
             if(it->unused()) {
                 if(inserted) { //last in a "swap chain"
@@ -950,14 +1007,14 @@ private:
                     it->size_ = size;
                     it->capacity_ = capacity;
                     it->probelen_ = probelen;
-                    return it;
+                    return iterator(it);
                 }
                 if(it->insert(alloc_, std::forward<Values>(newvalues)...)) {
                     it->probelen_ = probelen;
                     it->key_ = std::move(key);
                     ++numKeys_;
                     numValues_ += it->size();
-                    return it;
+                    return iterator(it);
                 }
                 //could not insert
                 return buckets_.end();
@@ -967,7 +1024,7 @@ private:
                 auto oldsize = it->size();
                 if(it->insert(alloc_, std::forward<Values>(newvalues)...)) {
                     numValues_ += it->size() - oldsize;
-                    return it;
+                    return iterator(it);
                 }
                 return buckets_.end();
             }
@@ -999,43 +1056,34 @@ private:
                 }
                 ++probelen;
             }
-            ++it;
-            if(it == buckets_.end()) {
-                it = buckets_.begin();
-                end = fst;
-            }
-        }
+        } while(++it);
+
         return buckets_.end();
     }
 
     //---------------------------------------------------------------
     size_type
-    erase_slot(iterator del)
+    erase_slot(iterator pos)
     {
         //delete element
-        auto s = del->size();
-        del->free(alloc_);
+        auto s = pos->size();
+        pos->free(alloc_);
         --numKeys_;
         numValues_ -= s;
 
         //shift backwards
-        auto nxt = del;
-        auto end = buckets_.end();
-        while(nxt < end) {
-            ++nxt;
-            if(nxt == buckets_.end()) {
-                nxt = buckets_.begin();
-                end = del;
-            }
+        probing_iterator nxt {pos, buckets_.begin(), buckets_.end()};
+        probing_iterator del {pos, buckets_.begin(), buckets_.end()};
+
+        while(++nxt) {
             if(nxt->unused() || nxt->probelen_ == 0) {
                 break;
             }
             else {
                 std::swap(*del, *nxt);
-                --del->probelen_;
+                --(del->probelen_);
             }
             ++del;
-            if(del == buckets_.end()) del = buckets_.begin();
         }
 
         return s;

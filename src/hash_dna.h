@@ -2,8 +2,6 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * version 0.1
- *
  * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -48,11 +46,12 @@ namespace mc {
  *        smallest hash values of *one* hash function
  *
  *****************************************************************************/
-template<class KmerT>
+template<class KmerT, class Hash = default_hash<KmerT>>
 class single_function_min_hasher
 {
 public:
     //---------------------------------------------------------------
+    using hasher       = Hash;
     using kmer_type    = std::uint32_t;
     using feature_type = kmer_type;
     using result_type  = std::vector<feature_type>;
@@ -71,32 +70,33 @@ public:
 
 
     //---------------------------------------------------------------
-    single_function_min_hasher():
-        kmerSize_(16), maxSketchSize_(16)
+    explicit
+    single_function_min_hasher(hasher hash = hasher{}):
+        hash_(std::move(hash)), k_(16), sketchSize_(16)
     {}
 
 
     //---------------------------------------------------------------
     kmer_size_type
     kmer_size() const noexcept {
-        return kmerSize_;
+        return k_;
     }
     void
     kmer_size(kmer_size_type k) noexcept {
         if(k < 1) k = 1;
         if(k > max_kmer_size()) k = max_kmer_size();
-        kmerSize_ = k;
+        k_ = k;
     }
 
     //---------------------------------------------------------------
     sketch_size_type
     sketch_size() const noexcept {
-        return maxSketchSize_;
+        return sketchSize_;
     }
     void
     sketch_size(sketch_size_type s) noexcept {
         if(s < 1) s = 1;
-        maxSketchSize_ = s;
+        sketchSize_ = s;
     }
 
 
@@ -118,23 +118,19 @@ public:
         using std::begin;
         using std::end;
 
-        const auto numkmers = sketch_size_type(distance(first, last) - kmerSize_ + 1);
-        const auto sketchsize = std::min(maxSketchSize_, numkmers);
+        const auto numkmers = sketch_size_type(distance(first, last) - k_ + 1);
+        const auto sketchsize = std::min(sketchSize_, numkmers);
 
         auto sketch = result_type(sketchsize, feature_type(~0));
 
-        for_each_kmer_2bit<kmer_type>(kmerSize_, first, last,
-            [&] (kmer_type kmer, half_size_t<kmer_type> ambiguous) {
-                if(!ambiguous) {
-                    //make canonical (strand neutral) k-mer and hash it
-                    auto h = default_hash(make_canonical(kmer, kmerSize_));
-
-                    if(h < sketch.back()) {
-                        auto pos = std::upper_bound(sketch.begin(), sketch.end(), h);
-                        if(pos != sketch.end()) {
-                            sketch.pop_back();
-                            sketch.insert(pos, h);
-                        }
+        for_each_unambiguous_canonical_kmer_2bit<kmer_type>(k_, first, last,
+            [&] (kmer_type kmer) {
+                auto h = hash_(kmer);
+                if(h < sketch.back()) {
+                    auto pos = std::upper_bound(sketch.begin(), sketch.end(), h);
+                    if(pos != sketch.end()) {
+                        sketch.pop_back();
+                        sketch.insert(pos, h);
                     }
                 }
             });
@@ -147,8 +143,8 @@ public:
     friend void
     write_binary(std::ostream& os, const single_function_min_hasher& h)
     {
-        write_binary(os, std::uint64_t(h.kmerSize_));
-        write_binary(os, std::uint64_t(h.maxSketchSize_));
+        write_binary(os, std::uint64_t(h.k_));
+        write_binary(os, std::uint64_t(h.sketchSize_));
     }
 
     //---------------------------------------------------------------
@@ -157,20 +153,20 @@ public:
     {
         std::uint64_t n = 0;
         read_binary(is, n);
-        h.kmerSize_ = (n <= max_kmer_size()) ? n : max_kmer_size();
+        h.k_ = (n <= max_kmer_size()) ? n : max_kmer_size();
 
         n = 0;
         read_binary(is, n);
-        h.maxSketchSize_ = (n <= max_sketch_size()) ? n : max_sketch_size();
+        h.sketchSize_ = (n <= max_sketch_size()) ? n : max_sketch_size();
     }
 
 
 private:
     //---------------------------------------------------------------
-    kmer_size_type kmerSize_;
-    sketch_size_type maxSketchSize_;
+    hasher hash_;
+    kmer_size_type k_;
+    sketch_size_type sketchSize_;
 };
-
 
 
 
@@ -205,32 +201,32 @@ public:
 
     //---------------------------------------------------------------
     multi_function_min_hasher():
-        kmerSize_(16), maxSketchSize_(32), hash_{}
+        k_(16), sketchSize_(32), hash_{}
     {}
 
 
     //---------------------------------------------------------------
     kmer_size_type
     kmer_size() const noexcept {
-        return kmerSize_;
+        return k_;
     }
     void
     kmer_size(kmer_size_type k) noexcept {
         if(k < 1) k = 1;
         if(k > max_kmer_size()) k = max_kmer_size();
-        kmerSize_ = k;
+        k_ = k;
     }
 
     //---------------------------------------------------------------
     sketch_size_type
     sketch_size() const noexcept {
-        return maxSketchSize_;
+        return sketchSize_;
     }
     void
     sketch_size(sketch_size_type s) noexcept {
         if(s < 1) s = 1;
         if(s > 128) s = 128;
-        maxSketchSize_ = s;
+        sketchSize_ = s;
     }
 
 
@@ -252,24 +248,20 @@ public:
         using std::begin;
         using std::end;
 
-        const auto numkmers = sketch_size_type(distance(first, last) - kmerSize_ + 1);
-        const auto sketchsize = std::min(maxSketchSize_, numkmers);
+        const auto numkmers = sketch_size_type(distance(first, last) - k_ + 1);
+        const auto sketchsize = std::min(sketchSize_, numkmers);
 
         auto sketch = result_type(sketchsize, feature_type(~0));
 
         //least significant 32 bits of features = kmer hash
         //most significant bits of features = hash function index
         //=> features of different hash functions won't collide
-        for_each_kmer_2bit<kmer_type>(kmerSize_, first, last,
-            [&] (kmer_type kmer, half_size_t<kmer_type> ambiguous) {
-                if(!ambiguous) {
-                    //make canonical (strand neutral) k-mer and hash it
-                    auto cankmer = make_canonical(kmer, kmerSize_);
-                    //for each function keep track of smallest hash value
-                    for(std::size_t i = 0; i < sketch.size(); ++i) {
-                        auto h = hash_(i, cankmer);
-                        if(h < sketch[i]) sketch[i] = h;
-                    }
+        for_each_unambiguous_canonical_kmer_2bit<kmer_type>(k_, first, last,
+            [&] (kmer_type kmer) {
+                //for each function keep track of smallest hash value
+                for(std::size_t i = 0; i < sketch.size(); ++i) {
+                    auto h = hash_(i, kmer);
+                    if(h < sketch[i]) sketch[i] = h;
                 }
             });
 
@@ -288,8 +280,8 @@ public:
     friend void
     write_binary(std::ostream& os, const multi_function_min_hasher& h)
     {
-        write_binary(os, std::uint64_t(h.kmerSize_));
-        write_binary(os, std::uint64_t(h.maxSketchSize_));
+        write_binary(os, std::uint64_t(h.k_));
+        write_binary(os, std::uint64_t(h.sketchSize_));
     }
 
     //---------------------------------------------------------------
@@ -298,16 +290,16 @@ public:
     {
         std::uint64_t n = 0;
         read_binary(is, n);
-        h.kmerSize_ = (n <= max_kmer_size()) ? n : max_kmer_size();
+        h.k_ = (n <= max_kmer_size()) ? n : max_kmer_size();
 
         n = 0;
         read_binary(is, n);
-        h.maxSketchSize_ = (n <= max_sketch_size()) ? n : max_sketch_size();
+        h.sketchSize_ = (n <= max_sketch_size()) ? n : max_sketch_size();
     }
 private:
     //---------------------------------------------------------------
-    kmer_size_type kmerSize_;
-    sketch_size_type maxSketchSize_;
+    kmer_size_type k_;
+    sketch_size_type sketchSize_;
     hash32_family128 hash_;
 };
 
@@ -578,11 +570,12 @@ private:
  * @brief
  *
  *****************************************************************************/
-template<class KmerT = std::uint64_t>
+template<class KmerT = std::uint64_t, class Hash = default_hash<KmerT>>
 class minimizer_hasher
 {
 public:
     //---------------------------------------------------------------
+    using hasher       = Hash;
     using kmer_type    = KmerT;
     using feature_type = kmer_type;
     using result_type  = std::array<feature_type,1>;
@@ -601,21 +594,23 @@ public:
 
 
     //---------------------------------------------------------------
-    minimizer_hasher():
-        kmerSize_(max_kmer_size() <= 16 ? 16 : 30)
+    explicit
+    minimizer_hasher(hasher hash = hasher{}):
+        hash_{std::move(hash)},
+        k_(max_kmer_size() <= 16 ? 16 : 30)
     {}
 
 
     //---------------------------------------------------------------
     kmer_size_type
     kmer_size() const noexcept {
-        return kmerSize_;
+        return k_;
     }
     void
     kmer_size(kmer_size_type k) noexcept {
         if(k < 1) k = 1;
         if(k > max_kmer_size()) k = max_kmer_size();
-        kmerSize_ = k;
+        k_ = k;
     }
 
     //---------------------------------------------------------------
@@ -643,15 +638,12 @@ public:
 
         result_type sketch {feature_type(~0)};
 
-        for_each_kmer_2bit<kmer_type>(kmerSize_, first, last,
-            [&] (kmer_type kmer, half_size_t<kmer_type> ambiguous) {
-                if(!ambiguous) {
-                    //make canonical (strand neutral) k-mer and hash it
-                    auto h = default_hash(make_canonical(kmer, kmerSize_));
-                    if(h < sketch[0]) sketch[0] = h;
-                }
+        for_each_unambiguous_canonical_kmer_2bit<kmer_type>(k_, first, last,
+            [&] (kmer_type kmer) {
+                if(kmer < sketch[0]) sketch[0] = kmer;
             });
 
+        sketch[0] = hash_(sketch[0]);
         return sketch;
     }
 
@@ -660,7 +652,7 @@ public:
     friend void
     write_binary(std::ostream& os, const minimizer_hasher& h)
     {
-        write_binary(os, std::uint64_t(h.kmerSize_));
+        write_binary(os, std::uint64_t(h.k_));
     }
 
     //---------------------------------------------------------------
@@ -669,13 +661,160 @@ public:
     {
         std::uint64_t n = 0;
         read_binary(is, n);
-        h.kmerSize_ = (n <= max_kmer_size()) ? n : max_kmer_size();
+        h.k_ = (n <= max_kmer_size()) ? n : max_kmer_size();
     }
 
 
 private:
     //---------------------------------------------------------------
-    kmer_size_type kmerSize_;
+    hasher hash_;
+    kmer_size_type k_;
+};
+
+
+
+
+
+
+/*****************************************************************************
+ *
+ * @brief default min-hasher that uses the 'sketch_size' lexicographically
+ *        smallest hash values of *one* hash function
+ *
+ *****************************************************************************/
+template<class KmerT>
+class entropy_hasher
+{
+public:
+    //---------------------------------------------------------------
+    using kmer_type    = std::uint32_t;
+    using feature_type = kmer_type;
+    using result_type  = std::vector<feature_type>;
+    //-----------------------------------------------------
+    using kmer_size_type   = numk_t;
+    using sketch_size_type = typename result_type::size_type;
+
+
+    //---------------------------------------------------------------
+    static constexpr std::uint8_t max_kmer_size() noexcept {
+        return max_word_size<kmer_type,2>::value;
+    }
+    static constexpr sketch_size_type max_sketch_size() noexcept {
+        return std::numeric_limits<sketch_size_type>::max();
+    }
+
+
+    //---------------------------------------------------------------
+    entropy_hasher():
+        k_(16), sketchSize_(16)
+    {}
+
+
+    //---------------------------------------------------------------
+    kmer_size_type
+    kmer_size() const noexcept {
+        return k_;
+    }
+    void
+    kmer_size(kmer_size_type k) noexcept {
+        if(k < 1) k = 1;
+        if(k > max_kmer_size()) k = max_kmer_size();
+        k_ = k;
+    }
+
+    //---------------------------------------------------------------
+    sketch_size_type
+    sketch_size() const noexcept {
+        return sketchSize_;
+    }
+    void
+    sketch_size(sketch_size_type s) noexcept {
+        if(s < 1) s = 1;
+        sketchSize_ = s;
+    }
+
+
+    //---------------------------------------------------------------
+    template<class Sequence>
+    result_type
+    operator () (const Sequence& s) const {
+        using std::begin;
+        using std::end;
+        return operator()(begin(s), end(s));
+    }
+
+    //-----------------------------------------------------
+    template<class InputIterator>
+    result_type
+    operator () (InputIterator first, InputIterator last) const
+    {
+        using std::distance;
+        using std::begin;
+        using std::end;
+
+        const auto numkmers = sketch_size_type(distance(first, last) - k_ + 1);
+        const auto s = std::min(sketchSize_, numkmers);
+
+        using pair_t = std::pair<float,kmer_type>;
+        std::vector<pair_t> kmers;
+
+        kmers.reserve(numkmers);
+
+        for_each_unambiguous_canonical_kmer_2bit<kmer_type>(k_, first, last,
+            [&] (kmer_type kmer) {
+                kmers.emplace_back(entropy(kmer),kmer);
+            });
+
+        //sort kmers by entropy
+        std::sort(kmers.begin(), kmers.end(),
+            [](const pair_t& a, const pair_t& b) { return a.first > b.first; });
+
+        result_type sketch;
+        sketch.reserve(s);
+
+        //sketch = s first kmers
+        for(sketch_size_type i = 0; i < s; ++i) {
+            sketch.push_back(kmers[i].second);
+        }
+
+        return sketch;
+    }
+
+
+    //---------------------------------------------------------------
+    friend void
+    write_binary(std::ostream& os, const entropy_hasher& h)
+    {
+        write_binary(os, std::uint64_t(h.k_));
+        write_binary(os, std::uint64_t(h.sketchSize_));
+    }
+
+    //---------------------------------------------------------------
+    friend void
+    read_binary(std::istream& is, entropy_hasher& h)
+    {
+        std::uint64_t n = 0;
+        read_binary(is, n);
+        h.k_ = (n <= max_kmer_size()) ? n : max_kmer_size();
+
+        n = 0;
+        read_binary(is, n);
+        h.sketchSize_ = (n <= max_sketch_size()) ? n : max_sketch_size();
+    }
+
+
+private:
+    //---------------------------------------------------------------
+    static kmer_type
+    entropy(kmer_type kmer) noexcept
+    {
+        return kmer;
+    }
+
+
+    //---------------------------------------------------------------
+    kmer_size_type k_;
+    sketch_size_type sketchSize_;
 };
 
 

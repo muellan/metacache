@@ -2,8 +2,6 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * version 0.1
- *
  * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -183,8 +181,7 @@ void show_per_rank_statistics(std::ostream& os,
 {
     constexpr taxon_rank ranks[] {
           taxon_rank::Sequence,
-          taxon_rank::subSpecies, taxon_rank::Species,
-          taxon_rank::subGenus,   taxon_rank::Genus,
+          taxon_rank::Species,    taxon_rank::Genus,
           taxon_rank::Family,     taxon_rank::Order,
           taxon_rank::Class,      taxon_rank::Phylum,
           taxon_rank::Kingdom,    taxon_rank::Domain,

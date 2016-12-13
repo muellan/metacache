@@ -2,8 +2,6 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * version 0.1
- *
  * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -37,7 +35,9 @@
 #include <string>
 #include <limits>
 #include <memory>
+#include <typeinfo>
 
+#include "version.h"
 #include "io_error.h"
 #include "stat_moments.h"
 #include "taxonomy.h"
@@ -45,10 +45,6 @@
 
 
 namespace mc {
-
-//helps to distinguish potentially incompatible database versions
-#define METACACHE_DB_VERSION 20161208
-
 
 /*****************************************************************************
  *
@@ -562,8 +558,7 @@ public:
     const taxon&
     lca_of_targets(target_id ta, target_id tb) const
     {
-        return taxa_[taxonomy::lca_id(lineage_of_target(ta),
-                                      lineage_of_target(tb))];
+        return taxa_.lca(lineage_of_target(ta), lineage_of_target(tb));
     }
 
     //---------------------------------------------------------------
@@ -576,8 +571,7 @@ public:
     const taxon&
     ranked_lca_of_targets(target_id ta, target_id tb) const
     {
-        return taxa_[taxonomy::ranked_lca_id(ranks_of_target(ta),
-                                             ranks_of_target(tb))];
+        return taxa_.lca(ranks_of_target(ta), ranks_of_target(tb));
     }
 
     //---------------------------------------------------------------
@@ -707,7 +701,7 @@ public:
         uint64_t dbVer = 0;
         read_binary(is, dbVer);
 
-        if(METACACHE_DB_VERSION != dbVer) {
+        if(MC_DB_VERSION != dbVer) {
             throw file_read_error{
                 "Database " + filename +
                 " is incompatible with incompatible version of MetaCache" };
@@ -778,7 +772,7 @@ public:
         }
 
         //database version info
-        write_binary(os, std::uint64_t(METACACHE_DB_VERSION));
+        write_binary(os, std::uint64_t(MC_DB_VERSION));
 
         //data type info
         write_binary(os, std::uint8_t(sizeof(feature)));
@@ -838,11 +832,13 @@ public:
     //---------------------------------------------------------------
     void print_feature_map(std::ostream& os) const {
         for(const auto& bucket : features_) {
-            os << bucket.key() << " -> ";
-            for(location p : bucket) {
-                os << '(' << p.tgt << ',' << p.win << ')';
+            if(!bucket.empty()) {
+                os << bucket.key() << " -> ";
+                for(location p : bucket) {
+                    os << '(' << p.tgt << ',' << p.win << ')';
+                }
+                os << '\n';
             }
-            os << '\n';
         }
     }
 
@@ -1128,18 +1124,37 @@ void print_config(const sketch_database<S,K,G,W>& db)
         if(!db.taxon_of_target(i).none()) ++numRankedTargets;
     }
 
-    std::cout << "database version " << METACACHE_DB_VERSION << '\n'
-              << "kmer type:       " << (sizeof(feature_t)*8) << " bits\n"
-              << "target id type:  " << (sizeof(target_id)*8) << " bits\n"
-              << "window id type:  " << (sizeof(window_id)*8) << " bits\n"
-              << "targets:         " << db.target_count() << '\n'
-              << "ranked targets:  " << numRankedTargets << '\n'
-              << "window length:   " << db.target_window_size() << '\n'
-              << "window stride:   " << db.target_window_stride() << '\n'
-              << "kmer size:       " << int(db.target_sketcher().kmer_size()) << '\n'
-              << "sketch size:     " << db.target_sketcher().sketch_size() << '\n'
-              << "location limit:  " << db.max_locations_per_feature() << '\n'
-              << "taxa in tree:    " << db.taxon_count() << '\n';
+    std::cout
+        << "database format  " << MC_DB_VERSION << '\n'
+        << "sequence type    " << typeid(typename db_t::sequence).name() << '\n'
+        << "target id type:  " << typeid(target_id).name() << " " << (sizeof(target_id)*8) << " bits\n"
+        << "window id type:  " << typeid(window_id).name() << " " << (sizeof(window_id)*8) << " bits\n"
+        << "window length:   " << db.target_window_size() << '\n'
+        << "window stride:   " << db.target_window_stride() << '\n'
+        << "sketcher type    " << typeid(typename db_t::sketcher).name() << '\n'
+        << "feature type:    " << typeid(feature_t).name() << " " << (sizeof(feature_t)*8) << " bits\n"
+        << "kmer size:       " << std::uint64_t(db.target_sketcher().kmer_size()) << '\n'
+        << "sketch size:     " << db.target_sketcher().sketch_size() << '\n'
+        << "location limit:  " << std::uint64_t(db.max_locations_per_feature()) << '\n';
+}
+
+
+//-------------------------------------------------------------------
+template<class S, class K, class G, class W>
+void print_data_properties(const sketch_database<S,K,G,W>& db)
+{
+    using db_t = sketch_database<S,K,G,W>;
+    using target_id = typename db_t::target_id;
+
+    std::uint64_t numRankedTargets = 0;
+    for(target_id i = 0; i < db.target_count(); ++i) {
+        if(!db.taxon_of_target(i).none()) ++numRankedTargets;
+    }
+
+    std::cout
+        << "targets:         " << db.target_count() << '\n'
+        << "ranked targets:  " << numRankedTargets << '\n'
+        << "taxa in tree:    " << db.taxon_count() << '\n';
 }
 
 
@@ -1149,17 +1164,17 @@ void print_statistics(const sketch_database<S,K,G,W>& db)
 {
     auto hbs = db.bucket_size_statistics();
 
-    std::cout << "buckets:         " << db.bucket_count() << '\n'
-              << "bucket size:     " << hbs.mean() << " +/- " << hbs.stddev() << '\n'
-              << "features:        " << db.feature_count() << '\n'
-              << "locations:       " << db.location_count() << '\n'
-              << std::endl;
+    std::cout
+        << "buckets:         " << db.bucket_count() << '\n'
+        << "bucket size:     " << hbs.mean() << " +/- " << hbs.stddev() << '\n'
+        << "features:        " << db.feature_count() << '\n'
+        << "locations:       " << db.location_count() << '\n';
 }
 
 
 } // namespace mc
 
 
-#undef METACACHE_DB_VERSION
+#undef MC_DB_VERSION
 
 #endif

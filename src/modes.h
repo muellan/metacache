@@ -2,8 +2,6 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * version 0.1
- *
  * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -51,7 +49,7 @@ void main_mode_build(const args_parser&);
  * @brief adds reference sequences (= targets) to an existing database
  *
  *****************************************************************************/
-void main_mode_build_add(const args_parser&);
+void main_mode_build_modify(const args_parser&);
 
 
 

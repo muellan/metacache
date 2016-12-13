@@ -2,8 +2,6 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * version 0.1
- *
  * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -230,7 +228,7 @@ make_taxonomic_hierarchy(const std::string& taxNodesFile,
     }
 
     //make sure every taxon has a rank designation
-    tax.assign_ranks_to_all();
+    tax.rank_all_unranked();
 
     return tax;
 }
@@ -684,9 +682,8 @@ void add_to_database(database& db, const build_param& param)
         }
     }
     
-    if(param.infoMode == build_info::verbose) {
-        print_config(db);
-    }
+    print_config(db);
+    if(db.target_count() > 0) print_data_properties(db);
 
     std::cout << "Processing reference sequences." << std::endl;
     const auto initNumTargets = db.target_count();
@@ -715,13 +712,13 @@ void add_to_database(database& db, const build_param& param)
     {
         print_statistics(db);
 
-        std::cout << "Removing non-unique features on rank "
-                  << taxonomy::rank_name(param.uniqueFeaturesOnRank) << '\n';
+        std::cout << "\nRemoving non-unique features on rank "
+                  << taxonomy::rank_name(param.uniqueFeaturesOnRank)
+                  << "..." << std::endl;
 
         db.erase_non_unique_features_on_rank(param.uniqueFeaturesOnRank);
     }
 
-    print_config(db);
     print_statistics(db);
 
     write_database(db, param.dbfile);
@@ -773,21 +770,17 @@ void main_mode_build(const args_parser& args)
  * @brief adds reference sequences to an existing database
  *
  *****************************************************************************/
-void main_mode_build_add(const args_parser& args)
+void main_mode_build_modify(const args_parser& args)
 {
     auto param = get_build_param(args);
 
-    if(!param.infiles.empty()) {
-        std::cout << "Adding reference sequences to database." << std::endl;
-    }
-    else if(param.taxonomy.path.empty()) {
-        std::cout << "Nothing to do - "
-                  << "neither any reference sequences nor a taxonomy provided."
-                  << std::endl;
-        return;
-    }
+    std::cout << "Modify database " << param.dbfile << std::endl;
 
     auto db = make_database<database>(param.dbfile);
+
+    if(!param.infiles.empty()) {
+        std::cout << "Adding reference sequences to database..." << std::endl;
+    }
 
     add_to_database(db, param);
 }

@@ -2,8 +2,6 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * version 0.1
- *
  * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -41,7 +39,9 @@ namespace mc {
 
 /*****************************************************************************
  *
+ * @brief id-based taxonomy
  *
+ * @details the directed graph is stored implicitly
  *
  *****************************************************************************/
 class taxonomy
@@ -51,6 +51,9 @@ public:
     using taxon_id = std::uint64_t;
 
     //-----------------------------------------------------
+    /**
+     * @brief encodes taxnomic ranks
+     */
     enum class rank : std::uint8_t {
         Sequence,
                 Form,
@@ -75,6 +78,7 @@ public:
         root,
         none
     };
+
     inline friend void write_binary(std::ostream& os, rank r) {
         write_binary(os, std::uint8_t(r));
     }
@@ -329,7 +333,7 @@ public:
      * @brief if no rank set, assign sub<rank> of parent <rank>
      */
     void
-    assign_ranks_to_all()
+    rank_all_unranked()
     {
         for(auto& tax : taxa_) {
             if(tax.rank == rank::none) {
@@ -387,65 +391,42 @@ public:
     const taxon&
     ranked_lca(taxon_id a, taxon_id b) const
     {
-        return operator[](ranked_lca_id(ranks(a),
-                                        ranks(b) ));
+        return operator[](ranked_lca_id(ranks(a), ranks(b) ));
     }
 
 
     //---------------------------------------------------------------
-    static taxon_id
-    ranked_lca_id(const ranked_lineage& lina,
-                  const ranked_lineage& linb)
+    const taxon&
+    lca(const full_lineage& lina, const full_lineage& linb) const
     {
-        for(int i = 0; i < int(rank::root); ++i) {
-            if((lina[i] > 0) && (lina[i] == linb[i])) return lina[i];
-        }
-
-        return 0;
+        return operator[](lca_id(lina,linb));
     }
 
     //-----------------------------------------------------
-    static taxon_id
-    lca_id(const full_lineage& lina,
-           const full_lineage& linb)
+    const taxon&
+    lca(const ranked_lineage& lina, const ranked_lineage& linb) const
     {
-        for(auto ta : lina) {
-            for(auto tb : linb) {
-                if(ta == tb) return ta;
-            }
-        }
-
-        return 0;
+        return operator[](ranked_lca_id(lina,linb));
     }
 
 
     //---------------------------------------------------------------
-    ranked_lineage
-    ranks(const taxon& tax) const {
-        return ranks(tax.id);
-    }
-
-    //-----------------------------------------------------
+    /**
+     * @param id
+     * @return
+     */
     ranked_lineage
     ranks(taxon_id id) const
     {
-//        std::cout << "      main rank lineage:" << std::endl;
         auto lin = ranked_lineage{};
         for(auto& x : lin) x = 0;
 
         while(id) {
             auto it = taxa_.find(taxon{id});
             if(it != taxa_.end()) {
-
                 if(it->rank != rank::none) {
                     lin[static_cast<int>(it->rank)] = it->id;
-
-//                    std::cout << "        " << id << " (" << it->rank_name()
-//                              << " (" << int(it->rank) << ") "
-//                              << it->name << ")" << std::endl;
-
                 }
-
                 if(it->parent != id) {
                     id = it->parent;
                 } else {
@@ -457,6 +438,12 @@ public:
         }
 
         return lin;
+    }
+
+    //-----------------------------------------------------
+    ranked_lineage
+    ranks(const taxon& tax) const {
+        return ranks(tax.id);
     }
 
 
@@ -518,6 +505,32 @@ public:
 
 private:
     //---------------------------------------------------------------
+    static taxon_id
+    ranked_lca_id(const ranked_lineage& lina,
+                  const ranked_lineage& linb)
+    {
+        for(int i = 0; i < int(rank::root); ++i) {
+            if((lina[i] > 0) && (lina[i] == linb[i])) return lina[i];
+        }
+
+        return 0;
+    }
+
+    //-----------------------------------------------------
+    static taxon_id
+    lca_id(const full_lineage& lina,
+           const full_lineage& linb)
+    {
+        for(auto ta : lina) {
+            for(auto tb : linb) {
+                if(ta == tb) return ta;
+            }
+        }
+
+        return 0;
+    }
+
+    //---------------------------------------------------------------
     rank
     lowest_rank(taxon_id id) const
     {
@@ -556,7 +569,7 @@ private:
 
 /*****************************************************************************
  *
- *
+ * @brief useful for tracking classification properties (precision, ...)
  *
  *****************************************************************************/
 class rank_statistics
@@ -577,7 +590,9 @@ public:
     }
 
     //---------------------------------------------------------------
-    /** @details concurrency-safe
+    /**
+     * @brief    counts one assignment
+     * @details  concurrency-safe
      */
     void assign(rank assigned) noexcept
     {
@@ -591,11 +606,14 @@ public:
 
     //---------------------------------------------------------------
     /**
+     * @brief   counts one assignment including ground truth and correctness
+     *          assessment
+     *
      * @details concurrency-safe
      *
-     * @param assigned  lowest rank of current assignment
-     * @param known     lowest rank for which ground truth was known
-     * @param correct   lowest rank for which current assignment is correct
+     * @param assigned : lowest rank of current assignment
+     * @param known    : lowest rank for which ground truth was known
+     * @param correct  : lowest rank for which current assignment is correct
      */
     void assign_known_correct(rank assigned, rank known, rank correct) noexcept
     {
@@ -630,19 +648,19 @@ public:
 
 
     //---------------------------------------------------------------
-    /// @brief concurrency-safe
+    /// @details concurrency-safe
     void count_coverage_true_pos(rank r) {
         coverage_[int(r)].count_true_pos();
     }
-    /// @brief concurrency-safe
+    /// @details concurrency-safe
     void count_coverage_false_pos(rank r) {
         coverage_[int(r)].count_false_pos();
     }
-    /// @brief concurrency-safe
+    /// @details concurrency-safe
     void count_coverage_true_neg(rank r) {
         coverage_[int(r)].count_true_neg();
     }
-    /// @brief concurrency-safe
+    /// @details concurrency-safe
     void count_coverage_false_neg(rank r) {
         coverage_[int(r)].count_false_neg();
     }

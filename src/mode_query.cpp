@@ -2,8 +2,6 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * version 0.1
- *
  * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -373,9 +371,12 @@ best_kmer_intersection_candidate(std::ostream&,
                     auto w = db.target_window_stride();
                     auto win = make_view_from_window_range(subject, cand.window(i), w);
 
-                    auto s = kmer_intersection_size(param.useCommonKmerCount, query1, win);
+                    auto s = kmer_intersection_size<kmer_type>(
+                        param.useCommonKmerCount, query1, win);
+
                     if(!query2.empty()) {
-                        s += kmer_intersection_size(param.useCommonKmerCount, query2, win);
+                        s += kmer_intersection_size<kmer_type>(
+                            param.useCommonKmerCount, query2, win);
                     }
 
 //                    std::cout << s << ' ';

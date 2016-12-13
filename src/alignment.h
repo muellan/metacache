@@ -2,8 +2,6 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * version 0.1
- *
  * alignment algorithms implementation by Christian Hundt
  *
  * Copyright (C) 2016 Christian Hundt (hundt@uni-mainz.de) &

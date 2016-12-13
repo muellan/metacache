@@ -2,8 +2,6 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * version 0.1
- *
  * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -37,8 +35,6 @@
 
 namespace mc {
 
-using sequence = std::string;
-
 
 //-------------------------------------------------------------------
 #ifdef MC_KMER_TYPE
@@ -64,14 +60,14 @@ using sequence = std::string;
 
 
 //-------------------------------------------------------------------
-#ifdef MC_MF_MINHASH
-    //different hash function for each feature in sketch
-    using sketcher = multi_function_min_hasher;
-#else
-    using sketcher = single_function_min_hasher<kmer_type>;
-//    using sketcher = minimizer_hasher<std::uint64_t>;
-//    using sketcher = kmer_statistics_hasher;
-#endif
+using sequence   = std::string;
+
+
+//-------------------------------------------------------------------
+using sketcher = single_function_min_hasher<kmer_type>;
+//using sketcher = minimizer_hasher<std::uint64_t>;
+//using sketcher = kmer_statistics_hasher;
+//using sketcher = entropy_hasher<kmer_type>;
 
 
 //-------------------------------------------------------------------

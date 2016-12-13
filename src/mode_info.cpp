@@ -2,8 +2,6 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * version 0.1
- *
  * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -34,11 +32,25 @@ namespace mc {
  *
  *
  *****************************************************************************/
+void show_database_config(const args_parser& args)
+{
+    auto dbfilename = database_name(args);
+    auto db = make_database<database>(dbfilename, database::scope::metadata_only);
+    print_config(db);
+}
+
+
+
+/*****************************************************************************
+ *
+ *
+ *****************************************************************************/
 void show_database_statistics(const args_parser& args)
 {
     auto dbfilename = database_name(args);
     auto db = make_database<database>(dbfilename);
     print_config(db);
+    print_data_properties(db);
     print_statistics(db);
 }
 
@@ -53,6 +65,7 @@ void show_feature_map(const args_parser& args)
     auto dbfilename = database_name(args);
     auto db = make_database<database>(dbfilename);
     print_config(db);
+    print_data_properties(db);
     print_statistics(db);
     std::cout << "===================================================\n";
     db.print_feature_map(std::cout);
@@ -92,7 +105,7 @@ void show_ranks_of_target(const database& db, database::target_id tid)
 void show_sequence_info(const database& db, database::target_id tid)
 {
     std::cout
-        << "Reference sequence " << tid << " ("
+        << "Target " << tid << " (reference sequence "
         << db.sequence_id_of_target(tid) << "):\n"
         << "    origin:     " << db.origin_of_target(tid).filename << " / "
         << db.origin_of_target(tid).index << '\n';
@@ -112,22 +125,28 @@ void show_sequence_info(const args_parser& args)
     auto dbfilename = database_name(args);
 
     auto sids = std::vector<std::string>{};
-    for(std::size_t i = 2; i < args.non_prefixed_count(); ++i) {
+    for(std::size_t i = 3; i < args.non_prefixed_count(); ++i) {
         sids.push_back(args.non_prefixed(i));
     }
 
-    if(sids.empty()) return;
-
     auto db = make_database_metadata_only<database>(dbfilename);
 
-    for(const auto& sid : sids) {
-        auto tid = db.target_id_of_sequence(sid);
-        if(tid < db.target_count()) {
-            show_sequence_info(db, tid);
+    if(!sids.empty()) {
+        for(const auto& sid : sids) {
+            auto tid = db.target_id_of_sequence(sid);
+            if(tid < db.target_count()) {
+                show_sequence_info(db, tid);
+            }
+            else {
+                std::cout << "Target (reference sequence) " << sid
+                          << " not found in database.\n";
+            }
         }
-        else {
-            std::cout << "Reference sequence " << sid
-                      << " not found in database.\n";
+    }
+    else {
+        std::cout << "Targets (reference sequences) in database:\n";
+        for(target_id tid = 0; tid < db.target_count(); ++tid) {
+            show_sequence_info(db, tid);
         }
     }
 }
@@ -173,30 +192,6 @@ void show_lineage_table(const args_parser& args)
  * @brief
  *
  *****************************************************************************/
-void show_all_meta_info(const args_parser& args)
-{
-    auto dbfilename = database_name(args);
-
-    auto db = make_database_metadata_only<database>(dbfilename);
-    if(db.target_count() < 1) return;
-
-    std::cout << "Properties of database " << dbfilename << ":\n";
-    print_config(db);
-    print_statistics(db);
-
-    std::cout << "Targets in database:\n";
-    for(target_id tid = 0; tid < db.target_count(); ++tid) {
-        show_sequence_info(db, tid);
-    }
-}
-
-
-
-/*****************************************************************************
- *
- * @brief
- *
- *****************************************************************************/
 void show_rank_statistics(const args_parser& args)
 {
     auto rankName = args.non_prefixed(3);
@@ -232,30 +227,68 @@ void show_rank_statistics(const args_parser& args)
 
 /*****************************************************************************
  *
+ * @brief
+ *
+ *****************************************************************************/
+void show_basic_exec_info()
+{
+    std::cout << "MetaCache version "
+              << MC_VERSION_STRING << " (" << MC_VERSION << ")\n";
+
+    database db;
+    print_config(db);
+}
+
+
+
+/*****************************************************************************
+ *
  * @brief shows database properties
  *
  *****************************************************************************/
 void main_mode_info(const args_parser& args)
 {
-    if(args.non_prefixed_count() > 2) {
-        if(args.non_prefixed(2) == "lineages") {
-            show_lineage_table(args);
-        }
-        else if(args.non_prefixed(2) == "rank" && args.non_prefixed_count() > 3) {
-            show_rank_statistics(args);
-        }
-        else if(args.non_prefixed(2) == "statistics") {
-            show_database_statistics(args);
-        }
-        else if(args.non_prefixed(2) == "featuremap") {
-            show_feature_map(args);
-        }
-        else {
-            show_sequence_info(args);
+    const auto nargs = args.non_prefixed_count();
+
+    if(nargs < 2) {
+        show_basic_exec_info();
+    }
+    else if(nargs == 2) {
+        try {
+            show_database_config(args);
+        } catch(...) {
+            show_basic_exec_info();
         }
     }
     else {
-        show_all_meta_info(args);
+        const auto mode = args.non_prefixed(2);
+
+        if(mode == "target" || mode == "targets"  ||
+                mode == "sequ"   || mode == "sequence" || mode == "sequences")
+        {
+            show_sequence_info(args);
+        }
+        else if(mode == "lineages" || mode == "lineage" || mode == "lin")
+        {
+            show_lineage_table(args);
+        }
+        else if(mode == "rank" && args.non_prefixed_count() > 3) {
+            show_rank_statistics(args);
+        }
+        else if(mode == "statistics" || mode == "stat")
+        {
+            show_database_statistics(args);
+        }
+        else if(mode == "featuremap" || mode == "rawdata")
+        {
+            show_feature_map(args);
+        }
+        else {
+            std::cout << "Info mode '" << mode << "' not recognized.\n"
+                      << "Properties of database " << args.non_prefixed(1)
+                      << ":" << std::endl;
+            show_database_config(args);
+        }
     }
 }
 

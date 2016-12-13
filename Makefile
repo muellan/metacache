@@ -96,9 +96,9 @@ release: $(REL_DIR) $(REL_ARTIFACT)
 
 debug: $(DBG_DIR) $(DBG_ARTIFACT)
 
-tests: $(TEST_DIR) $(TEST_ARTIFACT)
+test: $(TEST_DIR) $(TEST_ARTIFACT)
 
-all: release debug tests
+all: release debug test
 
 clean : 
 	rm -rf build_*

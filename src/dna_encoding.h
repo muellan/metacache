@@ -2,8 +2,6 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * version 0.1
- *
  * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -209,7 +207,7 @@ make_canonical(UInt s) noexcept
 
 
 /*****************************************************************************
- * @brief
+ * @brief canonical kmer comparator
  *****************************************************************************/
 struct canonical_less
 {
@@ -244,16 +242,23 @@ num_kmers(size_t k, size_t sequenceLen)
 
 
 /*****************************************************************************
- * @brief
+ * @brief loops through all subranges of [first,last) of lenght 'len' with a
+ *        stride of 'stride'
+ *
+ * @param first    iterator to start of range
+ * @param last     iterator to one after end of range
+ * @param len      length of windows (subranges)
+ * @param stride   distance between first elements of two subsequent windows
+ * @param consume  function object / lambda consuming one window
  *****************************************************************************/
 template<class RAIterator, class Consumer>
 inline void
 for_each_window(RAIterator first, RAIterator last,
-                const size_t len, const size_t step,
+                const size_t len, const size_t stride,
                 Consumer&& consume)
 {
-    for(auto ssend = first + len; ssend <= last; first += step, ssend += step) {
-        consume(first, ssend);
+    for(auto wend = first + len; wend <= last; first += stride, wend += stride) {
+        consume(first, wend);
     }
 
     //last window might be shorter
@@ -266,12 +271,12 @@ for_each_window(RAIterator first, RAIterator last,
 template<class RAInputRange, class Consumer>
 inline void
 for_each_window(RAInputRange range,
-                const size_t len, const size_t step,
+                const size_t len, const size_t stride,
                 Consumer&& consume)
 {
     using std::begin;
     using std::end;
-    for_each_window(begin(range), end(range), len, step,
+    for_each_window(begin(range), end(range), len, stride,
                     std::forward<Consumer>(consume));
 }
 
@@ -282,10 +287,10 @@ for_each_window(RAInputRange range,
  *
  * @tparam UInt    result type, must be an unsigned integer type
  *
- * @param k        k-mer size in letters
- * @param first    iterator to the begin of the input sequence
- * @param last     iterator to the end of the input sequence
- * @param consume  function object (lambda, etc.) consuming the k-mers
+ * @param k        number of characters in a k-mer
+ * @param first    iterator to the first character of the input sequence
+ * @param last     iterator to one after the last character of the input sequence
+ * @param consume  function object lambda consuming the k-mers
  *****************************************************************************/
 template<class UInt, class InputIterator, class Consumer>
 inline void
@@ -341,9 +346,9 @@ for_each_kmer_2bit(numk_t k,
  *
  * @tparam UInt    result type, must be an unsigned integer type
  *
- * @param k        k-mer size in letters
+ * @param k        number of characters in a k-mer
  * @param input    input sequence
- * @param consume  function object (lambda, etc.) consuming the k-mers
+ * @param consume  function object/lambda consuming (k-mer, ambiguity bitmask)
  *****************************************************************************/
 template<class UInt, class InputRange, class Consumer>
 inline void
@@ -358,14 +363,51 @@ for_each_kmer_2bit(const numk_t k, InputRange input, Consumer&& consume)
 
 
 /*****************************************************************************
+ * @brief loops through all non-ambiguous 2-bit encoded k-mers in a
+ *        sequence of characters
+ *
+ * @tparam UInt    result type, must be an unsigned integer type
+ *
+ * @param k        number of characters in a k-mer
+ * @param first    iterator to the first character of the input sequence
+ * @param last     iterator to one after the last character of the input sequence
+ * @param consume  function object (lambda, etc.) consuming the k-mers
+ *****************************************************************************/
+template<class UInt, class InputIterator, class Consumer>
+inline void
+for_each_unambiguous_kmer_2bit(
+    const numk_t k, InputIterator first, InputIterator last, Consumer&& consume)
+{
+    for_each_kmer_2bit<UInt>(k, first, last,
+        [&] (UInt kmer, half_size_t<UInt> ambig) {
+            if(!ambig) consume(kmer);
+        });
+}
+
+//-------------------------------------------------------------------
+template<class UInt, class InputRange, class Consumer>
+inline void
+for_each_unambiguous_kmer_2bit(
+    const numk_t k, InputRange input, Consumer&& consume)
+{
+    using std::begin;
+    using std::end;
+    for_each_unambiguous_kmer_2bit<UInt>(k, begin(input), end(input),
+                                           std::forward<Consumer>(consume));
+}
+
+
+
+/*****************************************************************************
  * @brief loops through all 2-bit encoded k-mers in a sequence of characters
  *        kmers are canonical = min(kmer, reverse_complement(kmer))
  *
  * @tparam UInt    result type, must be an unsigned integer type
  *
- * @param k        k-mer size in letters
- * @param input    input sequence
- * @param consume  function object (lambda, etc.) consuming the k-mers
+ * @param k        number of characters in a k-mer
+ * @param first    iterator to the first character of the input sequence
+ * @param last     iterator to one after the last character of the input sequence
+ * @param consume  function object/lambda consuming (k-mer, ambiguity bitmask)
  *****************************************************************************/
 template<class UInt, class InputIterator, class Consumer>
 inline void
@@ -394,38 +436,69 @@ for_each_canonical_kmer_2bit(const numk_t k, InputRange input,
 
 
 /*****************************************************************************
+ * @brief loops through all non-ambiguous 2-bit encoded k-mers in a
+ *        sequence of characters
+ *        kmers are canonical = min(kmer, reverse_complement(kmer))
  *
- * @pre    k <= 32
- * @return cardinality of k-mer intersection of 'seq1' and 'seq2'
+ * @tparam UInt    result type, must be an unsigned integer type
+ *
+ * @param k        number of characters in a k-mer
+ * @param input    input sequence
+ * @param consume  function object (lambda, etc.) consuming the k-mers
+ *****************************************************************************/
+template<class UInt, class InputIterator, class Consumer>
+inline void
+for_each_unambiguous_canonical_kmer_2bit(
+    const numk_t k, InputIterator first, InputIterator last, Consumer&& consume)
+{
+    for_each_kmer_2bit<UInt>(k, first, last,
+        [&] (UInt kmer, half_size_t<UInt> ambig) {
+            if(!ambig) consume(make_canonical(kmer, k));
+        });
+}
+
+//-------------------------------------------------------------------
+template<class UInt, class InputRange, class Consumer>
+inline void
+for_each_unambiguous_canonical_kmer_2bit(
+    const numk_t k, InputRange input, Consumer&& consume)
+{
+    using std::begin;
+    using std::end;
+    for_each_unambiguous_canonical_kmer_2bit<UInt>(
+        k, begin(input), end(input), std::forward<Consumer>(consume));
+}
+
+
+
+/*****************************************************************************
+ *
+ * @return cardinality of k-mer intersection set of 'seq1' and 'seq2'
  *
  *****************************************************************************/
-template<class Sequence1, class Sequence2>
+template<class KmerT, class Sequence1, class Sequence2>
 std::size_t
 kmer_intersection_size(numk_t k, const Sequence1& seq1, const Sequence2& seq2)
 {
-    using kmer_t = dna_2bit_encoding_t<32>; //max k
-
     if(seq1.size() < k) return 0;
     if(seq2.size() < k) return 0;
 
-    std::vector<kmer_t> kmers;
+    std::vector<KmerT> kmers;
     kmers.reserve(seq1.size() - k + 1);
 
     //insert all kmers from sequence 1
-    for_each_canonical_kmer_2bit<kmer_t>(k, seq1,
-        [&] (kmer_t kmer, half_size_t<kmer_t> ambig) {
-            if(!ambig) kmers.push_back(kmer);
+    for_each_unambiguous_canonical_kmer_2bit<KmerT>(k, seq1,
+        [&] (KmerT kmer) {
+            kmers.push_back(kmer);
         });
 
     sort(kmers.begin(), kmers.end());
 
     //compute intersection size
     std::size_t res = 0;
-    for_each_canonical_kmer_2bit<kmer_t>(k, seq2,
-        [&] (kmer_t kmer, half_size_t<kmer_t> ambig) {
-            if(!ambig && std::binary_search(kmers.begin(), kmers.end(), kmer)) {
-                ++res;
-            }
+    for_each_unambiguous_canonical_kmer_2bit<KmerT>(k, seq2,
+        [&] (KmerT kmer) {
+            if(std::binary_search(kmers.begin(), kmers.end(), kmer)) ++res;
         });
 
     return res;

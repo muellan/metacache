@@ -104,7 +104,7 @@ void print_hash_multimap(const HashMultimap& hm, OStream& os = std::cout)
 
 //-------------------------------------------------------------------
 template<class HashMultiMap, class K, class V>
-void hash_multimap_check_bookkeeping(
+void hash_multimap_check_book_keeping(
     HashMultiMap&& hm,
     const std::vector<std::pair<K,V>>& kvpairs,
     const std::string& message = "")
@@ -136,7 +136,7 @@ void hash_multimap_check_presence(HashMultiMap&& hm,
                                   const std::vector<std::pair<K,V>>& kvpairs,
                                   const std::string& message = "")
 {
-    hash_multimap_check_bookkeeping(hm, kvpairs, message);
+    hash_multimap_check_book_keeping(hm, kvpairs, message);
 
     for(const auto& p : kvpairs) {
         auto it = hm.find(p.first);
@@ -304,6 +304,8 @@ void hash_multimap_performance(HashMultiMap&& hm, std::size_t n, KeyValGen&& key
 void hash_multimap_correctness()
 {
     constexpr std::size_t n = 10000;
+
+    std::cout << "test correctness with " << n << " keys" << std::endl;
 
     auto k32v32 = key_value_pair_filler<uint32_t,uint32_t>{};
     hash_multimap_correctness(hash_multimap<uint32_t,uint32_t>{},n,k32v32);

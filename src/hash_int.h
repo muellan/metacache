@@ -79,32 +79,42 @@ inline void murmur_hash3_finalizer(std::uint8_t) = delete;
 
 
 
-//-------------------------------------------------------------------
-namespace detail {
-
+/*****************************************************************************
+ *
+ *
+ *
+ *****************************************************************************/
 template<class T>
 struct default_hash;
 
 template<>
 struct default_hash<std::uint32_t> {
-    static std::uint32_t of(std::uint32_t x) noexcept {
+    std::uint32_t operator () (std::uint32_t x) const noexcept {
         return thomas_mueller_hash(x);
     }
 };
 
 template<>
 struct default_hash<std::uint64_t> {
-    static std::uint64_t of(std::uint64_t x) noexcept {
+    std::uint64_t operator () (std::uint64_t x) const noexcept {
         return murmur_hash3_finalizer(x);
     }
 };
 
-} // namespace detail
 
-template<class T>
-inline T default_hash(T x) {
-    return detail::default_hash<T>::of(x);
-}
+
+/*****************************************************************************
+ *
+ *
+ *
+ *****************************************************************************/
+struct identity_hash
+{
+    template<class T>
+    T&& operator () (T&& x) const noexcept {
+        return std::forward<T>(x);
+    }
+};
 
 
 } // namespace mc
