@@ -102,10 +102,6 @@ struct query_param
     //
     std::uint16_t hitsMin  = 0;  //< 1 : deduced from database parameters
     float hitsDiff = 0.5;
-    //use full kmer counting (if sequence files available) for ambiguous cases
-    int useCommonKmerCount = 0;
-    float kmerCountMin = 0.9f;
-    float kmerCountDiff = 1.1f;
     //use alignment (if sequence files available) for ambiguous cases
     bool useAlignment = false;
     float alignmentMin  = 0.9f;
@@ -226,16 +222,6 @@ get_query_param(const args_parser& args)
     param.hitsMin  = args.get<std::uint16_t>("hitmin", defaults.hitsMin);
     param.hitsDiff = args.get<float>("hitdiff", defaults.hitsDiff);
 
-    //kmer counting
-    param.useCommonKmerCount = args.get<int>("kmercount", defaults.useCommonKmerCount);
-    if(param.useCommonKmerCount < 0)
-        param.useCommonKmerCount = 0;
-    else if(param.useCommonKmerCount > 32)
-        param.useCommonKmerCount = 32;
-
-    param.kmerCountMin  = args.get<float>("kcmin", defaults.kmerCountMin);
-    param.kmerCountDiff = args.get<float>("kcdiff", defaults.kmerCountDiff);
-
     //alignment
     param.useAlignment  = args.contains("align");
     param.alignmentMin  = args.get<float>("alignmin", defaults.alignmentMin);
@@ -331,83 +317,6 @@ make_view_from_window_range(
 
     return make_view(s.begin() + (stride * winRange.beg), end);
 }
-
-
-
-/*****************************************************************************
- *
- * @param  query1  read
- * @param  query2  paired read
- * @return index of best candidate or -1 if ambiguous or unsatisfactory
- *
- *****************************************************************************/
-template<int n>
-int
-best_kmer_intersection_candidate(std::ostream&,
-    const database& db, const query_param& param,
-    const sequence& query1, const sequence& query2,
-    const matches_in_contiguous_window_range_top<n,target_id>& cand)
-{
-    std::size_t fstVal = 0;
-    std::size_t sndVal = 0;
-    int fstIdx = -1;
-    int sndIdx = -1;
-
-//    std::cout << '\n' << param.comment
-//              << "  " << param.fullKmerCount << "-mer counts: ";
-
-    //largest kmer intersection
-    for(int i = 0; i < n; ++i) {
-        try {
-            const auto& origin = db.origin_of_target(cand.target_id(i));
-            if(!origin.filename.empty()) {
-                //open sequence file, forward to index in file
-                auto reader = make_sequence_reader(origin.filename);
-                for(std::size_t j = 0; j < origin.index; ++j) reader->next();
-                if(reader->has_next()) {
-
-                    auto subject = reader->next().data;
-                    //make views to candidate window ranges
-                    auto w = db.target_window_stride();
-                    auto win = make_view_from_window_range(subject, cand.window(i), w);
-
-                    auto s = kmer_intersection_size<kmer_type>(
-                        param.useCommonKmerCount, query1, win);
-
-                    if(!query2.empty()) {
-                        s += kmer_intersection_size<kmer_type>(
-                            param.useCommonKmerCount, query2, win);
-                    }
-
-//                    std::cout << s << ' ';
-
-                    if(s > fstVal) {
-                        sndVal = fstVal;
-                        sndIdx = fstIdx;
-                        fstVal = s;
-                        fstIdx = i;
-                    }
-                    else if(s > sndVal) {
-                        sndVal = s;
-                        sndIdx = i;
-                    }
-                }
-            }
-        }
-        catch(std::exception&) {}
-    }
-//    std::cout << '\n';
-
-    if(fstIdx < 0 || sndIdx < 0) return -1;
-
-    //isec size must exceed a minimum fraction of the largest possible size
-    auto maxIsecSize = query1.size() + query2.size() - param.useCommonKmerCount + 1;
-    if(fstVal < param.kmerCountMin * maxIsecSize) return -1;
-
-    //largest isec size significantly greater thean second largest?
-    return (fstVal >= param.kmerCountDiff * sndVal) ? fstIdx : sndIdx;
-}
-
 
 
 
@@ -659,16 +568,6 @@ sequence_classification(std::ostream& os,
         //return top candidate
         auto tid = cand.target_id(0);
         return classification{tid, &db.taxon_of_target(tid)};
-    }
-
-    //use kmer counting to disambiguate?
-    if(param.useCommonKmerCount > 0) {
-        int bac = best_kmer_intersection_candidate(os, db, param,
-                                                   query1, query2, cand);
-        if(bac >= 0) {
-            auto tid = cand.target_id(bac);
-            return classification{tid, &db.taxon_of_target(tid)};
-        }
     }
 
     //do alignment of query to top candidate sequences?
@@ -1063,10 +962,6 @@ void classify_sequences(const database& db, const query_param& param,
     if(param.useAlignment > 0) {
         os << comment << "Classification considers top "
            << top_matches_in_contiguous_window_range::max_count() << " matches\n";
-    }
-    if(param.useCommonKmerCount > 0) {
-        os << comment << "Classification uses all "
-           << param.useCommonKmerCount << "-mer counting." "\n";
     }
     if(param.useAlignment > 0) {
         os << comment << "Classification uses semi-global alignment.\n";
