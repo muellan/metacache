@@ -44,9 +44,8 @@ namespace mc {
  *
  *
  *
- *
  *****************************************************************************/
-using real_t = float;
+using real_t = double;
 
 
 //-------------------------------------------------------------------
@@ -68,19 +67,11 @@ result(const Accumulator& a) -> decltype(a.result())
 
 
 
-/****************************************************************************
+/*****************************************************************************
  *
+ * @brief 1st moments
  *
- *
- * STATISTICAL MOMENT FUNCTIONS
- *
- *
- *
- ****************************************************************************/
-
-//-------------------------------------------------------------------
-// 1st moment functions
-//-------------------------------------------------------------------
+ *****************************************************************************/
 template<class InputIterator>
 inline auto
 mean(InputIterator begin, InputIterator end)
@@ -110,9 +101,11 @@ raw_moment_1(InputIterator begin, InputIterator end)
 
 
 
-//-------------------------------------------------------------------
-// 2nd moment functions
-//-------------------------------------------------------------------
+/*****************************************************************************
+ *
+ * @brief 2nd moments
+ *
+ *****************************************************************************/
 template<class InputIterator>
 inline auto
 raw_moment_2(InputIterator begin, InputIterator end)
@@ -132,7 +125,7 @@ raw_moment_2(InputIterator begin, InputIterator end)
         s2 += (*begin) * (*begin);
     }
 
-    return (s2 / n);
+    return fp_t(s2 / n);
 }
 
 //---------------------------------------------------------
@@ -157,7 +150,7 @@ variance(InputIterator begin, InputIterator end)
         s2 += (*begin) * (*begin);
     }
 
-    return ((s2 - (s*s) /n) /(n - fp_t(1)));
+    return fp_t((s2 - (s*s) /n) /(n - fp_t(1)));
 }
 
 //---------------------------------------------------------
@@ -182,9 +175,11 @@ stddev(InputIterator begin, InputIterator end)
 
 
 
-//-------------------------------------------------------------------
-// 3rd moment functions
-//-------------------------------------------------------------------
+/*****************************************************************************
+ *
+ * @brief 3rd moments
+ *
+ *****************************************************************************/
 template<class InputIterator>
 inline auto
 raw_moment_3(InputIterator begin, InputIterator end)
@@ -204,7 +199,7 @@ raw_moment_3(InputIterator begin, InputIterator end)
         s3 += (*begin) * (*begin) * (*begin);
     }
 
-    return (s3/n);
+    return fp_t(s3/n);
 }
 
 //---------------------------------------------------------
@@ -233,7 +228,7 @@ central_moment_3(InputIterator begin, InputIterator end)
         s3 += x * (*begin);
     }
     const auto n2 = n*n;
-    return (n2*s3 - fp_t(3)*n*(s2*s2) + fp_t(2)*(s*s))/(n*n2);
+    return fp_t((n2*s3 - fp_t(3)*n*(s2*s2) + fp_t(2)*(s*s))/(n*n2));
 }
 
 //---------------------------------------------------------
@@ -271,14 +266,16 @@ skewness(InputIterator begin, InputIterator end)
     //3rd central moment
     auto cm3 = (n2*s3 - fp_t(3)*n*(s2*s2) + fp_t(2)*s)/(n*n2);
 
-    return (cm3 / pow(cm2, fp_t(3)/fp_t(2)) );
+    return fp_t(cm3 / pow(cm2, fp_t(3)/fp_t(2)) );
 }
 
 
 
-//-------------------------------------------------------------------
-// 4th moment functions
-//-------------------------------------------------------------------
+/*****************************************************************************
+ *
+ * @brief 4th moments
+ *
+ *****************************************************************************/
 template<class InputIterator>
 inline auto
 raw_moment_4(InputIterator begin, InputIterator end)
@@ -298,7 +295,7 @@ raw_moment_4(InputIterator begin, InputIterator end)
         s4 += (*begin) * (*begin) * (*begin) * (*begin);
     }
 
-    return (s4 / n);
+    return fp_t(s4 / n);
 }
 //---------------------------------------------------------
 template<class InputIterator>
@@ -330,8 +327,8 @@ central_moment_4(InputIterator begin, InputIterator end)
     const auto n2 = n*n;
     const auto ss = s*s ;
 
-    return ((n2*n*s4 - fp_t(4)*n2*(s*s3) + fp_t(6)*n*(ss*s2) - fp_t(3)*(ss*s)) /
-           (n2*n2));
+    return fp_t( (n2*n*s4 - fp_t(4)*n2*(s*s3) +
+                 fp_t(6)*n*(ss*s2) - fp_t(3)*(ss*s)) / (n2*n2) );
 }
 
 //---------------------------------------------------------
@@ -372,7 +369,7 @@ kurtosis(InputIterator begin, InputIterator end)
                  fp_t(4)*n2*(s*s3) + fp_t(6)*n*(ss*s2) - fp_t(3)*(ss*s)) /
                 (n2*n2));
 
-    return (cm4 / (cm2*cm2));
+    return fp_t(cm4 / (cm2*cm2));
 }
 
 //---------------------------------------------------------
@@ -384,46 +381,6 @@ kurtosis_excess(InputIterator begin, InputIterator end)
     return (kurtosis(begin,end) - 3);
 }
 
-//---------------------------------------------------------
-template<class InputIterator>
-inline auto
-binder_cummulant(InputIterator begin, InputIterator end)
-    -> decltype(make_real(*begin))
-{
-    using std::distance;
-
-    using fp_t = decltype(make_real(*begin));
-
-    const auto n = fp_t(distance(begin,end));
-
-    if(n < fp_t(1)) return fp_t(0);
-
-    auto s = fp_t(0);
-    auto s2 = fp_t(0);
-    auto s4 = fp_t(0);
-
-    for(; begin != end; ++begin) {
-        const auto x = *begin;
-        s += x;
-        x *= x;
-        s2 += x;
-        s4 += x * x;
-    }
-
-    //2nd central moment
-    const auto cm2 = ((s2 - s*s /n) / (n - fp_t(1)));
-
-    //4th moment
-    const auto m4 = s4 / n;
-
-    return (fp_t(1) - m4 / (fp_t(3)*cm2*cm2));
-}
-
-
-
-
-
-
 
 
 
@@ -431,44 +388,30 @@ binder_cummulant(InputIterator begin, InputIterator end)
 /****************************************************************************
  *
  *
- *
- *
- *
- * STATISTICAL MOMENT ACCUMULATOR(S)
- *
- *
- *
+ * @brief moments accumulator; provides running moments
  *
  *
  ****************************************************************************/
 template<
     class Arg = real_t,
     int maxMoment = 2,
-    class Size = std::uint_fast32_t
+    class Size = std::uint_least64_t
 >
-class moment_accumulator
+class moments_accumulator
 {};
-
-
-
-
 
 
 
 
 /*****************************************************************************
  *
- *
- *
- * specialization for 0 moments (serves as common base class)
- *
- *
+ * @brief specialization for 0 moments (serves as common base class)
  *
  *****************************************************************************/
 template<class Arg, class Size>
-class moment_accumulator<Arg,0,Size>
+class moments_accumulator<Arg,0,Size>
 {
-    using this_t_ = moment_accumulator<Arg,0,Size>;
+    using this_t_ = moments_accumulator<Arg,0,Size>;
 
 public:
     //---------------------------------------------------------------
@@ -480,7 +423,7 @@ public:
 
     //---------------------------------------------------------------
     constexpr
-    moment_accumulator():
+    moments_accumulator():
         n_(0)
     {}
 
@@ -536,56 +479,44 @@ private:
 
 
 
-
-
-/****************************************************************************
+/*****************************************************************************
  *
- *
- *
- * first moment only
- *
- *
+ * @brief first moments only
  *
  *****************************************************************************/
 template<class Arg, class Size>
-class moment_accumulator<Arg,1,Size> :
-    public moment_accumulator<Arg,0,Size>
+class moments_accumulator<Arg,1,Size> :
+    public moments_accumulator<Arg,0,Size>
 {
     //---------------------------------------------------------------
-    using base_t_ = moment_accumulator<Arg,0,Size>;
-    using this_t_ = moment_accumulator<Arg,1,Size>;
+    using base_t_ = moments_accumulator<Arg,0,Size>;
+    using this_t_ = moments_accumulator<Arg,1,Size>;
 
 public:
-    //---------------------------------------------------------------
-    // USED BASE CLASS MEMBERS
     //---------------------------------------------------------------
     using base_t_::n;
     using base_t_::size;
 
 
     //---------------------------------------------------------------
-    // TYPES
-    //---------------------------------------------------------------
     using argument_type = typename base_t_::argument_type;
     using result_type = typename base_t_::result_type;
 
 
     //---------------------------------------------------------------
-    // CONSTRUCTION / DESTRUCTION
-    //---------------------------------------------------------------
     constexpr
-    moment_accumulator():
+    moments_accumulator():
         base_t_(), sum_(0)
     {}
     //-----------------------------------------------------
     explicit constexpr
-    moment_accumulator(const argument_type& t):
+    moments_accumulator(const argument_type& t):
         base_t_(), sum_(t)
     {}
 
 
     //---------------------------------------------------------------
-    // SETTERS
+    // INITIALIZE
     //---------------------------------------------------------------
     void
     clear() {
@@ -602,7 +533,7 @@ public:
 
 
     //---------------------------------------------------------------
-    // OPERATIONS
+    // COLLECT
     //---------------------------------------------------------------
     this_t_&
     operator += (const argument_type& x) {
@@ -631,7 +562,7 @@ public:
 
 
     //---------------------------------------------------------------
-    // GETTERS
+    // RESULTS
     //---------------------------------------------------------------
     const result_type&
     sum() const {
@@ -640,12 +571,12 @@ public:
     //-----------------------------------------------------
     static result_type
     central_moment_1() {
-        return 0;
+        return result_type(0);
     }
     //-----------------------------------------------------
     result_type
     raw_moment_1() const {
-        return ((size() < 1) ? sum_ : (sum_ / n()));
+        return result_type((size() < 1) ? sum_ : (sum_ / n()));
     }
     //-----------------------------------------------------
     result_type
@@ -661,28 +592,20 @@ private:
 
 
 
-
-
-/****************************************************************************
+/*****************************************************************************
  *
- *
- *
- * first and second moment
- *
- *
+ * @brief 1st & 2nd moments
  *
  *****************************************************************************/
 template<class Arg, class Size>
-class moment_accumulator<Arg,2,Size> :
-    public moment_accumulator<Arg,1,Size>
+class moments_accumulator<Arg,2,Size> :
+    public moments_accumulator<Arg,1,Size>
 {
     //---------------------------------------------------------------
-    using base_t_ = moment_accumulator<Arg,1,Size>;
-    using this_t_ = moment_accumulator<Arg,2,Size>;
+    using base_t_ = moments_accumulator<Arg,1,Size>;
+    using this_t_ = moments_accumulator<Arg,2,Size>;
 
 public:
-    //---------------------------------------------------------------
-    // USED BASE CLASS MEMBERS
     //---------------------------------------------------------------
     using base_t_::n;
     using base_t_::size;
@@ -690,28 +613,24 @@ public:
 
 
     //---------------------------------------------------------------
-    // TYPES
-    //---------------------------------------------------------------
     using argument_type = typename base_t_::argument_type;
     using result_type = typename base_t_::result_type;
 
 
     //---------------------------------------------------------------
-    // CONSTRUCTION / DESTRUCTION
-    //---------------------------------------------------------------
     constexpr
-    moment_accumulator():
+    moments_accumulator():
         base_t_(), sum2_(0)
     {}
     //-----------------------------------------------------
     explicit constexpr
-    moment_accumulator(const argument_type& t):
+    moments_accumulator(const argument_type& t):
         base_t_{t}, sum2_(0)
     {}
 
 
     //---------------------------------------------------------------
-    // SETTERS
+    // INITIALIZE
     //---------------------------------------------------------------
     void
     clear() {
@@ -728,7 +647,7 @@ public:
 
 
     //---------------------------------------------------------------
-    // OPERATIONS
+    // COLLECT
     //---------------------------------------------------------------
     this_t_&
     operator += (const argument_type& x) {
@@ -757,7 +676,7 @@ public:
 
 
     //---------------------------------------------------------------
-    // GETTERS
+    // RESULTS
     //---------------------------------------------------------------
     const result_type&
     sum_2() const {
@@ -766,14 +685,14 @@ public:
     //-----------------------------------------------------
     result_type
     raw_moment_2() const {
-        return ((size() < 1) ? sum2_ : (sum2_ / n()) );
+        return result_type((size() < 1) ? sum2_ : (sum2_ / n()) );
     }
     //-----------------------------------------------------
     result_type
     central_moment_2() const {
         auto s2 = sum();
         s2 *= sum();
-        return ((size() < 1) ? 0 : ((sum2_ - s2 /n()) / (n()-1)) );
+        return result_type((size() < 1) ? 0 : ((sum2_ - s2 /n()) / (n()-1)) );
     }
     //-----------------------------------------------------
     result_type
@@ -796,28 +715,20 @@ private:
 
 
 
-
-
 /****************************************************************************
  *
- *
- *
- * 1st, 2nd & 3rd moments
- *
- *
+ * @brief 1st, 2nd & 3rd moments
  *
  *****************************************************************************/
 template<class Arg, class Size>
-class moment_accumulator<Arg,3,Size> :
-    public moment_accumulator<Arg,2,Size>
+class moments_accumulator<Arg,3,Size> :
+    public moments_accumulator<Arg,2,Size>
 {
     //---------------------------------------------------------------
-    using base_t_ = moment_accumulator<Arg,2,Size>;
-    using this_t_ = moment_accumulator<Arg,3,Size>;
+    using base_t_ = moments_accumulator<Arg,2,Size>;
+    using this_t_ = moments_accumulator<Arg,3,Size>;
 
 public:
-    //---------------------------------------------------------------
-    // USED BASE CLASS MEMBERS
     //---------------------------------------------------------------
     using base_t_::n;
     using base_t_::size;
@@ -827,28 +738,24 @@ public:
 
 
     //---------------------------------------------------------------
-    // TYPES
-    //---------------------------------------------------------------
     using argument_type = typename base_t_::argument_type;
     using result_type = typename base_t_::result_type;
 
 
     //---------------------------------------------------------------
-    // CONSTRUCTION / DESTRUCTION
-    //---------------------------------------------------------------
     constexpr
-    moment_accumulator():
+    moments_accumulator():
         base_t_(), sum3_(0)
     {}
     //-----------------------------------------------------
     explicit constexpr
-    moment_accumulator(const argument_type& t):
+    moments_accumulator(const argument_type& t):
         base_t_{t}, sum3_(0)
     {}
 
 
     //---------------------------------------------------------------
-    // SETTERS
+    // INITIALIZE
     //---------------------------------------------------------------
     void
     clear() {
@@ -865,7 +772,7 @@ public:
 
 
     //---------------------------------------------------------------
-    // OPERATIONS
+    // COLLECT
     //---------------------------------------------------------------
     this_t_&
     operator += (const argument_type& x) {
@@ -894,7 +801,7 @@ public:
 
 
     //---------------------------------------------------------------
-    // GETTERS
+    // RESULTS
     //---------------------------------------------------------------
     const result_type&
     sum_3() const {
@@ -903,12 +810,12 @@ public:
     //-----------------------------------------------------
     result_type
     raw_moment_3() const {
-        return ((size() < 1) ? sum3_ : (sum3_ / n()) );
+        return result_type((size() < 1) ? sum3_ : (sum3_ / n()) );
     }
     //-----------------------------------------------------
     result_type
     central_moment_3() const {
-        if(size() < 2) return 0;
+        if(size() < 2) return result_type(0);
 
         auto n2 = n() * n();
 
@@ -923,7 +830,7 @@ public:
     skewness() const {
         using std::pow;
 
-        if(size() < 2) return 0;
+        if(size() < 2) return result_type(0);
 
         auto n2 = n() * n();
         auto s2 = sum() * sum();
@@ -937,7 +844,7 @@ public:
                 ) / (n() * n2)
             );
 
-        return (cm3 / pow(cm2, 3/2.) );
+        return result_type(cm3 / pow(cm2, 3/2.) );
     }
 
 
@@ -948,28 +855,20 @@ private:
 
 
 
-
-
 /****************************************************************************
  *
- *
- *
- * 1st, 2nd, 3rd & 4th moments
- *
- *
+ * @brief 1st - 4th moments
  *
  *****************************************************************************/
 template<class Arg, class Size>
-class moment_accumulator<Arg,4,Size> :
-    public moment_accumulator<Arg,3,Size>
+class moments_accumulator<Arg,4,Size> :
+    public moments_accumulator<Arg,3,Size>
 {
     //---------------------------------------------------------------
-    using base_t_ = moment_accumulator<Arg,3,Size>;
-    using this_t_ = moment_accumulator<Arg,4,Size>;
+    using base_t_ = moments_accumulator<Arg,3,Size>;
+    using this_t_ = moments_accumulator<Arg,4,Size>;
 
 public:
-    //---------------------------------------------------------------
-    // USED BASE CLASS MEMBERS
     //---------------------------------------------------------------
     using base_t_::n;
     using base_t_::size;
@@ -981,28 +880,24 @@ public:
 
 
     //---------------------------------------------------------------
-    // TYPES
-    //---------------------------------------------------------------
     using argument_type = typename base_t_::argument_type;
     using result_type = typename base_t_::result_type;
 
 
     //---------------------------------------------------------------
-    // CONSTRUCTION / DESTRUCTION
-    //---------------------------------------------------------------
     constexpr
-    moment_accumulator():
+    moments_accumulator():
         base_t_(), sum4_(static_cast<argument_type>(0))
     {}
     //-----------------------------------------------------
     explicit constexpr
-    moment_accumulator(const argument_type& t):
+    moments_accumulator(const argument_type& t):
         base_t_{t}, sum4_(static_cast<argument_type>(0))
     {}
 
 
     //---------------------------------------------------------------
-    // SETTERS
+    // INITIALIZE
     //---------------------------------------------------------------
     void
     clear() {
@@ -1019,7 +914,7 @@ public:
 
 
     //---------------------------------------------------------------
-    // OPERATIONS
+    // COLLECT
     //---------------------------------------------------------------
     this_t_&
     operator += (const argument_type& x) {
@@ -1054,7 +949,7 @@ public:
 
 
     //---------------------------------------------------------------
-    // GETTERS
+    // RESULTS
     //---------------------------------------------------------------
     const result_type&
     sum_4() const {
@@ -1064,12 +959,12 @@ public:
     //-----------------------------------------------------
     result_type
     raw_moment_4() const {
-        return (n() < 2) ? sum4_ : (sum4_ / n());
+        return result_type(n() < 2) ? sum4_ : (sum4_ / n());
     }
     //-----------------------------------------------------
     result_type
     central_moment_4() const {
-        if(size() < 2) return 0;
+        if(size() < 2) return result_type(0);
 
         auto n2 = n()*n();
         auto s2 = sum() * sum();
@@ -1097,19 +992,12 @@ public:
                 ) / (n2*n2)
             );
 
-        return (cm4 / cm2);
+        return result_type(cm4 / cm2);
     }
     //-----------------------------------------------------
     result_type
     kurtosis_excess() const {
-        return (kurtosis() - 3);
-    }
-    //-----------------------------------------------------
-    result_type
-    binder_cumulant() const {
-        auto m2 = base_t_::raw_moment_2();
-        m2 *= m2;
-        return (1 - raw_moment_4() / (3*m2));
+        return result_type(kurtosis() - 3);
     }
 
 
@@ -1120,30 +1008,25 @@ private:
 
 
 
-
-
-
-
 /*****************************************************************************
  *
  * convenience definitions
  *
  *****************************************************************************/
-
-template<class Arg = real_t, class Size = std::uint_fast32_t>
-using mean_accumulator = moment_accumulator<Arg,1,Size>;
-
-
-template<class Arg = real_t, class Size = std::uint_fast32_t>
-using variance_accumulator = moment_accumulator<Arg,2,Size>;
+template<class Arg = real_t, class Size = std::uint_least64_t>
+using mean_accumulator = moments_accumulator<Arg,1,Size>;
 
 
-template<class Arg = real_t, class Size = std::uint_fast32_t>
-using skewness_accumulator = moment_accumulator<Arg,3,Size>;
+template<class Arg = real_t, class Size = std::uint_least64_t>
+using variance_accumulator = moments_accumulator<Arg,2,Size>;
 
 
-template<class Arg = real_t, class Size = std::uint_fast32_t>
-using kurtosis_accumulator = moment_accumulator<Arg,4,Size>;
+template<class Arg = real_t, class Size = std::uint_least64_t>
+using skewness_accumulator = moments_accumulator<Arg,3,Size>;
+
+
+template<class Arg = real_t, class Size = std::uint_least64_t>
+using kurtosis_accumulator = moments_accumulator<Arg,4,Size>;
 
 
 } //namespace mc

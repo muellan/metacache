@@ -93,11 +93,15 @@ void main_mode_help(const args_parser& args)
     if(args.non_prefixed_count() < 1) {
         show_help_for_topic("quick");
     }
-    else if(args.non_prefixed_count() == 1) {
-        std::cout << "You need to specify a help topic:\n"
-                  << "    ./metacache help <topic>\n";
+    else if(args.non_prefixed_count() == 1 ) {
+       if(args.non_prefixed(0) == "help") {
+           std::cout << "You need to specify a help topic:\n"
+               << "    ./metacache help <topic>\n";
 
-        show_available_help_topics();
+           show_available_help_topics();
+       } else {
+           show_help_for_topic("quick");
+       }
     }
     else {
         show_help_for_topic(args.non_prefixed(1));

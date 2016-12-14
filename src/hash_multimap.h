@@ -997,7 +997,6 @@ private:
             buckets_.begin() + (hash_(key) % buckets_.size()),
             buckets_.begin(), buckets_.end()};
 
-
         do {
             //empty slot found
             if(it->unused()) {

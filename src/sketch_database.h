@@ -821,9 +821,9 @@ public:
 
 
     //---------------------------------------------------------------
-    variance_accumulator<double>
+    skewness_accumulator<double>
     bucket_size_statistics() const {
-        auto priSize = variance_accumulator<double>{};
+        auto priSize = skewness_accumulator<double>{};
 
         for(const auto& bucket : features_) {
             if(!bucket.empty()) {
@@ -1172,7 +1172,8 @@ void print_statistics(const sketch_database<S,K,G,W>& db)
 
     std::cout
         << "buckets:         " << db.bucket_count() << '\n'
-        << "bucket size:     " << hbs.mean() << " +/- " << hbs.stddev() << '\n'
+        << "bucket size:     " << hbs.mean() << " +/- " << hbs.stddev()
+                               << " <> " << hbs.skewness() << '\n'
         << "features:        " << db.feature_count() << '\n'
         << "dead features:   " << db.dead_feature_count() << '\n'
         << "locations:       " << db.location_count() << '\n';
