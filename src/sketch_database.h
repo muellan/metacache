@@ -82,7 +82,8 @@ template<
     class SequenceType,
     class Sketcher,
     class TargetId = std::uint16_t,
-    class WindowId = std::uint16_t
+    class WindowId = std::uint16_t,
+    class LocListSizeT = std::uint8_t
 >
 class sketch_database
 {
@@ -91,8 +92,10 @@ public:
     using sequence = SequenceType;
     using sketcher = Sketcher;
     //-----------------------------------------------------
-    using target_id   = TargetId;
-    using window_id   = WindowId;
+    using target_id = TargetId;
+    using window_id = WindowId;
+    using loclist_size_t = LocListSizeT;
+    //-----------------------------------------------------
     using sequence_id = std::string;
     //-----------------------------------------------------
     using taxon_id   = taxonomy::taxon_id;
@@ -208,8 +211,12 @@ public:
 
 private:
     //-----------------------------------------------------
-    using feature_store = hash_multimap<feature,location>;
-
+    using feature_store = hash_multimap<feature,location, //key, value
+                              std::hash<feature>,         //key hasher
+                              std::equal_to<feature>,     //key comparator
+                              chunk_allocator<location>,  //value allocator
+                              std::allocator<feature>,    //bucket+key allocator
+                              loclist_size_t>;            //"<- bucket size"
 
 public:
     //-------------------------------------------------------------------
@@ -1141,7 +1148,8 @@ void print_config(const sketch_database<S,K,G,W>& db)
         << "feature type:    " << typeid(feature_t).name() << " " << (sizeof(feature_t)*8) << " bits\n"
         << "kmer size:       " << std::uint64_t(db.target_sketcher().kmer_size()) << '\n'
         << "sketch size:     " << db.target_sketcher().sketch_size() << '\n'
-        << "location limit:  " << std::uint64_t(db.max_locations_per_feature()) << '\n';
+        << "location limit:  " << std::uint64_t(db.max_locations_per_feature()) << '\n'
+        << "hard loc. limit: " << std::uint64_t(db.max_supported_locations_per_feature()) << '\n';
 }
 
 

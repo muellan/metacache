@@ -36,7 +36,9 @@
 namespace mc {
 
 
-//-------------------------------------------------------------------
+/********************************************************************
+ * @brief limits max. k (= number of letters) per k-mer
+ */
 #ifdef MC_KMER_TYPE
     using kmer_type = MC_KMER_TYPE ;
 #else
@@ -44,18 +46,34 @@ namespace mc {
 //    using kmer_type = std::uint64_t;
 #endif
 
-//-------------------------------------------------------------------
+
+/********************************************************************
+ * @brief limits number of targets (reference genomes) per database
+ */
 #ifdef MC_TARGET_ID_TYPE
     using target_id = MC_TARGET_ID_TYPE ;
 #else
     using target_id = std::uint16_t;
 #endif
 
-//-------------------------------------------------------------------
+
+/********************************************************************
+ * @brief limits max. number of windows per target (reference genome)
+ */
 #ifdef MC_WINDOW_ID_TYPE
     using window_id = MC_WINDOW_ID_TYPE ;
 #else
     using window_id = std::uint32_t;
+#endif
+
+
+/********************************************************************
+ * @brief limits max. number of locations per feature
+ */
+#ifdef MC_LOCATION_LIST_SIZE_TYPE
+    using loclist_size_t = MC_LOCATION_LIST_SIZE_TYPE ;
+#else
+    using loclist_size_t = std::uint8_t;
 #endif
 
 
@@ -71,7 +89,7 @@ using sketcher = single_function_min_hasher<kmer_type>;
 
 
 //-------------------------------------------------------------------
-using database   = sketch_database<sequence,sketcher,target_id,window_id>;
+using database   = sketch_database<sequence,sketcher,target_id,window_id,loclist_size_t>;
 using taxon_rank = database::taxon_rank;
 
 
