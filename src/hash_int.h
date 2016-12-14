@@ -7,6 +7,7 @@
 
 namespace mc {
 
+namespace { //internal linkage
 
 //-------------------------------------------------------------------
 inline std::uint32_t
@@ -76,6 +77,9 @@ murmur_hash3_finalizer(std::uint64_t v) noexcept {
 inline void murmur_hash3_finalizer(std::uint32_t) = delete;
 inline void murmur_hash3_finalizer(std::uint16_t) = delete;
 inline void murmur_hash3_finalizer(std::uint8_t) = delete;
+
+
+}  //internal linkage
 
 
 

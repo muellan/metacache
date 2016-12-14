@@ -27,7 +27,7 @@ OPTIONS:
                        defined by the filenames determines the pairing not
                        the order in which they were given in the command line.
 
-    -pairseq          Two consecutive sequences (1+2, 3+4, ...) from each file
+    -pairseq           Two consecutive sequences (1+2, 3+4, ...) from each file
                        will be treated as paired-end reads.
 
     -insertsize        Maximum insert size to consider.
@@ -39,12 +39,7 @@ OPTIONS:
     -highest <rank>    Do not classify on ranks above <rank>.
                        default: domain
 
-    -positions         Show positions in candidate reference genomes.
-
-    -kmercount         Use all-kmer-counting for ambiguous cases.
-                       Reference genome sequence files must be available.
-                       This will decrease querying speed!
-                       default: off
+    -locations         Show locations in candidate reference genomes.
 
     -align             Use semi-global alignment for ambiguous cases.
                        Reference genome sequence files must be available.
@@ -57,13 +52,13 @@ OPTIONS:
                        options '-lowest' and '-highest'.
                        default: off
 
-    -ground_truth      Report correct query taxa, if known.
+    -ground_truth      Report correct query taxa if known.
                        Queries need to have either a 'taxid|<number>' entry in
-                       their header or a sequence id that is also found in
+                       their header or a sequence id that is also present in
                        the database.
                        default: off
 
-    -precision         Report true positive classification rate (PPV)
+    -precision         Report precision & sensitivity
                        by comparing query taxa (ground truth) and mapped taxa.
                        Queries need to have either a 'taxid|<number>' entry in
                        their header or a sequence id that is also found in
@@ -75,10 +70,10 @@ OPTIONS:
                        This option will turn on '-precision'.
                        default: off
 
-    -tophits           Print top hash hits in database.
+    -tophits           Print top feature hits in database.
                        default: off
 
-    -allhits           Print all hash hits in database.
+    -allhits           Print all feature hits in database.
                        default: off
 
     -taxids            Print taxon ids in addition to taxon names.
@@ -101,13 +96,8 @@ OPTIONS:
     -winstride <no>    distance between window starting positions
                        default: same as for reference genomes in database
 
-    -sketchlen <no>    number of k-mers per window
-                       default: all k-mers in query sequence
-
-    -exclude <rank>    Mask out query rank from database if ground truth known
-                       (see '-precision').
-                       This will decrease querying speed!
-                       default: off
+    -sketchlen <no>    number of features per window
+                       default: same as in database
 
     -threads <no>      use <no> many parallel threads
                        default: guess optimum for hardware

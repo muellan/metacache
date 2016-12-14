@@ -77,23 +77,31 @@ namespace mc {
 #endif
 
 
-//-------------------------------------------------------------------
+/**************************************************************************
+ * @brief nucleotide sequence storage type
+ */
 using sequence = std::string;
 
 
-//-------------------------------------------------------------------
+/**************************************************************************
+ * @brief controls how nucleotide sequences are transformed into 'features'
+ */
 using sketcher = single_function_min_hasher<kmer_type>;
 //using sketcher = minimizer_hasher<kmer_type>;
 //using sketcher = kmer_statistics_hasher;
 //using sketcher = entropy_hasher<kmer_type>;
 
 
-//-------------------------------------------------------------------
-using database   = sketch_database<sequence,sketcher,target_id,window_id,loclist_size_t>;
-using taxon_rank = database::taxon_rank;
+/**************************************************************************
+ * @brief stores a multimap that maps features to locations
+ *        within targets (= reference genomes)
+ */
+using database = sketch_database<sequence,sketcher,target_id,window_id,loclist_size_t>;
 
 
-//-------------------------------------------------------------------
+/**************************************************************************
+ * @brief controls how a classification is derived from a location hit list
+ */
 #ifdef MC_VOTE_TOP
     //will use majority voting scheme if MC_VOTE_TOP > 2
     using top_matches_in_contiguous_window_range

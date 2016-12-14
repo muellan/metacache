@@ -98,7 +98,8 @@ get_build_param(const args_parser& args)
     param.winlen    = args.get<int>("winlen", args.get<int>("w", defaults.winlen));
     param.winstride = args.get<int>("winstride", param.winlen - param.kmerlen + 1);
 
-    param.maxLoadFactor = args.get<float>("max_load_fac", -1);
+    param.maxLoadFactor = args.get<float>("max_load_fac", defaults.maxLoadFactor);
+
     param.maxLocationsPerFeature = args.get<int>("max_locations_per_feature",
                                                  defaults.maxLocationsPerFeature);
 
@@ -262,7 +263,7 @@ void load_taxonomy_into_database(database& db,
  *       - All lines in the file have the identical number of
  *         tab separated columns.
  *       - Either the first column contains the key (sequence id or file name).
- *       - Either the first line contains the token "taxid" in the
+ *       - Either the first lines contain the token "taxid" in the
  *         column which holds the taxids or the file has only two columns.
  *
  *****************************************************************************/

@@ -77,7 +77,7 @@ struct query_param
     //show classification (read mappings), if false, only summary will be shown
     bool showMappings = false;
     //show candidate position(s) in reference sequence(s)
-    bool showPosition = false;
+    bool showLocations = false;
     //show known taxon (or complete lineage if 'showLineage' on)
     bool showGroundTruth = false;
     //show all ranks that a sequence could be classified on
@@ -236,7 +236,7 @@ get_query_param(const args_parser& args)
 
     param.outSeparator = args.get<std::string>("separator", "\t|\t");
 
-    param.showPosition = args.contains("positions");
+    param.showLocations = args.contains("locations");
 
     param.showTopHits = args.contains("tophits");
     param.showAllHits = args.contains("allhits");
@@ -719,7 +719,7 @@ void process_database_answer(
             show_matches(os, db, tophits, param.lowestRank);
             os << param.outSeparator;
         }
-        if(param.showPosition) {
+        if(param.showLocations) {
             show_candidate_ranges(os, db, tophits);
             os << param.outSeparator;
         }
