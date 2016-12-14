@@ -81,6 +81,10 @@ namespace mc {
  *                  windows (= sequence interval) to
  *                  sketches (= collection of features of the same static type)
  *
+ *  FeatureHash     hash function for feature map
+ *                  (default: identity for integer features,
+ *                   so h(x) = x mod tablesize)
+ *
  *  TargetId        type for target (reference sequence) identification
  *
  *  WindowId        type for target window identification
@@ -91,6 +95,7 @@ namespace mc {
 template<
     class SequenceType,
     class Sketcher,
+    class FeatureHash = std::hash<typename Sketcher::feature_type>,
     class TargetId = std::uint16_t,
     class WindowId = std::uint16_t,
     class BucketSizeT = std::uint8_t
@@ -101,6 +106,7 @@ public:
     //---------------------------------------------------------------
     using sequence = SequenceType;
     using sketcher = Sketcher;
+    using feature_hash = FeatureHash;
     //-----------------------------------------------------
     using target_id = TargetId;
     using window_id = WindowId;
@@ -224,7 +230,7 @@ private:
     //-----------------------------------------------------
     //"heart of the database": maps features to target locations
     using feature_store = hash_multimap<feature,location, //key, value
-                              std::hash<feature>,         //key hasher
+                              feature_hash,               //key hasher
                               std::equal_to<feature>,     //key comparator
                               chunk_allocator<location>,  //value allocator
                               std::allocator<feature>,    //bucket+key allocator
@@ -1111,9 +1117,9 @@ make_database_metadata_only(const std::string& filename)
  * @brief writes database to file
  *
  *****************************************************************************/
-template<class S, class K, class G, class W, class L>
+template<class S, class K, class H, class G, class W, class L>
 void
-write_database(const sketch_database<S,K,G,W,L>& db,
+write_database(const sketch_database<S,K,H,G,W,L>& db,
                const std::string& filename)
 {
     std::cout << "Writing database to file'"
@@ -1137,10 +1143,10 @@ write_database(const sketch_database<S,K,G,W,L>& db,
  * @brief prints database properties to stdout
  *
  *****************************************************************************/
-template<class S, class K, class G, class W, class L>
-void print_config(const sketch_database<S,K,G,W,L>& db)
+template<class S, class K, class H, class G, class W, class L>
+void print_config(const sketch_database<S,K,H,G,W,L>& db)
 {
-    using db_t = sketch_database<S,K,G,W,L>;
+    using db_t = sketch_database<S,K,H,G,W,L>;
     using target_id = typename db_t::target_id;
     using window_id = typename db_t::window_id;
     using feature_t = typename db_t::feature;
@@ -1164,15 +1170,16 @@ void print_config(const sketch_database<S,K,G,W,L>& db)
         << "sketch size:      " << db.target_sketcher().sketch_size() << '\n'
         << "bucket size type: " << typeid(bkt_sz_t).name() << " " << (sizeof(bkt_sz_t)*8) << " bits\n"
         << "location limit:   " << std::uint64_t(db.max_locations_per_feature()) << '\n'
-        << "hard loc. limit:  " << std::uint64_t(db.max_supported_locations_per_feature()) << '\n';
+        << "hard loc. limit:  " << std::uint64_t(db.max_supported_locations_per_feature()) << '\n'
+        << "feature hash:     " << typeid(typename db_t::feature_hash).name() << '\n';
 }
 
 
 //-------------------------------------------------------------------
-template<class S, class K, class G, class W, class L>
-void print_data_properties(const sketch_database<S,K,G,W,L>& db)
+template<class S, class K, class H, class G, class W, class L>
+void print_data_properties(const sketch_database<S,K,H,G,W,L>& db)
 {
-    using db_t = sketch_database<S,K,G,W,L>;
+    using db_t = sketch_database<S,K,H,G,W,L>;
     using target_id = typename db_t::target_id;
 
     std::uint64_t numRankedTargets = 0;
@@ -1188,8 +1195,8 @@ void print_data_properties(const sketch_database<S,K,G,W,L>& db)
 
 
 //-------------------------------------------------------------------
-template<class S, class K, class G, class W, class L>
-void print_statistics(const sketch_database<S,K,G,W,L>& db)
+template<class S, class K, class H, class G, class W, class L>
+void print_statistics(const sketch_database<S,K,H,G,W,L>& db)
 {
     auto lss = db.location_list_size_statistics();
 

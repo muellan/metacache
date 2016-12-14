@@ -93,24 +93,30 @@ using sketcher = single_function_min_hasher<kmer_type>;
 
 
 /**************************************************************************
- * @brief stores a multimap that maps features to locations
- *        within targets (= reference genomes)
+ * @brief hash function for database hash multi-map
  */
-using database = sketch_database<sequence,sketcher,target_id,window_id,loclist_size_t>;
+using feature_hash = std::hash<typename sketcher::feature_type>;
 
 
 /**************************************************************************
- * @brief controls how a classification is derived from a location hit list
+ * @brief stores a multimap that maps features to locations
+ *        within targets (= reference genomes)
  */
-#ifdef MC_VOTE_TOP
-    //will use majority voting scheme if MC_VOTE_TOP > 2
-    using top_matches_in_contiguous_window_range
-            = matches_in_contiguous_window_range_top< MC_VOTE_TOP , target_id>;
-#else
-    //default = top 2 voting scheme
-    using top_matches_in_contiguous_window_range
-            = matches_in_contiguous_window_range_top<2,target_id>;
+using database = sketch_database<sequence,sketcher,feature_hash,
+                                 target_id,window_id,loclist_size_t>;
+
+
+/**************************************************************************
+ * @brief controls how a classification is derived from a location hit list;
+ *        default is a top 2 voting scheme;
+ *        will use majority voting scheme if MC_VOTE_TOP > 2
+ */
+#ifndef MC_VOTE_TOP
+    #define MC_VOTE_TOP 2
 #endif
+
+using top_matches_in_contiguous_window_range
+        = matches_in_contiguous_window_range_top< MC_VOTE_TOP ,target_id>;
 
 
 } // namespace mc
