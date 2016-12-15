@@ -53,7 +53,7 @@ function download_specific_lib {
       fi
 
       cat ftpdirpaths1 ftpdirpaths2 > ftpdirpaths
-      awk 'BEGIN{FS=OFS="/";filesuffix="genomic.fna.gz"}{ftpdir=$0;asm=$6;file=asm"_"filesuffix;print ftpdir,file}' ftpdirpaths > ftpfilepaths
+      awk 'BEGIN{FS=OFS="/";filesuffix="genomic.gbff.gz"}{ftpdir=$0;asm=$10;file=asm"_"filesuffix;print ftpdir,file}' ftpdirpaths > ftpfilepaths
       wget -nc -i ftpfilepaths
 
       echo -n "Download complete. Unpacking files ... "
