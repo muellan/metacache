@@ -101,10 +101,11 @@ inline void murmur_hash3_finalizer(std::uint8_t) = delete;
 /*****************************************************************************
  *
  * @brief integer hash: 64 bits -> 64 bits
+ *        based on splitmix64 by Sebastiano Vigna (vigna@acm.org)
  *
  *****************************************************************************/
 inline std::uint64_t
-splimix64_hash(std::uint64_t x) noexcept
+splitmix64_hash(std::uint64_t x) noexcept
 {
     x = (x ^ (x >> 30)) * std::uint64_t(0xbf58476d1ce4e5b9);
     x = (x ^ (x >> 27)) * std::uint64_t(0x94d049bb133111eb);
@@ -113,9 +114,9 @@ splimix64_hash(std::uint64_t x) noexcept
 }
 
 //makes sure we cant't use the wrong types
-inline void splimix64_hash(std::uint32_t) = delete;
-inline void splimix64_hash(std::uint16_t) = delete;
-inline void splimix64_hash(std::uint8_t) = delete;
+inline void splitmix64_hash(std::uint32_t) = delete;
+inline void splitmix64_hash(std::uint16_t) = delete;
+inline void splitmix64_hash(std::uint8_t) = delete;
 
 
 
