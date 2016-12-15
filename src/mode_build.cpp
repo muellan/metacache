@@ -683,8 +683,7 @@ void add_to_database(database& db, const build_param& param)
         }
     }
     
-    print_config(db);
-    if(db.target_count() > 0) print_data_properties(db);
+    print_properties(db);
 
     timer time;
     time.start();
@@ -714,16 +713,14 @@ void add_to_database(database& db, const build_param& param)
     if(param.uniqueFeaturesOnRank != taxon_rank::none &&
         db.taxon_count() > 1)
     {
-        print_statistics(db);
-
         std::cout << "\nRemoving non-unique features on rank "
                   << taxonomy::rank_name(param.uniqueFeaturesOnRank)
                   << "..." << std::endl;
 
         db.erase_non_unique_features_on_rank(param.uniqueFeaturesOnRank);
-    }
 
-    print_statistics(db);
+        print_properties(db);
+    }
 
     write_database(db, param.dbfile);
 

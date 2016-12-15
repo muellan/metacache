@@ -36,7 +36,7 @@ void show_database_config(const args_parser& args)
 {
     auto dbfilename = database_name(args);
     auto db = make_database<database>(dbfilename, database::scope::metadata_only);
-    print_config(db);
+    print_properties(db);
 }
 
 
@@ -49,9 +49,7 @@ void show_database_statistics(const args_parser& args)
 {
     auto dbfilename = database_name(args);
     auto db = make_database<database>(dbfilename);
-    print_config(db);
-    print_data_properties(db);
-    print_statistics(db);
+    print_properties(db);
 }
 
 
@@ -64,9 +62,7 @@ void show_feature_map(const args_parser& args)
 {
     auto dbfilename = database_name(args);
     auto db = make_database<database>(dbfilename);
-    print_config(db);
-    print_data_properties(db);
-    print_statistics(db);
+    print_properties(db);
     std::cout << "===================================================\n";
     db.print_feature_map(std::cout);
     std::cout << "===================================================\n";
@@ -232,11 +228,8 @@ void show_rank_statistics(const args_parser& args)
  *****************************************************************************/
 void show_basic_exec_info()
 {
-    std::cout << "MetaCache version "
-              << MC_VERSION_STRING << " (" << MC_VERSION << ")\n";
-
     database db;
-    print_config(db);
+    print_properties(db);
 }
 
 
@@ -256,8 +249,9 @@ void main_mode_info(const args_parser& args)
     else if(nargs == 2) {
         try {
             show_database_config(args);
-        } catch(...) {
-            show_basic_exec_info();
+        }
+        catch(std::exception& e) {
+            std::cout << '\n' << e.what() << "!\n";
         }
     }
     else {

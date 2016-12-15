@@ -87,6 +87,8 @@ using sequence = std::string;
  * @brief controls how nucleotide sequences are transformed into 'features'
  */
 using sketcher = single_function_min_hasher<kmer_type>;
+//using sketcher = single_function_min_hasher<kmer_type,to32bits_hash<kmer_type>>;
+//using sketcher = single_function_oversampling_min_hasher<kmer_type>;
 //using sketcher = minimizer_hasher<kmer_type>;
 //using sketcher = kmer_statistics_hasher;
 //using sketcher = entropy_hasher<kmer_type>;

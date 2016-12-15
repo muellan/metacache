@@ -727,44 +727,49 @@ public:
 
         //database version info
         using std::uint64_t;
+        using std::uint8_t;
         uint64_t dbVer = 0;
         read_binary(is, dbVer);
 
-        if(MC_DB_VERSION != dbVer) {
+        if(uint64_t( MC_DB_VERSION ) != dbVer) {
             throw file_read_error{
-                "Database " + filename +
-                " is incompatible with this version of MetaCache" };
+                "Database " + filename + " (version " + std::to_string(dbVer) + ")"
+                + " is incompatible\nwith this version of MetaCache"
+                + " (uses version " + std::to_string(MC_DB_VERSION) + ")" };
         }
 
         //data type info
         {
-            std::uint8_t featureSize = 0;
-            read_binary(is, featureSize);
+            uint8_t featureSize = 0; read_binary(is, featureSize);
+            uint8_t targetSize = 0;  read_binary(is, targetSize);
+            uint8_t windowSize = 0;  read_binary(is, windowSize);
+            uint8_t bucketSize = 0;  read_binary(is, bucketSize);
 
-            std::uint8_t targetSize = 0;
-            read_binary(is, targetSize);
-
-            std::uint8_t windowSize = 0;
-            read_binary(is, windowSize);
-
-//            std::uint8_t bucketSize = 0;
-            //TODO enable in next DB version
-//            read_binary(is, bucketSize);
+            uint8_t taxidSize = 0;   read_binary(is, taxidSize);
+            uint8_t numTaxRanks = 0; read_binary(is, numTaxRanks);
 
             //reserved for future use
-            //TODO enable in next DB version
-//            volatile std::uint64_t dummy = 0;
-//            for(int i = 0; i < 8; ++i) read_binary(is, dummy);
+            uint64_t dummy = 0;
+            for(int i = 0; i < 8; ++i) read_binary(is, dummy);
 
             if( (sizeof(feature) != featureSize) ||
                 (sizeof(target_id) != targetSize) ||
-//                (sizeof(target_id) != bucketSize) ||
+                (sizeof(bucket_size_type) != bucketSize) ||
                 (sizeof(window_id) != windowSize) )
             {
                 throw file_read_error{
                     "Database " + filename +
                     " is incompatible with this variant of MetaCache" +
                     " due to different data type sizes"};
+            }
+
+            if( (sizeof(taxon_id) != taxidSize) ||
+                (taxonomy::num_ranks != numTaxRanks) )
+            {
+                throw file_read_error{
+                    "Database " + filename +
+                    " is incompatible with this variant of MetaCache" +
+                    " due to different taxonomy data types"};
             }
         }
 
@@ -806,6 +811,9 @@ public:
      */
     void write(const std::string& filename) const
     {
+        using std::uint64_t;
+        using std::uint8_t;
+
         std::ofstream os{filename, std::ios::out | std::ios::binary};
 
         if(!os.good()) {
@@ -813,19 +821,20 @@ public:
         }
 
         //database version info
-        write_binary(os, std::uint64_t(MC_DB_VERSION));
+        write_binary(os, uint64_t( MC_DB_VERSION ));
 
         //data type info
-        write_binary(os, std::uint8_t(sizeof(feature)));
-        write_binary(os, std::uint8_t(sizeof(target_id)));
-        write_binary(os, std::uint8_t(sizeof(window_id)));
+        write_binary(os, uint8_t(sizeof(feature)));
+        write_binary(os, uint8_t(sizeof(target_id)));
+        write_binary(os, uint8_t(sizeof(window_id)));
+        write_binary(os, uint8_t(sizeof(bucket_size_type)));
 
-        //TODO enable in next DB version
-//        write_binary(os, std::uint8_t(sizeof(bucket_size_type)));
+        //taxonomy info
+        write_binary(os, uint8_t(sizeof(taxon_id)));
+        write_binary(os, uint8_t(sizeof(taxonomy::num_ranks)));
 
         //reserved for future use
-        //TODO enable in next DB version
-//        for(int i = 0; i < 8; ++i) write_binary(is, std::uint64_t(0));
+        for(int i = 0; i < 8; ++i) write_binary(os, uint64_t(0));
 
         //sketching parameters
         write_binary(os, targetSketcher_);
@@ -1167,7 +1176,7 @@ write_database(const sketch_database<S,K,H,G,W,L>& db,
  *
  *****************************************************************************/
 template<class S, class K, class H, class G, class W, class L>
-void print_config(const sketch_database<S,K,H,G,W,L>& db)
+void print_properties(const sketch_database<S,K,H,G,W,L>& db)
 {
     using db_t = sketch_database<S,K,H,G,W,L>;
     using target_id = typename db_t::target_id;
@@ -1175,63 +1184,60 @@ void print_config(const sketch_database<S,K,H,G,W,L>& db)
     using feature_t = typename db_t::feature;
     using bkt_sz_t  = typename db_t::bucket_size_type;
 
-    int numRankedTargets = 0;
-    for(target_id i = 0; i < db.target_count(); ++i) {
-        if(!db.taxon_of_target(i).none()) ++numRankedTargets;
+    std::cout << '\n'
+        << "------------------------------------------------\n"
+        << "MetaCache version " << MC_VERSION_STRING << " (" << MC_VERSION << ")\n"
+        << "database verion   " << MC_DB_VERSION << '\n'
+        << "------------------------------------------------\n"
+        << "sequence type     " << typeid(typename db_t::sequence).name() << '\n'
+        << "target id type    " << typeid(target_id).name() << " " << (sizeof(target_id)*8) << " bits\n"
+        << "target limit      " << std::uint64_t(db.max_target_count()) << '\n'
+        << "------------------------------------------------\n"
+        << "window id type    " << typeid(window_id).name() << " " << (sizeof(window_id)*8) << " bits\n"
+        << "window limit      " << std::uint64_t(db.max_windows_per_target()) << '\n'
+        << "window length     " << db.target_window_size() << '\n'
+        << "window stride     " << db.target_window_stride() << '\n'
+        << "------------------------------------------------\n"
+        << "sketcher type     " << typeid(typename db_t::sketcher).name() << '\n'
+        << "feature type      " << typeid(feature_t).name() << " " << (sizeof(feature_t)*8) << " bits\n"
+        << "feature hash      " << typeid(typename db_t::feature_hash).name() << '\n'
+        << "kmer size         " << std::uint64_t(db.target_sketcher().kmer_size()) << '\n'
+        << "kmer limit        " << std::uint64_t(db.target_sketcher().max_kmer_size()) << '\n'
+        << "sketch size       " << db.target_sketcher().sketch_size() << '\n'
+        << "------------------------------------------------\n"
+        << "bucket size type  " << typeid(bkt_sz_t).name() << " " << (sizeof(bkt_sz_t)*8) << " bits\n"
+        << "max. locations    " << std::uint64_t(db.max_locations_per_feature()) << '\n'
+        << "location limit    " << std::uint64_t(db.max_supported_locations_per_feature()) << '\n';
+
+    if(db.target_count() > 0) {
+
+        std::uint64_t numRankedTargets = 0;
+        for(target_id i = 0; i < db.target_count(); ++i) {
+            if(!db.taxon_of_target(i).none()) ++numRankedTargets;
+        }
+
+        std::cout
+        << "------------------------------------------------\n"
+        << "targets           " << db.target_count() << '\n'
+        << "ranked targets    " << numRankedTargets << '\n'
+        << "taxa in tree      " << db.taxon_count() << '\n';
     }
 
-    std::cout
-        << "database format:  " << MC_DB_VERSION << '\n'
-        << "sequence type:    " << typeid(typename db_t::sequence).name() << '\n'
-        << "target id type:   " << typeid(target_id).name() << " " << (sizeof(target_id)*8) << " bits\n"
-        << "target limit:     " << std::uint64_t(db.max_target_count()) << '\n'
-        << "window id type:   " << typeid(window_id).name() << " " << (sizeof(window_id)*8) << " bits\n"
-        << "window limit:     " << std::uint64_t(db.max_windows_per_target()) << '\n'
-        << "window length:    " << db.target_window_size() << '\n'
-        << "window stride:    " << db.target_window_stride() << '\n'
-        << "sketcher type:    " << typeid(typename db_t::sketcher).name() << '\n'
-        << "feature type:     " << typeid(feature_t).name() << " " << (sizeof(feature_t)*8) << " bits\n"
-        << "feature hash:     " << typeid(typename db_t::feature_hash).name() << '\n'
-        << "kmer size:        " << std::uint64_t(db.target_sketcher().kmer_size()) << '\n'
-        << "sketch size:      " << db.target_sketcher().sketch_size() << '\n'
-        << "bucket size type: " << typeid(bkt_sz_t).name() << " " << (sizeof(bkt_sz_t)*8) << " bits\n"
-        << "max. locations:   " << std::uint64_t(db.max_locations_per_feature()) << '\n'
-        << "location limit:   " << std::uint64_t(db.max_supported_locations_per_feature()) << '\n';
-}
+    if(db.feature_count() > 0) {
+        auto lss = db.location_list_size_statistics();
 
-
-//-------------------------------------------------------------------
-template<class S, class K, class H, class G, class W, class L>
-void print_data_properties(const sketch_database<S,K,H,G,W,L>& db)
-{
-    using db_t = sketch_database<S,K,H,G,W,L>;
-    using target_id = typename db_t::target_id;
-
-    std::uint64_t numRankedTargets = 0;
-    for(target_id i = 0; i < db.target_count(); ++i) {
-        if(!db.taxon_of_target(i).none()) ++numRankedTargets;
-    }
-
-    std::cout
-        << "targets:          " << db.target_count() << '\n'
-        << "ranked targets:   " << numRankedTargets << '\n'
-        << "taxa in tree:     " << db.taxon_count() << '\n';
-}
-
-
-//-------------------------------------------------------------------
-template<class S, class K, class H, class G, class W, class L>
-void print_statistics(const sketch_database<S,K,H,G,W,L>& db)
-{
-    auto lss = db.location_list_size_statistics();
-
-    std::cout
-        << "buckets:          " << db.bucket_count() << '\n'
-        << "bucket size:      " << lss.mean() << " +/- " << lss.stddev()
+        std::cout
+        << "------------------------------------------------\n"
+        << "buckets           " << db.bucket_count() << '\n'
+        << "bucket size       " << lss.mean() << " +/- " << lss.stddev()
                                 << " <> " << lss.skewness() << '\n'
-        << "features:         " << db.feature_count() << '\n'
-        << "dead features:    " << db.dead_feature_count() << '\n'
-        << "locations:        " << db.location_count() << '\n';
+        << "features          " << db.feature_count() << '\n'
+        << "dead features     " << db.dead_feature_count() << '\n'
+        << "locations         " << db.location_count() << '\n';
+    }
+
+    std::cout
+        << "------------------------------------------------\n";
 }
 
 

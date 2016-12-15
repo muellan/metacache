@@ -20,35 +20,36 @@ TEST_LDFLAGS = -pthread -s
 #--------------------------------------------------------------------
 HEADERS = \
 		  src/alignment.h \
-          src/args_parser.h \
           src/args_handling.h \
+          src/args_parser.h \
           src/bitmanip.h \
+          src/chunk_allocator.h \
           src/cmdline_utility.h \
           src/config.h \
           src/dna_encoding.h \
-          src/chunk_allocator.h \
           src/filesys_utility.h \
           src/hash_dna.h \
-          src/hash_int.h \
           src/hash_family.h \
+          src/hash_int.h \
           src/hash_multimap.h \
           src/io_error.h \
           src/io_serialize.h \
           src/modes.h \
           src/modes_common.h \
+          src/parallel_task_queue.h \
           src/sequence_io.h \
           src/sequence_view.h \
           src/sketch_database.h \
           src/stat_moments.h \
-          src/parallel_task_queue.h \
           src/taxonomy.h \
-          src/timer.h
+          src/timer.h \
+          src/version.h
 
 SOURCES = \
-          src/main.cpp \
           src/args_handling.cpp \
           src/cmdline_utility.cpp \
           src/filesys_utility.cpp \
+          src/main.cpp \
           src/mode_annotate.cpp \
           src/mode_build.cpp \
           src/mode_evaluate.cpp \
