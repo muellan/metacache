@@ -43,6 +43,7 @@ namespace mc {
 /*****************************************************************************
  *
  * @brief default min-hasher that uses the 'sketch_size' lexicographically
+ *
  *        smallest hash values of *one* hash function
  *
  *****************************************************************************/
@@ -118,10 +119,10 @@ public:
         using std::begin;
         using std::end;
 
-        const auto numkmers = sketch_size_type(distance(first, last) - k_ + 1);
-        const auto sketchsize = std::min(sketchSize_, numkmers);
+        const auto s = std::min(sketchSize_,
+                                sketch_size_type(distance(first,last)-k_+1));
 
-        auto sketch = result_type(sketchsize, feature_type(~0));
+        auto sketch = result_type(s, feature_type(~0));
 
         for_each_unambiguous_canonical_kmer_2bit<kmer_type>(k_, first, last,
             [&] (kmer_type kmer) {
@@ -248,10 +249,10 @@ public:
         using std::begin;
         using std::end;
 
-        const auto numkmers = sketch_size_type(distance(first, last) - k_ + 1);
-        const auto sketchsize = std::min(sketchSize_, numkmers);
+        const auto s = std::min(sketchSize_,
+                                sketch_size_type(distance(first,last)-k_+1));
 
-        auto sketch = result_type(sketchsize, feature_type(~0));
+        auto sketch = result_type(s, feature_type(~0));
 
         //least significant 32 bits of features = kmer hash
         //most significant bits of features = hash function index
@@ -681,12 +682,13 @@ private:
  * @brief
  *
  *****************************************************************************/
-template<class KmerT>
+template<class KmerT = std::uint32_t, class Hash = default_hash<KmerT>>
 class entropy_hasher
 {
 public:
     //---------------------------------------------------------------
-    using kmer_type    = std::uint32_t;
+    using kmer_type    = KmerT;
+    using hasher       = Hash;
     using feature_type = kmer_type;
     using result_type  = std::vector<feature_type>;
     //-----------------------------------------------------
@@ -704,8 +706,8 @@ public:
 
 
     //---------------------------------------------------------------
-    entropy_hasher():
-        k_(16), sketchSize_(16)
+    entropy_hasher(hasher hash = hasher{}):
+        hash_(std::move(hash)), k_(16), sketchSize_(16)
     {}
 
 
@@ -751,17 +753,16 @@ public:
         using std::begin;
         using std::end;
 
-        const auto numkmers = sketch_size_type(distance(first, last) - k_ + 1);
-        const auto s = std::min(sketchSize_, numkmers);
+        const auto s = std::min(sketchSize_,
+                                sketch_size_type(distance(first,last)-k_+1));
 
         using pair_t = std::pair<float,kmer_type>;
         std::vector<pair_t> kmers;
-
-        kmers.reserve(numkmers);
+        kmers.reserve(s);
 
         for_each_unambiguous_canonical_kmer_2bit<kmer_type>(k_, first, last,
             [&] (kmer_type kmer) {
-                kmers.emplace_back(entropy(kmer),kmer);
+                kmers.emplace_back(char_variance(kmer),kmer);
             });
 
         //sort kmers by entropy
@@ -773,7 +774,7 @@ public:
 
         //sketch = s first kmers
         for(sketch_size_type i = 0; i < s; ++i) {
-            sketch.push_back(kmers[i].second);
+            sketch.push_back(hash_(kmers[i].second));
         }
 
         return sketch;
@@ -804,15 +805,25 @@ public:
 
 private:
     //---------------------------------------------------------------
-    static kmer_type
-    entropy(kmer_type kmer) noexcept
+    kmer_type
+    char_variance(kmer_type kmer) const noexcept
     {
+        std::uint8_t c[] {0,0,0,0};
 
-        return kmer;
+        auto msk = kmer_type(3);
+        for(kmer_size_type i = 0; i < k_; ++i) {
+            ++c[(kmer & msk)>>(2*i)];
+            msk <<= 2;
+        }
+        auto m = double(c[0] + c[1] + c[2] + c[3]) / 4.0;
+
+        return (c[0]-m)*(c[0]-m) + (c[1]-m)*(c[1]-m) +
+               (c[2]-m)*(c[2]-m) + (c[3]-m)*(c[3]-m);
     }
 
 
     //---------------------------------------------------------------
+    hasher hash_;
     kmer_size_type k_;
     sketch_size_type sketchSize_;
 };

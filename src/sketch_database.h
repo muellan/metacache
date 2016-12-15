@@ -466,6 +466,10 @@ public:
     max_target_count() noexcept {
         return std::numeric_limits<target_id>::max();
     }
+    static constexpr std::uint64_t
+    max_windows_per_target() noexcept {
+        return std::numeric_limits<window_id>::max();
+    }
 
     //-----------------------------------------------------
     bool empty() const noexcept {
@@ -729,27 +733,39 @@ public:
         if(MC_DB_VERSION != dbVer) {
             throw file_read_error{
                 "Database " + filename +
-                " is incompatible with incompatible version of MetaCache" };
+                " is incompatible with this version of MetaCache" };
         }
 
         //data type info
-        std::uint8_t featureSize = 0;
-        read_binary(is, featureSize);
-
-        std::uint8_t targetSize = 0;
-        read_binary(is, targetSize);
-
-        std::uint8_t windowSize = 0;
-        read_binary(is, windowSize);
-
-        if( (sizeof(feature) != featureSize) ||
-            (sizeof(target_id) != targetSize) ||
-            (sizeof(window_id) != windowSize) )
         {
-            throw file_read_error{
-                "Database " + filename +
-                " is incompatible with this variant of MetaCache" +
-                " due to different data type sizes"};
+            std::uint8_t featureSize = 0;
+            read_binary(is, featureSize);
+
+            std::uint8_t targetSize = 0;
+            read_binary(is, targetSize);
+
+            std::uint8_t windowSize = 0;
+            read_binary(is, windowSize);
+
+//            std::uint8_t bucketSize = 0;
+            //TODO enable in next DB version
+//            read_binary(is, bucketSize);
+
+            //reserved for future use
+            //TODO enable in next DB version
+//            volatile std::uint64_t dummy = 0;
+//            for(int i = 0; i < 8; ++i) read_binary(is, dummy);
+
+            if( (sizeof(feature) != featureSize) ||
+                (sizeof(target_id) != targetSize) ||
+//                (sizeof(target_id) != bucketSize) ||
+                (sizeof(window_id) != windowSize) )
+            {
+                throw file_read_error{
+                    "Database " + filename +
+                    " is incompatible with this variant of MetaCache" +
+                    " due to different data type sizes"};
+            }
         }
 
         clear();
@@ -803,6 +819,13 @@ public:
         write_binary(os, std::uint8_t(sizeof(feature)));
         write_binary(os, std::uint8_t(sizeof(target_id)));
         write_binary(os, std::uint8_t(sizeof(window_id)));
+
+        //TODO enable in next DB version
+//        write_binary(os, std::uint8_t(sizeof(bucket_size_type)));
+
+        //reserved for future use
+        //TODO enable in next DB version
+//        for(int i = 0; i < 8; ++i) write_binary(is, std::uint64_t(0));
 
         //sketching parameters
         write_binary(os, targetSketcher_);
@@ -1161,17 +1184,19 @@ void print_config(const sketch_database<S,K,H,G,W,L>& db)
         << "database format:  " << MC_DB_VERSION << '\n'
         << "sequence type:    " << typeid(typename db_t::sequence).name() << '\n'
         << "target id type:   " << typeid(target_id).name() << " " << (sizeof(target_id)*8) << " bits\n"
+        << "target limit:     " << std::uint64_t(db.max_target_count()) << '\n'
         << "window id type:   " << typeid(window_id).name() << " " << (sizeof(window_id)*8) << " bits\n"
+        << "window limit:     " << std::uint64_t(db.max_windows_per_target()) << '\n'
         << "window length:    " << db.target_window_size() << '\n'
         << "window stride:    " << db.target_window_stride() << '\n'
-        << "sketcher type     " << typeid(typename db_t::sketcher).name() << '\n'
+        << "sketcher type:    " << typeid(typename db_t::sketcher).name() << '\n'
         << "feature type:     " << typeid(feature_t).name() << " " << (sizeof(feature_t)*8) << " bits\n"
+        << "feature hash:     " << typeid(typename db_t::feature_hash).name() << '\n'
         << "kmer size:        " << std::uint64_t(db.target_sketcher().kmer_size()) << '\n'
         << "sketch size:      " << db.target_sketcher().sketch_size() << '\n'
         << "bucket size type: " << typeid(bkt_sz_t).name() << " " << (sizeof(bkt_sz_t)*8) << " bits\n"
-        << "location limit:   " << std::uint64_t(db.max_locations_per_feature()) << '\n'
-        << "hard loc. limit:  " << std::uint64_t(db.max_supported_locations_per_feature()) << '\n'
-        << "feature hash:     " << typeid(typename db_t::feature_hash).name() << '\n';
+        << "max. locations:   " << std::uint64_t(db.max_locations_per_feature()) << '\n'
+        << "location limit:   " << std::uint64_t(db.max_supported_locations_per_feature()) << '\n';
 }
 
 
