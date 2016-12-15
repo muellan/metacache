@@ -5,7 +5,6 @@ under certain conditions. See the file 'LICENSE' for details.
 
 You need to specify one of the following modes:
     help        shows documentation 
-
     query       classify read sequences using pre-built database
     build       build new database from reference genomes
     add         add reference genomes and/or taxonomy to existing database

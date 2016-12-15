@@ -91,6 +91,8 @@ using dna_2bit_encoding_t = typename detail::dna_2bit_encoding<k>::type;
 
 
 
+namespace { //internal linkage
+
 /*****************************************************************************
  * @param  k : length to consider (in 2-bit letters, so #bits = 2*k)
  * @return reverse complement of kmer
@@ -136,6 +138,9 @@ make_reverse_complement(std::uint8_t s, numk_t k) noexcept
     s = ((s >> 4)  & 0x0F0Fu) | ((s & 0x0F0Fu) << 4);
     return (std::uint8_t(-1) - s) >> (8 * sizeof(s) - (k << 1));
 }
+
+} // internal linkage
+
 
 //-------------------------------------------------------------------
 template<class CharT>

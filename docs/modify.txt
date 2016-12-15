@@ -19,9 +19,9 @@ OPTIONS:
     -taxmap  <file>       file that contains sequence to taxon id mappings;
                           default: 'assembly_summary.txt'
 
-    -taxmap-post <file>   file with sequence to taxon id mappings that is used
+    -taxpostmap <file>    file with sequence to taxon id mappings that is used
                           as alternative source in a post processing step
-                          default: 'gi_taxid_nucl.dmp'
+                          default: 'nucl_(gb|wgs|est|gss).accession2taxid'
 
 EXAMPLES:
     Add reference sequence 'penicillium.fna' to database 'fungi'

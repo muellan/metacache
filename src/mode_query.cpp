@@ -77,7 +77,7 @@ struct query_param
     //show classification (read mappings), if false, only summary will be shown
     bool showMappings = false;
     //show candidate position(s) in reference sequence(s)
-    bool showPosition = false;
+    bool showLocations = false;
     //show known taxon (or complete lineage if 'showLineage' on)
     bool showGroundTruth = false;
     //show all ranks that a sequence could be classified on
@@ -236,7 +236,7 @@ get_query_param(const args_parser& args)
 
     param.outSeparator = args.get<std::string>("separator", "\t|\t");
 
-    param.showPosition = args.contains("positions");
+    param.showLocations = args.contains("locations");
 
     param.showTopHits = args.contains("tophits");
     param.showAllHits = args.contains("allhits");
@@ -389,24 +389,24 @@ best_alignment_candidate(std::ostream& os,
         }
         else {
             //compute alignment
-            auto align0 = semi_global_alignment(query1, s0, scheme_t{}, true);
-            auto align1 = semi_global_alignment(query1, s1, scheme_t{}, true);
+            auto align0 = semi_global_alignment(query1, s0, scheme_t{});
+            auto align1 = semi_global_alignment(query1, s1, scheme_t{});
             als0 = align0.score;
             als1 = align1.score;
             //reverse complement
             auto query1r = make_reverse_complement(query1);
-            auto align0r = semi_global_alignment(query1r, s0, scheme_t{}, true);
-            auto align1r = semi_global_alignment(query1r, s1, scheme_t{}, true);
+            auto align0r = semi_global_alignment(query1r, s0, scheme_t{});
+            auto align1r = semi_global_alignment(query1r, s1, scheme_t{});
             als0r = align0r.score;
             als1r = align1r.score;
 
             //align paired read as well
             if(!query2.empty()) {
-                als0 += semi_global_alignment(query2, s0, scheme_t{}).score;
-                als1 += semi_global_alignment(query2, s1, scheme_t{}).score;
+                als0 += semi_global_alignment_score(query2, s0, scheme_t{});
+                als1 += semi_global_alignment_score(query2, s1, scheme_t{});
                 auto query2r = make_reverse_complement(query2);
-                als0r += semi_global_alignment(query2r, s0, scheme_t{}).score;
-                als1r += semi_global_alignment(query2r, s1, scheme_t{}).score;
+                als0r += semi_global_alignment_score(query2r, s0, scheme_t{});
+                als1r += semi_global_alignment_score(query2r, s1, scheme_t{});
             }
 
 //            os     << '\n'
@@ -719,7 +719,7 @@ void process_database_answer(
             show_matches(os, db, tophits, param.lowestRank);
             os << param.outSeparator;
         }
-        if(param.showPosition) {
+        if(param.showLocations) {
             show_candidate_ranges(os, db, tophits);
             os << param.outSeparator;
         }

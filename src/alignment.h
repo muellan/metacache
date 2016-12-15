@@ -76,11 +76,11 @@ public:
     static
     relax_type
     relax(score_type diag, score_type above, score_type left,
-          const Value& value_q, const Value& value_s) noexcept
+          const Value& vquery, const Value& vsubject) noexcept
     {
         relax_type result;
 
-        result.score = diag + score(value_q, value_s);
+        result.score = diag + score(vquery, vsubject);
         result.predc = predecessor::diag;
 
         const auto weightAbove = above + gap();
@@ -103,7 +103,7 @@ public:
     static
     std::tuple<typename QuerySequence::value_type,
                typename SubjectSequence::value_type>
-    encode(Index& bsf_q, Index& bsf_s,
+    encode(Index& bsfQ, Index& bsfS,
            predecessor predc,
            const QuerySequence& query,
            const SubjectSequence& subject) noexcept
@@ -113,16 +113,16 @@ public:
 
         switch(predc) {
             case predecessor::diag:
-                --bsf_q;
-                --bsf_s;
-                return result_t{query[bsf_q], subject[bsf_s]};
+                --bsfQ;
+                --bsfS;
+                return result_t{query[bsfQ], subject[bsfS]};
             case predecessor::above: {
-                --bsf_q;
-                return result_t{query[bsf_q], value_t('_')};
+                --bsfQ;
+                return result_t{query[bsfQ], value_t('_')};
             }
             case predecessor::left: {
-                --bsf_s;
-                return result_t{value_t('_'), subject[bsf_s]};
+                --bsfS;
+                return result_t{value_t('_'), subject[bsfS]};
             }
             default:
             case predecessor::none:
@@ -132,8 +132,8 @@ public:
 
     template<class Value>
     static constexpr score_type
-    score(const Value& value_q, const Value& value_s) noexcept {
-        return (value_q == value_s) ? max_score() : -1;
+    score(const Value& vquery, const Value& vsubject) noexcept {
+        return (vquery == vsubject) ? max_score() : -1;
     }
 
     static constexpr score_type
@@ -167,11 +167,11 @@ public:
     static
     relax_type
     relax(score_type diag, score_type above, score_type left,
-          const Value& value_q, const Value& value_s) noexcept
+          const Value& vquery, const Value& vsubject) noexcept
     {
         relax_type result;
 
-        result.score = diag + score(value_q, value_s);
+        result.score = diag + score(vquery, vsubject);
         result.predc = predecessor::diag;
 
         const auto weightAbove = above + gap();
@@ -195,18 +195,18 @@ public:
     static
     std::tuple<typename QuerySequence::value_type,
                typename SubjectSequence::value_type>
-    encode(Index& bsf_q, Index& bsf_s,
+    encode(Index& bsf_q, Index& bsfS,
            predecessor predc,
            const QuerySequence& query,
            const SubjectSequence& subject) noexcept
     {
-        needleman_wunsch_scheme::encode(bsf_q, bsf_s, predc, query, subject);
+        needleman_wunsch_scheme::encode(bsf_q, bsfS, predc, query, subject);
     }
 
     template<class Value>
     static constexpr score_type
-    score(const Value& value_q, const Value& value_s) noexcept {
-        return (value_q == value_s) ? max_score() : -1;
+    score(const Value& vquery, const Value& vsubject) noexcept {
+        return (vquery == vsubject) ? max_score() : -1;
     }
 
     static constexpr score_type
@@ -242,6 +242,18 @@ struct alignment
  *
  *
  *****************************************************************************/
+enum class alignment_mode
+{
+    score_only, backtrace
+};
+
+
+
+/*****************************************************************************
+ *
+ *
+ *
+ *****************************************************************************/
 template<
     class QuerySequence, class SubjectSequence,
     class ScoringScheme
@@ -250,7 +262,7 @@ alignment<typename ScoringScheme::score_type,typename QuerySequence::value_type>
 semi_global_alignment(const QuerySequence& query,
                       const SubjectSequence& subject,
                       const ScoringScheme& scoring,
-                      const bool backtrace = true)
+                      const alignment_mode mode = alignment_mode::backtrace)
 {
     static_assert(std::is_same<typename QuerySequence::value_type,
                                typename SubjectSequence::value_type>::value,
@@ -267,24 +279,24 @@ semi_global_alignment(const QuerySequence& query,
     const index_t len_s = subject.size();
 
     //quadratic memory solution for relaxing and backtracking
-    std::vector<score_t>  score((len_q+1)*(len_s+1), 0);
+    std::vector<score_t> score((len_q+1)*(len_s+1), 0);
     std::vector<predc_t> predc((len_q+1)*(len_s+1), predc_t(0));
 
     for(index_t q = 1; q < len_q+1; q++) {
 
         //cache the query at position q
-        const auto value_q = query[q-1];
+        const auto vquery = query[q-1];
 
         for(index_t s = 1; s < len_s+1; s++) {
             //cache the subject at position s
-            auto value_s = subject[s-1];
+            auto vsubject = subject[s-1];
             //cache diagonal, above and left entry of score matrix
             score_t diag  = score[(q-1)*(len_s+1)+(s-1)];
             score_t above = score[(q-1)*(len_s+1)+(s-0)];
             score_t left  = score[(q-0)*(len_s+1)+(s-1)];
 
             //relax ingoing edges
-            auto argmax = scoring.relax(diag, above, left, value_s, value_q);
+            auto argmax = scoring.relax(diag, above, left, vsubject, vquery);
 
             //update current node
             score[q*(len_s+1)+s] = argmax.score;
@@ -294,14 +306,14 @@ semi_global_alignment(const QuerySequence& query,
 
     //searching the best score
     auto bsf_q = len_q;
-    auto bsf_s = len_s;
+    auto bsfS = len_s;
     auto bsf_v = score[len_q*(len_s+1)+len_s];
 
     for(index_t q = 1; q < len_q; q++) {
         auto value = score[q*(len_s+1)+len_s];
         if(value > bsf_v) {
             bsf_q = q;
-            bsf_s = len_s;
+            bsfS = len_s;
             bsf_v = value;
         }
     }
@@ -310,7 +322,7 @@ semi_global_alignment(const QuerySequence& query,
         auto value = score[len_q*(len_s+1)+s];
         if(value > bsf_v) {
             bsf_q = len_q;
-            bsf_s = s;
+            bsfS = s;
             bsf_v = value;
         }
     }
@@ -319,19 +331,19 @@ semi_global_alignment(const QuerySequence& query,
     auto res = alignment<score_t,value_t>{};
     res.score = bsf_v;
 
-    if(backtrace) {
-        auto pred = predc[bsf_q*(len_s+1)+bsf_s];
+    if(mode == alignment_mode::backtrace) {
+        auto pred = predc[bsf_q*(len_s+1)+bsfS];
         //backtracing predecessor information
         do {
-            //caution, encode changes the values of bsf_q and bsf_s
-            auto symbol = scoring.encode(bsf_q, bsf_s, pred, query, subject);
+            //caution, encode changes the values of bsf_q and bsfS
+            auto symbol = scoring.encode(bsf_q, bsfS, pred, query, subject);
 
             //write down the aligment
             res.query.push_back(std::get<0>(symbol));
             res.subject.push_back(std::get<1>(symbol));
 
             //update pred
-            pred = predc[bsf_q*(len_s+1)+bsf_s];
+            pred = predc[bsf_q*(len_s+1)+bsfS];
         } while(bool(pred));
 
         //reverse the alignment
@@ -341,6 +353,9 @@ semi_global_alignment(const QuerySequence& query,
 
     return res;
 }
+
+
+
 /*****************************************************************************
  *
  *
@@ -355,7 +370,8 @@ semi_global_alignment_score(const QuerySequence& query,
                             const SubjectSequence& subject,
                             const ScoringScheme& scoring)
 {
-    return semi_global_alignment(query, subject, scoring, false).score;
+    return semi_global_alignment(query, subject, scoring,
+                                 alignment_mode::score_only).score;
 }
 
 

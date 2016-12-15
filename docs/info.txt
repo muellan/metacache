@@ -34,7 +34,7 @@ SUB-MODES:
         print database statistics i.e. hash table properties
 
     metacache info <database> featuremap
-        prints the raw (feature -> location) map
+        prints the raw (feature -> target locations) map
 
 
 EXAMPLES:

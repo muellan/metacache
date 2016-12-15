@@ -678,8 +678,7 @@ private:
 
 /*****************************************************************************
  *
- * @brief default min-hasher that uses the 'sketch_size' lexicographically
- *        smallest hash values of *one* hash function
+ * @brief
  *
  *****************************************************************************/
 template<class KmerT>

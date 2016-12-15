@@ -36,7 +36,9 @@
 namespace mc {
 
 
-//-------------------------------------------------------------------
+/********************************************************************
+ * @brief limits max. k (= number of letters) per k-mer
+ */
 #ifdef MC_KMER_TYPE
     using kmer_type = MC_KMER_TYPE ;
 #else
@@ -44,14 +46,20 @@ namespace mc {
 //    using kmer_type = std::uint64_t;
 #endif
 
-//-------------------------------------------------------------------
+
+/********************************************************************
+ * @brief limits number of targets (reference genomes) per database
+ */
 #ifdef MC_TARGET_ID_TYPE
     using target_id = MC_TARGET_ID_TYPE ;
 #else
     using target_id = std::uint16_t;
 #endif
 
-//-------------------------------------------------------------------
+
+/********************************************************************
+ * @brief limits max. number of windows per target (reference genome)
+ */
 #ifdef MC_WINDOW_ID_TYPE
     using window_id = MC_WINDOW_ID_TYPE ;
 #else
@@ -59,32 +67,56 @@ namespace mc {
 #endif
 
 
-//-------------------------------------------------------------------
+/********************************************************************
+ * @brief limits max. number of locations per feature
+ */
+#ifdef MC_LOCATION_LIST_SIZE_TYPE
+    using loclist_size_t = MC_LOCATION_LIST_SIZE_TYPE ;
+#else
+    using loclist_size_t = std::uint8_t;
+#endif
+
+
+/**************************************************************************
+ * @brief nucleotide sequence storage type
+ */
 using sequence = std::string;
 
 
-//-------------------------------------------------------------------
+/**************************************************************************
+ * @brief controls how nucleotide sequences are transformed into 'features'
+ */
 using sketcher = single_function_min_hasher<kmer_type>;
 //using sketcher = minimizer_hasher<kmer_type>;
 //using sketcher = kmer_statistics_hasher;
 //using sketcher = entropy_hasher<kmer_type>;
 
 
-//-------------------------------------------------------------------
-using database   = sketch_database<sequence,sketcher,target_id,window_id>;
-using taxon_rank = database::taxon_rank;
+/**************************************************************************
+ * @brief hash function for database hash multi-map
+ */
+using feature_hash = std::hash<typename sketcher::feature_type>;
 
 
-//-------------------------------------------------------------------
-#ifdef MC_VOTE_TOP
-    //will use majority voting scheme if MC_VOTE_TOP > 2
-    using top_matches_in_contiguous_window_range
-            = matches_in_contiguous_window_range_top< MC_VOTE_TOP , target_id>;
-#else
-    //default = top 2 voting scheme
-    using top_matches_in_contiguous_window_range
-            = matches_in_contiguous_window_range_top<2,target_id>;
+/**************************************************************************
+ * @brief stores a multimap that maps features to locations
+ *        within targets (= reference genomes)
+ */
+using database = sketch_database<sequence,sketcher,feature_hash,
+                                 target_id,window_id,loclist_size_t>;
+
+
+/**************************************************************************
+ * @brief controls how a classification is derived from a location hit list;
+ *        default is a top 2 voting scheme;
+ *        will use majority voting scheme if MC_VOTE_TOP > 2
+ */
+#ifndef MC_VOTE_TOP
+    #define MC_VOTE_TOP 2
 #endif
+
+using top_matches_in_contiguous_window_range
+        = matches_in_contiguous_window_range_top< MC_VOTE_TOP ,target_id>;
 
 
 } // namespace mc

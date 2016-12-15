@@ -195,11 +195,9 @@ public:
         return std::numeric_limits<bucket_size_type>::max();
     }
 
-    //-----------------------------------------------------
-    /**
+
+    /****************************************************************
      * @brief bucket = key + dynamic array
-     *        uses 16-bit unsigned size and capcity counters
-     *        to avoid padding losses when using a 32-bit key
      */
     class bucket_type
     {
@@ -996,7 +994,6 @@ private:
         probing_iterator it {
             buckets_.begin() + (hash_(key) % buckets_.size()),
             buckets_.begin(), buckets_.end()};
-
 
         do {
             //empty slot found

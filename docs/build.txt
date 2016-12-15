@@ -28,6 +28,10 @@ OPTIONS:
     -taxonomy <path>      directory with taxonomic hierarchy data 
                           (see NCBI's taxonomic data files)
 
+    -taxpostmap <file>    file with sequence to taxon id mappings that is used
+                          as alternative source in a post processing step
+                          default: 'nucl_(gb|wgs|est|gss).accession2taxid'
+
 EXAMPLES:
     Build database 'mydb' from sequence file 'genomes.fna':
         ./metacache build mydb genomes.fna

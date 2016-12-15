@@ -49,40 +49,56 @@ namespace mc {
 /*****************************************************************************
  *
  * @brief  maps 'features' (e.g. hash values obtained by min-hashing)
- *         to 'targets' = positions in reference targets
+ *         to 'locations' = positions in targets/reference genomes
  *
- * @details
- *   terminology
- *   target:      reference sequence whose sketches are stored in the DB
+ * @details terminology
+ *  target          reference sequence whose sketches are stored in the DB
  *
- *   query:       sequence (usually short reads) that shall be matched against
- *                the reference targets
+ *  query           sequence (usually short reads) that shall be matched against
+ *                  the reference targets
  *
- *   target_id:   numeric database identifier of reference targets
- *                in the range [0,n-1] where n is the number of targets in the DB
+ *  target_id       numeric database identifier of reference targets
+ *                  in the range [0,n-1] where n is the number of targets in the DB
  *
- *   window_id:   window index (starting with 0) within a reference target
+ *  window_id       window index (starting with 0) within a reference target
  *
- *   sequence_id: alphanumeric sequence identifier (e.g. an NCBI accession)
+ *  location        (target_id,window_id) = "window within a target"
  *
- *   taxon_id:    numeric taxon identifier
+ *  sequence_id     alphanumeric sequence identifier (e.g. an NCBI accession)
+ *
+ *  taxon_id        numeric taxon identifier
+ *
+ *  full_lineage    path from root -> lowest taxon (vector of taxon ids);
+ *                  may have arbitrary length
+ *
+ *  ranked_lineage  main rank taxon ids (array of taxon ids);
+ *                  has fixed length; each index always refers to same rank
  *
  * @tparam
- *   SequenceType:  type of reference and query sequence, usually std::string
+ *  SequenceType    type of reference and query sequence, usually std::string
  *
- *   Sketcher:      function object type, that maps reference sequence
+ *  Sketcher        function object type, that maps reference sequence
  *                  windows (= sequence interval) to
- *                  sketches (= collection of features of the same C++ type)
- *   TargetId:      type for reference sequence identification;
+ *                  sketches (= collection of features of the same static type)
  *
- *                  may have heavy impact on memory footprint of database
+ *  FeatureHash     hash function for feature map
+ *                  (default: identity for integer features,
+ *                   so h(x) = x mod tablesize)
+ *
+ *  TargetId        type for target (reference sequence) identification
+ *
+ *  WindowId        type for target window identification
+ *
+ *  BucketSizeT     type for bucket (location list) size tracking
  *
  *****************************************************************************/
 template<
     class SequenceType,
     class Sketcher,
+    class FeatureHash = std::hash<typename Sketcher::feature_type>,
     class TargetId = std::uint16_t,
-    class WindowId = std::uint16_t
+    class WindowId = std::uint16_t,
+    class BucketSizeT = std::uint8_t
 >
 class sketch_database
 {
@@ -90,9 +106,12 @@ public:
     //---------------------------------------------------------------
     using sequence = SequenceType;
     using sketcher = Sketcher;
+    using feature_hash = FeatureHash;
     //-----------------------------------------------------
-    using target_id   = TargetId;
-    using window_id   = WindowId;
+    using target_id = TargetId;
+    using window_id = WindowId;
+    using bucket_size_type = BucketSizeT;
+    //-----------------------------------------------------
     using sequence_id = std::string;
     //-----------------------------------------------------
     using taxon_id   = taxonomy::taxon_id;
@@ -174,10 +193,11 @@ private:
 
 public:
     //-----------------------------------------------------
-    using sketch  = typename sketcher::result_type;
+    using sketch  = typename sketcher::result_type;  //range of features
     using feature = typename sketch::value_type;
 
     //-----------------------------------------------------
+    ///@brief location = (target index, window index)
     struct location
     {
         constexpr
@@ -208,13 +228,18 @@ public:
 
 private:
     //-----------------------------------------------------
-    using feature_store = hash_multimap<feature,location>;
-
+    //"heart of the database": maps features to target locations
+    using feature_store = hash_multimap<feature,location, //key, value
+                              feature_hash,               //key hasher
+                              std::equal_to<feature>,     //key comparator
+                              chunk_allocator<location>,  //value allocator
+                              std::allocator<feature>,    //bucket+key allocator
+                              bucket_size_type>;          //location list size
 
 public:
     //-------------------------------------------------------------------
-    using bucket_size_type  = typename feature_store::bucket_size_type;
-    using match_result = std::map<location,std::uint16_t>; //features per target
+    //map: location (= target window) -> number of featers
+    using match_result = std::map<location,std::uint16_t>;
 
 
     //---------------------------------------------------------------
@@ -821,9 +846,9 @@ public:
 
 
     //---------------------------------------------------------------
-    variance_accumulator<double>
-    bucket_size_statistics() const {
-        auto priSize = variance_accumulator<double>{};
+    skewness_accumulator<double>
+    location_list_size_statistics() const {
+        auto priSize = skewness_accumulator<double>{};
 
         for(const auto& bucket : features_) {
             if(!bucket.empty()) {
@@ -1092,9 +1117,10 @@ make_database_metadata_only(const std::string& filename)
  * @brief writes database to file
  *
  *****************************************************************************/
-template<class S, class K, class G, class W>
+template<class S, class K, class H, class G, class W, class L>
 void
-write_database(const sketch_database<S,K,G,W>& db, const std::string& filename)
+write_database(const sketch_database<S,K,H,G,W,L>& db,
+               const std::string& filename)
 {
     std::cout << "Writing database to file'"
               << filename << "' ... " << std::flush;
@@ -1117,13 +1143,14 @@ write_database(const sketch_database<S,K,G,W>& db, const std::string& filename)
  * @brief prints database properties to stdout
  *
  *****************************************************************************/
-template<class S, class K, class G, class W>
-void print_config(const sketch_database<S,K,G,W>& db)
+template<class S, class K, class H, class G, class W, class L>
+void print_config(const sketch_database<S,K,H,G,W,L>& db)
 {
-    using db_t = sketch_database<S,K,G,W>;
+    using db_t = sketch_database<S,K,H,G,W,L>;
     using target_id = typename db_t::target_id;
     using window_id = typename db_t::window_id;
     using feature_t = typename db_t::feature;
+    using bkt_sz_t  = typename db_t::bucket_size_type;
 
     int numRankedTargets = 0;
     for(target_id i = 0; i < db.target_count(); ++i) {
@@ -1131,25 +1158,28 @@ void print_config(const sketch_database<S,K,G,W>& db)
     }
 
     std::cout
-        << "database format: " << MC_DB_VERSION << '\n'
-        << "sequence type:   " << typeid(typename db_t::sequence).name() << '\n'
-        << "target id type:  " << typeid(target_id).name() << " " << (sizeof(target_id)*8) << " bits\n"
-        << "window id type:  " << typeid(window_id).name() << " " << (sizeof(window_id)*8) << " bits\n"
-        << "window length:   " << db.target_window_size() << '\n'
-        << "window stride:   " << db.target_window_stride() << '\n'
-        << "sketcher type    " << typeid(typename db_t::sketcher).name() << '\n'
-        << "feature type:    " << typeid(feature_t).name() << " " << (sizeof(feature_t)*8) << " bits\n"
-        << "kmer size:       " << std::uint64_t(db.target_sketcher().kmer_size()) << '\n'
-        << "sketch size:     " << db.target_sketcher().sketch_size() << '\n'
-        << "location limit:  " << std::uint64_t(db.max_locations_per_feature()) << '\n';
+        << "database format:  " << MC_DB_VERSION << '\n'
+        << "sequence type:    " << typeid(typename db_t::sequence).name() << '\n'
+        << "target id type:   " << typeid(target_id).name() << " " << (sizeof(target_id)*8) << " bits\n"
+        << "window id type:   " << typeid(window_id).name() << " " << (sizeof(window_id)*8) << " bits\n"
+        << "window length:    " << db.target_window_size() << '\n'
+        << "window stride:    " << db.target_window_stride() << '\n'
+        << "sketcher type     " << typeid(typename db_t::sketcher).name() << '\n'
+        << "feature type:     " << typeid(feature_t).name() << " " << (sizeof(feature_t)*8) << " bits\n"
+        << "kmer size:        " << std::uint64_t(db.target_sketcher().kmer_size()) << '\n'
+        << "sketch size:      " << db.target_sketcher().sketch_size() << '\n'
+        << "bucket size type: " << typeid(bkt_sz_t).name() << " " << (sizeof(bkt_sz_t)*8) << " bits\n"
+        << "location limit:   " << std::uint64_t(db.max_locations_per_feature()) << '\n'
+        << "hard loc. limit:  " << std::uint64_t(db.max_supported_locations_per_feature()) << '\n'
+        << "feature hash:     " << typeid(typename db_t::feature_hash).name() << '\n';
 }
 
 
 //-------------------------------------------------------------------
-template<class S, class K, class G, class W>
-void print_data_properties(const sketch_database<S,K,G,W>& db)
+template<class S, class K, class H, class G, class W, class L>
+void print_data_properties(const sketch_database<S,K,H,G,W,L>& db)
 {
-    using db_t = sketch_database<S,K,G,W>;
+    using db_t = sketch_database<S,K,H,G,W,L>;
     using target_id = typename db_t::target_id;
 
     std::uint64_t numRankedTargets = 0;
@@ -1158,24 +1188,25 @@ void print_data_properties(const sketch_database<S,K,G,W>& db)
     }
 
     std::cout
-        << "targets:         " << db.target_count() << '\n'
-        << "ranked targets:  " << numRankedTargets << '\n'
-        << "taxa in tree:    " << db.taxon_count() << '\n';
+        << "targets:          " << db.target_count() << '\n'
+        << "ranked targets:   " << numRankedTargets << '\n'
+        << "taxa in tree:     " << db.taxon_count() << '\n';
 }
 
 
 //-------------------------------------------------------------------
-template<class S, class K, class G, class W>
-void print_statistics(const sketch_database<S,K,G,W>& db)
+template<class S, class K, class H, class G, class W, class L>
+void print_statistics(const sketch_database<S,K,H,G,W,L>& db)
 {
-    auto hbs = db.bucket_size_statistics();
+    auto lss = db.location_list_size_statistics();
 
     std::cout
-        << "buckets:         " << db.bucket_count() << '\n'
-        << "bucket size:     " << hbs.mean() << " +/- " << hbs.stddev() << '\n'
-        << "features:        " << db.feature_count() << '\n'
-        << "dead features:   " << db.dead_feature_count() << '\n'
-        << "locations:       " << db.location_count() << '\n';
+        << "buckets:          " << db.bucket_count() << '\n'
+        << "bucket size:      " << lss.mean() << " +/- " << lss.stddev()
+                                << " <> " << lss.skewness() << '\n'
+        << "features:         " << db.feature_count() << '\n'
+        << "dead features:    " << db.dead_feature_count() << '\n'
+        << "locations:        " << db.location_count() << '\n';
 }
 
 
