@@ -37,6 +37,7 @@ void show_database_config(const args_parser& args)
     auto dbfilename = database_name(args);
     auto db = make_database<database>(dbfilename, database::scope::metadata_only);
     print_properties(db);
+    std::cout << std::endl;
 }
 
 
@@ -50,6 +51,7 @@ void show_database_statistics(const args_parser& args)
     auto dbfilename = database_name(args);
     auto db = make_database<database>(dbfilename);
     print_properties(db);
+    std::cout << std::endl;
 }
 
 
@@ -63,7 +65,7 @@ void show_feature_map(const args_parser& args)
     auto dbfilename = database_name(args);
     auto db = make_database<database>(dbfilename);
     print_properties(db);
-    std::cout << "===================================================\n";
+    std::cout << "\n===================================================\n";
     db.print_feature_map(std::cout);
     std::cout << "===================================================\n";
 }
@@ -230,6 +232,7 @@ void show_basic_exec_info()
 {
     database db;
     print_properties(db);
+    std::cout << std::endl;
 }
 
 

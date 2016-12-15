@@ -1184,7 +1184,7 @@ void print_properties(const sketch_database<S,K,H,G,W,L>& db)
     using feature_t = typename db_t::feature;
     using bkt_sz_t  = typename db_t::bucket_size_type;
 
-    std::cout << '\n'
+    std::cout
         << "------------------------------------------------\n"
         << "MetaCache version " << MC_VERSION_STRING << " (" << MC_VERSION << ")\n"
         << "database verion   " << MC_DB_VERSION << '\n'
@@ -1237,7 +1237,7 @@ void print_properties(const sketch_database<S,K,H,G,W,L>& db)
     }
 
     std::cout
-        << "------------------------------------------------\n";
+        << "------------------------------------------------";
 }
 
 

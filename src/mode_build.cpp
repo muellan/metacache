@@ -720,6 +720,7 @@ void add_to_database(database& db, const build_param& param)
         db.erase_non_unique_features_on_rank(param.uniqueFeaturesOnRank);
 
         print_properties(db);
+        std::cout << '\n';
     }
 
     write_database(db, param.dbfile);
