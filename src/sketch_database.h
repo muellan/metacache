@@ -831,7 +831,7 @@ public:
 
         //taxonomy info
         write_binary(os, uint8_t(sizeof(taxon_id)));
-        write_binary(os, uint8_t(sizeof(taxonomy::num_ranks)));
+        write_binary(os, uint8_t(taxonomy::num_ranks));
 
         //reserved for future use
         for(int i = 0; i < 8; ++i) write_binary(os, uint64_t(0));

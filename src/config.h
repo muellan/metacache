@@ -43,7 +43,6 @@ namespace mc {
     using kmer_type = MC_KMER_TYPE ;
 #else
     using kmer_type = std::uint32_t;
-//    using kmer_type = std::uint64_t;
 #endif
 
 
@@ -87,7 +86,6 @@ using sequence = std::string;
  * @brief controls how nucleotide sequences are transformed into 'features'
  */
 using sketcher = single_function_min_hasher<kmer_type>;
-//using sketcher = single_function_min_hasher<kmer_type,to32bits_hash<kmer_type>>;
 //using sketcher = single_function_oversampling_min_hasher<kmer_type>;
 //using sketcher = minimizer_hasher<kmer_type>;
 //using sketcher = kmer_statistics_hasher;

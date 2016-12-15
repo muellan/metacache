@@ -918,14 +918,21 @@ public:
 
         for_each_unambiguous_canonical_kmer_2bit<kmer_type>(k_, first, last,
             [&] (kmer_type kmer) {
-                for(int i = -1; i < 2*k_; ++i) {
-                    auto h = hash_((i < 0) ? kmer : kmer ^ (1 << i));
-                    if(h < sketch.back()) {
-                        auto pos = std::upper_bound(sketch.begin(), sketch.end(), h);
-                        if(pos != sketch.end()) {
-                            sketch.pop_back();
-                            sketch.insert(pos, h);
-                        }
+
+                feature_type hs[4];
+                //use first hash as random number and permute random bits
+                hs[0] = hash_(kmer);
+                hs[1] = hash_(kmer ^ ((hs[0] & 3) << 2) );
+                hs[2] = hash_(kmer ^ ((hs[0] & (3 << 2)) << 4) );
+                hs[3] = hash_(kmer ^ ((hs[0] & (3 << 4)) << 6) );
+
+                auto h = *std::min_element(begin(hs), end(hs));
+
+                if(h < sketch.back()) {
+                    auto pos = std::upper_bound(sketch.begin(), sketch.end(), h);
+                    if(pos != sketch.end()) {
+                        sketch.pop_back();
+                        sketch.insert(pos, h);
                     }
                 }
             });
