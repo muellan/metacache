@@ -245,6 +245,7 @@ public:
     //---------------------------------------------------------------
     explicit
     sketch_database(sketcher targetSketcher = sketcher{}) :
+        urbg_{},
         targetSketcher_{std::move(targetSketcher)},
         querySketcher_{targetSketcher_},
         targetWindowSize_(128),
@@ -263,6 +264,7 @@ public:
     //-----------------------------------------------------
     explicit
     sketch_database(sketcher targetSketcher, sketcher querySketcher) :
+        urbg_{},
         targetSketcher_{std::move(targetSketcher)},
         querySketcher_{std::move(querySketcher)},
         targetWindowSize_(128),
@@ -371,7 +373,7 @@ public:
     }
 
     //-----------------------------------------------------
-    void erase_features_with_more_locations_than(bucket_size_type n)
+    void remove_features_with_more_locations_than(bucket_size_type n)
     {
         for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
             if(i->size() > n) features_.clear(i);
@@ -380,19 +382,20 @@ public:
 
 
     //---------------------------------------------------------------
-    void erase_non_unique_features_on_rank(taxon_rank r)
+    void remove_ambiguous_features(taxon_rank r, bucket_size_type maxtax)
     {
         if(taxa_.empty()) {
             throw std::runtime_error{"no taxonomy available!"};
         }
 
+        if(maxtax == 0) maxtax = 1;
+
         for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
-            //check if any two locations refer to different taxa on rank r
             if(!i->empty()) {
-                auto j = i->begin();
-                taxon_id taxid = targets_[j->tgt].ranks[int(r)];
-                for(++j; j != i->end(); ++j) {
-                    if(taxid != targets_[j->tgt].ranks[int(r)]) {
+                std::set<taxon_id> taxa;
+                for(auto loc : *i) {
+                    taxa.insert(targets_[loc.tgt].ranks[int(r)]);
+                    if(taxa.size() > maxtax) {
                         features_.clear(i);
                         break;
                     }
@@ -919,6 +922,7 @@ private:
 
 
     //---------------------------------------------------------------
+    mutable std::mt19937 urbg_;
     sketcher targetSketcher_;
     sketcher querySketcher_;
     std::uint64_t targetWindowSize_;
@@ -966,6 +970,7 @@ struct index_range
 
 
 
+
 /*****************************************************************************
 *
 * @brief processes a database hit list and
@@ -1002,7 +1007,7 @@ public:
     matches_in_contiguous_window_range_top(
         const MatchResult& matches, win_t numWindows = 3)
     :
-        tgt_{}, hits_{}, pos_{}
+        tgt_{}, hits_{}, pos_{}, numTgts_(0)
     {
         using std::begin;
         using std::end;
@@ -1047,6 +1052,7 @@ public:
             }
             else {
                 //reset to new target
+                ++numTgts_;
                 win = lst->first.win;
                 tgt = lst->first.tgt;
                 hits = lst->second;
@@ -1093,13 +1099,22 @@ public:
         return h;
     }
 
+    int target_ambiguity() const noexcept {
+        return numTgts_;
+    }
+
     const window_range&
     window(int rank) const noexcept { return pos_[rank]; }
+
+    win_t window_length(int rank) const noexcept {
+        return pos_[rank].end - pos_[rank].beg;
+    }
 
 private:
     tid_t tgt_[maxNo];
     hit_t hits_[maxNo];
     window_range pos_[maxNo];
+    int numTgts_;
 };
 
 

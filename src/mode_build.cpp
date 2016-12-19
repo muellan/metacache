@@ -59,7 +59,8 @@ struct build_param
     float maxLoadFactor = -1;           //< 0 : use database default
     int maxLocationsPerFeature = database::max_supported_locations_per_feature();
 
-    taxon_rank uniqueFeaturesOnRank = taxon_rank::none;
+    taxon_rank removeAmbigFeaturesOnRank = taxon_rank::none;
+    int maxTaxaPerFeature = 1;
 
     taxonomy_param taxonomy;
 
@@ -103,8 +104,11 @@ get_build_param(const args_parser& args)
     param.maxLocationsPerFeature = args.get<int>("max_locations_per_feature",
                                                  defaults.maxLocationsPerFeature);
 
-    param.uniqueFeaturesOnRank =
-        taxonomy::rank_from_name(args.get<std::string>("unique_features", "none"));
+    param.removeAmbigFeaturesOnRank =
+        taxonomy::rank_from_name(args.get<std::string>("remove_ambig_features", "none"));
+
+    param.maxTaxaPerFeature = args.get<int>("max_taxa_per_feature",
+                                            defaults.maxTaxaPerFeature);
 
     param.taxonomy = get_taxonomy_param(args);
 
@@ -672,13 +676,13 @@ void add_to_database(database& db, const build_param& param)
                   << std::endl;
     }
 
-    if(param.uniqueFeaturesOnRank != taxon_rank::none) {
+    if(param.removeAmbigFeaturesOnRank != taxon_rank::none) {
         if(db.taxon_count() > 1) {
-            std::cout << "Non-unique features on rank "
-                      << taxonomy::rank_name(param.uniqueFeaturesOnRank)
-                      << " will be deleted afterwards.\n";
+            std::cout << "Ambiguous features on rank "
+                      << taxonomy::rank_name(param.removeAmbigFeaturesOnRank)
+                      << " will be removed afterwards.\n";
         } else {
-            std::cout << "Could not determine unique features "
+            std::cout << "Could not determine amiguous features "
                       << "due to missing taxonomic information.\n";
         }
     }
@@ -710,14 +714,15 @@ void add_to_database(database& db, const build_param& param)
 
     try_to_rank_unranked_targets(db, param);
 
-    if(param.uniqueFeaturesOnRank != taxon_rank::none &&
+    if(param.removeAmbigFeaturesOnRank != taxon_rank::none &&
         db.taxon_count() > 1)
     {
-        std::cout << "\nRemoving non-unique features on rank "
-                  << taxonomy::rank_name(param.uniqueFeaturesOnRank)
+        std::cout << "\nRemoving ambiguous features on rank "
+                  << taxonomy::rank_name(param.removeAmbigFeaturesOnRank)
                   << "..." << std::endl;
 
-        db.erase_non_unique_features_on_rank(param.uniqueFeaturesOnRank);
+        db.remove_ambiguous_features(param.removeAmbigFeaturesOnRank,
+                                     param.maxTaxaPerFeature);
 
         print_properties(db);
         std::cout << '\n';

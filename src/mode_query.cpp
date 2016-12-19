@@ -560,6 +560,10 @@ sequence_classification(std::ostream& os,
         return classification{};
     }
 
+    //TODO weight hits with read length(s)
+    //TODO include target ambiguity
+    //TODO include window length
+
     //either top 2 are the same sequences with at least 'hitsMin' many hits
     //(checked before) or hit difference between these top 2 is above threshhold
     if( (cand.target_id(0) == cand.target_id(1))
@@ -1026,7 +1030,7 @@ void process_input_files(const database& db, const query_param& param,
 
         if(os.good()) {
             std::cout << "Output will be redirected to file: "
-                      << param.outfile << std::endl;
+                      << outfilename << std::endl;
 
             classify_sequences(db, param, infilenames, os);
         }
@@ -1057,13 +1061,12 @@ void main_mode_query(const args_parser& args)
 
     auto db = make_database<database>(param.dbfile);
 
-
     //configure database
     if(param.maxLoadFactor > 0) {
         db.max_load_factor(param.maxLoadFactor);
     }
     if(param.maxTargetsPerSketchVal > 1) {
-        db.erase_features_with_more_locations_than(param.maxTargetsPerSketchVal);
+        db.remove_features_with_more_locations_than(param.maxTargetsPerSketchVal);
     }
 
     //deduced query parameters
@@ -1120,7 +1123,6 @@ void main_mode_query(const args_parser& args)
     else {
         process_input_files(db, param, param.infiles, param.outfile);
     }
-
 }
 
 

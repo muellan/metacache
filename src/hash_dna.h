@@ -171,6 +171,142 @@ private:
 };
 
 
+/*****************************************************************************
+ *
+ * @brief default min-hasher that uses the 'sketch_size' lexicographically
+ *
+ *        smallest hash values of *one* hash function
+ *
+ *****************************************************************************/
+class single_function_min_hasher32
+{
+public:
+    //---------------------------------------------------------------
+    using kmer_type    = std::uint64_t;
+    using hasher       = same_size_hash<kmer_type>;
+    using feature_type = std::uint32_t;
+    using result_type  = std::vector<feature_type>;
+    //-----------------------------------------------------
+    using kmer_size_type   = numk_t;
+    using sketch_size_type = typename result_type::size_type;
+
+
+    //---------------------------------------------------------------
+    static constexpr std::uint8_t max_kmer_size() noexcept {
+        return max_word_size<kmer_type,2>::value;
+    }
+    static constexpr sketch_size_type max_sketch_size() noexcept {
+        return std::numeric_limits<sketch_size_type>::max();
+    }
+
+
+    //---------------------------------------------------------------
+    explicit
+    single_function_min_hasher32(hasher hash = hasher{}):
+        hash_(std::move(hash)), k_(16), sketchSize_(16)
+    {}
+
+
+    //---------------------------------------------------------------
+    kmer_size_type
+    kmer_size() const noexcept {
+        return k_;
+    }
+    void
+    kmer_size(kmer_size_type k) noexcept {
+        if(k < 1) k = 1;
+        if(k > max_kmer_size()) k = max_kmer_size();
+        k_ = k;
+    }
+
+    //---------------------------------------------------------------
+    sketch_size_type
+    sketch_size() const noexcept {
+        return sketchSize_;
+    }
+    void
+    sketch_size(sketch_size_type s) noexcept {
+        if(s < 1) s = 1;
+        sketchSize_ = s;
+    }
+
+
+    //---------------------------------------------------------------
+    template<class Sequence>
+    result_type
+    operator () (const Sequence& s) const {
+        using std::begin;
+        using std::end;
+        return operator()(begin(s), end(s));
+    }
+
+    //-----------------------------------------------------
+    template<class InputIterator>
+    result_type
+    operator () (InputIterator first, InputIterator last) const
+    {
+        using std::distance;
+        using std::begin;
+        using std::end;
+
+        const auto s = std::min(sketchSize_,
+                                sketch_size_type(distance(first,last)-k_+1));
+
+        auto minhs = std::vector<kmer_type>(s, kmer_type(~0));
+
+        for_each_unambiguous_canonical_kmer_2bit<kmer_type>(k_, first, last,
+            [&] (kmer_type kmer) {
+                auto h = hash_(kmer);
+                if(h < minhs.back()) {
+                    auto pos = std::upper_bound(minhs.begin(), minhs.end(), h);
+                    if(pos != minhs.end()) {
+                        minhs.pop_back();
+                        minhs.insert(pos, h);
+                    }
+                }
+            });
+
+        //hash down to 32 bits
+        auto sketch = result_type{};
+        sketch.reserve(minhs.size());
+        for(auto x : minhs) {
+            sketch.push_back(half_size_hash(x));
+        }
+
+        return sketch;
+    }
+
+
+    //---------------------------------------------------------------
+    friend void
+    write_binary(std::ostream& os, const single_function_min_hasher32& h)
+    {
+        write_binary(os, std::uint64_t(h.k_));
+        write_binary(os, std::uint64_t(h.sketchSize_));
+    }
+
+    //---------------------------------------------------------------
+    friend void
+    read_binary(std::istream& is, single_function_min_hasher32& h)
+    {
+        std::uint64_t n = 0;
+        read_binary(is, n);
+        h.k_ = (n <= max_kmer_size()) ? n : max_kmer_size();
+
+        n = 0;
+        read_binary(is, n);
+        h.sketchSize_ = (n <= max_sketch_size()) ? n : max_sketch_size();
+    }
+
+
+private:
+    //---------------------------------------------------------------
+    hasher hash_;
+    kmer_size_type k_;
+    sketch_size_type sketchSize_;
+};
+
+
 
 
 
@@ -304,265 +440,6 @@ private:
     sketch_size_type sketchSize_;
     hash32_family128 hash_;
 };
-
-
-
-
-
-
-/*****************************************************************************
- *
- *
- *****************************************************************************/
-template<class T, std::size_t n>
-struct kmer_histogram
-{
-    kmer_histogram(): f_{} { for(T* x = f_; x < f_+n; ++x) *x = 0; }
-
-    T  operator [] (std::size_t i) const noexcept { return f_[i]; }
-    T& operator [] (std::size_t i)       noexcept { return f_[i]; }
-
-          T* begin()       noexcept { return f_; }
-    const T* begin() const noexcept { return f_; }
-
-          T* end()         noexcept { return f_ + n; }
-    const T* end()   const noexcept { return f_ + n; }
-
-private:
-    T f_[n];
-};
-
-//-------------------------------------------------------------------
-template<class T, std::size_t n>
-inline void
-write_binary(std::ostream& os, const kmer_histogram<T,n>& a)
-{
-    std::uint64_t l = n;
-    os.write(reinterpret_cast<const char*>(&l), sizeof(l));
-    for(const auto& x : a) {
-        write_binary(os, x);
-    }
-}
-
-//-------------------------------------------------------------------
-template<class T, std::size_t n>
-inline void
-read_binary(std::istream& is, kmer_histogram<T,n>& a)
-{
-    std::uint64_t l = 0;
-    is.read(reinterpret_cast<char*>(&l), sizeof(l));
-    for(auto& x : a) {
-        read_binary(is, x);
-    }
-}
-
-//-------------------------------------------------------------------
-template<class T, std::size_t n>
-inline std::ostream&
-operator << (std::ostream& os, const kmer_histogram<T,n>& a)
-{
-    os << '[';
-    for(const auto& x : a) {
-        os << x << ',';
-    }
-    os << ']';
-    return os;
-}
-
-} //namespace mc
-
-
-
-/*****************************************************************************
- *
- *
- *****************************************************************************/
-namespace std {
-
-template<class T, std::size_t n>
-struct hash<mc::kmer_histogram<T,n>> {
-    std::size_t
-    operator () (const mc::kmer_histogram<T,n>& h) const noexcept {
-        std::size_t x = h[0];
-        for(std::size_t i = 1; i < n; ++i) {
-            x ^= h[i];
-        }
-        return x;
-    }
-};
-
-template<class T, std::size_t n>
-struct equal_to<mc::kmer_histogram<T,n>> {
-    bool
-    operator () (const mc::kmer_histogram<T,n>& h1,
-                 const mc::kmer_histogram<T,n>& h2) const noexcept
-    {
-        for(std::size_t i = 0; i < n; ++i) {
-            if(h1[i] != h2[i]) return false;
-        }
-        return true;
-    }
-};
-
-} // namespace std
-
-
-
-namespace mc {
-
-/*****************************************************************************
- *
- *
- *
- *****************************************************************************/
-class kmer_statistics_hasher
-{
-    using histo_t = kmer_histogram<std::uint32_t,16>;
-
-public:
-    //---------------------------------------------------------------
-    using kmer_type    = std::uint32_t;
-    using feature_type = std::uint64_t;
-    using result_type  = std::array<feature_type,2>;
-
-    //-----------------------------------------------------
-    using kmer_size_type   = numk_t;
-    using sketch_size_type = typename result_type::size_type;
-
-
-    //---------------------------------------------------------------
-    static void kmer_size(int)  noexcept {}
-    static void sketch_size(int)  noexcept {}
-    static constexpr std::uint8_t kmer_size()     noexcept { return 2; }
-    static constexpr std::uint8_t max_kmer_size() noexcept { return 2; }
-    static constexpr sketch_size_type sketch_size()     noexcept { return 2; }
-    static constexpr sketch_size_type max_sketch_size() noexcept { return 2; }
-
-
-    //---------------------------------------------------------------
-    template<class Sequence>
-    result_type
-    operator () (const Sequence& s) const {
-        using std::begin;
-        using std::end;
-        return operator()(begin(s), end(s));
-    }
-
-    //-----------------------------------------------------
-    template<class InputIterator>
-    result_type
-    operator () (InputIterator first, InputIterator last) const
-    {
-        using std::distance;
-        using std::begin;
-        using std::end;
-
-        //init
-        for(auto& x : hf_) x = 0;
-        for(auto& x : hr_) x = 0;
-
-        //do statistics
-        --last;
-        for(auto i = first; i < last; ++i) {
-            ++(hf_[char2mer2num(i)]);
-            ++(hr_[char2mer2num_rev(i)]);
-        }
-
-        //make fingerprint
-        for(int i = 0; i < 16; ++i) {
-//            hf_[i] /= 4;
-            if(hf_[i] > 15) hf_[i] = 15;
-        }
-        for(int i = 0; i < 16; ++i) {
-//            hr_[i] /= 4;
-            if(hr_[i] > 15) hr_[i] = 15;
-        }
-
-        //encode
-        feature_type sf = 0;
-        feature_type sr = 0;
-        for(int i = 0; i < 16; ++i) {
-            sf |= hf_[i] << (i*4);
-            sr |= hr_[i] << (i*4);
-        }
-
-//        std::cout
-//            << hf_ << " => " << sf << '\n'
-//            << hr_ << " => " << sr << '\n';
-
-        return result_type{sf,sr};
-
-//        return result_type{default_hash(sf), default_hash(sh)};
-    }
-
-
-    //---------------------------------------------------------------
-    friend void
-    write_binary(std::ostream&, const kmer_statistics_hasher&)
-    { }
-
-    //---------------------------------------------------------------
-    friend void
-    read_binary(std::istream&, kmer_statistics_hasher&)
-    { }
-
-
-private:
-    //---------------------------------------------------------------
-    mutable histo_t hf_;
-    mutable histo_t hr_;
-
-    //---------------------------------------------------------------
-    template<class InputIterator>
-    static constexpr char
-    char2mer2num(InputIterator c) {
-        return c2n(c[0]) + 4 * c2n(c[1]);
-    }
-    template<class InputIterator>
-    static constexpr char
-    char2mer2num_rev(InputIterator c) {
-        return c2n_rev(c[1]) + 4 * c2n_rev(c[0]);
-    }
-
-    //---------------------------------------------------------------
-    template<class InputIterator>
-    static constexpr char
-    char3mer2num(InputIterator c) {
-        return c2n(c[0]) + 4 * c2n(c[1]) + 16 * c2n(c[2]);
-    }
-    template<class InputIterator>
-    static constexpr char
-    char3mer2num_rev(InputIterator c) {
-        return c2n_rev(c[2]) + 4 * c2n_rev(c[1]) + 16 * c2n_rev(c[0]);
-    }
-
-    //---------------------------------------------------------------
-    static constexpr char c2n(char c) noexcept {
-        return   (c == 'A') ? 0
-               : (c == 'C') ? 1
-               : (c == 'G') ? 2
-               : (c == 'T') ? 3
-               : (c == 'a') ? 0
-               : (c == 'c') ? 1
-               : (c == 'g') ? 2
-               : (c == 't') ? 3
-               : 0;
-    }
-    //---------------------------------------------------------------
-    static constexpr char c2n_rev(char c) noexcept {
-        return   (c == 'A') ? 3
-               : (c == 'C') ? 2
-               : (c == 'G') ? 1
-               : (c == 'T') ? 0
-               : (c == 'a') ? 3
-               : (c == 'c') ? 2
-               : (c == 'g') ? 1
-               : (c == 't') ? 0
-               : 3;
-    }
-};
-
-
 
 
 
@@ -834,19 +711,120 @@ private:
 
 /*****************************************************************************
  *
+ *
+ *****************************************************************************/
+template<class T, std::size_t n>
+struct kmer_histogram
+{
+    kmer_histogram(): f_{} { for(T* x = f_; x < f_+n; ++x) *x = 0; }
+
+    T  operator [] (std::size_t i) const noexcept { return f_[i]; }
+    T& operator [] (std::size_t i)       noexcept { return f_[i]; }
+
+          T* begin()       noexcept { return f_; }
+    const T* begin() const noexcept { return f_; }
+
+          T* end()         noexcept { return f_ + n; }
+    const T* end()   const noexcept { return f_ + n; }
+
+private:
+    T f_[n];
+};
+
+//-------------------------------------------------------------------
+template<class T, std::size_t n>
+inline void
+write_binary(std::ostream& os, const kmer_histogram<T,n>& a)
+{
+    std::uint64_t l = n;
+    os.write(reinterpret_cast<const char*>(&l), sizeof(l));
+    for(const auto& x : a) {
+        write_binary(os, x);
+    }
+}
+
+//-------------------------------------------------------------------
+template<class T, std::size_t n>
+inline void
+read_binary(std::istream& is, kmer_histogram<T,n>& a)
+{
+    std::uint64_t l = 0;
+    is.read(reinterpret_cast<char*>(&l), sizeof(l));
+    for(auto& x : a) {
+        read_binary(is, x);
+    }
+}
+
+//-------------------------------------------------------------------
+template<class T, std::size_t n>
+inline std::ostream&
+operator << (std::ostream& os, const kmer_histogram<T,n>& a)
+{
+    os << '[';
+    for(const auto& x : a) {
+        os << x << ',';
+    }
+    os << ']';
+    return os;
+}
+
+}  //namespace mc
+
+
+
+
+/*****************************************************************************
+ *
+ *
+ *****************************************************************************/
+namespace std {
+
+template<class T, std::size_t n>
+struct hash<mc::kmer_histogram<T,n>> {
+    std::size_t
+    operator () (const mc::kmer_histogram<T,n>& h) const noexcept {
+        std::size_t x = h[0];
+        for(std::size_t i = 1; i < n; ++i) {
+            x ^= h[i];
+        }
+        return x;
+    }
+};
+
+template<class T, std::size_t n>
+struct equal_to<mc::kmer_histogram<T,n>> {
+    bool
+    operator () (const mc::kmer_histogram<T,n>& h1,
+                 const mc::kmer_histogram<T,n>& h2) const noexcept
+    {
+        for(std::size_t i = 0; i < n; ++i) {
+            if(h1[i] != h2[i]) return false;
+        }
+        return true;
+    }
+};
+
+} // namespace std
+
+
+
+
+namespace mc {
+
+/*****************************************************************************
+ *
  * @brief default min-hasher that uses the 'sketch_size' lexicographically
  *
  *        smallest hash values of *one* hash function
  *
  *****************************************************************************/
-template<class KmerT, class Hash = same_size_hash<KmerT>>
-class single_function_oversampling_min_hasher
+class single_function_statistics_min_hasher
 {
 public:
     //---------------------------------------------------------------
-    using kmer_type    = KmerT;
-    using hasher       = Hash;
-    using feature_type = kmer_type;
+    using kmer_type    = std::uint64_t;
+    using feature_type = std::uint32_t;
+    using hasher       = same_size_hash<feature_type>;
     using result_type  = std::vector<feature_type>;
     //-----------------------------------------------------
     using kmer_size_type   = numk_t;
@@ -864,7 +842,7 @@ public:
 
     //---------------------------------------------------------------
     explicit
-    single_function_oversampling_min_hasher(hasher hash = hasher{}):
+    single_function_statistics_min_hasher(hasher hash = hasher{}):
         hash_(std::move(hash)), k_(16), sketchSize_(16)
     {}
 
@@ -908,26 +886,15 @@ public:
     operator () (InputIterator first, InputIterator last) const
     {
         using std::distance;
-        using std::begin;
-        using std::end;
 
         const auto s = std::min(sketchSize_,
                                 sketch_size_type(distance(first,last)-k_+1));
 
         auto sketch = result_type(s, feature_type(~0));
 
-        for_each_unambiguous_canonical_kmer_2bit<kmer_type>(k_, first, last,
-            [&] (kmer_type kmer) {
-
-                feature_type hs[4];
-                //use first hash as random number and permute random bits
-                hs[0] = hash_(kmer);
-                hs[1] = hash_(kmer ^ ((hs[0] & 3) << 2) );
-                hs[2] = hash_(kmer ^ ((hs[0] & (3 << 2)) << 4) );
-                hs[3] = hash_(kmer ^ ((hs[0] & (3 << 4)) << 6) );
-
-                auto h = *std::min_element(begin(hs), end(hs));
-
+        for_each_2mer_stat_of_kmer_2bit(k_, first, last,
+            [&] (feature_type stat) {
+                auto h = hash_(stat);
                 if(h < sketch.back()) {
                     auto pos = std::upper_bound(sketch.begin(), sketch.end(), h);
                     if(pos != sketch.end()) {
@@ -943,7 +910,7 @@ public:
 
     //---------------------------------------------------------------
     friend void
-    write_binary(std::ostream& os, const single_function_oversampling_min_hasher& h)
+    write_binary(std::ostream& os, const single_function_statistics_min_hasher& h)
     {
         write_binary(os, std::uint64_t(h.k_));
         write_binary(os, std::uint64_t(h.sketchSize_));
@@ -951,7 +918,7 @@ public:
 
     //---------------------------------------------------------------
     friend void
-    read_binary(std::istream& is, single_function_oversampling_min_hasher& h)
+    read_binary(std::istream& is, single_function_statistics_min_hasher& h)
     {
         std::uint64_t n = 0;
         read_binary(is, n);
@@ -968,7 +935,57 @@ private:
     hasher hash_;
     kmer_size_type k_;
     sketch_size_type sketchSize_;
+
+    //---------------------------------------------------------------
+    template<class InputIterator>
+    static constexpr char
+    char2mer2num(InputIterator c) {
+        return c2n(c[0]) + 4 * c2n(c[1]);
+    }
+    template<class InputIterator>
+    static constexpr char
+    char2mer2num_rev(InputIterator c) {
+        return c2n_rev(c[1]) + 4 * c2n_rev(c[0]);
+    }
+
+    //---------------------------------------------------------------
+    template<class InputIterator>
+    static constexpr char
+    char3mer2num(InputIterator c) {
+        return c2n(c[0]) + 4 * c2n(c[1]) + 16 * c2n(c[2]);
+    }
+    template<class InputIterator>
+    static constexpr char
+    char3mer2num_rev(InputIterator c) {
+        return c2n_rev(c[2]) + 4 * c2n_rev(c[1]) + 16 * c2n_rev(c[0]);
+    }
+
+    //---------------------------------------------------------------
+    static constexpr char c2n(char c) noexcept {
+        return   (c == 'A') ? 0
+               : (c == 'C') ? 1
+               : (c == 'G') ? 2
+               : (c == 'T') ? 3
+               : (c == 'a') ? 0
+               : (c == 'c') ? 1
+               : (c == 'g') ? 2
+               : (c == 't') ? 3
+               : 0;
+    }
+    //---------------------------------------------------------------
+    static constexpr char c2n_rev(char c) noexcept {
+        return   (c == 'A') ? 3
+               : (c == 'C') ? 2
+               : (c == 'G') ? 1
+               : (c == 'T') ? 0
+               : (c == 'a') ? 3
+               : (c == 'c') ? 2
+               : (c == 'g') ? 1
+               : (c == 't') ? 0
+               : 3;
+    }
 };
+
 
 
 } // namespace mc

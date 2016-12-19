@@ -126,7 +126,7 @@ inline void splitmix64_hash(std::uint8_t) = delete;
  *
  *****************************************************************************/
 inline std::uint32_t
-hash_down(std::uint64_t x) noexcept
+half_size_hash(std::uint64_t x) noexcept
 {
     x = (~x) + (x << 18);
     x = x ^ (x >> 31);
@@ -138,9 +138,9 @@ hash_down(std::uint64_t x) noexcept
 }
 
 //makes sure we cant't use the wrong types
-inline void hash_down(std::uint32_t) = delete;
-inline void hash_down(std::uint16_t) = delete;
-inline void hash_down(std::uint8_t) = delete;
+inline void half_size_hash(std::uint32_t) = delete;
+inline void half_size_hash(std::uint16_t) = delete;
+inline void half_size_hash(std::uint8_t) = delete;
 
 }  //internal linkage
 
@@ -203,7 +203,7 @@ struct to32bits_hash<std::uint32_t> {
 template<>
 struct to32bits_hash<std::uint64_t> {
     std::uint32_t operator () (std::uint64_t x) const noexcept {
-        return hash_down(murmur_hash3_finalizer(x));
+        return half_size_hash(murmur_hash3_finalizer(x));
     }
 };
 

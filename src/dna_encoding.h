@@ -309,14 +309,14 @@ for_each_kmer_2bit(numk_t k,
 
     using std::next;
 
-    using amibig_t = half_size_t<UInt>;
+    using ambig_t = half_size_t<UInt>;
 
     auto kmer    = UInt(0);
     auto kmerMsk = UInt(~0);
     kmerMsk >>= (sizeof(kmerMsk) * 8) - (k * 2);
 
-    auto ambig    = amibig_t(0);  //bitfield marking ambiguous nucleotides
-    auto ambigMsk = amibig_t(~0);
+    auto ambig    = ambig_t(0);  //bitfield marking ambiguous nucleotides
+    auto ambigMsk = ambig_t(~0);
     ambigMsk >>= (sizeof(ambigMsk) * 8) - k;
 
     ++last;
@@ -472,6 +472,93 @@ for_each_unambiguous_canonical_kmer_2bit(
     using std::end;
     for_each_unambiguous_canonical_kmer_2bit<UInt>(
         k, begin(input), end(input), std::forward<Consumer>(consume));
+}
+
+
+
+/*****************************************************************************
+ * @brief generates letter-statistics for all kmers in a sequence
+ *
+ * @tparam UInt    result type, must be an unsigned integer type
+ *
+ * @param k        number of characters in a k-mer
+ * @param first    iterator to the first character of the input sequence
+ * @param last     iterator to one after the last character of the input sequence
+ * @param consume  function object lambda consuming the k-mers
+ *****************************************************************************/
+template<class InputIterator, class Consumer>
+inline void
+for_each_1mer_stat_of_kmer_2bit(numk_t k,
+                                InputIterator first, InputIterator last,
+                                Consumer&& consume)
+{
+    using std::next;
+    using std::uint64_t;
+    using std::uint32_t;
+    using std::uint8_t;
+
+    for_each_unambiguous_canonical_kmer_2bit<uint64_t>(k, first, last,
+        [&] (uint64_t kmer) {
+            union { uint32_t all = 0; uint8_t count[4]; } stat;
+
+            uint64_t msk = 3;
+            for(numk_t i = 0; i < k; ++i) {
+                ++stat.count[(kmer & msk) >> (2*i)];
+                msk <<= 2;
+            }
+
+            consume(stat.all);
+        });
+
+}
+
+
+
+/*****************************************************************************
+ * @brief generates 2-mer statistics for all k-mers in a sequence
+ *
+ * @tparam UInt    result type, must be an unsigned integer type
+ *
+ * @param k        number of characters in a k-mer
+ * @param first    iterator to the first character of the input sequence
+ * @param last     iterator to one after the last character of the input sequence
+ * @param consume  function object lambda consuming the k-mers
+ *****************************************************************************/
+template<class InputIterator, class Consumer>
+inline void
+for_each_2mer_stat_of_kmer_2bit(numk_t k,
+                                InputIterator first, InputIterator last,
+                                Consumer&& consume)
+{
+    using std::next;
+    using std::uint64_t;
+    using std::uint32_t;
+    using std::uint8_t;
+
+    uint8_t count[16];
+
+    for_each_unambiguous_canonical_kmer_2bit<uint64_t>(k, first, last,
+        [&] (uint64_t kmer) {
+
+            for(auto i = 0; i < 16; ++i) count[i] = 0;
+
+            uint64_t msk = 15;
+            for(numk_t i = 0; i < k-1; ++i) {
+                ++count[(kmer & msk) >> (2*i)];
+                msk <<= 2;
+            }
+
+            uint32_t stat = 0;
+            for(int i = 0; i < 16; ++i) {
+                auto c = uint8_t(count[i] / uint8_t(4));
+                if(c == 3) c = 2;
+                else if(c > 3) c = 3;
+                stat |= c << (i*2);
+            }
+
+            consume(stat);
+        });
+
 }
 
 
