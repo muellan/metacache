@@ -94,15 +94,24 @@ get_taxonomy_param(const args_parser& args)
 
     param.mappingPreFiles.push_back("assembly_summary.txt");
 
+    //manually added accession to taxon map file names
     auto postm = args.get<std::string>("taxpostmap", "");
     if(!postm.empty()) {
         param.mappingPostFiles.push_back(postm);
     }
 
-    param.mappingPostFiles.push_back("nucl_gb.accession2taxid");
-    param.mappingPostFiles.push_back("nucl_wgs.accession2taxid");
-    param.mappingPostFiles.push_back("nucl_est.accession2taxid");
-    param.mappingPostFiles.push_back("nucl_gss.accession2taxid");
+    //default NCBI accession to taxon map file names
+    param.mappingPostFiles.push_back(param.path + "nucl_gb.accession2taxid");
+    param.mappingPostFiles.push_back(param.path + "nucl_wgs.accession2taxid");
+    param.mappingPostFiles.push_back(param.path + "nucl_est.accession2taxid");
+    param.mappingPostFiles.push_back(param.path + "nucl_gss.accession2taxid");
+
+    //find additional maps by file extension ".accession2taxid"
+    for(const auto f : files_in_directory(param.path)) {
+        if(f.find(".accession2taxid") != std::string::npos) {
+            param.mappingPostFiles.push_back(f);
+        }
+    }
 
     return param;
 }

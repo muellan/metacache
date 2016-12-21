@@ -42,7 +42,7 @@ using parallel_queue = parallel_function_queue;
 
 
 /*****************************************************************************
- * @brief query options
+ * @brief pairing of queries
  *****************************************************************************/
 enum class pairing_mode : unsigned char {
     none, files, sequences
@@ -50,10 +50,18 @@ enum class pairing_mode : unsigned char {
 
 
 /*****************************************************************************
- * @brief query options
+ * @brief alignment mode
  *****************************************************************************/
 enum class align_mode : unsigned char {
     none, semi_global
+};
+
+
+/*****************************************************************************
+ * @brief how to show mapping
+ *****************************************************************************/
+enum class map_view_mode : unsigned char {
+    none, mapped_only, all
 };
 
 
@@ -74,8 +82,8 @@ struct query_param
     bool showTopHits = false;
     //show all k-mer-hash hits in database for each given read
     bool showAllHits = false;
-    //show classification (read mappings), if false, only summary will be shown
-    bool showMappings = false;
+    //how to show classification (read mappings), if 'none', only summary will be shown
+    map_view_mode mapViewMode = map_view_mode::all;
     //show candidate position(s) in reference sequence(s)
     bool showLocations = false;
     //show known taxon (or complete lineage if 'showLineage' on)
@@ -102,10 +110,6 @@ struct query_param
     //
     std::uint16_t hitsMin  = 0;  //< 1 : deduced from database parameters
     float hitsDiff = 0.5;
-    //use alignment (if sequence files available) for ambiguous cases
-    bool useAlignment = false;
-    float alignmentMin  = 0.9f;
-    float alignmentDiff = 1.1f;
     //maximum range in sequence that read (pair) is expected to be in
     std::size_t insertSizeMax = 0;
     bool weightHitsWithWindows = false;
@@ -176,6 +180,9 @@ get_query_param(const args_parser& args)
     }
     else if(args.contains("paired_sequences") ||
             args.contains("pair_sequences") ||
+            args.contains("pair_sequ") ||
+            args.contains("pair_seq") ||
+            args.contains("pairsequ") ||
             args.contains("pairseq") ||
             args.contains("paired") )
     {
@@ -225,11 +232,10 @@ get_query_param(const args_parser& args)
 
     param.weightHitsWithWindows = args.contains("hitweight");
 
-    //alignment
-    param.useAlignment  = args.contains("align");
-    param.alignmentMin  = args.get<float>("alignmin", defaults.alignmentMin);
-    param.alignmentDiff = args.get<float>("aligndiff", defaults.alignmentDiff);
-    param.showAlignment = args.contains("showalign");
+    //show alignment
+    param.showAlignment = args.contains("showalign") ||
+                          args.contains("align") ||
+                          args.contains("alignment");
 
     //output formatting
     param.showLineage = args.contains("lineage");
@@ -251,9 +257,9 @@ get_query_param(const args_parser& args)
     param.showTopHits = args.contains("tophits");
     param.showAllHits = args.contains("allhits");
 
-    if(args.contains("taxidsonly") ||
-       args.contains("taxids_only") ||
-       args.contains("taxid_only") ||
+    if(args.contains("taxidsonly")  ||
+       args.contains("taxids_only") || args.contains("taxids-only") ||
+       args.contains("taxid_only")  || args.contains("taxid-only") ||
        args.contains("taxidonly"))
     {
         param.showTaxaAs = taxon_print_mode::id_only;
@@ -265,12 +271,23 @@ get_query_param(const args_parser& args)
         param.showTaxaAs = taxon_print_mode::name_only;
     }
 
-    param.showMappings =  param.showTopHits ||
-                          param.showAllHits ||
-                          (!args.contains("nomap") &&
-                           !args.contains("noshowmap") &&
-                           !args.contains("nomapping") &&
-                           !args.contains("nomappings") );
+    if(args.contains("nomap") || args.contains("no-map") ||
+       args.contains("noshowmap") || args.contains("nomapping") ||
+       args.contains("nomappings") )
+    {
+        param.mapViewMode = map_view_mode::none;
+    }
+    else if(args.contains("mapped_only") || args.contains("mapped-only") ||
+            args.contains("mappedonly"))
+    {
+        param.mapViewMode = map_view_mode::mapped_only;
+    }
+
+    //showing hits changes the mapping mode!
+    if(param.mapViewMode == map_view_mode::none && param.showTopHits) {
+        param.mapViewMode = map_view_mode::mapped_only;
+    }
+    else if(param.showAllHits) param.mapViewMode = map_view_mode::all;
 
     param.showGroundTruth = args.contains("ground_truth");
 
@@ -340,129 +357,64 @@ make_view_from_window_range(
  * @return index of best candidate or -1 if ambiguous or unsatisfactory
  *
  *****************************************************************************/
-template<int n>
-int
-best_alignment_candidate(std::ostream& os,
+void show_alignment(std::ostream& os,
     const database& db, const query_param& param,
     const sequence& query1, const sequence& query2,
-    const matches_in_contiguous_window_range_top<n,target_id>& cand)
+    target_id tgt, const index_range<std::uint_least64_t>& winRange)
 {
     //check which of the top sequences has a better alignment
-    const auto& origin0 = db.origin_of_target(cand.target_id(0));
-    if(origin0.filename.empty()) return -1;
-    const auto& origin1 = db.origin_of_target(cand.target_id(1));
-    if(origin1.filename.empty()) return -1;
+    const auto& origin = db.origin_of_target(tgt);
+
+    if(origin.filename.empty()) return;
 
     //open sequence files & forward to sequence index
     try {
         //load candidate sequences
-        auto reader0 = make_sequence_reader(origin0.filename);
-        for(std::size_t i = 0; i < origin0.index; ++i) reader0->next();
-        if(!reader0->has_next()) return -1;
+        auto reader = make_sequence_reader(origin.filename);
+        for(std::size_t i = 0; i < origin.index; ++i) reader->next();
+        if(!reader->has_next()) return;
 
-        auto reader1 = make_sequence_reader(origin1.filename);
-        for(std::size_t i = 0; i < origin1.index; ++i) reader1->next();
-        if(!reader1->has_next()) return -1;
-
-        auto subject0 = reader0->next().data;
-        auto subject1 = reader1->next().data;
-
-        //make views to candidate window ranges
-        auto w = db.target_window_stride();
-
-        auto s0 = make_view_from_window_range(subject0, cand.window(0), w);
-        auto s1 = make_view_from_window_range(subject1, cand.window(1), w);
+        auto sequence = reader->next().data;
+        auto subject = make_view_from_window_range(sequence,
+                                                   winRange,
+                                                   db.target_window_stride());
 
         using scheme_t = needleman_wunsch_scheme;
 
-        std::size_t als0  = 0; std::size_t als0r = 0;
-        std::size_t als1  = 0; std::size_t als1r = 0;
+        std::size_t score  = 0;
+        std::size_t scorer = 0;
 
-        if(!param.showAlignment) {
-            //compute scores only
-            als0 = semi_global_alignment_score(query1, s0, scheme_t{});
-            als1 = semi_global_alignment_score(query1, s1, scheme_t{});
-            auto query1r = make_reverse_complement(query1);
-            als0r = semi_global_alignment_score(query1r, s0, scheme_t{});
-            als1r = semi_global_alignment_score(query1r, s1, scheme_t{});
+        //compute alignment
+        auto align = semi_global_alignment(query1, subject, scheme_t{});
+        score = align.score;
+        //reverse complement
+        auto query1r = make_reverse_complement(query1);
+        auto alignr = semi_global_alignment(query1r, subject, scheme_t{});
+        scorer = alignr.score;
 
-            //align paired read as well
-            if(!query2.empty()) {
-                als0 += semi_global_alignment_score(query2, s0, scheme_t{});
-                als1 += semi_global_alignment_score(query2, s1, scheme_t{});
-                auto query2r = make_reverse_complement(query2);
-                als0r += semi_global_alignment_score(query2r, s0, scheme_t{});
-                als1r += semi_global_alignment_score(query2r, s1, scheme_t{});
-            }
-            if(als0r > als0) als0 = als0r;
-            if(als1r > als1) als1 = als1r;
-        }
-        else {
-            //compute alignment
-            auto align0 = semi_global_alignment(query1, s0, scheme_t{});
-            auto align1 = semi_global_alignment(query1, s1, scheme_t{});
-            als0 = align0.score;
-            als1 = align1.score;
-            //reverse complement
-            auto query1r = make_reverse_complement(query1);
-            auto align0r = semi_global_alignment(query1r, s0, scheme_t{});
-            auto align1r = semi_global_alignment(query1r, s1, scheme_t{});
-            als0r = align0r.score;
-            als1r = align1r.score;
-
-            //align paired read as well
-            if(!query2.empty()) {
-                als0 += semi_global_alignment_score(query2, s0, scheme_t{});
-                als1 += semi_global_alignment_score(query2, s1, scheme_t{});
-                auto query2r = make_reverse_complement(query2);
-                als0r += semi_global_alignment_score(query2r, s0, scheme_t{});
-                als1r += semi_global_alignment_score(query2r, s1, scheme_t{});
-            }
-
-//            os     << '\n'
-//                   << param.comment << "Alignement candidates:\n"
-//                   << param.comment << "  Query:  " << query1 << '\n';
-//            if(!query2.empty()) {
-//                os << param.comment << "     +    " << query2 << '\n';
-//            }
-//            os     << param.comment << "  S1:     " << s0 << '\n'
-//                   << param.comment << "  S2:     " << s1 << '\n'
-            os     << '\n'
-                   << param.comment << "  Alignments:\n";
-
-            if(als0 > als0r) {
-                os << param.comment << "    score " << align0.score << '\n'
-                   << param.comment << "       Q: " << align0.query << '\n'
-                   << param.comment << "      S1: " << align0.subject << '\n';
-            } else {
-                os << param.comment << "    score " << align0r.score << '\n'
-                   << param.comment << "    (r)Q: " << align0r.query << '\n'
-                   << param.comment << "      S1: " << align0r.subject << '\n';
-            }
-            if(als1 > als1r) {
-                os << param.comment << "    score " << align1.score << '\n'
-                   << param.comment << "       Q: " << align1.query << '\n'
-                   << param.comment << "      S2: " << align1.subject << '\n';
-            } else {
-                os << param.comment << "    score " << align1r.score << '\n'
-                   << param.comment << "    (r)Q: " << align1r.query << '\n'
-                   << param.comment << "      S2: " << align1r.subject << '\n';
-            }
-
-            if(als0r > als0) als0 = als0r;
-            if(als1r > als1) als1 = als1r;
+        //align paired read as well
+        if(!query2.empty()) {
+            score += semi_global_alignment_score(query2, subject, scheme_t{});
+            auto query2r = make_reverse_complement(query2);
+            scorer += semi_global_alignment_score(query2r, subject, scheme_t{});
         }
 
-        auto minAl = param.alignmentMin * scheme_t::max_score() *
-                     (query1.size() + query2.size());
-
-        if(als0 >= minAl && als0 >= param.alignmentDiff * als1) return 0;
-        if(als1 >= minAl && als1 >= param.alignmentDiff * als0) return 1;
+        if(score > scorer) {
+            os << '\n'
+               << param.comment << "   score  " << align.score << '\n'
+               << param.comment << "   query> " << align.query << '\n'
+               << param.comment << "   target " << align.subject;
+        }
+        else if(scorer > 0) {
+            os << '\n'
+               << param.comment << "   score  " << alignr.score << '\n'
+               << param.comment << "   query< " << alignr.query << '\n'
+               << param.comment << "   target " << alignr.subject;
+        }
     }
     catch (std::exception&) {
         //file I/O error
     }
-    return -1;
 }
 
 
@@ -560,9 +512,8 @@ lowest_common_taxon(
  *****************************************************************************/
 template<int n>
 classification
-sequence_classification(std::ostream& os,
+sequence_classification(
     const database& db, const query_param& param,
-    const sequence& query1, const sequence& query2,
     const matches_in_contiguous_window_range_top<n,target_id>& cand)
 {
     auto wc = param.weightHitsWithWindows
@@ -582,15 +533,6 @@ sequence_classification(std::ostream& os,
         //return top candidate
         auto tid = cand.target_id(0);
         return classification{tid, &db.taxon_of_target(tid)};
-    }
-
-    //do alignment of query to top candidate sequences?
-    if(param.useAlignment) {
-        int bac = best_alignment_candidate(os, db, param, query1, query2, cand);
-        if(bac >= 0) {
-            auto tid = cand.target_id(bac);
-            return classification{tid, &db.taxon_of_target(tid)};
-        }
     }
 
     return classification{
@@ -672,7 +614,7 @@ void process_database_answer(
 
     classification groundTruth;
     if(param.testPrecision ||
-       (param.showMappings && param.showGroundTruth) ||
+       (param.mapViewMode != map_view_mode::none && param.showGroundTruth) ||
        (param.excludedRank != taxon_rank::none) )
     {
         groundTruth = ground_truth(db, header);
@@ -684,8 +626,35 @@ void process_database_answer(
         remove_hits_on_rank(db, param.excludedRank, exclTaxid, hits);
     }
 
+    //classify
+    auto numWindows = std::uint_least64_t( 2 + (
+        std::max(query1.size() + query2.size(), param.insertSizeMax) /
+        db.target_window_stride() ));
+
+    top_matches_in_contiguous_window_range tophits {hits, numWindows};
+    auto cls = sequence_classification(db, param, tophits);
+
+    //evaluate classification
+    if(param.testPrecision) {
+        auto lowestCorrectRank = lowest_common_rank(db, cls, groundTruth);
+
+        stats.assign_known_correct(cls.rank(), groundTruth.rank(),
+                                   lowestCorrectRank);
+
+        //check if taxa of assigned target are covered
+        if(param.testCoverage && groundTruth.has_taxon()) {
+            update_coverage_statistics(db, cls, groundTruth, stats);
+        }
+    } else {
+        stats.assign(cls.rank());
+    }
+
+    //show mapping
+    if(param.mapViewMode == map_view_mode::none) return;
+    if(cls.none() && param.mapViewMode == map_view_mode::mapped_only) return;
+
     //print query header and ground truth
-    if(param.showMappings || param.showTopHits || param.showAllHits) {
+    if(param.showTopHits || param.showAllHits) {
         //show first contiguous string only
         auto l = header.find(' ');
         if(l != std::string::npos) {
@@ -715,48 +684,28 @@ void process_database_answer(
         }
     }
 
-    //classify
-    auto numWindows = std::uint_least64_t( 2 + (
-        std::max(query1.size() + query2.size(), param.insertSizeMax) /
-        db.target_window_stride() ));
-
-    top_matches_in_contiguous_window_range tophits {hits, numWindows};
-    auto cls = sequence_classification(os, db, param, query1, query2, tophits);
-
     //print results
-    if(param.showMappings) {
-        if(param.showAllHits) {
-            show_matches(os, db, hits, param.lowestRank);
-            os << param.outSeparator;
-        }
-        if(param.showTopHits) {
-            show_matches(os, db, tophits, param.lowestRank);
-            os << param.outSeparator;
-        }
-        if(param.showLocations) {
-            show_candidate_ranges(os, db, tophits);
-            os << param.outSeparator;
-        }
-        show_classification(os, db, param, cls);
+    if(param.showAllHits) {
+        show_matches(os, db, hits, param.lowestRank);
+        os << param.outSeparator;
+    }
+    if(param.showTopHits) {
+        show_matches(os, db, tophits, param.lowestRank);
+        os << param.outSeparator;
+    }
+    if(param.showLocations) {
+        show_candidate_ranges(os, db, tophits);
+        os << param.outSeparator;
+    }
+    show_classification(os, db, param, cls);
+
+    //print alignment to top candidate
+    if(param.showAlignment && !cls.none()) {
+        show_alignment(os, db, param, query1, query2,
+                       tophits.target_id(0), tophits.window(0));
     }
 
-    if(param.testPrecision) {
-        auto lowestCorrectRank = lowest_common_rank(db, cls, groundTruth);
-
-        stats.assign_known_correct(cls.rank(), groundTruth.rank(),
-                                   lowestCorrectRank);
-
-        //check if taxa of assigned target are covered
-        if(param.testCoverage && groundTruth.has_taxon()) {
-            update_coverage_statistics(db, cls, groundTruth, stats);
-        }
-    } else {
-        stats.assign(cls.rank());
-    }
-
-    if(param.showMappings) {
-        os << '\n';
-    }
+    os << '\n';
 }
 
 
@@ -865,7 +814,7 @@ void classify_per_file(parallel_queue& queue,
 {
     for(size_t i = 0; i < infilenames.size(); ++i) {
         const auto& fname = infilenames[i];
-        if(param.showMappings) {
+        if(param.mapViewMode != map_view_mode::none) {
             os << param.comment << fname << '\n';
         }
         else if(!param.outfile.empty() && infilenames.size() > 1) {
@@ -880,7 +829,7 @@ void classify_per_file(parallel_queue& queue,
             }
         }
         catch(std::exception& e) {
-            if(param.showMappings) {
+            if(param.mapViewMode != map_view_mode::none) {
                 os << "FAIL: " << e.what() << std::endl;
             }
         }
@@ -903,7 +852,7 @@ void classify_on_file_pairs(parallel_queue& queue,
     for(size_t i = 0; i < infilenames.size(); i += 2) {
         const auto& fname1 = infilenames[i];
         const auto& fname2 = infilenames[i+1];
-        if(param.showMappings) {
+        if(param.mapViewMode != map_view_mode::none) {
             os << param.comment << fname1 << " + " << fname2 << '\n';
         }
         else if(!param.outfile.empty() && infilenames.size() > 1) {
@@ -916,7 +865,7 @@ void classify_on_file_pairs(parallel_queue& queue,
                            os, stats);
         }
         catch(std::exception& e) {
-            if(param.showMappings) {
+            if(param.mapViewMode != map_view_mode::none) {
                 os << "FAIL: " << e.what() << std::endl;
             }
         }
@@ -937,7 +886,7 @@ void classify_sequences(const database& db, const query_param& param,
 {
     const auto& comment = param.comment;
 
-    if(param.showMappings) {
+    if(param.mapViewMode != map_view_mode::none) {
         os << comment << "Reporting per-read mappings (non-mapping lines start with '"
            << comment << "').\n";
 
@@ -973,13 +922,6 @@ void classify_sequences(const database& db, const query_param& param,
            << comment << "  Reads from two consecutive sequences in each file will be paired up.\n"
            << comment << "  Max insert size considered " << param.insertSizeMax << ".\n";
     }
-    if(param.useAlignment > 0) {
-        os << comment << "Classification considers top "
-           << top_matches_in_contiguous_window_range::max_count() << " matches\n";
-    }
-    if(param.useAlignment > 0) {
-        os << comment << "Classification uses semi-global alignment.\n";
-    }
 
     os << comment << "Using " << param.numThreads << " threads\n";
     if(param.outfile.empty()) os.flush();
@@ -996,7 +938,7 @@ void classify_sequences(const database& db, const query_param& param,
     else {
         classify_per_file(queue, db, param, infilenames, os, stats);
     }
-    if(!param.outfile.empty() || !param.showMappings) {
+    if(!param.outfile.empty() || param.mapViewMode == map_view_mode::none) {
         clear_current_line();
     }
 

@@ -262,13 +262,16 @@ for_each_window(RAIterator first, RAIterator last,
                 const size_t len, const size_t stride,
                 Consumer&& consume)
 {
-    for(auto wend = first + len; wend <= last; first += stride, wend += stride) {
-        consume(first, wend);
+    using std::distance;
+    //sequence not longer than window?
+    if(size_t(distance(first,last)) <= len) {
+        consume(first,last);
     }
-
-    //last window might be shorter
-    if(first < last) {
-        consume(first, last);
+    else {
+        for(auto wend = first + len; wend <= last; first += stride, wend += stride) {
+            consume(first, wend);
+        }
+        if(first < last) consume(first, last);
     }
 }
 

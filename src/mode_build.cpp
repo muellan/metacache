@@ -511,17 +511,20 @@ void try_to_rank_unranked_targets(database& db, const build_param& param)
 
     if(!unranked.empty()) {
         std::cout << unranked.size()
-                  << " sequences were not ranked." << std::endl;
+                  << " targets could not be ranked." << std::endl;
 
         for(const auto& file : param.taxonomy.mappingPostFiles) {
-            rank_targets_post_process(db, unranked, param.taxonomy.path + file);
+            rank_targets_post_process(db, unranked, file);
         }
     }
 
     unranked = unranked_targets(db);
-    if(!unranked.empty()) {
+    if(unranked.empty()) {
+        std::cout << "All targets are ranked." << std::endl;
+    }
+    else {
         std::cout << unranked.size()
-                  << " sequences remain unranked." << std::endl;
+                  << " targets remain unranked." << std::endl;
     }
 
 }

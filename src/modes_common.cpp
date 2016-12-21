@@ -181,11 +181,11 @@ void show_per_rank_statistics(std::ostream& os,
 {
     constexpr taxon_rank ranks[] {
           taxon_rank::Sequence,
+          taxon_rank::subSpecies,
           taxon_rank::Species,    taxon_rank::Genus,
           taxon_rank::Family,     taxon_rank::Order,
           taxon_rank::Class,      taxon_rank::Phylum,
-          taxon_rank::Kingdom,    taxon_rank::Domain,
-          taxon_rank::root
+          taxon_rank::Kingdom,    taxon_rank::Domain
     };
 
     if(stats.assigned() < 1) {

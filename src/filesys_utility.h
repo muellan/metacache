@@ -39,7 +39,7 @@ namespace mc {
  *
  *****************************************************************************/
 std::vector<std::string>
-files_in_directory(const std::string& parentDir, int recurse = 10);
+files_in_directory(std::string parentDir, int recurse = 10);
 
 
 

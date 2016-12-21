@@ -30,8 +30,14 @@ namespace mc {
 
 //-------------------------------------------------------------------
 std::vector<std::string>
-files_in_directory(const std::string& parentDir, int recurse)
+files_in_directory(std::string parentDir, int recurse)
 {
+    if(!parentDir.empty() &&
+       (parentDir.back() == '/' || parentDir.back() == '\\'))
+    {
+        parentDir.pop_back();
+    }
+
     auto files = std::vector<std::string>{};
     DIR* dir;
     struct dirent *entry;
