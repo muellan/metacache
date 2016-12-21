@@ -42,11 +42,6 @@ OPTIONS:
 
     -locations         Show locations in candidate reference genomes.
 
-    -align             Use semi-global alignment for ambiguous cases.
-                       Reference genome sequence files must be available.
-                       This will drastically decrease querying speed!
-                       default: off
-
     -lineage           Report complete lineage for per-read classification
                        starting with the lowest rank found or allowed and
                        ending with the highest rank allowed. See also
@@ -87,6 +82,9 @@ OPTIONS:
                        sequence; show summaries only (useful for quick tests).
                        default: off
 
+    -mapped_only       Don't list unclassified queries.
+                       default: off
+
     -separator <text>  string that separates output fields (sequence name, 
                        ground truth, classification result, etc.)
                        default: "\t|\t"
@@ -103,6 +101,10 @@ OPTIONS:
     -threads <no>      use <no> many parallel threads
                        default: guess optimum for hardware
 
+    -showalign         Show semi-global alignment for best candidate target.
+                       Reference genome sequence files must be available.
+                       This will drastically decrease querying speed!
+                       default: off
 
 EXAMPLES:
     Query all sequences in 'myreads.fna' against pre-built database 'refseq':
