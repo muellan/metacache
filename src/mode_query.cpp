@@ -108,6 +108,7 @@ struct query_param
     float alignmentDiff = 1.1f;
     //maximum range in sequence that read (pair) is expected to be in
     std::size_t insertSizeMax = 0;
+    bool weightHitsWithWindows = false;
 
     //-----------------------------------------------------
     //analysis options
@@ -222,6 +223,8 @@ get_query_param(const args_parser& args)
     param.hitsMin  = args.get<std::uint16_t>("hitmin", defaults.hitsMin);
     param.hitsDiff = args.get<float>("hitdiff", defaults.hitsDiff);
 
+    param.weightHitsWithWindows = args.contains("hitweight");
+
     //alignment
     param.useAlignment  = args.contains("align");
     param.alignmentMin  = args.get<float>("alignmin", defaults.alignmentMin);
@@ -232,7 +235,14 @@ get_query_param(const args_parser& args)
     param.showLineage = args.contains("lineage");
 
     param.outfile = args.get<std::string>("out", "");
-    param.splitOutput = args.contains("splitout");
+
+    if(param.outfile.empty()) {
+        param.outfile = args.get<std::string>("splitout", "");
+        param.splitOutput = true;
+    }
+    else {
+        param.splitOutput = args.contains("splitout");
+    }
 
     param.outSeparator = args.get<std::string>("separator", "\t|\t");
 
@@ -555,19 +565,19 @@ sequence_classification(std::ostream& os,
     const sequence& query1, const sequence& query2,
     const matches_in_contiguous_window_range_top<n,target_id>& cand)
 {
+    auto wc = param.weightHitsWithWindows
+                ? (cand.covered_windows() > 1) ? cand.covered_windows()-1 : 1
+                : 1;
+
     //sum of top-2 hits < threshold => considered not classifiable
-    if((cand.hits(0) + cand.hits(1)) < param.hitsMin) {
+    if((cand.hits(0) + cand.hits(1)) < wc*param.hitsMin) {
         return classification{};
     }
-
-    //TODO weight hits with read length(s)
-    //TODO include target ambiguity
-    //TODO include window length
 
     //either top 2 are the same sequences with at least 'hitsMin' many hits
     //(checked before) or hit difference between these top 2 is above threshhold
     if( (cand.target_id(0) == cand.target_id(1))
-        || (cand.hits(0) - cand.hits(1)) >= param.hitsMin)
+        || (cand.hits(0) - cand.hits(1)) >= wc*param.hitsMin)
     {
         //return top candidate
         auto tid = cand.target_id(0);

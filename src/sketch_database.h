@@ -382,22 +382,38 @@ public:
 
 
     //---------------------------------------------------------------
-    void remove_ambiguous_features(taxon_rank r, bucket_size_type maxtax)
+    void remove_ambiguous_features(taxon_rank r, bucket_size_type maxambig)
     {
         if(taxa_.empty()) {
             throw std::runtime_error{"no taxonomy available!"};
         }
 
-        if(maxtax == 0) maxtax = 1;
+        if(maxambig == 0) maxambig = 1;
 
-        for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
-            if(!i->empty()) {
-                std::set<taxon_id> taxa;
-                for(auto loc : *i) {
-                    taxa.insert(targets_[loc.tgt].ranks[int(r)]);
-                    if(taxa.size() > maxtax) {
-                        features_.clear(i);
-                        break;
+        if(r == taxon_rank::Sequence) {
+            for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
+                if(!i->empty()) {
+                    std::set<target_id> targets;
+                    for(auto loc : *i) {
+                        targets.insert(loc.tgt);
+                        if(targets.size() > maxambig) {
+                            features_.clear(i);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        else {
+            for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
+                if(!i->empty()) {
+                    std::set<taxon_id> taxa;
+                    for(auto loc : *i) {
+                        taxa.insert(targets_[loc.tgt].ranks[int(r)]);
+                        if(taxa.size() > maxambig) {
+                            features_.clear(i);
+                            break;
+                        }
                     }
                 }
             }
@@ -1007,7 +1023,7 @@ public:
     matches_in_contiguous_window_range_top(
         const MatchResult& matches, win_t numWindows = 3)
     :
-        tgt_{}, hits_{}, pos_{}, numTgts_(0)
+        tgt_{}, hits_{}, pos_{}, numTgts_(0), coveredWins_{numWindows}
     {
         using std::begin;
         using std::end;
@@ -1110,11 +1126,16 @@ public:
         return pos_[rank].end - pos_[rank].beg;
     }
 
+    win_t covered_windows() const noexcept {
+        return coveredWins_;
+    }
+
 private:
     tid_t tgt_[maxNo];
     hit_t hits_[maxNo];
     window_range pos_[maxNo];
     int numTgts_;
+    win_t coveredWins_;
 };
 
 

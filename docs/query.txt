@@ -11,13 +11,14 @@ SYNTAX:
     search at most 10 levels down in the file hierarchy.
 
 OPTIONS:
-    -out <filename>    Redirect output to file <filename>.
+    -out <file>        Redirect output to file <file>.
                        If not specified, output will be written to stdout.
+                       If more than one input file was given all output
+                       will be concatenated into one file.
 
-    -splitout          Generate output and statistics for each input file
-                       separately. The name of the input file will be appended
-                       to the output filename (see '-out').
-                       default: off
+    -splitout <file>   Generate output and statistics for each input file
+                       separately. For each input file <in> an output file 
+                       <file>_<in> will be written.
 
     -pairfiles         Interleave paired-end reads from two consecutive files,
                        so that the nth read from file m and the nth read
