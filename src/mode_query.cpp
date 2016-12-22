@@ -704,17 +704,15 @@ void process_database_answer(
                 stats.register_alignment_score(align.score);
 
                 //print alignment to top candidate
-                if(param.showAlignment) {
+                if(align.score > 0 && param.showAlignment) {
                     const auto w = db.target_window_stride();
 
                     os << '\n'
-                       << param.comment << "  alignment to "
-                       << origin.filename << " (" << origin.index << ") "
-                       << " in window range [" << (w * tophits.window(0).beg)
-                       << ',' << (w * tophits.window(0).end) << "]"
-                       << " window length " << db.query_window_size()
-                       << " windows stride " << db.query_window_stride() << '\n'
-                       << param.comment << "  score  " << align.score << '\n'
+                       << param.comment << "  score  " << align.score
+                       << "  aligned to "
+                       << origin.filename << " #" << origin.index
+                       << " in range [" << (w * tophits.window(0).beg)
+                       << ',' << (w * tophits.window(0).end) << "]\n"
                        << param.comment << "  query  " << align.query << '\n'
                        << param.comment << "  target " << align.subject;
                 }
