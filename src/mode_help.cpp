@@ -35,7 +35,7 @@ void show_available_help_topics()
     auto files = files_in_directory("docs");
 
     if(files.empty()) {
-        std::cout << "Documentation files are missing!\n"
+        std::cerr << "Documentation files are missing!\n"
                   << "These should be in a folder called 'docs'.\n"
                   << "Please download a new copy of MetaCache!"
                   << std::endl;
@@ -81,7 +81,7 @@ void show_help_for_topic(const std::string& topic)
         std::cout.flush();
     }
     else {
-        std::cout << "Documentation for topic '" << topic << "' not available.\n";
+        std::cerr << "Documentation for topic '" << topic << "' not available.\n";
         show_available_help_topics();
     }
 }
@@ -95,8 +95,8 @@ void main_mode_help(const args_parser& args)
     }
     else if(args.non_prefixed_count() == 1 ) {
        if(args.non_prefixed(0) == "help") {
-           std::cout << "You need to specify a help topic:\n"
-               << "    ./metacache help <topic>\n";
+           std::cerr << "You need to specify a help topic:\n"
+                     << "    ./metacache help <topic>\n";
 
            show_available_help_topics();
        } else {

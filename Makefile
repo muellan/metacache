@@ -40,7 +40,9 @@ HEADERS = \
           src/sequence_io.h \
           src/sequence_view.h \
           src/sketch_database.h \
+          src/stat_confusion.h \
           src/stat_moments.h \
+          src/statistics.h \
           src/taxonomy.h \
           src/timer.h \
           src/version.h

@@ -73,10 +73,10 @@ int main(int argc, char* argv[])
         }
     }
     catch(std::runtime_error& e) {
-        std::cout << "\nABORT: " << e.what() << "!" << std::endl;
+        std::cerr << "\nABORT: " << e.what() << "!" << std::endl;
     }
     catch(std::invalid_argument& e) {
-        std::cout << "\nABORT: " << e.what() << "!" << std::endl;
+        std::cerr << "\nABORT: " << e.what() << "!" << std::endl;
         nomode = true;
     }
 

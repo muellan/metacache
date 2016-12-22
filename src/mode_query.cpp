@@ -120,6 +120,7 @@ struct query_param
     //test precision (ground truth must be available)
     bool testPrecision = false;
     bool testCoverage = false;
+    bool testAlignment = false;
     //additional file with query -> ground truth mapping
     std::string sequ2taxonPreFile;
 
@@ -165,7 +166,17 @@ get_query_param(const args_parser& args)
 
     param.infiles = sequence_filenames(args);
     if(param.infiles.empty()) {
-        throw std::invalid_argument{"No sequence filenames provided."};
+        throw std::runtime_error{"No query sequence filenames provided"};
+    }
+    else {
+        bool anyreadable = false;
+        for(const auto& f : param.infiles) {
+            if(file_readable(f)) { anyreadable = true; break; }
+        }
+        if(!anyreadable) {
+            throw std::runtime_error{
+                        "None of the query sequence files could be opened"};
+        }
     }
 
     //pairing
@@ -232,10 +243,14 @@ get_query_param(const args_parser& args)
 
     param.weightHitsWithWindows = args.contains("hitweight");
 
-    //show alignment
-    param.showAlignment = args.contains("showalign") ||
+    //alignment
+    param.showAlignment = args.contains("showalign");
+
+    param.testAlignment = param.showAlignment ||
                           args.contains("align") ||
-                          args.contains("alignment");
+                          args.contains("alignment") ||
+                          args.contains("testalign") ||
+                          args.contains("test-align");
 
     //output formatting
     param.showLineage = args.contains("lineage");
@@ -357,64 +372,31 @@ make_view_from_window_range(
  * @return index of best candidate or -1 if ambiguous or unsatisfactory
  *
  *****************************************************************************/
-void show_alignment(std::ostream& os,
-    const database& db, const query_param& param,
-    const sequence& query1, const sequence& query2,
-    target_id tgt, const index_range<std::uint_least64_t>& winRange)
+template<class Query, class Subject, class AlignmentScheme>
+alignment<typename AlignmentScheme::score_type,typename Query::value_type>
+make_alignment(const Query& query1, const Query& query2,
+               const Subject& subject,
+               const AlignmentScheme& scheme)
 {
-    //check which of the top sequences has a better alignment
-    const auto& origin = db.origin_of_target(tgt);
+    std::size_t score  = 0;
+    std::size_t scorer = 0;
 
-    if(origin.filename.empty()) return;
+    //compute alignment
+    auto align = align_semi_global(query1, subject, scheme);
+    score = align.score;
+    //reverse complement
+    auto query1r = make_reverse_complement(query1);
+    auto alignr = align_semi_global(query1r, subject, scheme);
+    scorer = alignr.score;
 
-    //open sequence files & forward to sequence index
-    try {
-        //load candidate sequences
-        auto reader = make_sequence_reader(origin.filename);
-        for(std::size_t i = 0; i < origin.index; ++i) reader->next();
-        if(!reader->has_next()) return;
-
-        auto sequence = reader->next().data;
-        auto subject = make_view_from_window_range(sequence,
-                                                   winRange,
-                                                   db.target_window_stride());
-
-        using scheme_t = needleman_wunsch_scheme;
-
-        std::size_t score  = 0;
-        std::size_t scorer = 0;
-
-        //compute alignment
-        auto align = semi_global_alignment(query1, subject, scheme_t{});
-        score = align.score;
-        //reverse complement
-        auto query1r = make_reverse_complement(query1);
-        auto alignr = semi_global_alignment(query1r, subject, scheme_t{});
-        scorer = alignr.score;
-
-        //align paired read as well
-        if(!query2.empty()) {
-            score += semi_global_alignment_score(query2, subject, scheme_t{});
-            auto query2r = make_reverse_complement(query2);
-            scorer += semi_global_alignment_score(query2r, subject, scheme_t{});
-        }
-
-        if(score > scorer) {
-            os << '\n'
-               << param.comment << "   score  " << align.score << '\n'
-               << param.comment << "   query> " << align.query << '\n'
-               << param.comment << "   target " << align.subject;
-        }
-        else if(scorer > 0) {
-            os << '\n'
-               << param.comment << "   score  " << alignr.score << '\n'
-               << param.comment << "   query< " << alignr.query << '\n'
-               << param.comment << "   target " << alignr.subject;
-        }
+    //align paired read as well
+    if(!query2.empty()) {
+        score += align_semi_global_score(query2, subject, scheme);
+        auto query2r = make_reverse_complement(query2);
+        scorer += align_semi_global_score(query2r, subject, scheme);
     }
-    catch (std::exception&) {
-        //file I/O error
-    }
+
+    return (score > scorer) ? align : alignr;
 }
 
 
@@ -544,7 +526,7 @@ sequence_classification(
 
 /*****************************************************************************
  *
- *
+ * @brief prints a classification to stream 'os'
  *
  *****************************************************************************/
 void show_classification(std::ostream& os,
@@ -578,8 +560,7 @@ void show_classification(std::ostream& os,
 
 /*****************************************************************************
  *
- * @brief  clade exclusion
-           masks out hits of a taxon; can be very slow!
+ * @brief removes hits of a taxon on a certain rank; can be very slow!
  *
  *****************************************************************************/
 void remove_hits_on_rank(const database& db,
@@ -601,17 +582,18 @@ void remove_hits_on_rank(const database& db,
 
 /*****************************************************************************
  *
- * @brief process database hit results
+ * @brief process database hit results: classify & print mapping
  *
  *****************************************************************************/
 void process_database_answer(
      const database& db, const query_param& param,
      const std::string& header,
      const sequence& query1, const sequence& query2,
-     match_result&& hits, std::ostream& os, rank_statistics& stats)
+     match_result&& hits, std::ostream& os, classification_statistics& stats)
 {
     if(header.empty()) return;
 
+    //preparation -------------------------------
     classification groundTruth;
     if(param.testPrecision ||
        (param.mapViewMode != map_view_mode::none && param.showGroundTruth) ||
@@ -619,14 +601,13 @@ void process_database_answer(
     {
         groundTruth = ground_truth(db, header);
     }
-
-    //preprocess
+    //clade exclusion
     if(param.excludedRank != taxon_rank::none && groundTruth.has_taxon()) {
         auto exclTaxid = db.ranks(groundTruth.tax())[int(param.excludedRank)];
         remove_hits_on_rank(db, param.excludedRank, exclTaxid, hits);
     }
 
-    //classify
+    //classify ----------------------------------
     auto numWindows = std::uint_least64_t( 2 + (
         std::max(query1.size() + query2.size(), param.insertSizeMax) /
         db.target_window_stride() ));
@@ -634,7 +615,7 @@ void process_database_answer(
     top_matches_in_contiguous_window_range tophits {hits, numWindows};
     auto cls = sequence_classification(db, param, tophits);
 
-    //evaluate classification
+    //evaluate classification -------------------
     if(param.testPrecision) {
         auto lowestCorrectRank = lowest_common_rank(db, cls, groundTruth);
 
@@ -645,67 +626,103 @@ void process_database_answer(
         if(param.testCoverage && groundTruth.has_taxon()) {
             update_coverage_statistics(db, cls, groundTruth, stats);
         }
+
     } else {
         stats.assign(cls.rank());
     }
 
-    //show mapping
-    if(param.mapViewMode == map_view_mode::none) return;
-    if(cls.none() && param.mapViewMode == map_view_mode::mapped_only) return;
+    //show mapping ------------------------------
+    bool showMapping = param.mapViewMode == map_view_mode::all ||
+        (param.mapViewMode == map_view_mode::mapped_only && !cls.none());
 
-    //print query header and ground truth
-    if(param.showTopHits || param.showAllHits) {
-        //show first contiguous string only
-        auto l = header.find(' ');
-        if(l != std::string::npos) {
-            auto oit = std::ostream_iterator<char>{os, ""};
-            std::copy(header.begin(), header.begin() + l, oit);
-        }
-        else {
-            os << header;
-        }
-        os << param.outSeparator;
-
-        if(param.showGroundTruth) {
-            if(groundTruth.sequence_level()) {
-                show_ranks_of_target(os, db, groundTruth.target(),
-                    param.showTaxaAs, param.lowestRank,
-                    param.showLineage ? param.highestRank : param.lowestRank);
-            }
-            else if(groundTruth.has_taxon()) {
-                show_ranks(os, db, db.ranks(groundTruth.tax()),
-                    param.showTaxaAs, param.lowestRank,
-                    param.showLineage ? param.highestRank : param.lowestRank);
+    if(showMapping) {
+        //print query header and ground truth
+        if(param.showTopHits || param.showAllHits) {
+            //show first contiguous string only
+            auto l = header.find(' ');
+            if(l != std::string::npos) {
+                auto oit = std::ostream_iterator<char>{os, ""};
+                std::copy(header.begin(), header.begin() + l, oit);
             }
             else {
-                os << "n/a";
+                os << header;
             }
             os << param.outSeparator;
+
+            if(param.showGroundTruth) {
+                if(groundTruth.sequence_level()) {
+                    show_ranks_of_target(os, db, groundTruth.target(),
+                        param.showTaxaAs, param.lowestRank,
+                        param.showLineage ? param.highestRank : param.lowestRank);
+                }
+                else if(groundTruth.has_taxon()) {
+                    show_ranks(os, db, db.ranks(groundTruth.tax()),
+                        param.showTaxaAs, param.lowestRank,
+                        param.showLineage ? param.highestRank : param.lowestRank);
+                }
+                else {
+                    os << "n/a";
+                }
+                os << param.outSeparator;
+            }
         }
+
+        //print results
+        if(param.showAllHits) {
+            show_matches(os, db, hits, param.lowestRank);
+            os << param.outSeparator;
+        }
+        if(param.showTopHits) {
+            show_matches(os, db, tophits, param.lowestRank);
+            os << param.outSeparator;
+        }
+        if(param.showLocations) {
+            show_candidate_ranges(os, db, tophits);
+            os << param.outSeparator;
+        }
+        show_classification(os, db, param, cls);
     }
 
-    //print results
-    if(param.showAllHits) {
-        show_matches(os, db, hits, param.lowestRank);
-        os << param.outSeparator;
-    }
-    if(param.showTopHits) {
-        show_matches(os, db, tophits, param.lowestRank);
-        os << param.outSeparator;
-    }
-    if(param.showLocations) {
-        show_candidate_ranges(os, db, tophits);
-        os << param.outSeparator;
-    }
-    show_classification(os, db, param, cls);
+    //optional alignment ------------------------------
+    if(param.testAlignment && !cls.none()) {
+        //check which of the top sequences has a better alignment
+        const auto& origin = db.origin_of_target(tophits.target_id(0));
 
-    //print alignment to top candidate
-    if(param.showAlignment && !cls.none()) {
-        show_alignment(os, db, param, query1, query2,
-                       tophits.target_id(0), tophits.window(0));
+        try {
+            //load candidate file and forward to sequence
+            auto reader = make_sequence_reader(origin.filename);
+            for(std::size_t i = 0; i < origin.index; ++i) reader->next();
+            if(reader->has_next()) {
+                auto tgtSequ = reader->next().data;
+                auto subject = make_view_from_window_range(tgtSequ,
+                                    tophits.window(0),
+                                    db.target_window_stride());
+
+                auto align = make_alignment(query1, query2, subject,
+                                            needleman_wunsch_scheme{});
+
+                stats.register_alignment_score(align.score);
+
+                //print alignment to top candidate
+                if(param.showAlignment) {
+                    const auto w = db.target_window_stride();
+
+                    os << '\n'
+                       << param.comment << "  alignment to "
+                       << origin.filename << " (" << origin.index << ") "
+                       << " in window range [" << (w * tophits.window(0).beg)
+                       << ',' << (w * tophits.window(0).end) << "]"
+                       << " window length " << db.query_window_size()
+                       << " windows stride " << db.query_window_stride() << '\n'
+                       << param.comment << "  score  " << align.score << '\n'
+                       << param.comment << "  query  " << align.query << '\n'
+                       << param.comment << "  target " << align.subject;
+                }
+            }
+        } catch(std::exception&) { }
     }
 
-    os << '\n';
+    if(showMapping) os << '\n';
 }
 
 
@@ -717,7 +734,7 @@ void process_database_answer(
  *****************************************************************************/
 void classify(parallel_queue& queue,
     const database& db, const query_param& param,
-    sequence_reader& reader, std::ostream& os, rank_statistics& stats)
+    sequence_reader& reader, std::ostream& os, classification_statistics& stats)
 {
     std::mutex mtx;
 
@@ -761,7 +778,7 @@ void classify(parallel_queue& queue,
 void classify_pairs(parallel_queue& queue,
                     const database& db, const query_param& param,
                     sequence_reader& reader1, sequence_reader& reader2,
-                    std::ostream& os, rank_statistics& stats)
+                    std::ostream& os, classification_statistics& stats)
 {
     const auto load = 32 * queue.concurrency();
     const auto batchSize = 4096 * queue.concurrency();
@@ -810,7 +827,7 @@ void classify_pairs(parallel_queue& queue,
 void classify_per_file(parallel_queue& queue,
                        const database& db, const query_param& param,
                        const std::vector<std::string>& infilenames,
-                       std::ostream& os, rank_statistics& stats)
+                       std::ostream& os, classification_statistics& stats)
 {
     for(size_t i = 0; i < infilenames.size(); ++i) {
         const auto& fname = infilenames[i];
@@ -846,7 +863,7 @@ void classify_per_file(parallel_queue& queue,
 void classify_on_file_pairs(parallel_queue& queue,
                             const database& db, const query_param& param,
                             const std::vector<std::string>& infilenames,
-                            std::ostream& os, rank_statistics& stats)
+                            std::ostream& os, classification_statistics& stats)
 {
     //pair up reads from two consecutive files in the list
     for(size_t i = 0; i < infilenames.size(); i += 2) {
@@ -923,6 +940,10 @@ void classify_sequences(const database& db, const query_param& param,
            << comment << "  Max insert size considered " << param.insertSizeMax << ".\n";
     }
 
+    if(param.testAlignment) {
+        os << comment << "Query sequences will be aligned to best candidate target => SLOW!\n";
+    }
+
     os << comment << "Using " << param.numThreads << " threads\n";
     if(param.outfile.empty()) os.flush();
 
@@ -931,7 +952,7 @@ void classify_sequences(const database& db, const query_param& param,
     timer time;
     time.start();
 
-    rank_statistics stats;
+    classification_statistics stats;
     if(param.pairing == pairing_mode::files) {
         classify_on_file_pairs(queue, db, param, infilenames, os, stats);
     }
@@ -954,7 +975,7 @@ void classify_sequences(const database& db, const query_param& param,
        << comment << "speed:   " << speed << " queries/min\n";
 
     if(stats.total() > 0) {
-        show_per_rank_statistics(os, stats, comment);
+        show_classification_statistics(os, stats, comment);
     } else {
         os << comment << "No valid query sequences found." << std::endl;
     }

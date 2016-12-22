@@ -164,7 +164,7 @@ make_taxonomic_hierarchy(const std::string& taxNodesFile,
         std::cout << "done." << std::endl;
     }
     else {
-        std::cout << "Could not read taxon names file "
+        std::cerr << "Could not read taxon names file "
                   << taxNamesFile
                   << "; continuing with ids only." << std::endl;
     }
@@ -227,7 +227,7 @@ make_taxonomic_hierarchy(const std::string& taxNodesFile,
         std::cout << tax.taxon_count() << " taxa read." << std::endl;
     }
     else {
-        std::cout << "Could not read taxonomic nodes file "
+        std::cerr << "Could not read taxonomic nodes file "
                   << taxNodesFile << std::endl;
         return tax;
     }

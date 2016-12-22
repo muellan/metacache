@@ -175,9 +175,9 @@ void show_matches(std::ostream& os,
 
 
 //-------------------------------------------------------------------
-void show_per_rank_statistics(std::ostream& os,
-                              const rank_statistics& stats,
-                              const std::string& prefix)
+void show_classification_statistics(std::ostream& os,
+                                    const classification_statistics& stats,
+                                    const std::string& prefix)
 {
     constexpr taxon_rank ranks[] {
           taxon_rank::Sequence,
@@ -260,6 +260,14 @@ void show_per_rank_statistics(std::ostream& os,
         }
     }
 
+    auto alscore = stats.alignment_scores();
+    if(!alscore.empty()) {
+        os << prefix << "semi-global alignment of query to best candidates:\n"
+           << prefix << "  score: " << alscore.mean()
+                     << " +/- " << alscore.stddev()
+                     << " <> " << alscore.skewness() << '\n';
+    }
+
 }
 
 
@@ -268,7 +276,7 @@ void show_per_rank_statistics(std::ostream& os,
 void update_coverage_statistics(
     const database& db,
     const classification& result, const classification& truth,
-    rank_statistics& stats)
+    classification_statistics& stats)
 {
     const auto& lin = db.ranks(truth.tax());
     //check if taxa are covered in DB

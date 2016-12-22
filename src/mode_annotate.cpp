@@ -176,7 +176,7 @@ void read_mappings_from_file(sequence_id_type idtype,
     std::ifstream is {file};
 
     if(!is.good()) {
-        std::cout << "File '" << file << "' could not be read." << std::endl;
+        std::cerr << "File '" << file << "' could not be read." << std::endl;
         return;
     }
 
@@ -313,7 +313,7 @@ void annotate_with_taxid(const annotation_param& param)
 
     std::ifstream is {param.infile};
     if(!is.good()) {
-        std::cout << "Input file " << param.infile << " could not be opened."
+        std::cerr << "Input file " << param.infile << " could not be opened."
                   << std::endl;
     }
 
@@ -334,9 +334,9 @@ void annotate_with_taxid(const annotation_param& param)
             std::cout << "complete." << std::endl;
         }
         else {
-            std::cout << "Output file " << param.outfile
-                << " could not be opened."
-                << std::endl;
+            std::cerr << "Output file " << param.outfile
+                      << " could not be opened."
+                      << std::endl;
         }
     }
 

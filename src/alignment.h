@@ -32,6 +32,37 @@
 namespace mc {
 
 
+
+/*****************************************************************************
+ *
+ *
+ *
+ *****************************************************************************/
+enum class alignment_mode
+{
+    score_only, backtrace
+};
+
+
+
+/*****************************************************************************
+ *
+ * @brief result of an alignment
+ *
+ *****************************************************************************/
+template<class Score, class Value>
+struct alignment
+{
+    using score_type = Score;
+    using value_type = Value;
+
+    score_type score = score_type(0);
+    std::vector<value_type> query;
+    std::vector<value_type> subject;
+};
+
+
+
 /*****************************************************************************
  *
  *
@@ -227,42 +258,15 @@ public:
  *
  *
  *****************************************************************************/
-template<class Score, class Value>
-struct alignment
-{
-    Score score;
-    std::vector<Value> query;
-    std::vector<Value> subject;
-};
-
-
-
-/*****************************************************************************
- *
- *
- *
- *****************************************************************************/
-enum class alignment_mode
-{
-    score_only, backtrace
-};
-
-
-
-/*****************************************************************************
- *
- *
- *
- *****************************************************************************/
 template<
     class QuerySequence, class SubjectSequence,
     class ScoringScheme
 >
 alignment<typename ScoringScheme::score_type,typename QuerySequence::value_type>
-semi_global_alignment(const QuerySequence& query,
-                      const SubjectSequence& subject,
-                      const ScoringScheme& scoring,
-                      const alignment_mode mode = alignment_mode::backtrace)
+align_semi_global(const QuerySequence& query,
+                  const SubjectSequence& subject,
+                  const ScoringScheme& scoring,
+                  const alignment_mode mode = alignment_mode::backtrace)
 {
     static_assert(std::is_same<typename QuerySequence::value_type,
                                typename SubjectSequence::value_type>::value,
@@ -366,12 +370,12 @@ template<
     class ScoringScheme
 >
 typename ScoringScheme::score_type
-semi_global_alignment_score(const QuerySequence& query,
-                            const SubjectSequence& subject,
-                            const ScoringScheme& scoring)
+align_semi_global_score(const QuerySequence& query,
+                        const SubjectSequence& subject,
+                        const ScoringScheme& scoring)
 {
-    return semi_global_alignment(query, subject, scoring,
-                                 alignment_mode::score_only).score;
+    return align_semi_global(query, subject, scoring,
+                             alignment_mode::score_only).score;
 }
 
 

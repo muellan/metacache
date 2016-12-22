@@ -1162,7 +1162,7 @@ make_database(const std::string& filename,
         return db;
     }
     catch(const file_access_error& e) {
-        std::cout << "FAIL" << std::endl;
+        std::cerr << "FAIL" << std::endl;
         throw file_access_error{"Could not read database file '" + filename + "'"};
     }
 
@@ -1198,7 +1198,7 @@ write_database(const sketch_database<S,K,H,G,W,L>& db,
 
     }
     catch(const file_access_error&) {
-        std::cout << "FAIL" << std::endl;
+        std::cerr << "FAIL" << std::endl;
         throw file_access_error{"Could not write database file '" + filename + "'"};
     }
 }

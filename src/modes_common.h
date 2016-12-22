@@ -27,6 +27,7 @@
 
 //contains all important typedefs
 #include "config.h"
+#include "statistics.h"
 
 
 namespace mc {
@@ -155,8 +156,8 @@ void show_ranks_of_target(std::ostream&,
  * @brief print per-rank classification statistics
  *
  *****************************************************************************/
-void show_per_rank_statistics(std::ostream&,
-                              const rank_statistics&,
+void show_classification_statistics(std::ostream&,
+                              const classification_statistics&,
                               const std::string& prefix = "");
 
 
@@ -169,7 +170,7 @@ void show_per_rank_statistics(std::ostream&,
 void update_coverage_statistics(
     const database&,
     const classification& result, const classification& truth,
-    rank_statistics&);
+    classification_statistics&);
 
 
 

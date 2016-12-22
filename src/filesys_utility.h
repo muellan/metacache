@@ -71,6 +71,15 @@ extract_filename(const std::string& filepath);
 std::ifstream::pos_type file_size(const std::string& filename);
 
 
+
+/*****************************************************************************
+ *
+ * @return true, if file with name 'filename' could be opened for reading
+ *
+ *****************************************************************************/
+bool file_readable(const std::string& filename);
+
+
 } // namespace mc
 
 

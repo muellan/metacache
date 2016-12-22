@@ -98,13 +98,19 @@ OPTIONS:
     -sketchlen <no>    number of features per window
                        default: same as in database
 
-    -threads <no>      use <no> many parallel threads
-                       default: guess optimum for hardware
+    -align             Record semi-global alignment scores for best candidate
+                       target and show statistics.
+                       Reference genome sequence files must be available.
+                       This will decrease querying speed!
+                       default: off
 
     -showalign         Show semi-global alignment for best candidate target.
                        Reference genome sequence files must be available.
-                       This will drastically decrease querying speed!
+                       This will decrease querying speed!
                        default: off
+
+    -threads <no>      use <no> many parallel threads
+                       default: guess optimum for hardware
 
 EXAMPLES:
     Query all sequences in 'myreads.fna' against pre-built database 'refseq':

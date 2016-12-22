@@ -190,12 +190,12 @@ void show_lineage_table(const args_parser& args)
  * @brief
  *
  *****************************************************************************/
-void show_rank_statistics(const args_parser& args)
+void show_classification_statistics(const args_parser& args)
 {
     auto rankName = args.non_prefixed(3);
     auto rank = taxonomy::rank_from_name(rankName);
     if(rank == taxonomy::rank::none) {
-        std::cout << "rank not recognized" << std::endl;
+        std::cerr << "rank not recognized" << std::endl;
         return;
     }
 
@@ -270,7 +270,7 @@ void main_mode_info(const args_parser& args)
             show_lineage_table(args);
         }
         else if(mode == "rank" && args.non_prefixed_count() > 3) {
-            show_rank_statistics(args);
+            show_classification_statistics(args);
         }
         else if(mode == "statistics" || mode == "stat")
         {
@@ -281,7 +281,7 @@ void main_mode_info(const args_parser& args)
             show_feature_map(args);
         }
         else {
-            std::cout << "Info mode '" << mode << "' not recognized.\n"
+            std::cerr << "Info mode '" << mode << "' not recognized.\n"
                       << "Properties of database " << args.non_prefixed(1)
                       << ":" << std::endl;
             show_database_config(args);

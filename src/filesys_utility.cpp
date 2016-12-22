@@ -106,10 +106,19 @@ extract_filename(const std::string& filepath)
 std::ifstream::pos_type
 file_size(const std::string& filename)
 {
-    std::ifstream is(filename, std::ifstream::ate | std::ifstream::binary);
+    std::ifstream is{filename, std::ifstream::ate | std::ifstream::binary};
     if(!is.good()) return 0;
     return is.tellg();
 }
+
+
+
+//-------------------------------------------------------------------
+bool file_readable(const std::string& filename)
+{
+    return std::ifstream{filename}.good();
+}
+
 
 } // namespace mc
 
