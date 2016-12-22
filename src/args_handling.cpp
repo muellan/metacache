@@ -95,7 +95,8 @@ get_taxonomy_param(const args_parser& args)
     param.mappingPreFiles.push_back("assembly_summary.txt");
 
     //manually added accession to taxon map file names
-    auto postm = args.get<std::string>("taxpostmap", "");
+    auto postm = args.get<std::string>({"taxpostmap", "taxonomy-postmap"}, "");
+
     if(!postm.empty()) {
         param.mappingPostFiles.push_back(postm);
     }

@@ -99,15 +99,19 @@ get_build_param(const args_parser& args)
     param.winlen    = args.get<int>("winlen", args.get<int>("w", defaults.winlen));
     param.winstride = args.get<int>("winstride", param.winlen - param.kmerlen + 1);
 
-    param.maxLoadFactor = args.get<float>("max_load_fac", defaults.maxLoadFactor);
+    param.maxLoadFactor = args.get<float>({"max-load-fac", "max_load_fac"},
+                                          defaults.maxLoadFactor);
 
-    param.maxLocationsPerFeature = args.get<int>("max_locations_per_feature",
+    param.maxLocationsPerFeature = args.get<int>({"max-locations-per-feature",
+                                                  "max_locations_per_feature" },
                                                  defaults.maxLocationsPerFeature);
 
-    param.removeAmbigFeaturesOnRank =
-        taxonomy::rank_from_name(args.get<std::string>("remove_ambig_features", "none"));
+    param.removeAmbigFeaturesOnRank = taxonomy::rank_from_name(
+        args.get<std::string>({"remove-ambig-features",
+                               "remove_ambig_features"}, "none"));
 
-    param.maxTaxaPerFeature = args.get<int>("max_ambig_per_feature",
+    param.maxTaxaPerFeature = args.get<int>({"max-ambig-per-feature",
+                                             "max_ambig_per_feature"},
                                             defaults.maxTaxaPerFeature);
 
     param.taxonomy = get_taxonomy_param(args);

@@ -48,7 +48,7 @@ OPTIONS:
                        options '-lowest' and '-highest'.
                        default: off
 
-    -ground_truth      Report correct query taxa if known.
+    -ground-truth      Report correct query taxa if known.
                        Queries need to have either a 'taxid|<number>' entry in
                        their header or a sequence id that is also present in
                        the database.
@@ -75,14 +75,14 @@ OPTIONS:
     -taxids            Print taxon ids in addition to taxon names.
                        default: off
 
-    -taxids_only       Print taxon ids instead of taxon names.
+    -taxids-only       Print taxon ids instead of taxon names.
                        default: off
 
     -nomap             Don't report classification for each individual query
                        sequence; show summaries only (useful for quick tests).
                        default: off
 
-    -mapped_only       Don't list unclassified queries.
+    -mapped-only       Don't list unclassified queries.
                        default: off
 
     -separator <text>  string that separates output fields (sequence name, 

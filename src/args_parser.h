@@ -248,9 +248,6 @@ struct make_default<T,true> { static constexpr T value = T(0); };
 
 
 
-
-
-
 /*****************************************************************************
  *
  * @brief ad-hoc command line argument parser
@@ -284,7 +281,9 @@ public:
     char arg_prefix() const noexcept {
         return prefix_;
     }
-    //-----------------------------------------------------
+
+
+    //---------------------------------------------------------------
     void list_delimiter(char c) {
         listDelimiter_ = c;
     }
@@ -318,8 +317,24 @@ public:
         return parse(arg);
     }
 
+    bool contains(std::initializer_list<std::string> args) const {
+        for(const auto& arg : args) {
+            if(contains(arg)) return true;
+        }
+        return false;
+    }
+
+
+    //---------------------------------------------------------------
     bool contains_singleton(const std::string& arg) const {
         return parse(arg,false);
+    }
+
+    bool contains_singleton(std::initializer_list<std::string> args) const {
+        for(const auto& arg : args) {
+            if(contains_singleton(arg)) return true;
+        }
+        return false;
     }
 
 
@@ -356,8 +371,6 @@ public:
 
 
     //---------------------------------------------------------------
-    // get attached value(s)
-    //---------------------------------------------------------------
     template<class T>
     T get(size_type i,
           const T& notProvidedValue = detail::make_default<T>::value) const
@@ -370,14 +383,19 @@ public:
     }
 
 
-    //-----------------------------------------------------
+    //---------------------------------------------------------------
+    /**
+     * @param arg               argument name to find
+     * @param notProvidedValue  return value if either arg name was not found
+     *                          nor any associated value
+     */
     template<class T>
     T get(const std::string& arg,
           const T& notProvidedValue = detail::make_default<T>::value) const
     {
         std::string p;
         if(parse(arg, p)) {
-            if(p != "")
+            if(!p.empty())
                 return detail::convert_string::to<T>(p);
             else
                 return notProvidedValue;
@@ -385,7 +403,14 @@ public:
         return notProvidedValue;
     }
 
-    //-----------------------------------------------------
+
+    //---------------------------------------------------------------
+     /**
+     * @param arg               argument name to find
+     * @param notProvidedValue  return value if arg name was not found
+     * @param defaultValue      return value if arg name was found,
+     *                          but no associated value
+     */
     template<class T>
     T get(const std::string& arg,
           const T& notProvidedValue,
@@ -393,7 +418,7 @@ public:
     {
         std::string p;
         if(parse(arg, p)) {
-            if(p != "")
+            if(!p.empty())
                 return detail::convert_string::to<T>(p);
             else
                 return defaultValue;
@@ -401,7 +426,60 @@ public:
         return notProvidedValue;
     }
 
-    //-----------------------------------------------------
+
+    //---------------------------------------------------------------
+    /**
+     * @param args              list of alternative argument names
+     * @param notProvidedValue  return value if either no arg name was found
+     *                          or nor any associated value
+     */
+    template<class T>
+    T get(std::initializer_list<std::string> args,
+          const T& notProvidedValue = detail::make_default<T>::value) const
+    {
+        for(const auto& arg : args) {
+            std::string p;
+            if(parse(arg, p)) {
+                if(!p.empty())
+                    return detail::convert_string::to<T>(p);
+                else
+                    return notProvidedValue;
+            }
+        }
+        return notProvidedValue;
+    }
+
+
+    //---------------------------------------------------------------
+    /**
+     * @param args              list of alternative argument names
+     * @param notProvidedValue  return value if no arg name was found
+     * @param defaultValue      return value if arg name was found,
+     *                          but no associated value
+     */
+    template<class T>
+    T get(std::initializer_list<std::string> args,
+          const T& notProvidedValue,
+          const T& defaultValue) const
+    {
+        for(const auto& arg : args) {
+            std::string p;
+            if(parse(arg, p)) {
+                if(!p.empty())
+                    return detail::convert_string::to<T>(p);
+                else
+                    return defaultValue;
+            }
+        }
+        return notProvidedValue;
+    }
+
+
+    //---------------------------------------------------------------
+    /**
+     * @param  arg  argument name to find
+     * @return
+     */
     template<class T>
     std::vector<T> get_list(const std::string& arg) const
     {

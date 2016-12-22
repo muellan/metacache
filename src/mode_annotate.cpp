@@ -146,10 +146,10 @@ get_annotation_param(const args_parser& args)
 
     param.mappingFiles = mapping_filenames(args);
 
-    param.fieldSeparator = args.get<std::string>("field_separator",
+    param.fieldSeparator = args.get<std::string>({"field-sep", "field-separator"},
                                                  defaults.fieldSeparator);
 
-    param.valueSeparator = args.get<std::string>("value_separator",
+    param.valueSeparator = args.get<std::string>({"value-sep", "value-separator"},
                                                  defaults.valueSeparator);
 
     if(args.contains("id=accver"))

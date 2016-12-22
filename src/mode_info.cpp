@@ -272,12 +272,10 @@ void main_mode_info(const args_parser& args)
         else if(mode == "rank" && args.non_prefixed_count() > 3) {
             show_classification_statistics(args);
         }
-        else if(mode == "statistics" || mode == "stat")
-        {
+        else if(mode == "statistics" || mode == "stat") {
             show_database_statistics(args);
         }
-        else if(mode == "featuremap" || mode == "rawdata")
-        {
+        else if(mode == "features" || mode == "featuremap") {
             show_feature_map(args);
         }
         else {

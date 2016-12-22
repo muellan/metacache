@@ -23,10 +23,10 @@ OPTIONS:
        =accver           use accession.version ids
        =gi               usi gi ids
 
-    -field_sep <string>  String that separates header fields.
+    -field-sep <string>  String that separates header fields.
                          default: space
 
-    -value_sep <string>  String that separates annotation field name and
+    -value-sep <string>  String that separates annotation field name and
                          value.
                          default: "|"
 

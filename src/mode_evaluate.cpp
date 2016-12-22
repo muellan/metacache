@@ -106,21 +106,20 @@ get_eval_param(const args_parser& args)
     param.outfile = args.get<std::string>("out", "");
     param.outSeparator = args.get<std::string>("separator", "\t|\t");
 
-    if(args.contains("taxidsonly") ||
-       args.contains("taxids_only") ||
-       args.contains("taxid_only") ||
-       args.contains("taxidonly"))
+    if(args.contains({"taxidsonly","taxids-only","taxids_only",
+                      "taxidonly", "taxid-only", "taxid_only"}))
     {
         param.showTaxaAs = taxon_print_mode::id_only;
     }
-    else if(args.contains("taxids") || args.contains("taxid")) {
+    else if(args.contains({"taxids", "taxid"})) {
         param.showTaxaAs = taxon_print_mode::id_name;
     }
     else {
         param.showTaxaAs = taxon_print_mode::name_only;
     }
 
-    param.groundTruthFile = args.get<std::string>("ground_truth", "");
+    param.groundTruthFile = args.contains({"ground-truth", "ground_truth",
+                                           "groundtruth"});
 
     return param;
 }

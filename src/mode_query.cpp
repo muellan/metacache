@@ -180,22 +180,19 @@ get_query_param(const args_parser& args)
     }
 
     //pairing
-    if(args.contains("paired_files") ||
-       args.contains("pair_files") ||
-       args.contains("pairfiles") )
+    if(args.contains({"paired_files", "paired-files",
+                      "pair_files", "pair-files", "pairfiles"}))
     {
         if(param.infiles.size() > 1) {
             param.pairing = pairing_mode::files;
             std::sort(param.infiles.begin(), param.infiles.end());
         }
     }
-    else if(args.contains("paired_sequences") ||
-            args.contains("pair_sequences") ||
-            args.contains("pair_sequ") ||
-            args.contains("pair_seq") ||
-            args.contains("pairsequ") ||
-            args.contains("pairseq") ||
-            args.contains("paired") )
+    else if(args.contains({"paired_sequences", "paired-sequences",
+                           "pair_sequences", "pair-sequences",
+                           "pair_sequ", "pair-sequ",
+                           "pair_seq", "pair-seq",
+                           "pairsequ", "pairseq", "paired"}) )
     {
         param.pairing = pairing_mode::sequences;
     }
@@ -247,10 +244,8 @@ get_query_param(const args_parser& args)
     param.showAlignment = args.contains("showalign");
 
     param.testAlignment = param.showAlignment ||
-                          args.contains("align") ||
-                          args.contains("alignment") ||
-                          args.contains("testalign") ||
-                          args.contains("test-align");
+                          args.contains({"align", "alignment",
+                                         "testalign", "test-align"});
 
     //output formatting
     param.showLineage = args.contains("lineage");
@@ -258,24 +253,22 @@ get_query_param(const args_parser& args)
     param.outfile = args.get<std::string>("out", "");
 
     if(param.outfile.empty()) {
-        param.outfile = args.get<std::string>("splitout", "");
+        param.outfile = args.get<std::string>({"splitout","split-out"}, "");
         param.splitOutput = true;
     }
     else {
-        param.splitOutput = args.contains("splitout");
+        param.splitOutput = args.contains({"splitout","split-out"});
     }
 
     param.outSeparator = args.get<std::string>("separator", "\t|\t");
 
     param.showLocations = args.contains("locations");
 
-    param.showTopHits = args.contains("tophits");
-    param.showAllHits = args.contains("allhits");
+    param.showTopHits = args.contains({"tophits", "top-hits"});
+    param.showAllHits = args.contains({"allhits", "all-hits"});
 
-    if(args.contains("taxidsonly")  ||
-       args.contains("taxids_only") || args.contains("taxids-only") ||
-       args.contains("taxid_only")  || args.contains("taxid-only") ||
-       args.contains("taxidonly"))
+    if(args.contains({"taxidsonly","taxids-only","taxids_only",
+                      "taxidonly", "taxid-only", "taxid_only"}))
     {
         param.showTaxaAs = taxon_print_mode::id_only;
     }
@@ -286,15 +279,10 @@ get_query_param(const args_parser& args)
         param.showTaxaAs = taxon_print_mode::name_only;
     }
 
-    if(args.contains("nomap") || args.contains("no-map") ||
-       args.contains("noshowmap") || args.contains("nomapping") ||
-       args.contains("nomappings") )
-    {
+    if(args.contains({"nomap","no-map","noshowmap","nomapping","nomappings"})) {
         param.mapViewMode = map_view_mode::none;
     }
-    else if(args.contains("mapped_only") || args.contains("mapped-only") ||
-            args.contains("mappedonly"))
-    {
+    else if(args.contains({"mapped-only", "mapped_only", "mappedonly"})) {
         param.mapViewMode = map_view_mode::mapped_only;
     }
 
@@ -304,16 +292,19 @@ get_query_param(const args_parser& args)
     }
     else if(param.showAllHits) param.mapViewMode = map_view_mode::all;
 
-    param.showGroundTruth = args.contains("ground_truth");
+    param.showGroundTruth = args.contains({"ground-truth", "ground_truth",
+                                           "groundtruth"});
 
-    param.insertSizeMax = args.get<std::size_t>("insertsize",
+    param.insertSizeMax = args.get<std::size_t>({"insertsize", "insert-size"},
                                                 defaults.insertSizeMax);
 
     //database tuning parameters
-    param.maxLoadFactor = args.get<float>("max_load_fac", defaults.maxLoadFactor);
+    param.maxLoadFactor = args.get<float>({"max-load-fac", "max_load_fac"},
+                                          defaults.maxLoadFactor);
 
-    param.maxTargetsPerSketchVal = args.get<int>("max_locations_per_feature",
-                                                 defaults.maxTargetsPerSketchVal);
+    param.maxTargetsPerSketchVal = args.get<int>({"max_locations_per_feature"
+                                                  "max-locations-per-feature"},
+                                                defaults.maxTargetsPerSketchVal);
 
     param.numThreads = args.get<int>("threads",
                                      std::thread::hardware_concurrency());
