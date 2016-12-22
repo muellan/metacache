@@ -76,6 +76,8 @@ struct query_param
     //-----------------------------------------------------
     //output options & formatting
     //-----------------------------------------------------
+    //show database properties
+    bool showDBproperties = false;
     //make a separate output file for each input file
     bool splitOutput = false;
     //show top candidate sequences and their associated k-mer hash hit count
@@ -178,6 +180,8 @@ get_query_param(const args_parser& args)
                         "None of the query sequence files could be opened"};
         }
     }
+
+    param.showDBproperties = args.contains("verbose");
 
     //pairing
     if(args.contains({"paired_files", "paired-files",
@@ -1051,6 +1055,11 @@ void main_mode_query(const args_parser& args)
         auto s = db.query_sketcher();
         s.sketch_size(param.sketchlen);
         db.query_sketcher(std::move(s));
+    }
+
+    if(param.showDBproperties) {
+        print_properties(db);
+        std::cout << '\n';
     }
 
     //process files / file pairs separately

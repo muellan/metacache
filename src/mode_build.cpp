@@ -94,10 +94,10 @@ get_build_param(const args_parser& args)
         param.infoMode = build_info::verbose;
     }
 
-    param.kmerlen   = args.get<int>("kmerlen", args.get<int>("k", defaults.kmerlen));
-    param.sketchlen = args.get<int>("sketchlen", args.get<int>("s", defaults.sketchlen));
-    param.winlen    = args.get<int>("winlen", args.get<int>("w", defaults.winlen));
-    param.winstride = args.get<int>("winstride", param.winlen - param.kmerlen + 1);
+    param.kmerlen   = args.get<int>({"k", "kmerlen"}, defaults.kmerlen);
+    param.sketchlen = args.get<int>({"s", "sketchlen"}, defaults.sketchlen);
+    param.winlen    = args.get<int>({"w", "winlen"}, defaults.winlen);
+    param.winstride = args.get<int>({"d", "winstride"}, param.winlen - param.kmerlen + 1);
 
     param.maxLoadFactor = args.get<float>({"max-load-fac", "max_load_fac"},
                                           defaults.maxLoadFactor);

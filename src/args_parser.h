@@ -262,6 +262,7 @@ public:
 
 
     //---------------------------------------------------------------
+    explicit
     args_parser(int argCount, char** argVec):
         argc_(argCount), argv_(argVec),
         prefix_('-'), listDelimiter_(','),
