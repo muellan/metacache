@@ -94,10 +94,10 @@ get_build_param(const args_parser& args)
         param.infoMode = build_info::verbose;
     }
 
-    param.kmerlen   = args.get<int>({"k", "kmerlen"}, defaults.kmerlen);
-    param.sketchlen = args.get<int>({"s", "sketchlen"}, defaults.sketchlen);
-    param.winlen    = args.get<int>({"w", "winlen"}, defaults.winlen);
-    param.winstride = args.get<int>({"d", "winstride"}, param.winlen - param.kmerlen + 1);
+    param.kmerlen   = args.get<int>({"kmerlen"}, defaults.kmerlen);
+    param.sketchlen = args.get<int>({"sketchlen"}, defaults.sketchlen);
+    param.winlen    = args.get<int>({"winlen"}, defaults.winlen);
+    param.winstride = args.get<int>({"winstride"}, param.winlen - param.kmerlen + 1);
 
     param.maxLoadFactor = args.get<float>({"max-load-fac", "max_load_fac"},
                                           defaults.maxLoadFactor);
@@ -433,7 +433,8 @@ void rank_targets_post_process(database& db,
     bool showProgress = fsize > 100000000;
 
     std::cout << "Try to map sequences to taxa using '" << mappingFile
-              << "' (" << (fsize/(1024*1024)) << " MB)" << std::endl;
+              << "' (" << std::max(std::streamoff(1),
+                                   fsize/(1024*1024)) << " MB)" << std::endl;
 
     if(showProgress) show_progress_indicator(0);
 
