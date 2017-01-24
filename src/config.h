@@ -87,12 +87,14 @@ using sequence = std::string;
  * @brief controls how nucleotide sequences are transformed into 'features'
  */
 using sketcher = single_function_min_hasher<kmer_type>;
+//using sketcher = fuzzy_single_function_min_hasher<kmer_type>;
 
 
 /**************************************************************************
  * @brief hash function for database hash multi-map
  */
 using feature_hash = std::hash<typename sketcher::feature_type>;
+//using feature_hash = same_size_hash<typename sketcher::feature_type>;
 
 
 /**************************************************************************

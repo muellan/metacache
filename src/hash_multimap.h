@@ -163,8 +163,7 @@ template<
     class KeyEqual = std::equal_to<Key>,
     class ValueAllocator = chunk_allocator<ValueT>,
     class BucketAllocator = std::allocator<Key>,
-    class BucketSizeT = std::uint8_t,
-    template<class> class ProbingIterator = linear_probing_iterator
+    class BucketSizeT = std::uint8_t
 >
 class hash_multimap
 {
@@ -246,7 +245,7 @@ public:
         const_iterator cend() const noexcept { return values_ + size_; }
 
 //        probelen_t probe_length() const noexcept { return probelen_; }
-        static constexpr probelen_t probe_length() noexcept { return 0; }
+        probelen_t probe_length() const noexcept { return 0; }
 
     private:
         //-----------------------------------------------------
@@ -393,10 +392,14 @@ public:
     //-----------------------------------------------------
     using local_iterator       = typename bucket_type::iterator;
     using const_local_iterator = typename bucket_type::const_iterator;
+
+
+private:
     //-----------------------------------------------------
-    using probing_iterator = ProbingIterator<iterator>;
+    using probing_iterator = linear_probing_iterator<iterator>;
 
 
+public:
     //---------------------------------------------------------------
     explicit
     hash_multimap(const value_allocator& valloc = value_allocator{},
@@ -975,6 +978,9 @@ private:
             if(it->unused()) return buckets_.end();
             if(keyEqual_(it->key(), key)) return iterator(it);
             /*
+            //robin hood hashing code disabled at the moment;
+            //simple linear probing performs better most of the time
+
             //early out, possible due to Robin Hood invariant
             if(probelen < std::numeric_limits<probelen_t>::max()) {
                 if(probelen > it->probelen_) return buckets_.end();
@@ -1019,6 +1025,8 @@ private:
         } while(++it);
 
         /*
+        //robin hood hashing code disabled at the moment;
+        //simple linear probing performs better most of the time
         bool inserted = false;
         value_type* values = nullptr;
         bucket_size_type size = 0;

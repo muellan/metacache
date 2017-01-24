@@ -47,7 +47,8 @@ struct max_word_size
 
 /*****************************************************************************
  *
- *
+ * @param  x : any integer
+ * @return binary representation of 'x' as a string of characters '0' and '1'
  *
  *****************************************************************************/
 template<class Int>
@@ -76,10 +77,10 @@ bits_as_string(Int x, std::uint8_t groupsize = 8)
 
 /*****************************************************************************
  *
- *
+ * @return integer with 1s on the lowest 'bits' bits and 0s on all other bits
  *
  *****************************************************************************/
-template <typename Int>
+template<class Int>
 inline Int
 lowbitmask(int bits)
 {

@@ -4,7 +4,7 @@ SYNOPSIS:
     Add reference genomes and/or taxonomic information to an existing database.
 
 SYNTAX:
-    metacache add <database name> {<reference genome>} {[option]}
+    metacache modify <database name> {<reference genome>} {[option]}
 
     You can also provide names of directories that contain
     genomic sequence files instead of single filenames. MetaCache will

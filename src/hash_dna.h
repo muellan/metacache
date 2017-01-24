@@ -138,6 +138,16 @@ public:
                 }
             });
 
+        //check if some features are invalid (in case of many ambiguous kmers)
+        if(sketch.back() == feature_type(~0)) {
+            for(auto i = sketch.begin(), e = sketch.end(); i != e; ++i) {
+                if(*i == feature_type(~0)) {
+                    sketch.erase(i,sketch.end());
+                    break;
+                }
+            }
+        }
+
         return sketch;
     }
 
@@ -176,9 +186,318 @@ private:
 
 /*****************************************************************************
  *
+ *
+ *
+ *****************************************************************************/
+template<class KmerT, class Hash = same_size_hash<KmerT>>
+class single_function_min_hasher_id
+{
+public:
+    //---------------------------------------------------------------
+    using kmer_type    = KmerT;
+    using hasher       = Hash;
+    using feature_type = kmer_type;
+    using result_type  = std::vector<feature_type>;
+    //-----------------------------------------------------
+    using kmer_size_type   = numk_t;
+    using sketch_size_type = typename result_type::size_type;
+
+
+    //---------------------------------------------------------------
+    static constexpr std::uint8_t max_kmer_size() noexcept {
+        return max_word_size<kmer_type,2>::value;
+    }
+    static constexpr sketch_size_type max_sketch_size() noexcept {
+        return std::numeric_limits<sketch_size_type>::max();
+    }
+
+
+    //---------------------------------------------------------------
+    explicit
+    single_function_min_hasher_id(hasher hash = hasher{}):
+        hash_(std::move(hash)), k_(16), sketchSize_(16)
+    {}
+
+
+    //---------------------------------------------------------------
+    kmer_size_type
+    kmer_size() const noexcept {
+        return k_;
+    }
+    void
+    kmer_size(kmer_size_type k) noexcept {
+        if(k < 1) k = 1;
+        if(k > max_kmer_size()) k = max_kmer_size();
+        k_ = k;
+    }
+
+    //---------------------------------------------------------------
+    sketch_size_type
+    sketch_size() const noexcept {
+        return sketchSize_;
+    }
+    void
+    sketch_size(sketch_size_type s) noexcept {
+        if(s < 1) s = 1;
+        sketchSize_ = s;
+    }
+
+
+    //---------------------------------------------------------------
+    template<class Sequence>
+    result_type
+    operator () (const Sequence& s) const {
+        using std::begin;
+        using std::end;
+        return operator()(begin(s), end(s));
+    }
+
+    //-----------------------------------------------------
+    template<class InputIterator>
+    result_type
+    operator () (InputIterator first, InputIterator last) const
+    {
+        using std::distance;
+        using std::begin;
+        using std::end;
+
+        using hash_t = typename std::result_of<hasher(kmer_type)>::type;
+        using pair_t = std::pair<hash_t,kmer_type>;
+
+        const auto n = distance(first,last);
+        if(n < k_) return result_type{};
+        const auto s = std::min(sketchSize_, sketch_size_type(n - k_ + 1));
+
+        std::vector<pair_t> kmers;
+        kmers.resize(s, pair_t{hash_t(~0),0});
+
+        for_each_unambiguous_canonical_kmer_2bit<kmer_type>(k_, first, last,
+            [&] (kmer_type kmer) {
+                pair_t h {hash_(kmer), kmer};
+                if(h.first < kmers.back().first) {
+                    auto pos = std::upper_bound(kmers.begin(), kmers.end(), h,
+                        [](const pair_t& a, const pair_t& b){
+                            return  a.first < b.first;
+                        });
+
+                    if(pos != kmers.end()) {
+                        kmers.pop_back();
+                        kmers.insert(pos, h);
+                    }
+                }
+            });
+
+        result_type sketch;
+        sketch.reserve(s);
+
+        for(sketch_size_type i = 0; i < s; ++i) {
+            sketch.push_back(kmers[i].second);
+        }
+
+        return sketch;
+    }
+
+
+    //---------------------------------------------------------------
+    friend void
+    write_binary(std::ostream& os, const single_function_min_hasher_id& h)
+    {
+        write_binary(os, std::uint64_t(h.k_));
+        write_binary(os, std::uint64_t(h.sketchSize_));
+    }
+
+    //---------------------------------------------------------------
+    friend void
+    read_binary(std::istream& is, single_function_min_hasher_id& h)
+    {
+        std::uint64_t n = 0;
+        read_binary(is, n);
+        h.k_ = (n <= max_kmer_size()) ? n : max_kmer_size();
+
+        n = 0;
+        read_binary(is, n);
+        h.sketchSize_ = (n <= max_sketch_size()) ? n : max_sketch_size();
+    }
+
+
+private:
+    //---------------------------------------------------------------
+    hasher hash_;
+    kmer_size_type k_;
+    sketch_size_type sketchSize_;
+};
+
+
+
+
+/*****************************************************************************
+ *
  * @brief default min-hasher that uses the 'sketch_size' lexicographically
  *
  *        smallest hash values of *one* hash function
+ *
+ *****************************************************************************/
+template<class Hash = same_size_hash<std::uint64_t>>
+class fuzzy_kmer_single_function_min_hasher
+{
+public:
+    //---------------------------------------------------------------
+    using kmer_type    = std::uint64_t;
+    using hasher       = Hash;
+    using feature_type = typename std::result_of<hasher(kmer_type)>::type;
+    using result_type  = std::vector<feature_type>;
+    //-----------------------------------------------------
+    using kmer_size_type   = numk_t;
+    using sketch_size_type = typename result_type::size_type;
+
+private:
+    union kmer_bits {
+        kmer_bits(kmer_type value = 0) : full(value) {}
+        kmer_type full;
+        struct { uint32_t v0; uint32_t v1; } d2;
+        struct { uint16_t v0; uint16_t v1; uint16_t v2; uint16_t v3; } d4;
+        struct { uint8_t v0; uint8_t v1; uint8_t v2; uint8_t v3;
+                 uint8_t v4; uint8_t v5; uint8_t v6; uint8_t v7; } d8;
+    };
+
+public:
+    //---------------------------------------------------------------
+    static constexpr kmer_size_type max_kmer_size() noexcept {
+        return max_word_size<kmer_type,2>::value;
+    }
+    static constexpr sketch_size_type max_sketch_size() noexcept {
+        return std::numeric_limits<sketch_size_type>::max();
+    }
+
+
+    //---------------------------------------------------------------
+    explicit
+    fuzzy_kmer_single_function_min_hasher(hasher hash = hasher{}):
+        hash_(std::move(hash)), k_(16), sketchSize_(16)
+    {}
+
+
+    //---------------------------------------------------------------
+    kmer_size_type
+    kmer_size() const noexcept {
+        return k_;
+    }
+    void
+    kmer_size(kmer_size_type k) noexcept {
+        if(k < 1) k = 1;
+        if(k > max_kmer_size()) k = max_kmer_size();
+        k_ = k;
+    }
+
+    //---------------------------------------------------------------
+    sketch_size_type
+    sketch_size() const noexcept {
+        return sketchSize_;
+    }
+    void
+    sketch_size(sketch_size_type s) noexcept {
+        if(s < 1) s = 1;
+        sketchSize_ = s;
+    }
+
+
+    //---------------------------------------------------------------
+    template<class Sequence>
+    result_type
+    operator () (const Sequence& s) const {
+        using std::begin;
+        using std::end;
+        return operator()(begin(s), end(s));
+    }
+
+    //-----------------------------------------------------
+    template<class InputIterator>
+    result_type
+    operator () (InputIterator first, InputIterator last) const
+    {
+        using std::distance;
+        using std::begin;
+        using std::end;
+
+        const auto n = distance(first,last);
+        if(n < k_) return result_type{};
+        const auto s = std::min(sketchSize_, sketch_size_type(n - k_ + 1));
+
+        auto sketch = result_type(s, feature_type(~0));
+
+        for_each_unambiguous_canonical_kmer_2bit<kmer_type>(k_, first, last,
+            [&] (kmer_type kmer) {
+
+                //find canonical feature = smallest hash of slightly
+                //permuted kmer alternatives
+                auto hmin = hash_(kmer);
+                constexpr int nbits = sizeof(kmer_type) * 8;
+                //1-bit flips
+                std::cout << "--------------------------------------\n";
+                {
+                    kmer_type msk = 1;
+                    for(int i = 0; i < nbits; ++i) {
+                        auto h = hash_(kmer ^ msk);
+                        if(h < hmin) hmin = h;
+                        msk <<= 1;
+                    }
+                }
+                {
+                    kmer_bits km(kmer);
+                    km.d2.v1 <<= 2;
+                    km.d2.v1 &= 4294967292;
+                    auto h = hash_(km.full);
+                    if(h < hmin) hmin = h;
+                }
+
+                if(hmin < sketch.back()) {
+                    auto pos = std::upper_bound(sketch.begin(), sketch.end(), hmin);
+                    if(pos != sketch.end()) {
+                        sketch.pop_back();
+                        sketch.insert(pos, hmin);
+                    }
+                }
+            });
+
+        return sketch;
+    }
+
+
+    //---------------------------------------------------------------
+    friend void
+    write_binary(std::ostream& os, const fuzzy_kmer_single_function_min_hasher& h)
+    {
+        write_binary(os, std::uint64_t(h.k_));
+        write_binary(os, std::uint64_t(h.sketchSize_));
+    }
+
+    //---------------------------------------------------------------
+    friend void
+    read_binary(std::istream& is, fuzzy_kmer_single_function_min_hasher& h)
+    {
+        std::uint64_t n = 0;
+        read_binary(is, n);
+        h.k_ = (n <= max_kmer_size()) ? n : max_kmer_size();
+
+        n = 0;
+        read_binary(is, n);
+        h.sketchSize_ = (n <= max_sketch_size()) ? n : max_sketch_size();
+    }
+
+
+private:
+    //---------------------------------------------------------------
+    hasher hash_;
+    kmer_size_type k_;
+    sketch_size_type sketchSize_;
+};
+
+
+
+
+/*****************************************************************************
+ *
+ * @brief
  *
  *****************************************************************************/
 class single_function_multi_kmer_min_hasher
@@ -286,29 +605,6 @@ public:
 
 
 private:
-    //---------------------------------------------------------------
-    template<class InputIterator>
-    result_type make_sketch(sketch_size_type s,
-                            kmer_size_type k,
-                            InputIterator first, InputIterator last) const
-    {
-        auto sketch = result_type(s, feature_type(~0));
-
-        for_each_unambiguous_canonical_kmer_2bit<kmer_type>(k, first, last,
-            [&] (kmer_type kmer) {
-                auto h = hash_(kmer);
-                if(h < sketch.back()) {
-                    auto pos = std::upper_bound(sketch.begin(), sketch.end(), h);
-                    if(pos != sketch.end()) {
-                        sketch.pop_back();
-                        sketch.insert(pos, h);
-                    }
-                }
-            });
-
-        return sketch;
-    }
-
     //---------------------------------------------------------------
     hasher hash_;
     sketch_size_type sketchSize_;

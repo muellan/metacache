@@ -49,7 +49,7 @@ enum class build_info : unsigned char {
  * @brief database creation parameters
  *
  *****************************************************************************/
-struct build_param
+struct build_options
 {
     int kmerlen = 16;
     int sketchlen = 16;
@@ -62,7 +62,7 @@ struct build_param
     taxon_rank removeAmbigFeaturesOnRank = taxon_rank::none;
     int maxTaxaPerFeature = 1;
 
-    taxonomy_param taxonomy;
+    taxonomy_options taxonomy;
 
     build_info infoMode = build_info::moderate;
 
@@ -77,12 +77,12 @@ struct build_param
  * @brief command line args -> database creation parameters
  *
  *****************************************************************************/
-build_param
-get_build_param(const args_parser& args)
+build_options
+get_build_options(const args_parser& args)
 {
-    const build_param defaults;
+    const build_options defaults;
 
-    build_param param;
+    build_options param;
 
     param.dbfile = database_name(args);
 
@@ -114,7 +114,7 @@ get_build_param(const args_parser& args)
                                              "max_ambig_per_feature"},
                                             defaults.maxTaxaPerFeature);
 
-    param.taxonomy = get_taxonomy_param(args);
+    param.taxonomy = get_taxonomy_options(args);
 
     return param;
 }
@@ -251,7 +251,7 @@ make_taxonomic_hierarchy(const std::string& taxNodesFile,
  *
  *****************************************************************************/
 void load_taxonomy_into_database(database& db,
-                                 const build_param& param)
+                                 const build_options& param)
 {
     db.apply_taxonomy( make_taxonomic_hierarchy(param.taxonomy.nodesFile,
                                                 param.taxonomy.namesFile,
@@ -510,7 +510,7 @@ unranked_targets(const database& db)
  *
  *
  *****************************************************************************/
-void try_to_rank_unranked_targets(database& db, const build_param& param)
+void try_to_rank_unranked_targets(database& db, const build_options& param)
 {
     auto unranked = unranked_targets(db);
 
@@ -663,7 +663,7 @@ void add_targets_to_database(database& db,
  * @brief prepares datbase for build, adds targets and writes database to disk
  *
  *****************************************************************************/
-void add_to_database(database& db, const build_param& param)
+void add_to_database(database& db, const build_options& param)
 {
     if(param.maxLocationsPerFeature > 0) {
         db.max_locations_per_feature(param.maxLocationsPerFeature);
@@ -758,7 +758,7 @@ void main_mode_build(const args_parser& args)
 {
     std::cout << "Building new database from reference sequences." << std::endl;
 
-    auto param = get_build_param(args);
+    auto param = get_build_options(args);
 
     if(param.infiles.empty()) {
         throw std::invalid_argument{
@@ -787,7 +787,7 @@ void main_mode_build(const args_parser& args)
  *****************************************************************************/
 void main_mode_build_modify(const args_parser& args)
 {
-    auto param = get_build_param(args);
+    auto param = get_build_options(args);
 
     std::cout << "Modify database " << param.dbfile << std::endl;
 

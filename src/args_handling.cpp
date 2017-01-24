@@ -79,10 +79,10 @@ sequence_filenames(const args_parser& args)
 
 
 //-------------------------------------------------------------------
-taxonomy_param
-get_taxonomy_param(const args_parser& args)
+taxonomy_options
+get_taxonomy_options(const args_parser& args)
 {
-    taxonomy_param param;
+    taxonomy_options param;
 
     param.path = args.get<std::string>("taxonomy", std::string(""));
     if(!param.path.empty() &&

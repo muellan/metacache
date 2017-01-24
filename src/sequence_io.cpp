@@ -245,32 +245,43 @@ make_sequence_reader(const std::string& filename)
 
 
 //-------------------------------------------------------------------
+std::string::size_type
+end_of_accession_number(const std::string& text,
+                        std::string::size_type start = 0)
+{
+    if(start >= text.size()) return text.size();
+
+    auto k = text.find('|', start);
+    if(k != std::string::npos) return k;
+
+    k = text.find(' ', start);
+    if(k != std::string::npos) return k;
+
+    k = text.find('-', start);
+    if(k != std::string::npos) return k;
+
+    k = text.find('_', start);
+    if(k != std::string::npos) return k;
+
+    k = text.find(',', start);
+    if(k != std::string::npos) return k;
+
+    return text.size();
+}
+
+
+//-------------------------------------------------------------------
 std::string
 extract_ncbi_accession_version_number(const std::string& prefix,
                                       const std::string& text)
 {
+    //find version separator
+    auto s = text.find('.');
+    if(s == std::string::npos) return "";
+    //seacch by known prefix
     auto i = text.find(prefix);
-    if(i != std::string::npos) {
-        //find version separator
-        auto j = text.find('.', i + prefix.size());
-        if(j == std::string::npos) return "";
-
-        //find end of accession.version string
-        auto k = text.find('|', j);
-        if(k == std::string::npos) {
-            k = text.find(' ', j);
-            if(k == std::string::npos) {
-                k = text.find('-', j);
-                if(k == std::string::npos) {
-                    k = text.find('_', j);
-                    if(k == std::string::npos) {
-                        k = text.find(',', j);
-                        if(k == std::string::npos) k = text.size();
-                    }
-                }
-            }
-        }
-
+    if(i != std::string::npos && i < s) {
+        auto k = end_of_accession_number(text,s+1);
         return text.substr(i, k-i);
     }
     return "";
@@ -298,26 +309,7 @@ extract_ncbi_accession_number(const std::string& prefix,
     auto i = text.find(prefix);
     if(i != std::string::npos) {
         auto j = i + prefix.size();
-
-        //find end of accession.version string
-        auto k = text.find('|', j);
-        if(k == std::string::npos) {
-            k = text.find(' ', j);
-            if(k == std::string::npos) {
-                k = text.find('.', j);
-                if(k == std::string::npos) {
-                    k = text.find('-', j);
-                    if(k == std::string::npos) {
-                        k = text.find('_', j);
-                        if(k == std::string::npos) {
-                            k = text.find(',', j);
-                            if(k == std::string::npos) k = text.size();
-                        }
-                    }
-                }
-            }
-        }
-
+        auto k = end_of_accession_number(text,j);
         return text.substr(i, k-i);
     }
     return "";

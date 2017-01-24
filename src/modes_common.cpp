@@ -118,6 +118,17 @@ void show_ranks(
                 }
                 if(r < highest) os << ',';
             }
+            else if (r == lowest && taxid == 0) {
+                os << taxonomy::rank_name(lowest) << ':';
+                if(mode != taxon_print_mode::id_only) {
+                    os << "n/a";
+                    if(mode != taxon_print_mode::name_only)
+                        os << "(" << taxid << ")";
+                }
+                else {
+                    os << taxid;
+                }
+            }
         }
     }
 }

@@ -54,7 +54,7 @@ enum class annotation_mode
  * @brief database configuration parameters
  *
  *****************************************************************************/
-struct annotation_param
+struct annotation_options
 {
     annotation_mode mode = annotation_mode::none;
 
@@ -113,11 +113,11 @@ mapping_filenames(const args_parser& args)
  *
  *
  *****************************************************************************/
-annotation_param
-get_annotation_param(const args_parser& args)
+annotation_options
+get_annotation_options(const args_parser& args)
 {
-    const annotation_param defaults;
-    annotation_param param;
+    const annotation_options defaults;
+    annotation_options param;
 
     if(args.non_prefixed_count() < 2) {
         throw std::invalid_argument{"No annotation mode provided."};
@@ -226,7 +226,7 @@ void read_mappings_from_file(sequence_id_type idtype,
  *
  *
  *****************************************************************************/
-void annotate_with_taxid(const annotation_param& param,
+void annotate_with_taxid(const annotation_options& param,
                          const std::map<std::string,taxid_t>& map,
                          std::istream& is,
                          std::ostream& os)
@@ -308,7 +308,7 @@ void annotate_with_taxid(const annotation_param& param,
  *
  *
  *****************************************************************************/
-void annotate_with_taxid(const annotation_param& param)
+void annotate_with_taxid(const annotation_options& param)
 {
 
     std::ifstream is {param.infile};
@@ -352,7 +352,7 @@ void annotate_with_taxid(const annotation_param& param)
 void main_mode_annotate(const args_parser& args)
 {
     try {
-        auto param = get_annotation_param(args);
+        auto param = get_annotation_options(args);
 
         switch(param.mode) {
             case annotation_mode::taxid: {

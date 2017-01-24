@@ -39,7 +39,7 @@ namespace mc {
  * @brief database configuration parameters
  *
  *****************************************************************************/
-struct taxonomy_param
+struct taxonomy_options
 {
     std::string path;
     std::string nodesFile;
@@ -75,7 +75,7 @@ std::vector<std::string> sequence_filenames(const args_parser&);
  * @brief extracts database config parameters from cmd line args
  *
  *****************************************************************************/
-taxonomy_param get_taxonomy_param(const args_parser&);
+taxonomy_options get_taxonomy_options(const args_parser&);
 
 
 

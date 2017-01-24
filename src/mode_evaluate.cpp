@@ -51,7 +51,7 @@ using match_result   = database::match_result;
  * @brief query options
  *
  *****************************************************************************/
-struct eval_param
+struct eval_options
 {
     //show all ranks that a sequence could be classified on
     bool showLineage = false;
@@ -82,12 +82,12 @@ struct eval_param
  * @brief command line args -> query options
  *
  *****************************************************************************/
-eval_param
-get_eval_param(const args_parser& args)
+eval_options
+get_eval_options(const args_parser& args)
 {
-    const eval_param defaults;
+    const eval_options defaults;
 
-    eval_param param;
+    eval_options param;
 
     //files
     param.dbfile = database_name(args);
@@ -136,7 +136,7 @@ void main_mode_evaluate(const args_parser& )
 {
 //    std::cout << "Evaluating read mappings against ground truth." << std::endl;
 
-//    auto param = get_eval_param(args);
+//    auto param = get_eval_options(args);
 
 //    auto db = make_database<database>(param.dbfile);
 

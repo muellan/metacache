@@ -71,7 +71,7 @@ enum class map_view_mode : unsigned char {
  * @brief query options
  *
  *****************************************************************************/
-struct query_param
+struct query_options
 {
     //-----------------------------------------------------
     //output options & formatting
@@ -156,12 +156,12 @@ struct query_param
  * @brief command line args -> query options
  *
  *****************************************************************************/
-query_param
-get_query_param(const args_parser& args)
+query_options
+get_query_options(const args_parser& args)
 {
-    const query_param defaults;
+    const query_options defaults;
 
-    query_param param;
+    query_options param;
 
     //files
     param.dbfile = database_name(args);
@@ -490,7 +490,7 @@ lowest_common_taxon(
 template<int n>
 classification
 sequence_classification(
-    const database& db, const query_param& param,
+    const database& db, const query_options& param,
     const matches_in_contiguous_window_range_top<n,target_id>& cand)
 {
     auto wc = param.weightHitsWithWindows
@@ -525,7 +525,7 @@ sequence_classification(
  *
  *****************************************************************************/
 void show_classification(std::ostream& os,
-                         const database& db, const query_param& param,
+                         const database& db, const query_options& param,
                          const classification& cls)
 {
     if(cls.sequence_level()) {
@@ -581,7 +581,7 @@ void remove_hits_on_rank(const database& db,
  *
  *****************************************************************************/
 void process_database_answer(
-     const database& db, const query_param& param,
+     const database& db, const query_options& param,
      const std::string& header,
      const sequence& query1, const sequence& query2,
      match_result&& hits, std::ostream& os, classification_statistics& stats)
@@ -631,35 +631,32 @@ void process_database_answer(
         (param.mapViewMode == map_view_mode::mapped_only && !cls.none());
 
     if(showMapping) {
-        //print query header and ground truth
-        if(param.showTopHits || param.showAllHits) {
-            //show first contiguous string only
-            auto l = header.find(' ');
-            if(l != std::string::npos) {
-                auto oit = std::ostream_iterator<char>{os, ""};
-                std::copy(header.begin(), header.begin() + l, oit);
+        //print query header (first contiguous string only)
+        auto l = header.find(' ');
+        if(l != std::string::npos) {
+            auto oit = std::ostream_iterator<char>{os, ""};
+            std::copy(header.begin(), header.begin() + l, oit);
+        }
+        else {
+            os << header;
+        }
+        os << param.outSeparator;
+
+        if(param.showGroundTruth) {
+            if(groundTruth.sequence_level()) {
+                show_ranks_of_target(os, db, groundTruth.target(),
+                    param.showTaxaAs, param.lowestRank,
+                    param.showLineage ? param.highestRank : param.lowestRank);
+            }
+            else if(groundTruth.has_taxon()) {
+                show_ranks(os, db, db.ranks(groundTruth.tax()),
+                    param.showTaxaAs, param.lowestRank,
+                    param.showLineage ? param.highestRank : param.lowestRank);
             }
             else {
-                os << header;
+                os << "n/a";
             }
             os << param.outSeparator;
-
-            if(param.showGroundTruth) {
-                if(groundTruth.sequence_level()) {
-                    show_ranks_of_target(os, db, groundTruth.target(),
-                        param.showTaxaAs, param.lowestRank,
-                        param.showLineage ? param.highestRank : param.lowestRank);
-                }
-                else if(groundTruth.has_taxon()) {
-                    show_ranks(os, db, db.ranks(groundTruth.tax()),
-                        param.showTaxaAs, param.lowestRank,
-                        param.showLineage ? param.highestRank : param.lowestRank);
-                }
-                else {
-                    os << "n/a";
-                }
-                os << param.outSeparator;
-            }
         }
 
         //print results
@@ -726,7 +723,7 @@ void process_database_answer(
  *
  *****************************************************************************/
 void classify(parallel_queue& queue,
-    const database& db, const query_param& param,
+    const database& db, const query_options& param,
     sequence_reader& reader, std::ostream& os, classification_statistics& stats)
 {
     std::mutex mtx;
@@ -769,7 +766,7 @@ void classify(parallel_queue& queue,
  *
  *****************************************************************************/
 void classify_pairs(parallel_queue& queue,
-                    const database& db, const query_param& param,
+                    const database& db, const query_options& param,
                     sequence_reader& reader1, sequence_reader& reader2,
                     std::ostream& os, classification_statistics& stats)
 {
@@ -799,10 +796,10 @@ void classify_pairs(parallel_queue& queue,
                             query1.header, query1.data, query2.data,
                             std::move(matches), obuf, stats);
                     }
-                    //flush output buffer
-                    std::lock_guard<std::mutex> lock(mtx2);
-                    os << obuf.str();
                 }
+                //flush output buffer
+                std::lock_guard<std::mutex> lock(mtx2);
+                os << obuf.str();
             }); //enqueue
         }
     }
@@ -818,7 +815,7 @@ void classify_pairs(parallel_queue& queue,
  *
  *****************************************************************************/
 void classify_per_file(parallel_queue& queue,
-                       const database& db, const query_param& param,
+                       const database& db, const query_options& param,
                        const std::vector<std::string>& infilenames,
                        std::ostream& os, classification_statistics& stats)
 {
@@ -854,7 +851,7 @@ void classify_per_file(parallel_queue& queue,
  *
  *****************************************************************************/
 void classify_on_file_pairs(parallel_queue& queue,
-                            const database& db, const query_param& param,
+                            const database& db, const query_options& param,
                             const std::vector<std::string>& infilenames,
                             std::ostream& os, classification_statistics& stats)
 {
@@ -890,7 +887,7 @@ void classify_on_file_pairs(parallel_queue& queue,
  *        decides how to handle paired sequences
  *
  *****************************************************************************/
-void classify_sequences(const database& db, const query_param& param,
+void classify_sequences(const database& db, const query_options& param,
                         const std::vector<std::string>& infilenames,
                         std::ostream& os)
 {
@@ -983,7 +980,7 @@ void classify_sequences(const database& db, const query_param& param,
  * @brief descides where to put the classification results
  *
  *****************************************************************************/
-void process_input_files(const database& db, const query_param& param,
+void process_input_files(const database& db, const query_options& param,
                          const std::vector<std::string>& infilenames,
                          const std::string& outfilename)
 {
@@ -1023,7 +1020,7 @@ void main_mode_query(const args_parser& args)
 {
     std::cout << "Classifying query sequences." << std::endl;
 
-    auto param = get_query_param(args);
+    auto param = get_query_options(args);
 
     auto db = make_database<database>(param.dbfile);
 
