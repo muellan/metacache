@@ -193,7 +193,7 @@ private:
 
 public:
     //-----------------------------------------------------
-    using sketch  = typename sketcher::result_type;  //range of features
+    using sketch  = typename sketcher::sketch_type;  //range of features
     using feature = typename sketch::value_type;
 
     //-----------------------------------------------------

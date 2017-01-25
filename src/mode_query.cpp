@@ -543,7 +543,7 @@ void show_classification(std::ostream& os,
             auto rmax = param.showLineage ? param.highestRank : rmin;
 
             show_ranks(os, db, db.ranks(cls.tax()),
-                                param.showTaxaAs, rmin, rmax);
+                       param.showTaxaAs, rmin, rmax);
         }
     }
     else {

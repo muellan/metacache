@@ -56,10 +56,10 @@ public:
     using kmer_type    = KmerT;
     using hasher       = Hash;
     using feature_type = typename std::result_of<hasher(kmer_type)>::type;
-    using result_type  = std::vector<feature_type>;
+    using sketch_type  = std::vector<feature_type>;
     //-----------------------------------------------------
     using kmer_size_type   = numk_t;
-    using sketch_size_type = typename result_type::size_type;
+    using sketch_size_type = typename sketch_type::size_type;
 
 
     //---------------------------------------------------------------
@@ -104,7 +104,7 @@ public:
 
     //---------------------------------------------------------------
     template<class Sequence>
-    result_type
+    sketch_type
     operator () (const Sequence& s) const {
         using std::begin;
         using std::end;
@@ -113,7 +113,7 @@ public:
 
     //-----------------------------------------------------
     template<class InputIterator>
-    result_type
+    sketch_type
     operator () (InputIterator first, InputIterator last) const
     {
         using std::distance;
@@ -121,10 +121,11 @@ public:
         using std::end;
 
         const auto n = distance(first,last);
-        if(n < k_) return result_type{};
+        if(n < k_) return sketch_type{};
         const auto s = std::min(sketchSize_, sketch_size_type(n - k_ + 1));
+        if(s < 1) return sketch_type{};
 
-        auto sketch = result_type(s, feature_type(~0));
+        auto sketch = sketch_type(s, feature_type(~0));
 
         for_each_unambiguous_canonical_kmer_2bit<kmer_type>(k_, first, last,
             [&] (kmer_type kmer) {
@@ -139,7 +140,7 @@ public:
             });
 
         //check if some features are invalid (in case of many ambiguous kmers)
-        if(sketch.back() == feature_type(~0)) {
+        if(!sketch.empty() && sketch.back() == feature_type(~0)) {
             for(auto i = sketch.begin(), e = sketch.end(); i != e; ++i) {
                 if(*i == feature_type(~0)) {
                     sketch.erase(i,sketch.end());
@@ -197,10 +198,10 @@ public:
     using kmer_type    = KmerT;
     using hasher       = Hash;
     using feature_type = kmer_type;
-    using result_type  = std::vector<feature_type>;
+    using sketch_type  = std::vector<feature_type>;
     //-----------------------------------------------------
     using kmer_size_type   = numk_t;
-    using sketch_size_type = typename result_type::size_type;
+    using sketch_size_type = typename sketch_type::size_type;
 
 
     //---------------------------------------------------------------
@@ -245,7 +246,7 @@ public:
 
     //---------------------------------------------------------------
     template<class Sequence>
-    result_type
+    sketch_type
     operator () (const Sequence& s) const {
         using std::begin;
         using std::end;
@@ -254,7 +255,7 @@ public:
 
     //-----------------------------------------------------
     template<class InputIterator>
-    result_type
+    sketch_type
     operator () (InputIterator first, InputIterator last) const
     {
         using std::distance;
@@ -265,8 +266,9 @@ public:
         using pair_t = std::pair<hash_t,kmer_type>;
 
         const auto n = distance(first,last);
-        if(n < k_) return result_type{};
+        if(n < k_) return sketch_type{};
         const auto s = std::min(sketchSize_, sketch_size_type(n - k_ + 1));
+        if(s < 1) return sketch_type{};
 
         std::vector<pair_t> kmers;
         kmers.resize(s, pair_t{hash_t(~0),0});
@@ -287,7 +289,7 @@ public:
                 }
             });
 
-        result_type sketch;
+        sketch_type sketch;
         sketch.reserve(s);
 
         for(sketch_size_type i = 0; i < s; ++i) {
@@ -345,10 +347,10 @@ public:
     using kmer_type    = std::uint64_t;
     using hasher       = Hash;
     using feature_type = typename std::result_of<hasher(kmer_type)>::type;
-    using result_type  = std::vector<feature_type>;
+    using sketch_type  = std::vector<feature_type>;
     //-----------------------------------------------------
     using kmer_size_type   = numk_t;
-    using sketch_size_type = typename result_type::size_type;
+    using sketch_size_type = typename sketch_type::size_type;
 
 private:
     union kmer_bits {
@@ -403,7 +405,7 @@ public:
 
     //---------------------------------------------------------------
     template<class Sequence>
-    result_type
+    sketch_type
     operator () (const Sequence& s) const {
         using std::begin;
         using std::end;
@@ -412,7 +414,7 @@ public:
 
     //-----------------------------------------------------
     template<class InputIterator>
-    result_type
+    sketch_type
     operator () (InputIterator first, InputIterator last) const
     {
         using std::distance;
@@ -420,10 +422,11 @@ public:
         using std::end;
 
         const auto n = distance(first,last);
-        if(n < k_) return result_type{};
+        if(n < k_) return sketch_type{};
         const auto s = std::min(sketchSize_, sketch_size_type(n - k_ + 1));
+        if(s < 1) return sketch_type{};
 
-        auto sketch = result_type(s, feature_type(~0));
+        auto sketch = sketch_type(s, feature_type(~0));
 
         for_each_unambiguous_canonical_kmer_2bit<kmer_type>(k_, first, last,
             [&] (kmer_type kmer) {
@@ -458,6 +461,16 @@ public:
                     }
                 }
             });
+
+        //check if some features are invalid (in case of many ambiguous kmers)
+        if(!sketch.empty() && sketch.back() == feature_type(~0)) {
+            for(auto i = sketch.begin(), e = sketch.end(); i != e; ++i) {
+                if(*i == feature_type(~0)) {
+                    sketch.erase(i,sketch.end());
+                    break;
+                }
+            }
+        }
 
         return sketch;
     }
@@ -507,10 +520,10 @@ public:
     using kmer_type    = std::uint64_t;
     using hasher       = same_size_hash<kmer_type>;
     using feature_type = typename std::result_of<hasher(kmer_type)>::type;
-    using result_type  = std::vector<feature_type>;
+    using sketch_type  = std::vector<feature_type>;
     //-----------------------------------------------------
     using kmer_size_type   = numk_t;
-    using sketch_size_type = typename result_type::size_type;
+    using sketch_size_type = typename sketch_type::size_type;
 
 
     //---------------------------------------------------------------
@@ -548,7 +561,7 @@ public:
 
     //---------------------------------------------------------------
     template<class Sequence>
-    result_type
+    sketch_type
     operator () (const Sequence& s) const {
         using std::begin;
         using std::end;
@@ -557,7 +570,7 @@ public:
 
     //-----------------------------------------------------
     template<class InputIterator>
-    result_type
+    sketch_type
     operator () (InputIterator first, InputIterator last) const
     {
         using std::distance;
@@ -565,10 +578,11 @@ public:
         using std::end;
 
         const auto n = distance(first,last);
-        if(n < 32) return result_type{};
+        if(n < 32) return sketch_type{};
         const auto s = std::min(sketchSize_, sketch_size_type(n - 31));
+        if(s < 1) return sketch_type{};
 
-        auto sketch = result_type(s, feature_type(~0));
+        auto sketch = sketch_type(s, feature_type(~0));
         for(kmer_size_type k = 16; k <= 32; k += 4) {
             for_each_unambiguous_canonical_kmer_2bit<kmer_type>(k, first, last,
                 [&] (kmer_type kmer) {
@@ -581,6 +595,16 @@ public:
                         }
                     }
                 });
+        }
+
+        //check if some features are invalid (in case of many ambiguous kmers)
+        if(!sketch.empty() && sketch.back() == feature_type(~0)) {
+            for(auto i = sketch.begin(), e = sketch.end(); i != e; ++i) {
+                if(*i == feature_type(~0)) {
+                    sketch.erase(i,sketch.end());
+                    break;
+                }
+            }
         }
 
         return sketch;
@@ -625,10 +649,10 @@ public:
     //---------------------------------------------------------------
     using kmer_type    = std::uint32_t;
     using feature_type = std::uint64_t;
-    using result_type  = std::vector<feature_type>;
+    using sketch_type  = std::vector<feature_type>;
     //-----------------------------------------------------
     using kmer_size_type   = numk_t;
-    using sketch_size_type = typename result_type::size_type;
+    using sketch_size_type = typename sketch_type::size_type;
 
 
     //---------------------------------------------------------------
@@ -673,7 +697,7 @@ public:
 
     //---------------------------------------------------------------
     template<class Sequence>
-    result_type
+    sketch_type
     operator () (const Sequence& s) const {
         using std::begin;
         using std::end;
@@ -682,7 +706,7 @@ public:
 
     //-----------------------------------------------------
     template<class InputIterator>
-    result_type
+    sketch_type
     operator () (InputIterator first, InputIterator last) const
     {
         using std::distance;
@@ -690,10 +714,11 @@ public:
         using std::end;
 
         const auto n = distance(first,last);
-        if(n < k_) return result_type{};
+        if(n < k_) return sketch_type{};
         const auto s = std::min(sketchSize_, sketch_size_type(n - k_ + 1));
+        if(s < 1) return sketch_type{};
 
-        auto sketch = result_type(s, feature_type(~0));
+        auto sketch = sketch_type(s, feature_type(~0));
 
         //least significant 32 bits of features = kmer hash
         //most significant bits of features = hash function index
@@ -713,6 +738,16 @@ public:
         }
 
 //        for(auto x : sketch) std::cout << x << ' '; std::cout << '\n';
+
+        //check if some features are invalid (in case of many ambiguous kmers)
+        if(!sketch.empty() && sketch.back() == feature_type(~0)) {
+            for(auto i = sketch.begin(), e = sketch.end(); i != e; ++i) {
+                if(*i == feature_type(~0)) {
+                    sketch.erase(i,sketch.end());
+                    break;
+                }
+            }
+        }
 
         return sketch;
     }
@@ -761,10 +796,10 @@ public:
     using hasher       = Hash;
     using kmer_type    = KmerT;
     using feature_type = typename std::result_of<hasher(kmer_type)>::type;
-    using result_type  = std::array<feature_type,1>;
+    using sketch_type  = std::array<feature_type,1>;
     //-----------------------------------------------------
     using kmer_size_type   = numk_t;
-    using sketch_size_type = typename result_type::size_type;
+    using sketch_size_type = typename sketch_type::size_type;
 
 
     //---------------------------------------------------------------
@@ -803,7 +838,7 @@ public:
 
     //---------------------------------------------------------------
     template<class Sequence>
-    result_type
+    sketch_type
     operator () (const Sequence& s) const {
         using std::begin;
         using std::end;
@@ -812,19 +847,21 @@ public:
 
     //-----------------------------------------------------
     template<class InputIterator>
-    result_type
+    sketch_type
     operator () (InputIterator first, InputIterator last) const
     {
         using std::distance;
         using std::begin;
         using std::end;
 
-        result_type sketch {feature_type(~0)};
+        sketch_type sketch {feature_type(~0)};
 
         for_each_unambiguous_canonical_kmer_2bit<kmer_type>(k_, first, last,
             [&] (kmer_type kmer) {
                 if(kmer < sketch[0]) sketch[0] = kmer;
             });
+
+        if(sketch[0] == feature_type(~0)) return sketch_type{};
 
         sketch[0] = hash_(sketch[0]);
         return sketch;
@@ -872,10 +909,10 @@ public:
     using kmer_type    = KmerT;
     using hasher       = Hash;
     using feature_type = kmer_type;
-    using result_type  = std::vector<feature_type>;
+    using sketch_type  = std::vector<feature_type>;
     //-----------------------------------------------------
     using kmer_size_type   = numk_t;
-    using sketch_size_type = typename result_type::size_type;
+    using sketch_size_type = typename sketch_type::size_type;
 
 
     //---------------------------------------------------------------
@@ -919,7 +956,7 @@ public:
 
     //---------------------------------------------------------------
     template<class Sequence>
-    result_type
+    sketch_type
     operator () (const Sequence& s) const {
         using std::begin;
         using std::end;
@@ -928,7 +965,7 @@ public:
 
     //-----------------------------------------------------
     template<class InputIterator>
-    result_type
+    sketch_type
     operator () (InputIterator first, InputIterator last) const
     {
         using std::distance;
@@ -936,8 +973,9 @@ public:
         using std::end;
 
         const auto n = distance(first,last);
-        if(n < k_) return result_type{};
+        if(n < k_) return sketch_type{};
         const auto s = std::min(sketchSize_, sketch_size_type(n - k_ + 1));
+        if(s < 1) return sketch_type{};
 
         using pair_t = std::pair<float,kmer_type>;
         std::vector<pair_t> kmers;
@@ -952,7 +990,7 @@ public:
         std::sort(kmers.begin(), kmers.end(),
             [](const pair_t& a, const pair_t& b) { return a.first > b.first; });
 
-        result_type sketch;
+        sketch_type sketch;
         sketch.reserve(s);
 
         //sketch = s first kmers
@@ -1130,10 +1168,10 @@ public:
     using kmer_type    = std::uint64_t;
     using feature_type = std::uint32_t;
     using hasher       = same_size_hash<feature_type>;
-    using result_type  = std::vector<feature_type>;
+    using sketch_type  = std::vector<feature_type>;
     //-----------------------------------------------------
     using kmer_size_type   = numk_t;
-    using sketch_size_type = typename result_type::size_type;
+    using sketch_size_type = typename sketch_type::size_type;
 
 
     //---------------------------------------------------------------
@@ -1178,7 +1216,7 @@ public:
 
     //---------------------------------------------------------------
     template<class Sequence>
-    result_type
+    sketch_type
     operator () (const Sequence& s) const {
         using std::begin;
         using std::end;
@@ -1187,16 +1225,16 @@ public:
 
     //-----------------------------------------------------
     template<class InputIterator>
-    result_type
+    sketch_type
     operator () (InputIterator first, InputIterator last) const
     {
         using std::distance;
 
         const auto n = distance(first,last);
-        if(n < k_) return result_type{};
+        if(n < k_) return sketch_type{};
         const auto s = std::min(sketchSize_, sketch_size_type(n - k_ + 1));
 
-        auto sketch = result_type(s, feature_type(~0));
+        auto sketch = sketch_type(s, feature_type(~0));
 
         for_each_2mer_stat_of_kmer_2bit(k_, first, last,
             [&] (feature_type stat) {
