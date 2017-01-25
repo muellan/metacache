@@ -245,7 +245,6 @@ public:
     //---------------------------------------------------------------
     explicit
     sketch_database(sketcher targetSketcher = sketcher{}) :
-        urbg_{},
         targetSketcher_{std::move(targetSketcher)},
         querySketcher_{targetSketcher_},
         targetWindowSize_(128),
@@ -264,7 +263,6 @@ public:
     //-----------------------------------------------------
     explicit
     sketch_database(sketcher targetSketcher, sketcher querySketcher) :
-        urbg_{},
         targetSketcher_{std::move(targetSketcher)},
         querySketcher_{std::move(querySketcher)},
         targetWindowSize_(128),
@@ -938,7 +936,6 @@ private:
 
 
     //---------------------------------------------------------------
-    mutable std::mt19937 urbg_;
     sketcher targetSketcher_;
     sketcher querySketcher_;
     std::uint64_t targetWindowSize_;
