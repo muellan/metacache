@@ -237,7 +237,7 @@ make_taxonomic_hierarchy(const std::string& taxNodesFile,
     }
 
     //make sure every taxon has a rank designation
-    tax.rank_all_unranked();
+//    tax.rank_all_unranked();
 
     return tax;
 }

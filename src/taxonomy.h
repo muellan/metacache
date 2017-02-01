@@ -330,19 +330,20 @@ public:
     /**
      * @brief if no rank set, assign sub<rank> of parent <rank>
      */
-    void
-    rank_all_unranked()
-    {
-        for(auto& tax : taxa_) {
-            if(tax.rank == rank::none) {
-                auto lr = lowest_rank(tax);
-                if(lr != rank::none) {
-                    if(lr > rank::subSpecies) --lr;
-                    const_cast<taxon*>(&tax)->rank = lr;
-                }
-            }
-        }
-    }
+//    void
+//    rank_all_unranked()
+//    {
+//        for(auto& tax : taxa_) {
+//            if(tax.rank == rank::none) {
+//                auto lr = lowest_rank(tax);
+//                if(lr != rank::none) {
+//                    if(lr > rank::subSpecies) --lr;
+//                    const_cast<taxon*>(&tax)->rank = lr;
+//                }
+//            }
+//        }
+//    }
+
 
 
     //---------------------------------------------------------------
