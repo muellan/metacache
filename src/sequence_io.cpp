@@ -230,7 +230,7 @@ make_sequence_reader(const std::string& filename)
 {
     auto n = filename.size();
     if(n > 3) {
-        auto ext = filename.substr(n-4,4);
+        auto ext = filename.substr(n-6,6);
         if(ext.find(".fq")  != std::string::npos ||
            ext.find(".fnq")  != std::string::npos ||
            ext.find(".fastq") != std::string::npos)
