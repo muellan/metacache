@@ -30,6 +30,7 @@ namespace mc {
 classification
 ground_truth(const database& db, const std::string& header)
 {
+
     //try to extract query id and find the corresponding target in database
     auto tid = db.target_id_of_sequence(extract_ncbi_accession_version_number(header));
     //not found yet
@@ -42,12 +43,29 @@ ground_truth(const database& db, const std::string& header)
     }
 
     auto taxid = extract_taxon_id(header);
+    //make sure to get the lowest taxon that has a rank assigned
+    if(taxid > 0) {
+        for(auto id : db.ranks(db.taxon_with_id(taxid))) {
+            if(id > 0) {
+                taxid = id;
+                break;
+            }
+        }
+    }
 
     //if target known and in db
     if(db.is_valid(tid)) {
         //if taxid could not be determined solely from header, use the one
         //from the target in the db
-        if(taxid < 1) db.taxon_id_of_target(tid);
+        if(taxid < 1) {
+            //use lowest taxon that has a rank assigned
+            for(auto id : db.ranks_of_target(tid)) {
+                if(id > 0) {
+                    taxid = id;
+                    break;
+                }
+            }
+        }
 
         return classification { tid, taxid > 0 ? &db.taxon_with_id(taxid) : nullptr };
     }

@@ -275,12 +275,11 @@ std::string
 extract_ncbi_accession_version_number(const std::string& prefix,
                                       const std::string& text)
 {
-    //find version separator
-    auto s = text.find('.');
-    if(s == std::string::npos) return "";
-    //seacch by known prefix
     auto i = text.find(prefix);
-    if(i != std::string::npos && i < s) {
+    if(i < 20) {
+        //find separator *after* prefix
+        auto s = text.find('.', i+1);
+        if(s == std::string::npos || (s-i) > 20) return "";
         auto k = end_of_accession_number(text,s+1);
         return text.substr(i, k-i);
     }
@@ -291,11 +290,18 @@ extract_ncbi_accession_version_number(const std::string& prefix,
 std::string
 extract_ncbi_accession_version_number(const std::string& text)
 {
-
+    //try to find any known prefix + separator
     for(auto prefix : accession_prefix) {
         auto num = extract_ncbi_accession_version_number(prefix, text);
         if(!num.empty()) return num;
     }
+
+    //try to find version speparator
+    auto s = text.find('.');
+    if(s < 20) {
+        return text.substr(0, end_of_accession_number(text,s+1));
+    }
+
     return "";
 }
 

@@ -650,8 +650,8 @@ void process_database_answer(
             }
             else if(groundTruth.has_taxon()) {
                 show_ranks(os, db, db.ranks(groundTruth.tax()),
-                    param.showTaxaAs, param.lowestRank,
-                    param.showLineage ? param.highestRank : param.lowestRank);
+                    param.showTaxaAs, groundTruth.tax().rank,
+                    param.showLineage ? param.highestRank : groundTruth.tax().rank);
             }
             else {
                 os << "n/a";
