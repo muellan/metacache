@@ -108,7 +108,7 @@ get_build_options(const args_parser& args)
 
     param.removeAmbigFeaturesOnRank = taxonomy::rank_from_name(
         args.get<std::string>({"remove-ambig-features",
-                               "remove_ambig_features"}, "none"));
+                               "remove_ambig_features"}, "domain"));
 
     param.maxTaxaPerFeature = args.get<int>({"max-ambig-per-feature",
                                              "max_ambig_per_feature"},
