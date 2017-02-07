@@ -1,6 +1,7 @@
 /build_*
 /debug  
 /release
+/prebuilt
 *.exe
 *.db
 *.fa

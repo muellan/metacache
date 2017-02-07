@@ -3,7 +3,7 @@
 MetaCache is a taxnomomic classification system for metagenomic read mapping.
 
 
-## Super Quick Installation & Usage
+## Quick Installation & Usage
 This will download MetaCache, compile it, download the complete bacterial, viral and archaea genomes from the latest NCBI RefSeq release (this can take some time) and build a classification database from them:
 
 ```
@@ -75,7 +75,7 @@ Using the following compilation options you can compile MetaCache with support f
   ```
 
 * support for targets up to a length of 65,535 windows (needs less memory)
-  with default settings (window length, k-mer size) no sequence length must exceed 7.4 million nocleotides
+  with default settings (window length, k-mer size) no sequence length must exceed 7.4 million nucleotides
   ```
   make MACROS="-DMC_WINDOW_ID_TYPE=uint16_t"
   ```
