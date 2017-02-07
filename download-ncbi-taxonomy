@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# Copyright 2016, André Müller <muellan@uni-mainz.de>
+#
+# This file is part of the MetaCache taxonomic sequence classification tool.
+#
+# MetaCache is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# MetaCache is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with MetaCache.  If not, see <http://www.gnu.org/licenses/>.
+
+
+set -u  # Protect against uninitialized vars.
+set -e  # Stop on error
+
+FTPURL="ftp://ftp.ncbi.nih.gov/pub/taxonomy"
+
+
+if [ $# -lt 1 ]; then
+  echo "Usage: $0 <target directory>"
+  exit
+fi
+
+
+TARGET=$1
+
+mkdir -p "$TARGET"
+cd "$TARGET"
+
+
+# taxonomic tree
+echo "Downloading NCBI taxonomic tree."
+if [ ! -e "nodes.dmp" ] || [ ! -e "names.dmp" ]; then
+  if [ ! -e "taxdump.tar.gz" ]; then
+    echo "Downloading taxonomic tree ... "
+    wget $FTPURL/taxdump.tar.gz
+    echo "Download Complete."
+  fi
+  echo -n "Unpacking taxonomic tree ... "
+  tar zxf taxdump.tar.gz
+  rm taxdump.tar.gz
+  echo "complete."
+fi
+
+echo "Taxonomy complete."

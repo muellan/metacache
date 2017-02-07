@@ -1,0 +1,32 @@
+Documentation for MetaCache mode "modify"
+
+SYNOPSIS:
+    Add reference genomes and/or taxonomic information to an existing database.
+
+SYNTAX:
+    metacache modify <database name> {<reference genome>} {[option]}
+
+    You can also provide names of directories that contain
+    genomic sequence files instead of single filenames. MetaCache will
+    search at most 10 levels down in the file hierarchy.
+
+OPTIONS:
+    -verbose              show detailed status information during build
+
+    -taxonomy <path>      directory with taxonomic hierarchy data 
+                          (see NCBI's taxonomic data files)
+
+    -taxmap  <file>       file that contains sequence to taxon id mappings;
+                          default: 'assembly_summary.txt'
+
+    -taxpostmap <file>    file with sequence to taxon id mappings that is used
+                          as alternative source in a post processing step
+                          default: 'nucl_(gb|wgs|est|gss).accession2taxid'
+
+EXAMPLES:
+    Add reference sequence 'penicillium.fna' to database 'fungi'
+        ./metacache modify fungi penicillium.fna
+
+    Add taxonomic information from NCBI to database 'myBacteria'
+        ./download_ncbi_taxonomy myTaxo
+        ./metacache modify myBacteria -taxonomy myTaxo

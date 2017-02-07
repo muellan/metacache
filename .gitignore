@@ -1,0 +1,14 @@
+/build_*
+/debug  
+/release
+*.exe
+*.db
+*.fa
+*.fq
+*.fna
+*.fnq
+*.out
+*.o
+*.zip
+metacache
+metacache.exe

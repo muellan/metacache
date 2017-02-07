@@ -1,0 +1,104 @@
+Documentation for MetaCache mode "query"
+
+SYNOPSIS:
+    Map sequences (short reads) to their most likely origin.
+
+SYNTAX:
+    metacache query <database name> {<query sequence>} {[option]}
+
+    You can also provide names of directories that contain
+    sequence files instead of single filenames. MetaCache will
+    search at most 10 levels down in the file hierarchy.
+
+OPTIONS:
+    -out <file>        Redirect output to file <file>.
+                       If not specified, output will be written to stdout.
+                       If more than one input file was given all output
+                       will be concatenated into one file.
+
+    -splitout <file>   Generate output and statistics for each input file
+                       separately. For each input file <in> an output file 
+                       <file>_<in> will be written.
+
+    -pairfiles         Interleave paired-end reads from two consecutive files,
+                       so that the nth read from file m and the nth read
+                       from file m+1 will be treated as a pair.
+                       If more than two files are provided, their names
+                       will be sorted before processing. Thus, the order
+                       defined by the filenames determines the pairing not
+                       the order in which they were given in the command line.
+
+    -pairseq           Two consecutive sequences (1+2, 3+4, ...) from each file
+                       will be treated as paired-end reads.
+
+    -insertsize        Maximum insert size to consider.
+                       default: sum of lengths of the individual reads
+
+    -lowest <rank>     Do not classify on ranks below <rank>.
+                       default: sequence
+
+    -highest <rank>    Do not classify on ranks above <rank>.
+                       default: domain
+
+    -locations         Show locations in candidate reference genomes.
+
+    -hitmin <t>        Sets classification threshhold to <t>.
+                       A read will not be classified if less than t features
+                       from the database are found in it.
+                       Higher values will increase precision at the expense of
+                       lower sensitivity.
+
+    -lineage           Report complete lineage for per-read classification
+                       starting with the lowest rank found or allowed and
+                       ending with the highest rank allowed. See also
+                       options '-lowest' and '-highest'.
+                       default: off
+
+    -tophits           Print top feature hits in database.
+                       default: off
+
+    -allhits           Print all feature hits in database.
+                       default: off
+
+    -taxids            Print taxon ids in addition to taxon names.
+                       default: off
+
+    -taxids-only       Print taxon ids instead of taxon names.
+                       default: off
+
+    -nomap             Don't report classification for each individual query
+                       sequence; show summaries only (useful for quick tests).
+                       default: off
+
+    -mapped-only       Don't list unclassified queries.
+                       default: off
+
+    -separator <text>  string that separates output fields (sequence name, 
+                       ground truth, classification result, etc.)
+                       default: "\t|\t"
+
+    -winlen <no>       number of letters in each sampling window
+                       default: same as for reference genomes in database
+
+    -winstride <no>    distance between window starting positions
+                       default: same as for reference genomes in database
+
+    -sketchlen <no>    number of features per window
+                       default: same as in database
+
+    -threads <no>      use <no> many parallel threads
+                       default: guess optimum for hardware
+
+EXAMPLES:
+    Query all sequences in 'myreads.fna' against pre-built database 'refseq':
+        ./metacache query refseq myreads.fna -out results.txt
+
+    Query all sequences in multiple files against database 'refseq':
+        ./metacache query refseq reads1.fna reads2.fna reads3.fna
+
+    Query all sequence files in folder 'test' againgst database 'refseq':
+        ./metacache query refseq test
+
+    Query multiple files and folder contents against database 'refseq':
+        ./metacache query refseq file1.fna folder1 file2.fna file3.fna folder2
+

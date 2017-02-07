@@ -1,0 +1,24 @@
+MetaCache  Copyright (C) 2016  André Müller
+This program comes with ABSOLUTELY NO WARRANTY.
+This is free software, and you are welcome to redistribute it
+under certain conditions. See the file 'LICENSE' for details.
+
+You need to specify one of the following modes:
+    help        shows documentation 
+    query       classify read sequences using pre-built database
+    build       build new database from reference genomes
+    add         add reference genomes and/or taxonomy to existing database
+    info        show database and reference genome properties
+
+EXAMPLES:
+    Query 'myreads.fna' against pre-built database 'refseq':
+        ./metacache query refseq myreads.fna
+
+    Query all sequence files in folder 'test' againgst pre-built database 'refseq':
+        ./metacache query refseq test
+
+    View documentation for all query options:
+        ./metacache help query
+
+    View documentation on how to build databases:
+        ./metacache help build
