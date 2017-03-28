@@ -8,6 +8,7 @@ This will download MetaCache, compile it, download the complete bacterial, viral
 
 ```
 git clone https://github.com/muellan/metacache.git 
+cd metacache
 make
 ./metacache-build-refseq
 ```
@@ -30,14 +31,17 @@ Coming soon...
 #### Requirements
 MetaCache itself should compile on any platform for which a C++11 conforming compiler is available.
 
-The helper scripts (for downloading genomes, taxonomy etc.) however require the Bash shell to run. So on Windows you need a working bash executable as well as some common GNU utilities like "awk" and "wget". There is for example "Git Bash" which comes with git for Windows.
+The helper scripts (for downloading genomes, taxonomy etc.) however require the Bash shell to run. So on Windows you need a working bash executable as well as some common GNU utilities like "awk" and "wget". There is for example "Git Bash" which comes with git for Windows or the 'Windows Subsystem for Linux'.
 
 There are no dependencies on third party libraries.
 MetaCache was successfully tested on the following platforms (all 64 bit + 64 bit compilers):
-- Ubuntu 14.04 with g++ 4.9 and g++ 5.2
-- Ubuntu 16.04 with g++ 4.9 and g++ 5.3
-- Windows 10.1511 with MinGW-w64 g++ 5.1 and MinGW-w64 g++ 5.3
-- Windows 10.1607 with MinGW-w64 g++ 5.3
+- Ubuntu 14.04 with g++ 4.9, g++ 5.2 or g++ 5.4
+- Ubuntu 16.04 with g++ 4.9, g++ 5.3 or g++ 5.4
+- Windows 10.1511 64bit with MinGW-w64 g++ 5.1 and MinGW-w64 g++ 5.3
+- Windows 10.1607 64bit with MinGW-w64 g++ 5.3
+- Windows 10.1607 64bit running Ubuntu 14.04 inside WSL and g++ 5.4.1 
+
+In order to be able to build the default database with default settings your system should have around 32GB of RAM (note that the NCBI RefSeq will still be growing in the near future).
 
 
 #### Get The Latest Sources
