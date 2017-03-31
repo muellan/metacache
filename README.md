@@ -17,8 +17,8 @@ Once the default database is built you can classify reads:
   ```
   ./metacache query refseq myReads.fa -out results.txt
   ./metacache query refseq anyFolderWithFastaOrFastqFiles -out results.txt
-  ./metacache query refseq -pair_files myReads1.fa myReads2.fa -out results.txt
-  ./metacache query refseq -pair_sequences myPairedReads.fa -out results.txt
+  ./metacache query refseq myReads1.fa myReads2.fa -pairfiles -out results.txt
+  ./metacache query refseq myPairedReads.fa -pairseq -out results.txt
   ```
 
 
@@ -138,11 +138,11 @@ Metacache has different modes, one of them is the 'query' mode. Once a database 
   ```
 * paired-end reads in separate files:
   ```
-  ./metacache query refseq -pair_files my_reads1.fa my_reads2.fa -out results.txt
+  ./metacache query refseq my_reads1.fa my_reads2.fa -pairfiles -out results.txt
   ```
 * paired-end reads in one file:
   ```
-  ./metacache query refseq -pair_sequences my_paired_reads.fa -out results.txt
+  ./metacache query refseq my_paired_reads.fa -pairseq -out results.txt
   ```
 
 #### View Documentation
