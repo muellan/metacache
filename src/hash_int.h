@@ -7,8 +7,6 @@
 
 namespace mc {
 
-namespace { //internal linkage
-
 /*****************************************************************************
  *
  * @brief integer hash: 32 bits -> 32 bits
@@ -25,9 +23,7 @@ thomas_mueller_hash(std::uint32_t x) noexcept {
 }
 
 //makes sure we cant't use the wrong types
-inline void thomas_mueller_hash(std::uint64_t) = delete;
-inline void thomas_mueller_hash(std::uint16_t) = delete;
-inline void thomas_mueller_hash(std::uint8_t) = delete;
+template<class T> void thomas_mueller_hash(T) = delete;
 
 
 
@@ -48,31 +44,7 @@ nvidia_hash(std::uint32_t x) noexcept {
 }
 
 //makes sure we cant't use the wrong types
-inline void nvidia_hash(std::uint64_t) = delete;
-inline void nvidia_hash(std::uint16_t) = delete;
-inline void nvidia_hash(std::uint8_t) = delete;
-
-
-
-/*****************************************************************************
- *
- * @brief integer hash: 32 bits -> 32 bits
- *
- *****************************************************************************/
-inline std::uint32_t
-murmur3_int_init(std::uint32_t x) noexcept {
-    x ^= x >> 16;
-    x *= 0x85ebca6b;
-    x ^= x >> 13;
-    x *= 0xc2b2ae35;
-    x ^= x >> 16;
-    return x;
-}
-
-//makes sure we cant't use the wrong types
-inline void murmur3_int_init(std::uint64_t) = delete;
-inline void murmur3_int_init(std::uint16_t) = delete;
-inline void murmur3_int_init(std::uint8_t) = delete;
+template<class T> void nvidia_hash(T) = delete;
 
 
 
@@ -82,7 +54,7 @@ inline void murmur3_int_init(std::uint8_t) = delete;
  *
  *****************************************************************************/
 inline std::uint64_t
-murmur_hash3_finalizer(std::uint64_t x) noexcept {
+murmur3_fmix(std::uint64_t x) noexcept {
     x ^= x >> 33;
     x *= 0xff51afd7ed558ccd;
     x ^= x >> 33;
@@ -91,10 +63,18 @@ murmur_hash3_finalizer(std::uint64_t x) noexcept {
     return x;
 }
 
+inline std::uint32_t
+murmur3_fmix(std::uint32_t x) noexcept {
+    x ^= x >> 16;
+    x *= 0x85ebca6b;
+    x ^= x >> 13;
+    x *= 0xc2b2ae35;
+    x ^= x >> 16;
+    return x;
+}
+
 //makes sure we cant't use the wrong types
-inline void murmur_hash3_finalizer(std::uint32_t) = delete;
-inline void murmur_hash3_finalizer(std::uint16_t) = delete;
-inline void murmur_hash3_finalizer(std::uint8_t) = delete;
+template<class T> void murmur3_fmix(T) = delete;
 
 
 
@@ -114,9 +94,7 @@ splitmix64_hash(std::uint64_t x) noexcept
 }
 
 //makes sure we cant't use the wrong types
-inline void splitmix64_hash(std::uint32_t) = delete;
-inline void splitmix64_hash(std::uint16_t) = delete;
-inline void splitmix64_hash(std::uint8_t) = delete;
+template<class T> void splitmix64_hash(T) = delete;
 
 
 
@@ -126,7 +104,7 @@ inline void splitmix64_hash(std::uint8_t) = delete;
  *
  *****************************************************************************/
 inline std::uint32_t
-half_size_hash(std::uint64_t x) noexcept
+halve_size_hash(std::uint64_t x) noexcept
 {
     x = (~x) + (x << 18);
     x = x ^ (x >> 31);
@@ -138,11 +116,7 @@ half_size_hash(std::uint64_t x) noexcept
 }
 
 //makes sure we cant't use the wrong types
-inline void half_size_hash(std::uint32_t) = delete;
-inline void half_size_hash(std::uint16_t) = delete;
-inline void half_size_hash(std::uint8_t) = delete;
-
-}  //internal linkage
+template<class T> void halve_size_hash(T) = delete;
 
 
 
@@ -179,7 +153,7 @@ struct same_size_hash<std::uint32_t> {
 template<>
 struct same_size_hash<std::uint64_t> {
     std::uint64_t operator () (std::uint64_t x) const noexcept {
-        return murmur_hash3_finalizer(x);
+        return murmur3_fmix(x);
     }
 };
 
@@ -187,7 +161,7 @@ struct same_size_hash<std::uint64_t> {
 
 /*****************************************************************************
  *
- * @brief output bits are half of the input bits
+ * @brief output is 32 bits
  *
  *****************************************************************************/
 template<class T>
@@ -203,7 +177,7 @@ struct to32bits_hash<std::uint32_t> {
 template<>
 struct to32bits_hash<std::uint64_t> {
     std::uint32_t operator () (std::uint64_t x) const noexcept {
-        return half_size_hash(murmur_hash3_finalizer(x));
+        return halve_size_hash(murmur3_fmix(x));
     }
 };
 
