@@ -75,7 +75,7 @@ public:
     using score_type = Score;
 
     enum class predecessor : unsigned char {
-        none = 0, diag = 1, above = 2, left = 3, right = 4
+        none = 0, diag = 1, above = 2, left = 3
     };
 
     relaxation_result(Score score = 0, predecessor pred = predecessor::none):

@@ -3,7 +3,6 @@
 MetaCache is a taxnomomic classification system intended for metagenomic read mapping.
 
 
-
 ## Super Quick Installation & Usage
 This will download MetaCache, compile it, download the complete bacterial, viral and archaea genomes from the latest NCBI RefSeq release (this can take some time) and build a classification database from them:
 

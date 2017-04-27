@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2017 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -260,14 +260,14 @@ void show_classification_statistics(std::ostream& os,
             os << prefix <<"  "<< rn << stats.correct(r) << '\n';
         }
 
-        os << prefix << "precision (correctly classified / classified):\n";
+        os << prefix << "precision (correctly classified / classified) if ground truth known:\n";
         for(auto r : ranks) {
             auto rn = taxonomy::rank_name(r);
             rn.resize(11, ' ');
             os << prefix <<"  "<< rn << (100 * stats.precision(r)) << "%\n";
         }
 
-        os << prefix << "sensitivity (correctly classified / all):\n";
+        os << prefix << "sensitivity (correctly classified / all) if ground truth known:\n";
         for(auto r : ranks) {
             if(stats.assigned(r) > 0) {
                 auto rn = taxonomy::rank_name(r);

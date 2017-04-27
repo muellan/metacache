@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2017 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,7 +38,7 @@ namespace mc {
 template<class T, std::uint8_t bitsPerSymbol>
 struct max_word_size
 {
-    static constexpr std::uint8_t value = ((sizeof(T) * 8) / bitsPerSymbol);
+    static constexpr std::uint8_t value = ((sizeof(T) * 7) / bitsPerSymbol);
 };
 
 

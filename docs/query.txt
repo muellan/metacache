@@ -42,6 +42,12 @@ OPTIONS:
 
     -locations         Show locations in candidate reference genomes.
 
+    -hitmin <t>        Sets classification threshhold to <t>.
+                       A read will not be classified if less than t features
+                       from the database are found in it.
+                       Higher values will increase precision at the expense of
+                       lower sensitivity.
+
     -lineage           Report complete lineage for per-read classification
                        starting with the lowest rank found or allowed and
                        ending with the highest rank allowed. See also

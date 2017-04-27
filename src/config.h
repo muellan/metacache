@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2017 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -86,7 +86,9 @@ using sequence = std::string;
 /**************************************************************************
  * @brief controls how nucleotide sequences are transformed into 'features'
  */
-using sketcher = single_function_min_hasher<kmer_type>;
+using sketching_hash = same_size_hash<kmer_type>;
+
+using sketcher = single_function_min_hasher<kmer_type,sketching_hash>;
 //using sketcher = fuzzy_single_function_min_hasher<kmer_type>;
 
 

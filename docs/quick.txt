@@ -1,4 +1,4 @@
-MetaCache  Copyright (C) 2016  André Müller
+MetaCache  Copyright (C) 2016-2017  André Müller
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it
 under certain conditions. See the file 'LICENSE' for details.

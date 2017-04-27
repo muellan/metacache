@@ -1,4 +1,4 @@
-Documentation for MetaCache mode "add"
+Documentation for MetaCache mode "modify"
 
 SYNOPSIS:
     Add reference genomes and/or taxonomic information to an existing database.
@@ -25,8 +25,8 @@ OPTIONS:
 
 EXAMPLES:
     Add reference sequence 'penicillium.fna' to database 'fungi'
-        ./metacache add fungi penicillium.fna
+        ./metacache modify fungi penicillium.fna
 
     Add taxonomic information from NCBI to database 'myBacteria'
         ./download_ncbi_taxonomy myTaxo
-        ./metacache add myBacteria -taxonomy myTaxo
+        ./metacache modify myBacteria -taxonomy myTaxo
