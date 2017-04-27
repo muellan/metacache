@@ -181,16 +181,6 @@ public:
         }
     }
 
-    template<class U, class... Args>
-    void construct(U* p, Args&&... args) {
-        new (reinterpret_cast<void*>(p)) U(std::forward<Args>(args)...);
-    }
-
-    template<class U>
-    void destroy(U* p) {
-        p->~U();
-    }
-
     chunk_allocator
     select_on_container_copy_construction() const {
         //don't propagate
