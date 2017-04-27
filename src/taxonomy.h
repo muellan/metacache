@@ -209,7 +209,7 @@ public:
             case rank::Order:        return "order";
             case rank::subClass:     return "subclass";
             case rank::Class:        return "class";
-            case rank::subPhylum:    return "supphylum";
+            case rank::subPhylum:    return "subphylum";
             case rank::Phylum:       return "phylum";
             case rank::subKingdom:   return "subkingdom";
             case rank::Kingdom:      return "kingdom";
