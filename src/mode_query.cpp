@@ -418,7 +418,8 @@ lowest_common_taxon(
         if(tax->rank <= highestRank) return tax;
     }
     else {
-        if(lowestRank == taxon_rank::Sequence) ++lowestRank;
+        if(lowestRank == taxon_rank::Sequence)
+            lowestRank = taxonomy::next_main_rank(lowestRank);
 
 //        std::cout << "vote (" << trustedMajority << "): ";
 
@@ -460,7 +461,7 @@ lowest_common_taxon(
 
             //if enough candidates (weighted by their hits)
             //agree on a taxon => classify as such
-            if(topscore >= (totalscore * trustedMajority)) {
+            if(topscore > 0 && topscore >= (totalscore * trustedMajority)) {
 
 //                std::cout << "  => classified " << taxonomy::rank_name(r)
 //                          << " " << toptid << '\n';

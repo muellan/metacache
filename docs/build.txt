@@ -1,16 +1,16 @@
 Documentation for MetaCache mode "build"
 
-SYNOPSIS:
-    Create a new database of reference genomes.
+SYNOPSIS
+    metacache build <database name> <reference genome> OPTIONS
 
-SYNTAX:
-    metacache build <database name> {<reference genome>} {[option]}
+DESCRIPTION
+    Create a new database of reference genomes.
 
     You can also provide names of directories that contain
     genomic sequence files instead of single filenames. MetaCache will
     search at most 10 levels down in the file hierarchy.
 
-OPTIONS:
+OPTIONS
     -sketchlen <no>       number of stored k-mers per sampling window
                           default: 16
 
@@ -32,7 +32,7 @@ OPTIONS:
                           as alternative source in a post processing step
                           default: 'nucl_(gb|wgs|est|gss).accession2taxid'
 
-EXAMPLES:
+EXAMPLES
     Build database 'mydb' from sequence file 'genomes.fna':
         ./metacache build mydb genomes.fna
 

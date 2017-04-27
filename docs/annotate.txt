@@ -1,11 +1,11 @@
 Documentation for MetaCache mode "annotate"
 
-SYNOPSIS:
+SYNOPSIS
+    metacache annotate taxid <input_sequence> <mapping files>... OPTIONS
+
+DESCRIPTION
     Annotate sequences with taxonomic metadata using sequence identifiers.
     (e.g. accession, accession.version or gi numbers) as keys. 
-
-SYNTAX:
-    metacache annotate taxid <input_sequence> {<mapping files>} [{options}]
 
     Note that if you want to use the *.accession2taxid files provided by the
     NCBI you will need a considerable amount of RAM since these files are
@@ -15,7 +15,7 @@ SYNTAX:
     sequence id to taxid maping files instead of single filenames.
     MetaCache will search at most 10 levels down in the file hierarchy.
 
-OPTIONS:
+OPTIONS
     -out <filename>      Redirect output to file <filename>.
                          If not specified, output will be written to stdout.
 
@@ -30,7 +30,7 @@ OPTIONS:
                          value.
                          default: "|"
 
-EXAMPLES:
+EXAMPLES
     Annotate sequences in file 'simBA5.fna' with their taxonomic ids
         ./metacache annotate taxid simBA5.fna nucl_wgs.accession2taxid
 
