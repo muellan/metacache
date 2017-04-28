@@ -1,14 +1,12 @@
 Documentation for MetaCache mode "info"
 
-SYNOPSIS:
+SYNOPSIS
+    metacache info [<database>] [config | target <sequence id>... | lineages | rank <name> | statistics | featuremap]
+
+DESCRIPTION
     Display (meta-)information stored in a database.
 
-
-SYNTAX:
-    metacache info [<database>] [config | target {sequence id} | lineages | rank <name> | statistics | featuremap]
-
-
-SUB-MODES:
+SUB-MODES
     metacache info
         show basic properties of MetaCache executable (data type widths, etc.)
 
@@ -30,8 +28,13 @@ SUB-MODES:
     metacache info <database> rank <rankname>
         list distribution of the number of sequences on rank <rankname>
 
+    metacache info <database> statistics
+        print database statistics i.e. hash table properties
 
-EXAMPLES:
+    metacache info <database> featuremap
+        prints the raw (feature -> target locations) map
+
+EXAMPLES
     List metadata for all reference genomes in database 'refseq':
         metacache info refseq.db
 

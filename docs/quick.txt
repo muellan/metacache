@@ -1,4 +1,4 @@
-MetaCache  Copyright (C) 2016  André Müller
+MetaCache  Copyright (C) 2016-2017  André Müller
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it
 under certain conditions. See the file 'LICENSE' for details.
@@ -9,8 +9,9 @@ You need to specify one of the following modes:
     build       build new database from reference genomes
     add         add reference genomes and/or taxonomy to existing database
     info        show database and reference genome properties
+    annotate    annotate sequences with taxonomic information 
 
-EXAMPLES:
+EXAMPLES
     Query 'myreads.fna' against pre-built database 'refseq':
         ./metacache query refseq myreads.fna
 

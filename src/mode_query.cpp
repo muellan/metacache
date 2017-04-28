@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2017 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -418,7 +418,8 @@ lowest_common_taxon(
         if(tax->rank <= highestRank) return tax;
     }
     else {
-        if(lowestRank == taxon_rank::Sequence) ++lowestRank;
+        if(lowestRank == taxon_rank::Sequence)
+            lowestRank = taxonomy::next_main_rank(lowestRank);
 
 //        std::cout << "vote (" << trustedMajority << "): ";
 
@@ -431,15 +432,13 @@ lowest_common_taxon(
             for(int i = 0, n = cand.count(); i < n; ++i) {
                 //use target id instead of taxon if at sequence level
                 auto taxid = db.ranks_of_target(cand.target_id(i))[int(r)];
-                if(taxid > 0) {
-                    auto score = cand.hits(i);
-                    totalscore += score;
-                    auto it = scores.find(taxid);
-                    if(it != scores.end()) {
-                        it->second += score;
-                    } else {
-                        scores.insert(it, {taxid, score});
-                    }
+                auto score = cand.hits(i);
+                totalscore += score;
+                auto it = scores.find(taxid);
+                if(it != scores.end()) {
+                    it->second += score;
+                } else {
+                    scores.insert(it, {taxid, score});
                 }
             }
 
@@ -460,7 +459,7 @@ lowest_common_taxon(
 
             //if enough candidates (weighted by their hits)
             //agree on a taxon => classify as such
-            if(topscore >= (totalscore * trustedMajority)) {
+            if(toptid > 0 && topscore >= (totalscore * trustedMajority)) {
 
 //                std::cout << "  => classified " << taxonomy::rank_name(r)
 //                          << " " << toptid << '\n';

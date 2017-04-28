@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2017 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -244,7 +244,6 @@ public:
         const_iterator  end() const noexcept { return values_ + size_; }
         const_iterator cend() const noexcept { return values_ + size_; }
 
-//        probelen_t probe_length() const noexcept { return probelen_; }
         probelen_t probe_length() const noexcept { return 0; }
 
     private:
@@ -287,7 +286,6 @@ public:
             values_ = nullptr;
             size_ = 0;
             capacity_ = 0;
-//            probelen_ = 0;
         }
         //-------------------------------------------
         void clear() {
@@ -988,6 +986,7 @@ private:
                 return buckets_.end();
             }
         } while(++it);
+
         return buckets_.end();
     }
 

@@ -40,6 +40,7 @@ MetaCache was successfully tested on the following platforms (all 64 bit + 64 bi
 - Windows 10.1511 64bit with MinGW-w64 g++ 5.1 and MinGW-w64 g++ 5.3
 - Windows 10.1607 64bit with MinGW-w64 g++ 5.3
 - Windows 10.1607 64bit running Ubuntu 14.04 inside WSL and g++ 5.4.1 
+- Windows 10.1703 64bit running Ubuntu 14.04 inside WSL and g++ 5.4.1 
 
 In order to be able to build the default database with default settings your system should have around 32GB of RAM (note that the NCBI RefSeq will still be growing in the near future).
 

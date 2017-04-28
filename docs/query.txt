@@ -1,16 +1,16 @@
 Documentation for MetaCache mode "query"
 
-SYNOPSIS:
-    Map sequences (short reads) to their most likely origin.
+SYNOPSIS
+    metacache query <database name> <query sequence>... OPTIONS
 
-SYNTAX:
-    metacache query <database name> {<query sequence>} {[option]}
+DESCRIPTION
+    Map sequences (short reads) to their most likely origin.
 
     You can also provide names of directories that contain
     sequence files instead of single filenames. MetaCache will
     search at most 10 levels down in the file hierarchy.
 
-OPTIONS:
+OPTIONS
     -out <file>        Redirect output to file <file>.
                        If not specified, output will be written to stdout.
                        If more than one input file was given all output
@@ -34,7 +34,7 @@ OPTIONS:
     -insertsize        Maximum insert size to consider.
                        default: sum of lengths of the individual reads
 
-    -lowest <rank>     Do not classify on ranks below <rank>.
+    -lowest  <rank>    Do not classify on ranks below <rank>.
                        default: sequence
 
     -highest <rank>    Do not classify on ranks above <rank>.
@@ -89,7 +89,7 @@ OPTIONS:
     -threads <no>      use <no> many parallel threads
                        default: guess optimum for hardware
 
-EXAMPLES:
+EXAMPLES
     Query all sequences in 'myreads.fna' against pre-built database 'refseq':
         ./metacache query refseq myreads.fna -out results.txt
 
@@ -102,3 +102,5 @@ EXAMPLES:
     Query multiple files and folder contents against database 'refseq':
         ./metacache query refseq file1.fna folder1 file2.fna file3.fna folder2
 
+    Perform a precision test and show all ranks for each classification result:
+        ./metacache query refseq reads.fna -precision -allranks -out results.txt

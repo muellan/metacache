@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2017 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -209,7 +209,7 @@ public:
             case rank::Order:        return "order";
             case rank::subClass:     return "subclass";
             case rank::Class:        return "class";
-            case rank::subPhylum:    return "supphylum";
+            case rank::subPhylum:    return "subphylum";
             case rank::Phylum:       return "phylum";
             case rank::subKingdom:   return "subkingdom";
             case rank::Kingdom:      return "kingdom";
