@@ -432,15 +432,13 @@ lowest_common_taxon(
             for(int i = 0, n = cand.count(); i < n; ++i) {
                 //use target id instead of taxon if at sequence level
                 auto taxid = db.ranks_of_target(cand.target_id(i))[int(r)];
-                if(taxid > 0) {
-                    auto score = cand.hits(i);
-                    totalscore += score;
-                    auto it = scores.find(taxid);
-                    if(it != scores.end()) {
-                        it->second += score;
-                    } else {
-                        scores.insert(it, {taxid, score});
-                    }
+                auto score = cand.hits(i);
+                totalscore += score;
+                auto it = scores.find(taxid);
+                if(it != scores.end()) {
+                    it->second += score;
+                } else {
+                    scores.insert(it, {taxid, score});
                 }
             }
 
@@ -461,7 +459,7 @@ lowest_common_taxon(
 
             //if enough candidates (weighted by their hits)
             //agree on a taxon => classify as such
-            if(topscore > 0 && topscore >= (totalscore * trustedMajority)) {
+            if(toptid > 0 && topscore >= (totalscore * trustedMajority)) {
 
 //                std::cout << "  => classified " << taxonomy::rank_name(r)
 //                          << " " << toptid << '\n';
