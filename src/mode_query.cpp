@@ -76,6 +76,10 @@ struct query_options
     //-----------------------------------------------------
     //output options & formatting
     //-----------------------------------------------------
+    //prefix for each non-mapping line
+    std::string comment = "# ";
+    //separates individual mapping fields
+    std::string outSeparator = "\t|\t";
     //show database properties
     bool showDBproperties = false;
     //make a separate output file for each input file
@@ -95,10 +99,8 @@ struct query_options
     //what to show of a taxon
     taxon_print_mode showTaxaAs = taxon_print_mode::name_only;
     bool showAlignment = false;
-    //prefix for each non-mapping line
-    std::string comment = "# ";
-    //separates individual mapping fields
-    std::string outSeparator = "\t|\t";
+    //show error messages?
+    bool showErrors = true;
 
     //-----------------------------------------------------
     //classification options
@@ -312,6 +314,8 @@ get_query_options(const args_parser& args)
 
     param.numThreads = args.get<int>("threads",
                                      std::thread::hardware_concurrency());
+
+    param.showErrors = !args.contains({"-noerr","-noerrors"});
 
     return param;
 }
@@ -708,7 +712,9 @@ void process_database_answer(
                        << param.comment << "  target " << align.subject;
                 }
             }
-        } catch(std::exception&) { }
+        } catch(std::exception& e) {
+            if(param.showErrors) std::cerr << e.what() << '\n';
+        }
     }
 
     if(showMapping) os << '\n';
@@ -865,10 +871,9 @@ void classify_on_file_pairs(parallel_queue& queue,
             show_progress_indicator(i / float(infilenames.size()));
         }
         try {
-            classify_pairs(queue, db, param,
-                           *make_sequence_reader(fname1),
-                           *make_sequence_reader(fname2),
-                           os, stats);
+            auto reader1 = make_sequence_reader(fname1);
+            auto reader2 = make_sequence_reader(fname2);
+            classify_pairs(queue, db, param, *reader1, *reader2, os, stats);
         }
         catch(std::exception& e) {
             if(param.mapViewMode != map_view_mode::none) {
