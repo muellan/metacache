@@ -38,7 +38,7 @@ namespace mc {
 template<class T, std::uint8_t bitsPerSymbol>
 struct max_word_size
 {
-    static constexpr std::uint8_t value = ((sizeof(T) * 7) / bitsPerSymbol);
+    static constexpr std::uint8_t value = ((sizeof(T) * 8) / bitsPerSymbol);
 };
 
 
