@@ -229,17 +229,38 @@ std::unique_ptr<sequence_reader>
 make_sequence_reader(const std::string& filename)
 {
     auto n = filename.size();
-    if(n > 3) {
-        auto ext = filename.substr(n-6,6);
-        if(ext.find(".fq")  != std::string::npos ||
-           ext.find(".fnq")  != std::string::npos ||
-           ext.find(".fastq") != std::string::npos)
-        {
-            return std::unique_ptr<sequence_reader>{new fastq_reader{filename}};
-        }
+    if(filename.find(".fq")    == (n-3) ||
+       filename.find(".fnq")   == (n-4) ||
+       filename.find(".fastq") == (n-6) )
+    {
+        return std::unique_ptr<sequence_reader>{new fastq_reader{filename}};
+    }
+    else if(filename.find(".fa")    == (n-3) ||
+            filename.find(".fna")   == (n-4) ||
+            filename.find(".fasta") == (n-6) )
+    {
+
+        return std::unique_ptr<sequence_reader>{new fasta_reader{filename}};
     }
 
-    return std::unique_ptr<sequence_reader>{new fasta_reader{filename}};
+    //try to determine file type content
+    std::ifstream is {filename};
+    if(is.good()) {
+        std::string line;
+        getline(is,line);
+        if(!line.empty()) {
+            if(line[0] == '<') {
+                return std::unique_ptr<sequence_reader>{new fasta_reader{filename}};
+            }
+            else if(line[0] == '@') {
+                return std::unique_ptr<sequence_reader>{new fastq_reader{filename}};
+            }
+        }
+        throw file_read_error{"file format not recognized"};
+    }
+
+    throw file_access_error{"file not accessible"};
+    return nullptr;
 }
 
 
