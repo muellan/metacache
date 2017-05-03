@@ -379,5 +379,4 @@ align_semi_global_score(const QuerySequence& query,
 }
 
 
-
 } // namespace mc

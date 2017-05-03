@@ -111,6 +111,7 @@ public:
     using target_id = TargetId;
     using window_id = WindowId;
     using bucket_size_type = BucketSizeT;
+    using match_count_type = std::uint16_t;
     //-----------------------------------------------------
     using sequence_id = std::string;
     //-----------------------------------------------------
@@ -239,7 +240,7 @@ private:
 public:
     //-------------------------------------------------------------------
     //map: location (= target window) -> number of featers
-    using match_result = std::map<location,std::uint16_t>;
+    using matches_per_location = std::map<location,match_count_type>;
 
 
     //---------------------------------------------------------------
@@ -691,17 +692,17 @@ public:
 
 
     //---------------------------------------------------------------
-    match_result
+    matches_per_location
     matches(const sequence& query) const
     {
-        auto res = match_result{};
+        auto res = matches_per_location{};
         accumulate_matches(query, res);
         return res;
     }
     //---------------------------------------------------------------
     void
     accumulate_matches(const sequence& query,
-                       match_result& res) const
+                       matches_per_location& res) const
     {
         for_each_match(query,
             [this, &res] (const location& t) {
@@ -950,190 +951,6 @@ private:
     taxonomy taxa_;
 };
 
-
-
-
-
-
-/*****************************************************************************
- *
- * @brief
- *
- *****************************************************************************/
-template<class ValueT>
-struct index_range
-{
-    using value_type = ValueT;
-
-    constexpr
-    index_range() noexcept :
-        beg(0), end(0)
-    {}
-    constexpr
-    index_range(value_type first, value_type last) noexcept :
-        beg{first}, end{last}
-    {}
-
-    constexpr value_type size()  const noexcept { return beg - end; }
-    constexpr value_type empty() const noexcept { return beg == end; }
-
-    value_type beg;
-    value_type end;
-};
-
-
-
-
-/*****************************************************************************
-*
-* @brief processes a database hit list and
-*        stores the top (in terms of accumulated hits) 'maxNo' contiguous
-*        window ranges
-*
-*****************************************************************************/
-template<int maxNo, class TgtId>
-class matches_in_contiguous_window_range_top
-{
-    static_assert(maxNo > 1, "no must be > 1");
-
-
-public:
-
-    //---------------------------------------------------------------
-    using tid_t = TgtId;
-    using hit_t = std::uint_least64_t;
-    using win_t = std::uint_least64_t;
-    using window_range = index_range<win_t>;
-
-    //---------------------------------------------------------------
-    static constexpr int max_count() noexcept { return maxNo; }
-
-    static constexpr tid_t invalid_tgt() noexcept {
-        return std::numeric_limits<tid_t>::max();
-    }
-
-
-    /****************************************************************
-     * @pre matches must be sorted by target (first) and window (second)
-     */
-    template<class MatchResult>
-    matches_in_contiguous_window_range_top(
-        const MatchResult& matches, win_t numWindows = 3)
-    :
-        tgt_{}, hits_{}, pos_{}, numTgts_(0), coveredWins_{numWindows}
-    {
-        using std::begin;
-        using std::end;
-
-        for(int i = 0; i < maxNo; ++i) {
-            tgt_[i] = invalid_tgt();
-            hits_[i] = 0;
-        }
-
-        tid_t tgt = invalid_tgt();
-        hit_t hits = 0;
-        hit_t maxHits = 0;
-        hit_t win = 0;
-        win_t maxWinBeg = 0;
-        win_t maxWinEnd = 0;
-
-        //check hits per query sequence
-        auto fst = begin(matches);
-        auto lst = fst;
-        while(lst != end(matches)) {
-            //look for neighboring windows with the highest total hit count
-            //as long as we are in the same target and the windows are in a
-            //contiguous range
-            if(lst->first.tgt == tgt) {
-                //add new hits to the right
-                hits += lst->second;
-                //subtract hits to the left that fall out of range
-                while(fst != lst &&
-                     (lst->first.win - fst->first.win) >= numWindows)
-                {
-                    hits -= fst->second;
-                    //move left side of range
-                    ++fst;
-                    win = fst->first.win;
-                }
-                //track best of the local sub-ranges
-                if(hits > maxHits) {
-                    maxHits = hits;
-                    maxWinBeg = win;
-                    maxWinEnd = win + distance(fst,lst);
-                }
-            }
-            else {
-                //reset to new target
-                ++numTgts_;
-                win = lst->first.win;
-                tgt = lst->first.tgt;
-                hits = lst->second;
-                maxHits = hits;
-                maxWinBeg = win;
-                maxWinEnd = win;
-                fst = lst;
-            }
-            //keep track of 'maxNo' largest
-            //TODO binary search for large maxNo?
-            for(int i = 0; i < maxNo; ++i) {
-                if(maxHits >= hits_[i]) {
-                    //shift to the right
-                    for(int j = maxNo-1; j > i; --j) {
-                        hits_[j] = hits_[j-1];
-                        tgt_[j] = tgt_[j-1];
-                        pos_[j] = pos_[j-1];
-                    }
-                    //set hits & associated sequence (position)
-                    hits_[i] = maxHits;
-                    tgt_[i] = tgt;
-                    pos_[i].beg = maxWinBeg;
-                    pos_[i].end = maxWinEnd;
-                    break;
-                }
-            }
-            ++lst;
-        }
-    }
-
-    int count() const noexcept {
-        for(int i = 0; i < maxNo; ++i) {
-            if(hits_[i] < 1) return i;
-        }
-        return maxNo;
-    }
-
-    tid_t target_id(int rank)   const noexcept { return tgt_[rank];  }
-    hit_t hits(int rank) const noexcept { return hits_[rank]; }
-
-    hit_t total_hits() const noexcept {
-        int h = 0;
-        for(int i = 0; i < maxNo; ++i) h += hits_[i];
-        return h;
-    }
-
-    int target_ambiguity() const noexcept {
-        return numTgts_;
-    }
-
-    const window_range&
-    window(int rank) const noexcept { return pos_[rank]; }
-
-    win_t window_length(int rank) const noexcept {
-        return pos_[rank].end - pos_[rank].beg;
-    }
-
-    win_t covered_windows() const noexcept {
-        return coveredWins_;
-    }
-
-private:
-    tid_t tgt_[maxNo];
-    hit_t hits_[maxNo];
-    window_range pos_[maxNo];
-    int numTgts_;
-    win_t coveredWins_;
-};
 
 
 

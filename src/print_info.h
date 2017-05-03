@@ -1,0 +1,73 @@
+/*****************************************************************************
+ *
+ * MetaCache - Meta-Genomic Classification Tool
+ *
+ * Copyright (C) 2016-2017 André Müller (muellan@uni-mainz.de)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *****************************************************************************/
+
+#ifndef MC_PRINT_INFO_H_
+#define MC_PRINT_INFO_H_
+
+#include "config.h"
+
+
+namespace mc {
+
+
+/*****************************************************************************
+ *
+ * @brief how taxon formatting will be done
+ *
+ *****************************************************************************/
+enum class taxon_print_mode : unsigned char {
+    name_only = 1, id_only = 2, id_name = 3
+};
+
+
+
+
+/*****************************************************************************
+ *
+ * @brief print ranked lineage
+ *
+ *****************************************************************************/
+void show_ranks(std::ostream&,
+                const database&,
+                const ranked_lineage&,
+                taxon_print_mode = taxon_print_mode::name_only,
+                taxon_rank lowest  = taxon_rank::Species,
+                taxon_rank highest = taxon_rank::Domain);
+
+
+
+/*****************************************************************************
+ *
+ * @brief print ranked lineage of target
+ *
+ *****************************************************************************/
+void show_ranks_of_target(std::ostream&,
+                          const database&,
+                          target_id,
+                          taxon_print_mode = taxon_print_mode::name_only,
+                          taxon_rank lowest  = taxon_rank::Sequence,
+                          taxon_rank highest = taxon_rank::Domain);
+
+
+} // namespace mc
+
+
+#endif

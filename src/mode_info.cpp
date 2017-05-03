@@ -22,8 +22,7 @@
 
 #include "args_handling.h"
 #include "sequence_io.h"
-
-#include "modes_common.h"
+#include "print_info.h"
 
 
 namespace mc {

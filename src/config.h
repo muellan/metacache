@@ -31,6 +31,7 @@
 
 #include "sketch_database.h"
 #include "hash_dna.h"
+#include "candidates.h"
 
 
 namespace mc {
@@ -106,6 +107,13 @@ using feature_hash = std::hash<typename sketcher::feature_type>;
 using database = sketch_database<sequence,sketcher,feature_hash,
                                  target_id,window_id,loclist_size_t>;
 
+/** @brief pull some types from database into global namespace */
+using taxon                = database::taxon;
+using taxon_rank           = database::taxon_rank;
+using taxon_id             = database::taxon_id;
+using ranked_lineage       = database::ranked_lineage;
+using matches_per_location = database::matches_per_location;
+
 
 /**************************************************************************
  * @brief controls how a classification is derived from a location hit list;
@@ -116,8 +124,8 @@ using database = sketch_database<sequence,sketcher,feature_hash,
     #define MC_VOTE_TOP 2
 #endif
 
-using top_matches_in_contiguous_window_range
-        = matches_in_contiguous_window_range_top< MC_VOTE_TOP ,target_id>;
+using classification_candidates =
+    top_matches_in_contiguous_window_range<MC_VOTE_TOP,database>;
 
 
 } // namespace mc

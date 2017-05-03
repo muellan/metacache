@@ -23,7 +23,9 @@ HEADERS = \
           src/args_handling.h \
           src/args_parser.h \
           src/bitmanip.h \
+          src/candidates.h \
           src/chunk_allocator.h \
+          src/classification.h \
           src/cmdline_utility.h \
           src/config.h \
           src/dna_encoding.h \
@@ -35,8 +37,9 @@ HEADERS = \
           src/io_error.h \
           src/io_serialize.h \
           src/modes.h \
-          src/modes_common.h \
           src/parallel_task_queue.h \
+          src/print_info.h \
+          src/print_results.h \
           src/sequence_io.h \
           src/sequence_view.h \
           src/sketch_database.h \
@@ -49,6 +52,7 @@ HEADERS = \
 
 SOURCES = \
           src/args_handling.cpp \
+          src/classification.cpp \
           src/cmdline_utility.cpp \
           src/filesys_utility.cpp \
           src/main.cpp \
@@ -58,7 +62,8 @@ SOURCES = \
           src/mode_help.cpp \
           src/mode_info.cpp \
           src/mode_query.cpp \
-          src/modes_common.cpp \
+          src/print_info.cpp \
+          src/print_results.cpp \
           src/sequence_io.cpp
           
 TEST_HEADERS = \
@@ -122,6 +127,15 @@ $(REL_ARTIFACT): $(REL_OBJS)
 
 $(REL_DIR)/main.o : src/main.cpp src/modes.h 
 	$(REL_COMPILE)
+
+$(REL_DIR)/classification.o : src/classification.cpp $(HEADERS)
+	$(REL_COMPILE)
+
+$(REL_DIR)/print_info.o : src/print_info.cpp $(HEADERS)
+	$(REL_COMPILE)
+
+$(REL_DIR)/print_results.o : src/print_results.cpp $(HEADERS)
+	$(REL_COMPILE)
 	
 $(REL_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)
 	$(REL_COMPILE)
@@ -139,9 +153,6 @@ $(REL_DIR)/mode_info.o : src/mode_info.cpp $(HEADERS)
 	$(REL_COMPILE)
 
 $(REL_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
-	$(REL_COMPILE)
-
-$(REL_DIR)/modes_common.o : src/modes_common.cpp $(HEADERS)
 	$(REL_COMPILE)
 
 $(REL_DIR)/sequence_io.o : src/sequence_io.cpp src/sequence_io.h src/io_error.h
@@ -169,6 +180,15 @@ $(DBG_ARTIFACT): $(DBG_OBJS)
 
 $(DBG_DIR)/main.o : src/main.cpp src/modes.h 
 	$(DBG_COMPILE)
+
+$(DBG_DIR)/classification.o : src/classification.cpp $(HEADERS)
+	$(DBG_COMPILE)
+
+$(DBG_DIR)/print_info.o : src/print_info.cpp $(HEADERS)
+	$(DBG_COMPILE)
+
+$(DBG_DIR)/print_results.o : src/print_results.cpp $(HEADERS)
+	$(DBG_COMPILE)
 	
 $(DBG_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)
 	$(DBG_COMPILE)
@@ -188,9 +208,6 @@ $(DBG_DIR)/mode_info.o : src/mode_info.cpp $(HEADERS)
 $(DBG_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
-$(DBG_DIR)/modes_common.o : src/modes_common.cpp $(HEADERS)
-	$(DBG_COMPILE)
-	
 $(DBG_DIR)/sequence_io.o : src/sequence_io.cpp src/sequence_io.h src/io_error.h
 	$(DBG_COMPILE)
 
@@ -202,7 +219,7 @@ $(DBG_DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.h
 
 $(DBG_DIR)/args_handling.o : src/args_handling.cpp src/args_handling.h src/args_parser.h src/filesys_utility.h
 	$(DBG_COMPILE)
-	
+
 
 
 #--------------------------------------------------------------------
