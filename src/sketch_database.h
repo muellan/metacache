@@ -541,7 +541,7 @@ public:
     //---------------------------------------------------------------
     std::uint64_t
     taxon_count() const noexcept {
-        return taxa_.taxon_count();
+        return taxa_.size();
     }
     //-----------------------------------------------------
     const taxon&
@@ -559,7 +559,7 @@ public:
     //-----------------------------------------------------
     taxon_id
     taxon_id_of_target(target_id id) const noexcept {
-        return taxa_[targets_[id].taxonId].id;
+        return taxa_[targets_[id].taxonId].id_;
     }
     //-----------------------------------------------------
     const taxon&
@@ -576,7 +576,7 @@ public:
     //-----------------------------------------------------
     full_lineage
     lineage(const taxon& tax) const noexcept {
-        return taxa_.lineage(tax.id);
+        return taxa_.lineage(tax.id_);
     }
     //-----------------------------------------------------
     const full_lineage&
@@ -587,7 +587,7 @@ public:
     //-----------------------------------------------------
     ranked_lineage
     ranks(const taxon& tax) const noexcept {
-        return taxa_.ranks(tax.id);
+        return taxa_.ranks(tax);
     }
     //-----------------------------------------------------
     const ranked_lineage&
@@ -624,7 +624,7 @@ public:
     //---------------------------------------------------------------
     taxon_rank
     lowest_rank(const taxon& tax) const {
-        return taxa_.lowest_rank(tax.id);
+        return taxa_.lowest_rank(tax.id_);
     }
     //-----------------------------------------------------
     taxon_rank
@@ -637,7 +637,7 @@ public:
      * @return number of times a taxon is covered by any target in the DB
      */
     int covering(const taxon& t) const {
-        return covering_of_taxon(t.id);
+        return covering_of_taxon(t.id_);
     }
     int covering_of_taxon(taxon_id id) const {
         int cover = 0;
@@ -655,7 +655,7 @@ public:
      * @return true, if taxon is covered by any target in the DB
      */
     bool covers(const taxon& t) const {
-        return covers_taxon(t.id);
+        return covers_taxon(t.id_);
     }
     bool covers_taxon(taxon_id id) const {
         for(const auto& g : targets_) {

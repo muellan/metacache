@@ -226,7 +226,7 @@ make_taxonomic_hierarchy(const std::string& taxNodesFile,
 
             tax.emplace(taxonId, parentId, taxonName, rankName);
         }
-        std::cout << tax.taxon_count() << " taxa read." << std::endl;
+        std::cout << tax.size() << " taxa read." << std::endl;
     }
     else {
         std::cerr << "Could not read taxonomic nodes file "

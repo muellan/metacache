@@ -64,7 +64,7 @@ struct classification
 
     taxon_rank rank() const noexcept {
         return sequence_level() ? taxon_rank::Sequence
-                                : (tax_ ? tax_->rank : taxon_rank::none);
+                                : (tax_ ? tax_->rank() : taxon_rank::none);
     }
 
 private:

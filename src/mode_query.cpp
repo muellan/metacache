@@ -421,7 +421,7 @@ lowest_common_taxon(
                                              cand.target(1));
 
         //classify if rank is below or at the highest rank of interest
-        if(tax->rank <= highestRank) return tax;
+        if(tax->rank() <= highestRank) return tax;
     }
     else {
         if(lowestRank == taxon_rank::Sequence)
@@ -566,7 +566,7 @@ void update_coverage_statistics(
     const auto& lin = db.ranks(truth.tax());
     //check if taxa are covered in DB
     for(auto taxid : lin) {
-        auto r = db.taxon_with_id(taxid).rank;
+        auto r = db.taxon_with_id(taxid).rank();
         if(db.covers_taxon(taxid)) {
             if(r < result.rank()) { //unclassified on rank
                 stats.count_coverage_false_neg(r);
@@ -660,8 +660,8 @@ void process_database_answer(
             }
             else if(groundTruth.has_taxon()) {
                 show_ranks(os, db, db.ranks(groundTruth.tax()),
-                    opt.showTaxaAs, groundTruth.tax().rank,
-                    opt.showLineage ? opt.highestRank : groundTruth.tax().rank);
+                    opt.showTaxaAs, groundTruth.tax().rank(),
+                    opt.showLineage ? opt.highestRank : groundTruth.tax().rank());
             }
             else {
                 os << "n/a";

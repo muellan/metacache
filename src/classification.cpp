@@ -85,7 +85,7 @@ lowest_common_rank(const database& db,
         a.target() == b.target()) return taxon_rank::Sequence;
 
     if(a.has_taxon() && b.has_taxon()) {
-        return db.ranked_lca(a.tax(), b.tax()).rank;
+        return db.ranked_lca(a.tax(), b.tax()).rank();
     }
 
     return taxon_rank::none;

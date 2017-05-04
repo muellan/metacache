@@ -38,7 +38,7 @@ void show_ranks(
         os << taxonomy::rank_name(lowest) << ':';
         if(mode != taxon_print_mode::id_only) {
             if(taxid > 1)
-                os << db.taxon_with_id(taxid).name;
+                os << db.taxon_with_id(taxid).name();
             else
                 os << "n/a";
             if(mode != taxon_print_mode::name_only)
@@ -54,16 +54,16 @@ void show_ranks(
             auto taxid = lineage[int(r)];
             if(taxid > 1) {
                 auto&& taxon = db.taxon_with_id(taxid);
-                if(taxon.rank >= lowest && taxon.rank <= highest) {
+                if(taxon.rank() >= lowest && taxon.rank() <= highest) {
                     os << taxon.rank_name() << ':';
                     if(mode != taxon_print_mode::id_only) {
-                        os << taxon.name;
+                        os << taxon.name();
                         if(mode != taxon_print_mode::name_only) {
-                            os << "(" << taxon.id << ")";
+                            os << "(" << taxon.id() << ")";
                         }
                     }
                     else {
-                        os << taxon.id;
+                        os << taxon.id();
                     }
                 }
                 if(r < highest) os << ',';

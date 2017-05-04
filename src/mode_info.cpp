@@ -85,7 +85,7 @@ void show_ranks_of_target(const database& db, database::target_id tid)
             auto&& taxon = db.taxon_with_id(taxid);
             auto rn = taxon.rank_name() + ":";
             rn.resize(12, ' ');
-            std::cout << "\n    " << rn << "(" << taxon.id << ") " << taxon.name;
+            std::cout << "\n    " << rn << "(" << taxon.id() << ") " << taxon.name();
         }
     }
 
@@ -216,7 +216,7 @@ void show_classification_statistics(const args_parser& args)
 
     std::cout << "Sequence distribution for rank " << rankName << ":" << std::endl;
     for(const auto& s : stat) {
-        std::cout << db.taxon_with_id(s.first).name << " \t " << s.second << '\n';
+        std::cout << db.taxon_with_id(s.first).name() << " \t " << s.second << '\n';
     }
 }
 
