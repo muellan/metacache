@@ -39,24 +39,52 @@
 namespace mc {
 
 
+
 /*****************************************************************************
  *
- *
+ * @brief polymorphic file reader for bio-sequences
+ *        base class handles concurrency safety
  *
  *****************************************************************************/
 class sequence_reader
 {
 public:
-    struct result_type {
-        std::string header;
-        std::string data;
-        std::string qualities;
+    using index_type = std::uint_least64_t;
+
+    struct sequence {
+        std::string header;      //meta information (FASTA >, FASTQ @)
+        std::string data;        //actual sequence
+        std::string qualities;   //quality scores (FASTQ)
     };
+
+    sequence_reader(): index_{0}, valid_{true} {}
+
+    sequence_reader(const sequence_reader&) = delete;
+    sequence_reader& operator = (const sequence_reader&) = delete;
+    sequence_reader& operator = (sequence_reader&&) = delete;
 
     virtual ~sequence_reader() = default;
 
-    virtual result_type next() = 0;
-    virtual bool has_next() const noexcept = 0;
+    /** @brief read & return next sequence */
+    sequence next();
+
+    /** @brief skip n sequences */
+    void skip(index_type n);
+
+    bool has_next() const noexcept { return valid_.load(); }
+
+    index_type index() const noexcept { return index_.load(); }
+
+protected:
+    void invalidate() { valid_.store(false); }
+
+    //derived readers have to implement this
+    virtual void read_next(sequence&) = 0;
+
+private:
+    mutable std::mutex mutables_;
+    std::atomic<index_type> index_;
+    std::atomic<bool> valid_;
 };
 
 
@@ -74,15 +102,12 @@ public:
     explicit
     fasta_reader(std::string filename);
 
-    result_type next() override;
-
-    bool has_next() const noexcept override { return valid_.load(); }
+protected:
+    void read_next(sequence&) override;
 
 private:
-    mutable std::mutex mutables_;
     std::ifstream file_;
     std::string linebuffer_;
-    std::atomic<bool> valid_;
 };
 
 
@@ -100,14 +125,11 @@ public:
     explicit
     fastq_reader(std::string filename);
 
-    result_type next() override;
-
-    bool has_next() const noexcept override { return valid_.load(); }
+protected:
+    void read_next(sequence&) override;
 
 private:
-    mutable std::mutex mutables_;
     std::ifstream file_;
-    std::atomic<bool> valid_;
 };
 
 
@@ -125,14 +147,11 @@ public:
     explicit
     sequence_header_reader(std::string filename);
 
-    result_type next() override;
-
-    bool has_next() const noexcept override { return valid_.load(); }
+protected:
+    void read_next(sequence&) override;
 
 private:
-    mutable std::mutex mutables_;
     std::ifstream file_;
-    std::atomic<bool> valid_;
 };
 
 
@@ -206,7 +225,7 @@ std::string extract_accession_string(const std::string&);
  * @brief extracts the numeric part from a gi identifier
  *
  *****************************************************************************/
-std::uint64_t extract_taxon_id(const std::string&);
+std::int_least64_t extract_taxon_id(const std::string&);
 
 
 

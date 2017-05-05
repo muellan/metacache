@@ -33,28 +33,24 @@ void show_matches(std::ostream& os,
 {
     if(lowest == taxon_rank::Sequence) {
         if(cand.hits(0) > 0) {
-            os  << db.sequence_id_of_target(cand.target(0))
+            os  << db.target(cand.target(0)).name()
                 << ':' << cand.hits(0);
         }
 
         for(int i = 1; i < cand.count() && cand.hits(i) > 0; ++i) {
-            os  << ',' << db.sequence_id_of_target(cand.target(i))
+            os  << ',' << db.target(cand.target(i)).name()
                 << ':' << cand.hits(i);
             ++i;
         }
     }
     else {
         if(cand.hits(0) > 0) {
-            auto taxid = db.ranks_of_target(
-                         cand.target(0))[int(lowest)];
-
+            auto taxid = db.ranks(db.target(cand.target(0)))[int(lowest)];
             os << taxid << ':' << cand.hits(0);
         }
 
         for(int i = 1; i < cand.count() && cand.hits(i) > 0; ++i) {
-            auto taxid = db.ranks_of_target(
-                         cand.target(i))[int(lowest)];
-
+            auto taxid = db.ranks(db.target(cand.target(i)))[int(lowest)];
             os << ',' << taxid << ':' << cand.hits(i);
             ++i;
         }
@@ -73,14 +69,14 @@ void show_matches(std::ostream& os,
 
     if(lowest == taxon_rank::Sequence) {
         for(const auto& r : matches) {
-            os << db.sequence_id_of_target(r.first.tgt)
+            os << db.target(r.first.tgt).name()
                << '/' << int(r.first.win)
                << ':' << int(r.second) << ',';
         }
     }
     else {
         for(const auto& r : matches) {
-            auto taxid = db.ranks_of_target(r.first.tgt)[int(lowest)];
+            auto taxid = db.ranks(db.target(r.first.tgt))[int(lowest)];
             os << taxid << ':' << int(r.second) << ',';
         }
     }
@@ -130,7 +126,7 @@ void show_classification_statistics(std::ostream& os,
     os << prefix << "classified:\n";
     for(auto r : ranks) {
         if(stats.assigned(r) > 0) {
-            auto rn = taxonomy::rank_name(r);
+            std::string rn = taxonomy::rank_name(r);
             rn.resize(11, ' ');
             os  << prefix <<"  "<< rn
                 << (100 * stats.classification_rate(r))
@@ -146,7 +142,7 @@ void show_classification_statistics(std::ostream& os,
         }
         os << prefix << "ground truth known:\n";
         for(auto r : ranks) {
-            auto rn = taxonomy::rank_name(r);
+            std::string rn = taxonomy::rank_name(r);
             rn.resize(11, ' ');
             os  << prefix <<"  "<< rn
                 << (100 * stats.known_rate(r))
@@ -155,14 +151,14 @@ void show_classification_statistics(std::ostream& os,
 
         os << prefix << "correctly classified:\n";
         for(auto r : ranks) {
-            auto rn = taxonomy::rank_name(r);
+            std::string rn = taxonomy::rank_name(r);
             rn.resize(11, ' ');
             os << prefix <<"  "<< rn << stats.correct(r) << '\n';
         }
 
         os << prefix << "precision (correctly classified / classified) if ground truth known:\n";
         for(auto r : ranks) {
-            auto rn = taxonomy::rank_name(r);
+            std::string rn = taxonomy::rank_name(r);
             rn.resize(11, ' ');
             os << prefix <<"  "<< rn << (100 * stats.precision(r)) << "%\n";
         }
@@ -170,7 +166,7 @@ void show_classification_statistics(std::ostream& os,
         os << prefix << "sensitivity (correctly classified / all) if ground truth known:\n";
         for(auto r : ranks) {
             if(stats.assigned(r) > 0) {
-                auto rn = taxonomy::rank_name(r);
+                std::string rn = taxonomy::rank_name(r);
                 rn.resize(11, ' ');
                 os << prefix <<"  "<< rn << (100 * stats.sensitivity(r)) << "%\n";
             }
@@ -180,7 +176,7 @@ void show_classification_statistics(std::ostream& os,
             os << prefix << "false positives (hit on taxa not covered in DB):\n";
             for(auto r : ranks) {
                 if(stats.assigned(r) > 0) {
-                    auto rn = taxonomy::rank_name(r);
+                    std::string rn = taxonomy::rank_name(r);
                     rn.resize(11, ' ');
                     os << prefix <<"  "<< rn
                        << stats.coverage(r).false_pos() << "\n";

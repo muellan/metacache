@@ -71,53 +71,13 @@ void show_feature_map(const args_parser& args)
 
 
 
-/*****************************************************************************
- *
- *
- *****************************************************************************/
-void show_ranks_of_target(const database& db, database::target_id tid)
-{
-    //if targets don't have their own taxonId, print their sequence id
-    std::cout << "    sequence:   " << db.sequence_id_of_target(tid);
-
-    for(auto taxid : db.ranks_of_target(tid)) {
-        if(taxid > 1) {
-            auto&& taxon = db.taxon_with_id(taxid);
-            auto rn = taxon.rank_name() + ":";
-            rn.resize(12, ' ');
-            std::cout << "\n    " << rn << "(" << taxon.id() << ") " << taxon.name();
-        }
-    }
-
-    std::cout << '\n';
-}
-
-
 
 /*****************************************************************************
  *
  * @brief
  *
  *****************************************************************************/
-void show_sequence_info(const database& db, database::target_id tid)
-{
-    std::cout
-        << "Target " << tid << " (reference sequence "
-        << db.sequence_id_of_target(tid) << "):\n"
-        << "    origin:     " << db.origin_of_target(tid).filename << " / "
-        << db.origin_of_target(tid).index << '\n';
-
-    show_ranks_of_target(db, tid);
-}
-
-
-
-/*****************************************************************************
- *
- * @brief
- *
- *****************************************************************************/
-void show_sequence_info(const args_parser& args)
+void show_info(const args_parser& args)
 {
     auto dbfilename = database_name(args);
 
@@ -130,9 +90,9 @@ void show_sequence_info(const args_parser& args)
 
     if(!sids.empty()) {
         for(const auto& sid : sids) {
-            auto tid = db.target_id_of_sequence(sid);
-            if(tid < db.target_count()) {
-                show_sequence_info(db, tid);
+            const auto& tax = db.taxon_of_sequence(sid);
+            if(!tax.is_none()) {
+                show_info(std::cout, db, tax);
             }
             else {
                 std::cout << "Target (reference sequence) " << sid
@@ -142,8 +102,8 @@ void show_sequence_info(const args_parser& args)
     }
     else {
         std::cout << "Targets (reference sequences) in database:\n";
-        for(target_id tid = 0; tid < db.target_count(); ++tid) {
-            show_sequence_info(db, tid);
+        for(const auto& tax : db.target_taxa()) {
+            show_info(std::cout, db, tax);
         }
     }
 }
@@ -172,9 +132,9 @@ void show_lineage_table(const args_parser& args)
     std::cout << '\n';
 
     //rows
-    for(target_id tid = 0; tid < db.target_count(); ++tid) {
-        std::cout << db.sequence_id_of_target(tid);
-        auto ranks = db.ranks_of_target(tid);
+    for(const auto& tax : db.taxa()) {
+        std::cout << tax.name();
+        auto ranks = db.ranks(tax);
         for(auto r = rank::Sequence; r <= rank::Domain; ++r) {
             std::cout << '\t' << ranks[int(r)];
         }
@@ -189,7 +149,7 @@ void show_lineage_table(const args_parser& args)
  * @brief
  *
  *****************************************************************************/
-void show_classification_statistics(const args_parser& args)
+void show_rank_statistics(const args_parser& args)
 {
     auto rankName = args.non_prefixed(3);
     auto rank = taxonomy::rank_from_name(rankName);
@@ -204,13 +164,13 @@ void show_classification_statistics(const args_parser& args)
 
     std::map<taxonomy::taxon_id, std::size_t> stat;
 
-    for(target_id i = 0; i < db.target_count(); ++i) {
-        auto tax = db.ranks_of_target(i)[int(rank)];
-        auto it = stat.find(tax);
+    for(const auto& tax : db.taxa()) {
+        auto tid = db.ranks(tax)[int(rank)];
+        auto it = stat.find(tid);
         if(it != stat.end()) {
             ++(it->second);
         } else {
-            stat.insert({tax, 1});
+            stat.insert({tid, 1});
         }
     }
 
@@ -262,14 +222,14 @@ void main_mode_info(const args_parser& args)
         if(mode == "target" || mode == "targets"  ||
                 mode == "sequ"   || mode == "sequence" || mode == "sequences")
         {
-            show_sequence_info(args);
+            show_info(args);
         }
         else if(mode == "lineages" || mode == "lineage" || mode == "lin")
         {
             show_lineage_table(args);
         }
         else if(mode == "rank" && args.non_prefixed_count() > 3) {
-            show_classification_statistics(args);
+            show_rank_statistics(args);
         }
         else if(mode == "statistics" || mode == "stat") {
             show_database_statistics(args);

@@ -23,7 +23,8 @@
 #define MC_CANDIDATES_H_
 
 
-#include "config.h"
+#include <cstdint>
+#include <limits>
 
 
 namespace mc {
@@ -84,7 +85,7 @@ public:
     static constexpr int max_count() noexcept { return maxNo; }
 
     static constexpr target_id invalid_target_id() noexcept {
-        return Database::invalid_target_id();
+        return std::numeric_limits<target_id>::max();
     }
 
 

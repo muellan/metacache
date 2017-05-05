@@ -190,9 +190,9 @@ make_taxonomic_hierarchy(const std::string& taxNodesFile,
         std::cout << "done." << std::endl;
     }
 
-    //read taxonomic structure
     taxonomy tax;
 
+    //read taxonomic structure
     is.close();
     is.open(taxNodesFile);
     if(is.good()) {
@@ -251,9 +251,10 @@ make_taxonomic_hierarchy(const std::string& taxNodesFile,
 void load_taxonomy_into_database(database& db,
                                  const build_options& param)
 {
-    db.apply_taxonomy( make_taxonomic_hierarchy(param.taxonomy.nodesFile,
-                                                param.taxonomy.namesFile,
-                                                param.taxonomy.mergeFile) );
+    db.reset_taxa_above_sequence_level(
+        make_taxonomic_hierarchy(param.taxonomy.nodesFile,
+                                 param.taxonomy.namesFile,
+                                 param.taxonomy.mergeFile) );
 
     std::cout << "Taxonomy applied to database." << std::endl;
 }
@@ -417,10 +418,10 @@ make_sequence_to_taxon_id_map(const std::vector<std::string>& mappingFilenames,
  *
  *****************************************************************************/
 void rank_targets_post_process(database& db,
-                               std::set<target_id>& gids,
+                               std::set<const taxon*>& taxa,
                                const std::string& mappingFile)
 {
-    if(gids.empty()) return;
+    if(taxa.empty()) return;
 
     std::ifstream is {mappingFile};
     if(!is.good()) return;
@@ -448,21 +449,22 @@ void rank_targets_post_process(database& db,
     while(is >> acc >> accver >> taxid >> gi) {
         //target in database?
         //accession.version is the default
-        auto tid = db.target_id_of_sequence(accver);
-        if(!db.is_valid(tid)) {
-            tid = db.target_id_of_sequence(acc);
-            if(!db.is_valid(tid)) {
-                tid = db.target_id_of_sequence(gi);
+        const taxon* tax = &db.taxon_of_sequence(accver);
+
+        if(tax->is_none()) {
+            tax = &db.taxon_of_sequence(acc);
+            if(tax->is_none()) {
+                tax = &db.taxon_of_sequence(gi);
             }
         }
 
-        //if in database then map to taxon
-        if(db.is_valid(tid)) {
-            auto it = gids.find(tid);
-            if(it != gids.end()) {
-                db.rank_target(tid, taxid);
-                gids.erase(it);
-                if(gids.empty()) break;
+        //if in database then set parent
+        if(!tax->is_none()) {
+            auto it = taxa.find(tax);
+            if(it != taxa.end()) {
+                db.reset_parent(*tax, taxid);
+                taxa.erase(it);
+                if(taxa.empty()) break;
             }
         }
 
@@ -486,14 +488,14 @@ void rank_targets_post_process(database& db,
  *
  *
  *****************************************************************************/
-std::set<target_id>
+std::set<const taxon*>
 unranked_targets(const database& db)
 {
-    auto res = std::set<target_id>{};
+    auto res = std::set<const taxon*>{};
 
-    for(target_id i = 0; i < db.target_count(); ++i) {
-        if(db.taxon_of_target(i).none()) {
-             res.insert(i);
+    for(const auto& tax : db.target_taxa()) {
+        if(db.parent(tax).is_none()) {
+             res.insert(&tax);
         }
     }
 
@@ -579,9 +581,7 @@ void add_targets_to_database(database& db,
         try {
             auto reader = make_sequence_reader(filename);
             while(reader->has_next()) {
-                database::sequence_origin origin;
-                origin.filename = filename;
-                origin.index = 0;
+
 
                 auto sequ = reader->next();
                 if(!sequ.data.empty()) {
@@ -600,34 +600,36 @@ void add_targets_to_database(database& db,
 
                     //targets need to have a sequence id
                     //look up taxon id
-                    taxon_id taxid = 0;
+                    taxon_id parentTaxId = 0;
                     if(!sequ2taxid.empty()) {
                         auto it = sequ2taxid.find(seqId);
                         if(it != sequ2taxid.end()) {
-                            taxid = it->second;
+                            parentTaxId = it->second;
                         } else {
                             it = sequ2taxid.find(fileId);
-                            if(it != sequ2taxid.end()) taxid = it->second;
+                            if(it != sequ2taxid.end()) parentTaxId = it->second;
                         }
                     }
                     //no valid taxid assigned -> try to find one in annotation
-                    if(taxid > 0) {
+                    if(parentTaxId > 0) {
                         if(infoMode == build_info::verbose)
-                            std::cout << "[" << seqId << ":" << taxid << "] ";
+                            std::cout << "[" << seqId << ":" << parentTaxId << "] ";
                     }
                     else {
-                        taxid = extract_taxon_id(sequ.header);
+                        parentTaxId = extract_taxon_id(sequ.header);
                         if(infoMode == build_info::verbose)
                             std::cout << "[" << seqId << "] ";
                     }
 
                     //try to add to database
-                    bool added = db.add_target(sequ.data, seqId, taxid, origin);
+                    bool added = db.add_target(
+                        sequ.data, seqId, parentTaxId,
+                        database::file_source{filename, reader->index()});
+
                     if(infoMode == build_info::verbose && !added) {
                         std::cout << seqId << " not added to database" << std::endl;
                     }
                 }
-                ++origin.index; //track sequence index in file
             }
             if(infoMode == build_info::verbose) {
                 std::cout << "done." << std::endl;
@@ -675,7 +677,7 @@ void add_to_database(database& db, const build_options& param)
         load_taxonomy_into_database(db, param);
     }
 
-    if(db.taxon_count() < 1) {
+    if(db.non_target_taxon_count() < 1) {
         std::cout << "The datbase doesn't contain a taxonomic hierarchy yet.\n"
                   << "You can add one or update later via:\n"
                   << "   ./metacache add <database> -taxonomy <directory>"
@@ -683,7 +685,7 @@ void add_to_database(database& db, const build_options& param)
     }
 
     if(param.removeAmbigFeaturesOnRank != taxon_rank::none) {
-        if(db.taxon_count() > 1) {
+        if(db.non_target_taxon_count() > 1) {
             std::cout << "Ambiguous features on rank "
                       << taxonomy::rank_name(param.removeAmbigFeaturesOnRank)
                       << " will be removed afterwards.\n";
@@ -721,7 +723,7 @@ void add_to_database(database& db, const build_options& param)
     try_to_rank_unranked_targets(db, param);
 
     if(param.removeAmbigFeaturesOnRank != taxon_rank::none &&
-        db.taxon_count() > 1)
+        db.non_target_taxon_count() > 1)
     {
         std::cout << "\nRemoving ambiguous features on rank "
                   << taxonomy::rank_name(param.removeAmbigFeaturesOnRank)

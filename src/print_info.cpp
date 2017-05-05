@@ -25,6 +25,27 @@
 namespace mc {
 
 
+
+//-------------------------------------------------------------------
+void show_info(std::ostream& os, const database& db, const taxon& tax)
+{
+    os  << "Target " << tax.name() << "):\n"
+        << "    source:     "
+        << tax.source().filename << " / " << tax.source().index << '\n';
+
+    for(auto taxid : db.ranks(tax)) {
+        if(taxid > 0) {
+            const auto& taxon = db.taxon_with_id(taxid);
+            auto rn = std::string(taxon.rank_name()) + ":";
+            rn.resize(12, ' ');
+            os << "\n    " << rn << "(" << taxon.id() << ") " << taxon.name();
+        }
+    }
+    os << '\n';
+}
+
+
+
 //-------------------------------------------------------------------
 void show_ranks(
     std::ostream& os,
@@ -83,30 +104,6 @@ void show_ranks(
     }
 }
 
-
-
-//-------------------------------------------------------------------
-void show_ranks_of_target(
-    std::ostream& os,
-    const database& db,
-    target_id tid,
-    taxon_print_mode mode, taxon_rank lowest, taxon_rank highest)
-{
-    //since targets don't have their own taxonId, print their sequence id
-    if(lowest == taxon_rank::Sequence) {
-        if(mode != taxon_print_mode::id_only) {
-            os << "sequence:" << db.sequence_id_of_target(tid);
-        } else {
-            os << db.sequence_id_of_target(tid);
-        }
-    }
-    if(highest == taxon_rank::Sequence) return;
-
-    if(lowest == taxon_rank::Sequence) os << ',';
-
-    show_ranks(os, db, db.ranks_of_target(tid),
-                        mode, lowest, highest);
-}
 
 
 } // namespace mc

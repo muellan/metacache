@@ -25,7 +25,6 @@ HEADERS = \
           src/bitmanip.h \
           src/candidates.h \
           src/chunk_allocator.h \
-          src/classification.h \
           src/cmdline_utility.h \
           src/config.h \
           src/dna_encoding.h \
@@ -52,7 +51,6 @@ HEADERS = \
 
 SOURCES = \
           src/args_handling.cpp \
-          src/classification.cpp \
           src/cmdline_utility.cpp \
           src/filesys_utility.cpp \
           src/main.cpp \
@@ -128,9 +126,6 @@ $(REL_ARTIFACT): $(REL_OBJS)
 $(REL_DIR)/main.o : src/main.cpp src/modes.h 
 	$(REL_COMPILE)
 
-$(REL_DIR)/classification.o : src/classification.cpp $(HEADERS)
-	$(REL_COMPILE)
-
 $(REL_DIR)/print_info.o : src/print_info.cpp $(HEADERS)
 	$(REL_COMPILE)
 
@@ -179,9 +174,6 @@ $(DBG_ARTIFACT): $(DBG_OBJS)
 	$(COMPILER) -o $(DBG_ARTIFACT) $(DBG_OBJS) $(DBG_LDFLAGS)
 
 $(DBG_DIR)/main.o : src/main.cpp src/modes.h 
-	$(DBG_COMPILE)
-
-$(DBG_DIR)/classification.o : src/classification.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
 $(DBG_DIR)/print_info.o : src/print_info.cpp $(HEADERS)

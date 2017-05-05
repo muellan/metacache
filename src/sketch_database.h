@@ -121,14 +121,12 @@ public:
     //-----------------------------------------------------
     using ranked_lineage = taxonomy::ranked_lineage;
     using full_lineage   = taxonomy::full_lineage;
+    using file_source    = taxonomy::file_source;
+    using taxon_iterator = taxonomy::const_iterator;
+    using taxon_range    = taxonomy::const_range;
 
 
     //---------------------------------------------------------------
-    struct sequence_origin {
-        std::string filename;
-        std::uint32_t index = 0;  //if file contains more than one sequence
-    };
-
     enum class scope {
         everything, metadata_only
     };
@@ -144,52 +142,9 @@ public:
 
 
 private:
-    //-----------------------------------------------------
-    /**
-     * @brief target meta-information
-     */
-    class target_property
-    {
-    public:
-        using taxon_id = sketch_database::taxon_id;
-
-        explicit
-        target_property(std::string identifier = "",
-                        taxon_id tax = 0,
-                        sequence_origin origin = sequence_origin{})
-        :
-            id(std::move(identifier)),
-            taxonId(tax),
-            ranks{}, lineage{},
-            origin{std::move(origin)}
-        {}
-
-        friend void
-        read_binary(std::istream& is, target_property& p) {
-            read_binary(is, p.id);
-            read_binary(is, p.taxonId);
-            read_binary(is, p.ranks);
-            read_binary(is, p.lineage);
-            read_binary(is, p.origin.filename);
-            read_binary(is, p.origin.index);
-        }
-
-        friend void
-        write_binary(std::ostream& os, const target_property& p) {
-            write_binary(os, p.id);
-            write_binary(os, p.taxonId);
-            write_binary(os, p.ranks);
-            write_binary(os, p.lineage);
-            write_binary(os, p.origin.filename);
-            write_binary(os, p.origin.index);
-        }
-
-        std::string id;
-        taxon_id taxonId;
-        ranked_lineage ranks;
-        full_lineage lineage;
-        sequence_origin origin;
-    };
+    //use negative numbers for sequence level taxon ids
+    static constexpr taxon_id
+    taxon_id_of_target(target_id id) noexcept { return -id-1; }
 
 
 public:
@@ -253,11 +208,11 @@ public:
         queryWindowSize_(targetWindowSize_),
         queryWindowStride_(targetWindowStride_),
         maxLocsPerFeature_(max_supported_locations_per_feature()),
-        nextTargetId_(0),
-        targets_{},
+        targetCount_(0),
         features_{},
-        sid2gid_{},
-        taxa_{}
+        sid2tid{},
+        taxa_{},
+        ranksCache_{taxa_}
     {
         features_.max_load_factor(0.8);
     }
@@ -271,11 +226,11 @@ public:
         queryWindowSize_(targetWindowSize_),
         queryWindowStride_(targetWindowStride_),
         maxLocsPerFeature_(max_supported_locations_per_feature()),
-        nextTargetId_(0),
-        targets_{},
+        targetCount_(0),
         features_{},
-        sid2gid_{},
-        taxa_{}
+        sid2tid{},
+        taxa_{},
+        ranksCache_{taxa_}
     {
         features_.max_load_factor(0.8);
     }
@@ -408,7 +363,7 @@ public:
                 if(!i->empty()) {
                     std::set<taxon_id> taxa;
                     for(auto loc : *i) {
-                        taxa.insert(targets_[loc.tgt].ranks[int(r)]);
+                        taxa.insert(ranksCache_[taxon_id_of_target(loc.tgt)][int(r)]);
                         if(taxa.size() > maxambig) {
                             features_.clear(i);
                             break;
@@ -422,14 +377,14 @@ public:
 
     //---------------------------------------------------------------
     bool add_target(const sequence& seq, sequence_id sid,
-                    taxon_id taxid = 0,
-                    const sequence_origin& origin = sequence_origin{})
+                    taxon_id parentTaxid = 0,
+                    file_source source = file_source{})
     {
         using std::begin;
         using std::end;
 
         //reached hard limit for number of targets
-        if(nextTargetId_ >= max_target_count()) {
+        if(targetCount_ >= max_target_count()) {
             throw target_limit_exceeded_error{};
         }
 
@@ -438,23 +393,28 @@ public:
         if(seq.empty()) return false;
 
         //don't allow non-unique sequence ids
-        auto it = sid2gid_.find(sid);
-        if(it != sid2gid_.end()) return false;
+        auto it = sid2tid.find(sid);
+        if(it != sid2tid.end()) return false;
 
-        sid2gid_.insert({sid, nextTargetId_});
+        //allows lookup via sequence id (e.g. NCBI accession number)
+        const auto taxid = taxon_id_of_target(targetCount_);
+        sid2tid.insert({sid, taxid});
 
-        targets_.emplace_back(std::move(sid), taxid, origin);
-        if(taxid > 0 && !taxa_.empty()) {
-            rank_target(nextTargetId_, taxid);
-        }
+        //insert sequence metadata as a new taxon
+        if(parentTaxid < 1) parentTaxid = 0;
+        taxa_.emplace(taxid, parentTaxid, std::move(sid),
+                      taxon_rank::Sequence, std::move(source));
 
+        ranksCache_.update(taxid);
+
+        //sketch sequence -> insert features
         window_id win = 0;
         for_each_window(seq, targetWindowSize_, targetWindowStride_,
             [this, &win] (iter_t b, iter_t e) {
                 auto sk = targetSketcher_(b,e);
                 //insert features from sketch into database
                 for(const auto& f : sk) {
-                    auto it = features_.insert(f, location{nextTargetId_, win});
+                    auto it = features_.insert(f, location{targetCount_, win});
                     if(it->size() > maxLocsPerFeature_) {
                         features_.shrink(it, maxLocsPerFeature_);
                     }
@@ -462,23 +422,15 @@ public:
                 ++win;
             });
 
-        ++nextTargetId_;
+        ++targetCount_;
 
         return true;
     }
 
     //---------------------------------------------------------------
-    bool
-    is_valid(target_id tid) const noexcept {
-        return tid < nextTargetId_;
-    }
-    static constexpr target_id
-    invalid_target_id() noexcept {
-        return max_target_count();
-    }
     std::uint64_t
     target_count() const noexcept {
-        return targets_.size();
+        return targetCount_;
     }
     static constexpr std::uint64_t
     max_target_count() noexcept {
@@ -497,80 +449,85 @@ public:
 
     //---------------------------------------------------------------
     void clear() {
-        targets_.clear();
-        sid2gid_.clear();
+        ranksCache_.clear();
+        sid2tid.clear();
         features_.clear();
     }
+
 
     //-----------------------------------------------------
     /**
      * @brief very dangerous! clears feature map without memory deallocation
      */
     void clear_without_deallocation() {
-        targets_.clear();
-        sid2gid_.clear();
+        ranksCache_.clear();
+        sid2tid.clear();
         features_.clear_without_deallocation();
     }
 
 
     //---------------------------------------------------------------
-    const sequence_id&
-    sequence_id_of_target(target_id tid) const noexcept {
-        return targets_[tid].id;
+    static constexpr taxon_id no_taxon_id() noexcept {
+        return taxonomy::none_id();
     }
-    //-----------------------------------------------------
-    target_id
-    target_id_of_sequence(const sequence_id& sid) const noexcept {
-        auto it = sid2gid_.find(sid);
-        return (it != sid2gid_.end()) ? it->second : nextTargetId_;
+    const taxon& no_taxon() const noexcept {
+        return taxa_.none();
     }
 
-
-    //---------------------------------------------------------------
-    void apply_taxonomy(const taxonomy& tax) {
-        taxa_ = tax;
-        for(auto& g : targets_) update_lineages(g);
-    }
-    //-----------------------------------------------------
-    void apply_taxonomy(taxonomy&& tax) {
-        taxa_ = std::move(tax);
-        for(auto& gp : targets_) update_lineages(gp);
-    }
-
-
-    //---------------------------------------------------------------
-    std::uint64_t
-    taxon_count() const noexcept {
-        return taxa_.size();
-    }
     //-----------------------------------------------------
     const taxon&
     taxon_with_id(taxon_id id) const noexcept {
         return taxa_[id];
     }
 
-
     //---------------------------------------------------------------
-    void rank_target(target_id tid, taxon_id taxid)
-    {
-        targets_[tid].taxonId = taxid;
-        update_lineages(targets_[tid]);
-    }
-    //-----------------------------------------------------
-    taxon_id
-    taxon_id_of_target(target_id id) const noexcept {
-        return taxa_[targets_[id].taxonId].id_;
+    const taxon&
+    taxon_of_sequence(const sequence_id& sid) const noexcept {
+        auto i = sid2tid.find(sid);
+        if(i == sid2tid.end()) return taxa_.none();
+        return taxa_[taxon_id_of_target(i->second)];
     }
     //-----------------------------------------------------
     const taxon&
-    taxon_of_target(target_id id) const noexcept {
-        return taxa_[targets_[id].taxonId];
+    target(target_id id) const noexcept {
+        if(id >= targetCount_) return taxa_.none();
+        return taxa_[taxon_id_of_target(id)];
     }
 
+    //---------------------------------------------------------------
+    void reset_taxa_above_sequence_level(taxonomy&& tax) {
+        taxa_.erase_above(taxon_rank::Sequence);
+        for(auto& t : tax) {
+            taxa_.insert_or_replace(std::move(t));
+        }
+        //re-initialize ranks cache
+        if(targetCount_ > 0) ranksCache_.update(taxon_rank::Sequence);
+    }
+
+    //---------------------------------------------------------------
+    std::uint64_t
+    non_target_taxon_count() const noexcept {
+        return taxa_.size() - targetCount_;
+    }
     //-----------------------------------------------------
-    const sequence_origin&
-    origin_of_target(target_id id) const noexcept {
-        return targets_[id].origin;
+    taxon_range taxa() const {
+        return taxa_.full_range();
+    }
+    taxon_range non_target_taxa() const {
+        return taxa_.subrange_from(1);
+    }
+    //-----------------------------------------------------
+    taxon_range target_taxa() const {
+        return taxa_.subrange_until(0);
+    }
+
+
+    //---------------------------------------------------------------
+    void reset_parent(const taxon& tax, taxon_id parentId)
+    {
+        if(taxa_.reset_parent(tax.id(), parentId)) {
+            ranksCache_.update(tax);
+        }
     }
 
     //-----------------------------------------------------
@@ -579,20 +536,14 @@ public:
         return taxa_.lineage(tax.id_);
     }
     //-----------------------------------------------------
-    const full_lineage&
-    lineage_of_target(target_id id) const noexcept {
-        return targets_[id].lineage;
-    }
-
-    //-----------------------------------------------------
-    ranked_lineage
-    ranks(const taxon& tax) const noexcept {
-        return taxa_.ranks(tax);
-    }
-    //-----------------------------------------------------
     const ranked_lineage&
-    ranks_of_target(target_id id) const noexcept {
-        return targets_[id].ranks;
+    ranks(const taxon& tax) const noexcept {
+        return ranksCache_[tax];
+    }
+    //-----------------------------------------------------
+    const taxon&
+    parent(const taxon& tax) const noexcept {
+        return taxa_.parent(tax);
     }
 
     //---------------------------------------------------------------
@@ -601,52 +552,36 @@ public:
     {
         return taxa_.lca(ta,tb);
     }
-    //---------------------------------------------------------------
-    const taxon&
-    lca_of_targets(target_id ta, target_id tb) const
-    {
-        return taxa_.lca(lineage_of_target(ta), lineage_of_target(tb));
-    }
 
     //---------------------------------------------------------------
     const taxon&
     ranked_lca(const taxon& ta, const taxon& tb) const
     {
-        return taxa_.ranked_lca(ta,tb);
-    }
-    //---------------------------------------------------------------
-    const taxon&
-    ranked_lca_of_targets(target_id ta, target_id tb) const
-    {
-        return taxa_.lca(ranks_of_target(ta), ranks_of_target(tb));
+        return ranksCache_.lca(ta,tb);
     }
 
-    //---------------------------------------------------------------
-    taxon_rank
-    lowest_rank(const taxon& tax) const {
-        return taxa_.lowest_rank(tax.id_);
-    }
-    //-----------------------------------------------------
-    taxon_rank
-    lowest_rank_of_taxon(taxon_id id) const {
-        return taxa_.lowest_rank(id);
-    }
 
     //---------------------------------------------------------------
     /**
      * @return number of times a taxon is covered by any target in the DB
      */
-    int covering(const taxon& t) const {
+    std::uint_least64_t
+    covering(const taxon& t) const {
         return covering_of_taxon(t.id_);
     }
-    int covering_of_taxon(taxon_id id) const {
-        int cover = 0;
+    //-----------------------------------------------------
+    std::uint_least64_t
+    covering_of_taxon(taxon_id id) const {
+        auto cover = std::uint_least64_t(0);
 
-        for(const auto& g : targets_) {
-            for(taxon_id taxid : g.lineage) {
-                if(taxid == id) ++cover;
+        for(const auto& t : taxa_) {
+            if(t.is_sequence()) {
+                for(taxon_id taxid : taxa_.lineage(t)) {
+                    if(taxid == id) ++cover;
+                }
             }
         }
+
         return cover;
     }
 
@@ -658,9 +593,11 @@ public:
         return covers_taxon(t.id_);
     }
     bool covers_taxon(taxon_id id) const {
-        for(const auto& g : targets_) {
-            for(taxon_id taxid : g.lineage) {
-                if(taxid == id) return true;
+        for(const auto& t : taxa_) {
+            if(t.is_sequence()) {
+                for(taxon_id taxid : taxa_.lineage(t)) {
+                    if(taxid == id) return true;
+                }
             }
         }
         return false;
@@ -717,7 +654,7 @@ public:
     }
 
 
-    //-------------------------------------------------------------------
+    //---------------------------------------------------------------
     void max_load_factor(float lf) {
         features_.max_load_factor(lf);
     }
@@ -727,7 +664,7 @@ public:
     }
 
 
-    //-------------------------------------------------------------------
+    //---------------------------------------------------------------
     /**
      * @brief   read database from binary file
      * @details Note that the map is not just de-serialized but
@@ -807,14 +744,17 @@ public:
         //taxon metadata
         read_binary(is, taxa_);
 
-        read_binary(is, nextTargetId_);
-        read_binary(is, targets_);
-        if(targets_.size() < 1) return;
+        read_binary(is, targetCount_);
+        if(targetCount_ < 1) return;
 
-        sid2gid_.clear();
-        for(target_id i = 0; i < target_id(targets_.size()); ++i) {
-            sid2gid_.insert({targets_[i].id, i});
+        //sequence id lookup
+        sid2tid.clear();
+        for(const auto& t : taxa_) {
+            if(t.is_sequence()) sid2tid.insert({t.name(), t.id()});
         }
+
+        //ranked linage cache
+        if(targetCount_ > 0) ranksCache_.update(taxon_rank::Sequence);
 
         if(what == scope::metadata_only) return;
 
@@ -865,12 +805,9 @@ public:
 
         write_binary(os, maxLocsPerFeature_);
 
-        //taxon metadata
+        //taxon & target metadata
         write_binary(os, taxa_);
-
-        //target metainformation
-        write_binary(os, nextTargetId_);
-        write_binary(os, targets_);
+        write_binary(os, targetCount_);
 
         //hash table
         write_binary(os, features_);
@@ -925,14 +862,10 @@ public:
 
 
 private:
-
     //---------------------------------------------------------------
-    void update_lineages(target_property& gp)
+    void update_lineages()
     {
-        if(gp.taxonId > 0) {
-            gp.lineage = taxa_.lineage(gp.taxonId);
-            gp.ranks = taxa_.ranks(gp.taxonId);
-        }
+        //TODO
     }
 
 
@@ -944,11 +877,11 @@ private:
     std::uint64_t queryWindowSize_;
     std::uint64_t queryWindowStride_;
     std::uint64_t maxLocsPerFeature_;
-    target_id nextTargetId_;
-    std::vector<target_property> targets_;
+    target_id targetCount_;
     feature_store features_;
-    std::map<sequence_id,target_id> sid2gid_;
+    std::map<sequence_id,taxon_id> sid2tid;
     taxonomy taxa_;
+    ranked_lineages_cache ranksCache_;
 };
 
 
@@ -1063,14 +996,14 @@ void print_properties(const sketch_database<S,K,H,G,W,L>& db)
 
         std::uint64_t numRankedTargets = 0;
         for(target_id i = 0; i < db.target_count(); ++i) {
-            if(!db.taxon_of_target(i).none()) ++numRankedTargets;
+            if(!db.target(i).is_none()) ++numRankedTargets;
         }
 
         std::cout
         << "------------------------------------------------\n"
         << "targets           " << db.target_count() << '\n'
         << "ranked targets    " << numRankedTargets << '\n'
-        << "taxa in tree      " << db.taxon_count() << '\n';
+        << "taxa in tree      " << db.non_target_taxon_count() << '\n';
     }
 
     if(db.feature_count() > 0) {

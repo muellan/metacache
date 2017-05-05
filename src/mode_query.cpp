@@ -29,7 +29,6 @@
 #include "sequence_view.h"
 #include "alignment.h"
 #include "parallel_task_queue.h"
-#include "classification.h"
 #include "candidates.h"
 #include "print_info.h"
 #include "print_results.h"
@@ -371,6 +370,40 @@ make_alignment(const Query& query1, const Query& query2,
 
 /*****************************************************************************
  *
+ * @brief returns query taxon (ground truth for precision tests)
+ *
+ *****************************************************************************/
+const taxon&
+ground_truth(const database& db, const std::string& header)
+{
+    //try to extract query id and find the corresponding target in database
+    {
+        const auto& tax = db.taxon_of_sequence(extract_ncbi_accession_version_number(header));
+        if(!tax.is_none()) return tax;
+    }
+    {
+        const auto& tax = db.taxon_of_sequence(extract_ncbi_accession_number(header));
+        if(!tax.is_none()) return tax;
+    }
+
+    //try to find taxid in sequence header
+    auto taxid = extract_taxon_id(header);
+    if(taxid == database::no_taxon_id()) return db.no_taxon();
+
+    //make sure to get the lowest taxon that has a rank assigned
+    for(auto id : db.ranks(db.taxon_with_id(taxid))) {
+        if(id != database::no_taxon_id()) {
+            taxid = id;
+            break;
+        }
+    }
+    return db.taxon_with_id(taxid);
+}
+
+
+
+/*****************************************************************************
+ *
  * @brief removes hits of a specific taxon (on a rank) from database matches;
  *        can be very slow!
  *
@@ -379,12 +412,13 @@ void remove_hits_on_rank(const database& db,
                          const taxon& tax, taxon_rank rank,
                          matches_per_location& hits)
 {
+    if(tax.is_none()) return;
 
     auto exclTaxid = db.ranks(tax)[int(rank)];
 
     auto maskedHits = hits;
     for(const auto& hit : hits) {
-        auto tid = db.ranks_of_target(hit.first.tgt)[int(rank)];
+        auto tid = db.ranks(db.target(hit.first.tgt))[int(rank)];
         if(tid != exclTaxid) {
             maskedHits.insert(hit);
         }
@@ -408,7 +442,7 @@ void remove_hits_on_rank(const database& db,
  * @param highestRank
  *
  *****************************************************************************/
-const taxon*
+const taxon&
 lowest_common_taxon(
     const database& db,
     const classification_candidates& cand,
@@ -417,11 +451,12 @@ lowest_common_taxon(
     taxon_rank highestRank = taxon_rank::Domain)
 {
     if(cand.count() < 3) {
-        auto tax = &db.ranked_lca_of_targets(cand.target(0),
-                                             cand.target(1));
+
+        const auto& tax = db.ranked_lca(db.target(cand.target(0)),
+                                        db.target(cand.target(1)) );
 
         //classify if rank is below or at the highest rank of interest
-        if(tax->rank() <= highestRank) return tax;
+        if(tax.rank() <= highestRank) return tax;
     }
     else {
         if(lowestRank == taxon_rank::Sequence)
@@ -437,7 +472,7 @@ lowest_common_taxon(
             int totalscore = 0;
             for(int i = 0, n = cand.count(); i < n; ++i) {
                 //use target id instead of taxon if at sequence level
-                auto taxid = db.ranks_of_target(cand.target(i))[int(r)];
+                auto taxid = db.ranks(db.target(cand.target(i)))[int(r)];
                 auto score = cand.hits(i);
                 totalscore += score;
                 auto it = scores.find(taxid);
@@ -470,7 +505,7 @@ lowest_common_taxon(
 //                std::cout << "  => classified " << taxonomy::rank_name(r)
 //                          << " " << toptid << '\n';
 
-                return &db.taxon_with_id(toptid);
+                return db.taxon_with_id(toptid);
             }
 
             scores.clear();
@@ -480,7 +515,7 @@ lowest_common_taxon(
     }
 
     //candidates couldn't agree on a taxon on any relevant taxonomic rank
-    return nullptr;
+    return db.no_taxon();
 }
 
 
@@ -492,14 +527,14 @@ lowest_common_taxon(
  * @param  query2  paired read
  *
  *****************************************************************************/
-classification
+const taxon&
 sequence_classification(
     const database& db, const query_options& param,
     const classification_candidates& cand)
 {
     //sum of top-2 hits < threshold => considered not classifiable
     if((cand.hits(0) + cand.hits(1)) < param.hitsMin) {
-        return classification{};
+        return db.no_taxon();
     }
 
     //either top 2 are the same sequences with at least 'hitsMin' many hits
@@ -508,13 +543,11 @@ sequence_classification(
         || (cand.hits(0) - cand.hits(1)) >= param.hitsMin)
     {
         //return top candidate
-        auto tid = cand.target(0);
-        return classification{tid, &db.taxon_of_target(tid)};
+        return db.target(cand.target(0));
     }
 
-    return classification{
-        lowest_common_taxon(db, cand, param.hitsDiff,
-                               param.lowestRank, param.highestRank) };
+    return lowest_common_taxon(db, cand, param.hitsDiff,
+                               param.lowestRank, param.highestRank);
 }
 
 
@@ -526,28 +559,16 @@ sequence_classification(
  *****************************************************************************/
 void show_classification(std::ostream& os,
                          const database& db, const query_options& opt,
-                         const classification& cls)
+                         const taxon& tax)
 {
-    if(cls.sequence_level()) {
-        auto rmax = opt.showLineage ? opt.highestRank : opt.lowestRank;
-
-        show_ranks_of_target(os, db, cls.target(),
-                             opt.showTaxaAs, opt.lowestRank, rmax);
-    }
-    else if(cls.has_taxon()) {
-        if(cls.rank() > opt.highestRank) {
-            os << "--";
-        }
-        else {
-            auto rmin = opt.lowestRank < cls.rank() ? cls.rank() : opt.lowestRank;
-            auto rmax = opt.showLineage ? opt.highestRank : rmin;
-
-            show_ranks(os, db, db.ranks(cls.tax()),
-                       opt.showTaxaAs, rmin, rmax);
-        }
+    if(tax.rank() > opt.highestRank) {
+        os << "--";
     }
     else {
-        os << "--";
+        auto rmin = opt.lowestRank < tax.rank() ? tax.rank() : opt.lowestRank;
+        auto rmax = opt.showLineage ? opt.highestRank : rmin;
+
+        show_ranks(os, db, db.ranks(tax), opt.showTaxaAs, rmin, rmax);
     }
 }
 
@@ -560,10 +581,13 @@ void show_classification(std::ostream& os,
  *****************************************************************************/
 void update_coverage_statistics(
     const database& db,
-    const classification& result, const classification& truth,
+    const taxon& result, const taxon& truth,
     classification_statistics& stats)
 {
-    const auto& lin = db.ranks(truth.tax());
+    if(truth.is_none()) return;
+
+    const auto& lin = db.ranks(truth);
+
     //check if taxa are covered in DB
     for(auto taxid : lin) {
         auto r = db.taxon_with_id(taxid).rank();
@@ -600,16 +624,16 @@ void process_database_answer(
     if(header.empty()) return;
 
     //preparation -------------------------------
-    classification groundTruth;
+    const taxon* groundTruth = &db.no_taxon();
     if(opt.testPrecision ||
        (opt.mapViewMode != map_view_mode::none && opt.showGroundTruth) ||
        (opt.excludedRank != taxon_rank::none) )
     {
-        groundTruth = ground_truth(db, header);
+        groundTruth = &ground_truth(db, header);
     }
     //clade exclusion
-    if(opt.excludedRank != taxon_rank::none && groundTruth.has_taxon()) {
-        remove_hits_on_rank(db, groundTruth.tax(), opt.excludedRank, hits);
+    if(opt.excludedRank != taxon_rank::none) {
+        remove_hits_on_rank(db, *groundTruth, opt.excludedRank, hits);
     }
 
     //classify ----------------------------------
@@ -618,18 +642,18 @@ void process_database_answer(
         db.target_window_stride() ));
 
     classification_candidates tophits {hits, numWindows};
-    auto cls = sequence_classification(db, opt, tophits );
+    const auto& cls = sequence_classification(db, opt, tophits );
 
     //evaluate classification -------------------
     if(opt.testPrecision) {
-        auto lowestCorrectRank = lowest_common_rank(db, cls, groundTruth);
+        auto lowestCorrectRank = db.ranked_lca(cls, *groundTruth).rank();
 
-        stats.assign_known_correct(cls.rank(), groundTruth.rank(),
+        stats.assign_known_correct(cls.rank(), groundTruth->rank(),
                                    lowestCorrectRank);
 
         //check if taxa of assigned target are covered
-        if(opt.testCoverage && groundTruth.has_taxon()) {
-            update_coverage_statistics(db, cls, groundTruth, stats);
+        if(opt.testCoverage) {
+            update_coverage_statistics(db, cls, *groundTruth, stats);
         }
 
     } else {
@@ -638,7 +662,7 @@ void process_database_answer(
 
     //show mapping ------------------------------
     bool showMapping = opt.mapViewMode == map_view_mode::all ||
-        (opt.mapViewMode == map_view_mode::mapped_only && !cls.none());
+        (opt.mapViewMode == map_view_mode::mapped_only && !cls.is_none());
 
     if(showMapping) {
         //print query header (first contiguous string only)
@@ -653,15 +677,10 @@ void process_database_answer(
         os << opt.outSeparator;
 
         if(opt.showGroundTruth) {
-            if(groundTruth.sequence_level()) {
-                show_ranks_of_target(os, db, groundTruth.target(),
-                    opt.showTaxaAs, opt.lowestRank,
-                    opt.showLineage ? opt.highestRank : opt.lowestRank);
-            }
-            else if(groundTruth.has_taxon()) {
-                show_ranks(os, db, db.ranks(groundTruth.tax()),
-                    opt.showTaxaAs, groundTruth.tax().rank(),
-                    opt.showLineage ? opt.highestRank : groundTruth.tax().rank());
+            if(!groundTruth->is_none()) {
+                show_ranks(os, db, db.ranks(*groundTruth),
+                    opt.showTaxaAs, groundTruth->rank(),
+                    opt.showLineage ? opt.highestRank : groundTruth->rank());
             }
             else {
                 os << "n/a";
@@ -686,14 +705,15 @@ void process_database_answer(
     }
 
     //optional alignment ------------------------------
-    if(opt.testAlignment && !cls.none()) {
+    if(opt.testAlignment && !cls.is_none()) {
         //check which of the top sequences has a better alignment
-        const auto& origin = db.origin_of_target(tophits.target(0));
+        const auto& src = db.target(tophits.target(0)).source();
 
         try {
             //load candidate file and forward to sequence
-            auto reader = make_sequence_reader(origin.filename);
-            for(std::size_t i = 0; i < origin.index; ++i) reader->next();
+            auto reader = make_sequence_reader(src.filename);
+            reader->skip(src.index);
+
             if(reader->has_next()) {
                 auto tgtSequ = reader->next().data;
                 auto subject = make_view_from_window_range(tgtSequ,
@@ -712,7 +732,7 @@ void process_database_answer(
                     os << '\n'
                        << opt.comment << "  score  " << align.score
                        << "  aligned to "
-                       << origin.filename << " #" << origin.index
+                       << src.filename << " #" << src.index
                        << " in range [" << (w * tophits.window(0).beg)
                        << ',' << (w * tophits.window(0).end) << "]\n"
                        << opt.comment << "  query  " << align.query << '\n'

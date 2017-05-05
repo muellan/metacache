@@ -38,6 +38,13 @@ enum class taxon_print_mode : unsigned char {
 };
 
 
+/*****************************************************************************
+ *
+ * @brief print ranked lineage
+ *
+ *****************************************************************************/
+void show_info(std::ostream&, const database&, const taxon&);
+
 
 
 /*****************************************************************************
@@ -49,22 +56,8 @@ void show_ranks(std::ostream&,
                 const database&,
                 const ranked_lineage&,
                 taxon_print_mode = taxon_print_mode::name_only,
-                taxon_rank lowest  = taxon_rank::Species,
+                taxon_rank lowest  = taxon_rank::Sequence,
                 taxon_rank highest = taxon_rank::Domain);
-
-
-
-/*****************************************************************************
- *
- * @brief print ranked lineage of target
- *
- *****************************************************************************/
-void show_ranks_of_target(std::ostream&,
-                          const database&,
-                          target_id,
-                          taxon_print_mode = taxon_print_mode::name_only,
-                          taxon_rank lowest  = taxon_rank::Sequence,
-                          taxon_rank highest = taxon_rank::Domain);
 
 
 } // namespace mc
