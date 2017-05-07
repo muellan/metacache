@@ -33,25 +33,25 @@ void show_matches(std::ostream& os,
 {
     if(lowest == taxon_rank::Sequence) {
         if(cand.hits(0) > 0) {
-            os  << db.target(cand.target(0)).name()
-                << ':' << cand.hits(0);
+            const taxon* tax = db.taxon_of_target(cand.target(0));
+            if(tax) os << tax->name() << ':' << cand.hits(0);
         }
 
         for(int i = 1; i < cand.count() && cand.hits(i) > 0; ++i) {
-            os  << ',' << db.target(cand.target(i)).name()
-                << ':' << cand.hits(i);
+            const taxon* tax = db.taxon_of_target(cand.target(i));
+            if(tax) os  << ',' << tax->name() << ':' << cand.hits(i);
             ++i;
         }
     }
     else {
         if(cand.hits(0) > 0) {
-            auto taxid = db.ranks(db.target(cand.target(0)))[int(lowest)];
-            os << taxid << ':' << cand.hits(0);
+            const taxon* tax = db.ranks(db.taxon_of_target(cand.target(0)))[int(lowest)];
+            if(tax) os << tax->id() << ':' << cand.hits(0);
         }
 
         for(int i = 1; i < cand.count() && cand.hits(i) > 0; ++i) {
-            auto taxid = db.ranks(db.target(cand.target(i)))[int(lowest)];
-            os << ',' << taxid << ':' << cand.hits(i);
+            const taxon* tax = db.ranks(db.taxon_of_target(cand.target(i)))[int(lowest)];
+            if(tax) os << ',' << tax->id() << ':' << cand.hits(i);
             ++i;
         }
     }
@@ -69,15 +69,16 @@ void show_matches(std::ostream& os,
 
     if(lowest == taxon_rank::Sequence) {
         for(const auto& r : matches) {
-            os << db.target(r.first.tgt).name()
-               << '/' << int(r.first.win)
-               << ':' << int(r.second) << ',';
+            const taxon* tax = db.taxon_of_target(r.first.tgt);
+            if(tax) os << tax->name()
+                       << '/' << int(r.first.win)
+                       << ':' << int(r.second) << ',';
         }
     }
     else {
         for(const auto& r : matches) {
-            auto taxid = db.ranks(db.target(r.first.tgt))[int(lowest)];
-            os << taxid << ':' << int(r.second) << ',';
+            const taxon* tax = db.ranks(db.taxon_of_target(r.first.tgt))[int(lowest)];
+            if(tax) os << tax->name() << ':' << int(r.second) << ',';
         }
     }
 }

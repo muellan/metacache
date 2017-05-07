@@ -60,7 +60,9 @@ sequence_filenames(const args_parser& args)
     auto files = std::vector<std::string>{};
     files.reserve(n-2);
     for(std::size_t i = 2; i < n; ++i) {
-        if(!args.is_preceded_by_prefixed_arg(i)) {
+        if(!args.is_preceded_by_prefixed_arg(i) && //no option
+           !args.is_preceded_by_prefixed_arg(i-1)) //no option value
+        {
             auto name = args.non_prefixed(i);
 
             auto fnames = files_in_directory(name);

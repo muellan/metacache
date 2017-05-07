@@ -90,9 +90,9 @@ void show_info(const args_parser& args)
 
     if(!sids.empty()) {
         for(const auto& sid : sids) {
-            const auto& tax = db.taxon_of_sequence(sid);
-            if(!tax.is_none()) {
-                show_info(std::cout, db, tax);
+            const taxon* tax = db.taxon_with_name(sid);
+            if(tax) {
+                show_info(std::cout, db, *tax);
             }
             else {
                 std::cout << "Target (reference sequence) " << sid
@@ -125,14 +125,14 @@ void show_lineage_table(const args_parser& args)
     if(db.target_count() < 1) return;
 
     //table header
-    std::cout << taxonomy::rank_name(rank::Sequence);
+    std::cout << "name";
     for(auto r = rank::Sequence; r <= rank::Domain; ++r) {
         std::cout << '\t' << taxonomy::rank_name(r);
     }
     std::cout << '\n';
 
     //rows
-    for(const auto& tax : db.taxa()) {
+    for(const auto& tax : db.target_taxa()) {
         std::cout << tax.name();
         auto ranks = db.ranks(tax);
         for(auto r = rank::Sequence; r <= rank::Domain; ++r) {
@@ -141,6 +141,7 @@ void show_lineage_table(const args_parser& args)
         std::cout << '\n';
     }
 }
+
 
 
 
@@ -162,21 +163,21 @@ void show_rank_statistics(const args_parser& args)
 
     auto db = make_database_metadata_only<database>(dbfilename);
 
-    std::map<taxonomy::taxon_id, std::size_t> stat;
+    std::map<const taxon*, std::size_t> stat;
 
-    for(const auto& tax : db.taxa()) {
-        auto tid = db.ranks(tax)[int(rank)];
-        auto it = stat.find(tid);
+    for(const auto& tax : db.target_taxa()) {
+        const taxon* t = db.ranks(tax)[int(rank)];
+        auto it = stat.find(t);
         if(it != stat.end()) {
             ++(it->second);
         } else {
-            stat.insert({tid, 1});
+            stat.insert({t, 1});
         }
     }
 
     std::cout << "Sequence distribution for rank " << rankName << ":" << std::endl;
     for(const auto& s : stat) {
-        std::cout << db.taxon_with_id(s.first).name() << " \t " << s.second << '\n';
+        std::cout << s.first->name() << " \t " << s.second << '\n';
     }
 }
 

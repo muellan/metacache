@@ -25,7 +25,7 @@
 #include <array>
 #include <vector>
 #include <set>
-#include <map>
+#include <unordered_map>
 #include <algorithm>
 #include <cstdint>
 #include <iostream>
@@ -40,11 +40,8 @@ namespace mc {
 /*****************************************************************************
  *
  * @brief id-based taxonomy
- *        taxon ids must be either > 0 or < 0
  *
  * @details the directed graph is stored implicitly
- *
- * @invariant has one "empty taxon" with id=0 at all times
  *
  *****************************************************************************/
 class taxonomy
@@ -123,7 +120,7 @@ public:
             case rank::Domain:       return rank::root;
             default:
             case rank::root:
-            case rank::none: return rank::none;
+            case rank::none:         return rank::none;
         }
     }
     static rank
@@ -151,7 +148,7 @@ public:
             case rank::Domain:       return rank::Kingdom;
             case rank::root:         return rank::Domain;
             default:
-            case rank::none: return rank::none;
+            case rank::none:         return rank::none;
         }
     }
 
@@ -236,15 +233,17 @@ public:
     }
 
 
-    //-----------------------------------------------------
-    /**
-     * @brief taxonomic node information
-     */
+    /************************************************************
+     *
+     * @brief taxonomic node
+     *
+     ************************************************************/
     class taxon {
         friend class taxonomy;
     public:
         //-----------------------------------------------------
         using rank_type = taxonomy::rank;
+
         //-----------------------------------------------------
         struct file_source {
             explicit
@@ -264,9 +263,9 @@ public:
               file_source source = file_source{})
         :
             id_{taxonId}, parent_{parentId},
-            rank_{rk},
             name_{std::move(taxonName)},
-            source_{std::move(source)}
+            source_{std::move(source)},
+            rank_{rk}
         {}
 
         //makes taxa sortable
@@ -275,7 +274,7 @@ public:
             return a.id_ < b.id_;
         }
 
-        taxon_id id()   const noexcept { return id_; }
+        taxon_id id() const noexcept { return id_; }
 
         std::string name() const noexcept { return name_; }
 
@@ -287,12 +286,13 @@ public:
             return taxonomy::rank_name(rank_);
         }
 
-        bool is_none() const noexcept {
-            return id_ == none_id();
-        }
         bool is_sequence() const noexcept {
             return rank_ == rank_type::Sequence;
         }
+        bool has_parent() const noexcept {
+            return parent_ != taxonomy::none_id();
+        }
+
 
         //-----------------------------------------------------
         friend
@@ -320,9 +320,9 @@ public:
     private:
         taxon_id id_;
         taxon_id parent_;
-        rank_type rank_;
         std::string name_;
         file_source source_;
+        rank_type rank_;
     };
 
 
@@ -332,11 +332,11 @@ private:
 
 public:
     //-----------------------------------------------------
+    using full_lineage   = std::vector<const taxon*>;
+    using ranked_lineage = std::array<const taxon*,num_ranks>;
     using file_source    = taxon::file_source;
     using size_type      = taxon_store::size_type;
     using const_iterator = taxon_store::const_iterator;
-    using full_lineage   = std::vector<taxon_id>;
-    using ranked_lineage = std::array<taxon_id,num_ranks>;
     //-----------------------------------------------------
     class const_range {
     public:
@@ -353,18 +353,8 @@ public:
 
 
     //-------------------------------------------------------------------
-    taxonomy():
-        taxa_{}, none_{nullptr}
-    {
-        clear();
-    }
-
-
-    //-------------------------------------------------------------------
     void clear() {
         taxa_.clear();
-        //insert one "empty taxon"
-        none_ = &(*(taxa_.emplace(none_id()).first));
     }
     //-----------------------------------------------------
     /**
@@ -383,7 +373,7 @@ public:
 
 
     //-------------------------------------------------------------------
-    const taxon&
+    const_iterator
     emplace(taxon_id taxonId,
             taxon_id parentId,
             std::string taxonName,
@@ -395,59 +385,55 @@ public:
                        std::move(source));
     }
     //-----------------------------------------------------
-    const taxon&
+    const_iterator
     emplace(taxon_id taxonId,
             taxon_id parentId = none_id(),
             std::string taxonName = "",
             rank rank = rank::none,
             file_source source = file_source{})
     {
-        if(taxonId == none_id()) return none();
+        if(taxonId == none_id()) return taxa_.end();
 
-        return *(taxa_.emplace(taxonId, parentId,
-                               std::move(taxonName), rank,
-                               std::move(source)).first);
+        return taxa_.emplace(taxonId, parentId,
+                             std::move(taxonName), rank,
+                             std::move(source)).first;
     }
 
 
     //---------------------------------------------------------------
-    const taxon&
+    const_iterator
     insert(const taxon& t) {
-        if(t.is_none()) return t;
-        return *(taxa_.insert(t).first);
+        return taxa_.insert(t).first;
     }
     //-----------------------------------------------------
-    const taxon&
+    const_iterator
     insert(taxon&& t) {
-        if(t.is_none()) return t;
-        return *(taxa_.insert(std::move(t)).first);
+        return taxa_.insert(std::move(t)).first;
     }
 
 
     //---------------------------------------------------------------
-    const taxon&
+    const_iterator
     insert_or_replace(const taxon& t)
     {
-        if(t.is_none()) return t;
         auto i = taxa_.find(taxon{t.id()});
         if(i != taxa_.end()) {
             taxa_.erase(i);
-            return *(taxa_.insert(t).first);
+            return taxa_.insert(t).first;
         } else {
-            return *(taxa_.insert(t).first);
+            return taxa_.insert(t).first;
         }
     }
     //-----------------------------------------------------
-    const taxon&
+    const_iterator
     insert_or_replace(taxon&& t)
     {
-        if(t.is_none()) return t;
         auto i = taxa_.find(taxon{t.id()});
         if(i != taxa_.end()) {
             taxa_.erase(i);
-            return *(taxa_.insert(std::move(t)).first);
+            return taxa_.insert(std::move(t)).first;
         } else {
-            return *(taxa_.insert(t).first);
+            return taxa_.insert(t).first;
         }
     }
 
@@ -464,70 +450,91 @@ public:
 
 
     //---------------------------------------------------------------
-    /**
-     * @return empty taxon
-     */
-    const taxon&
-    none() const noexcept {
-        return *none_;
+    const_iterator
+    find(taxon_id id) const {
+        return taxa_.find(taxon{id});
     }
+    /**
+     * @return taxon to 'id' or nullptr;
+     */
+    const taxon*
+    operator [] (taxon_id id) const {
+        auto i = find(id);
+        if(i == taxa_.end()) return nullptr;
+        return &(*i);
+    }
+
 
     //---------------------------------------------------------------
-    /**
-     * @return taxon to 'id' or 'empty taxon' with id = 0 otherwise
-     */
-    const taxon&
-    operator [] (taxon_id id) const {
-        auto i = taxa_.find(taxon{id});
-        return (i != taxa_.end()) ? *i : none();
-    }
-
-    //-----------------------------------------------------
     bool
     contains(taxon_id id) const {
-        return contains(taxon{id});
-    }
-
-    //-----------------------------------------------------
-    bool
-    contains(const taxon& tax) const {
-        return taxa_.find(tax) != taxa_.end();
+        return find(id) != taxa_.end();
     }
 
 
     //---------------------------------------------------------------
-    const taxon&
+    const taxon*
     lca(const taxon& a, const taxon& b) const
     {
-        return lca(a.id(), b.id());
+        return lca(lineage(a), lineage(b));
     }
 
     //---------------------------------------------------------------
-    const taxon&
+    const taxon*
     ranked_lca(const taxon& a, const taxon& b) const
     {
-        return ranked_lca(a.id(), b.id());
+        return ranked_lca(ranks(a), ranks(b));
     }
 
 
     //---------------------------------------------------------------
-    const taxon&
+    const taxon*
     lca(const full_lineage& lina, const full_lineage& linb) const
     {
-        return operator[](lca_id(lina,linb));
+        for(auto ta : lina) {
+            for(auto tb : linb) {
+                if(ta && tb && (ta == tb)) return ta;
+            }
+        }
+        return nullptr;
     }
-
     //-----------------------------------------------------
-    const taxon&
-    lca(const ranked_lineage& lina, const ranked_lineage& linb) const
+    const taxon*
+    ranked_lca(const ranked_lineage& lina, const ranked_lineage& linb) const
     {
-        return operator[](ranked_lca_id(lina,linb));
+        for(int i = 0; i < int(rank::root); ++i) {
+            if(lina[i] && (lina[i] == linb[i])) return lina[i];
+        }
+        return nullptr;
     }
 
-    //-----------------------------------------------------
-    const taxon&
-    parent(const taxon& tax) const noexcept {
+
+    //---------------------------------------------------------------
+    const taxon*
+    parent(const taxon& tax) const {
         return operator[](tax.parent_);
+    }
+
+
+    //---------------------------------------------------------------
+    /** @brief return next taxon that has a rank assigned */
+    const taxon*
+    next_ranked(const taxon& tax) const {
+        if(tax.rank() != rank::none) return &tax;
+        return next_ranked(tax.id());
+    }
+    //-----------------------------------------------------
+    const taxon*
+    next_ranked(taxon_id id) const
+    {
+        while(id != none_id()) {
+            auto it = taxa_.find(taxon{id});
+            if(it == taxa_.end()) return nullptr;
+            if(it->rank() != rank::none) return operator[](it->id());
+            if(it->parent_ == id) return nullptr;
+            id = it->parent_;
+        }
+        return nullptr;
     }
 
 
@@ -536,49 +543,19 @@ public:
     ranks(const taxon& tax) const {
         return ranks(tax.id());
     }
-
     //-----------------------------------------------------
     ranked_lineage
     ranks(taxon_id id) const
     {
         auto lin = ranked_lineage{};
-        for(auto& x : lin) x = none_id();
+        for(auto& x : lin) x = nullptr;
 
         while(id != none_id()) {
             auto it = taxa_.find(taxon{id});
             if(it != taxa_.end()) {
-                if(it->rank_ != rank::none) {
-                    lin[static_cast<int>(it->rank_)] = it->id_;
+                if(it->rank() != rank::none) {
+                    lin[static_cast<int>(it->rank())] = &(*it);
                 }
-                if(it->parent_ != id) {
-                    id = it->parent_;
-                } else {
-                    id = none_id();
-                }
-            } else {
-                id = none_id();
-            }
-        }
-
-        return lin;
-    }
-
-    //---------------------------------------------------------------
-    full_lineage
-    lineage(const taxon& tax) const {
-        return lineage(tax.id());
-    }
-
-    //-----------------------------------------------------
-    full_lineage
-    lineage(taxon_id id) const
-    {
-        auto lin = full_lineage{};
-
-        while(id != none_id()) {
-            auto it = taxa_.find(taxon{id});
-            if(it != taxa_.end()) {
-                lin.push_back(id);
                 if(it->parent_ != id) { //break cycles
                     id = it->parent_;
                 } else {
@@ -588,7 +565,34 @@ public:
                 id = none_id();
             }
         }
+        return lin;
+    }
 
+
+    //---------------------------------------------------------------
+    full_lineage
+    lineage(const taxon& tax) const {
+        return lineage(tax.id());
+    }
+    //-----------------------------------------------------
+    full_lineage
+    lineage(taxon_id id) const
+    {
+        auto lin = full_lineage{};
+
+        while(id != none_id()) {
+            auto it = taxa_.find(taxon{id});
+            if(it != taxa_.end()) {
+                lin.push_back(&(*it));
+                if(it->parent_ != id) { //break cycles
+                    id = it->parent_;
+                } else {
+                    id = none_id();
+                }
+            } else {
+                id = none_id();
+            }
+        }
         return lin;
     }
 
@@ -656,48 +660,7 @@ public:
 
 private:
     //---------------------------------------------------------------
-    const taxon&
-    lca(taxon_id a, taxon_id b) const
-    {
-        return operator[](lca_id(lineage(a), lineage(b) ));
-    }
-    //-----------------------------------------------------
-    const taxon&
-    ranked_lca(taxon_id a, taxon_id b) const
-    {
-        return operator[](ranked_lca_id(ranks(a), ranks(b) ));
-    }
-
-
-    //---------------------------------------------------------------
-    static taxon_id
-    ranked_lca_id(const ranked_lineage& lina,
-                  const ranked_lineage& linb)
-    {
-        for(int i = 0; i < int(rank::root); ++i) {
-            if((lina[i] != none_id()) && (lina[i] == linb[i])) return lina[i];
-        }
-
-        return none_id();
-    }
-
-    //-----------------------------------------------------
-    static taxon_id
-    lca_id(const full_lineage& lina,
-           const full_lineage& linb)
-    {
-        for(auto ta : lina) {
-            for(auto tb : linb) {
-                if(ta == tb) return ta;
-            }
-        }
-
-        return none_id();
-    }
-
-    //---------------------------------------------------------------
     taxon_store taxa_;
-    const taxon* none_;
 };
 
 
@@ -713,7 +676,6 @@ class ranked_lineages_cache
 public:
     //---------------------------------------------------------------
     using taxon          = taxonomy::taxon;
-    using taxon_id       = taxonomy::taxon_id;
     using ranked_lineage = taxonomy::ranked_lineage;
     using taxon_rank     = taxonomy::rank;
 
@@ -726,9 +688,11 @@ public:
     ranked_lineages_cache(const taxonomy& taxa,
                           taxon_rank highestRank = taxon_rank::none)
     :
-        taxa_(taxa), lins_{}, mutables_{}
+        taxa_(taxa), highestRank_{highestRank},
+        empty_{}, lins_{}, mutables_{}
     {
-        update(highestRank);
+        for(auto& x : empty_) x = nullptr;
+        update();
     }
 
 
@@ -736,7 +700,8 @@ public:
     ranked_lineages_cache(const ranked_lineages_cache&) = delete;
 
     ranked_lineages_cache(ranked_lineages_cache&& src):
-        taxa_(src.taxa_), lins_{std::move(src.lins_)}, mutables_{}
+        taxa_(src.taxa_), highestRank_{src.highestRank_},
+        lins_{std::move(src.lins_)}, mutables_{}
     {}
 
     ranked_lineages_cache& operator = (const ranked_lineages_cache&) = delete;
@@ -744,34 +709,25 @@ public:
 
 
     //---------------------------------------------------------------
-    void update(const taxon& tax)
-    {
-        update(tax.id());
-    }
-    //-----------------------------------------------------
-    void update(taxon_id id)
-    {
+    void update(const taxon& tax) {
         std::lock_guard<std::mutex> lock(mutables_);
-
-        auto i = lins_.find(id);
+        auto i = lins_.find(&tax);
         if(i != lins_.end()) {
-            i->second = taxa_.ranks(id);
+            i->second = taxa_.ranks(tax);
         }
         else {
-            lins_.emplace(id, taxa_.ranks(id));
+            lins_.emplace(&tax, taxa_.ranks(tax));
         }
     }
     //-----------------------------------------------------
-    void update(taxon_rank highestRank) {
-       if(highestRank != taxon_rank::none) {
+    void update() {
+        std::lock_guard<std::mutex> lock(mutables_);
+        lins_.clear();
+        if(highestRank_ != taxon_rank::none) {
             for(const auto& t : taxa_) {
-                if(t.rank() <= highestRank)
-                    lins_.emplace(t.id(), taxa_.ranks(t));
+                if(t.rank() <= highestRank_)
+                    lins_.emplace(&t, taxa_.ranks(t));
             }
-        }
-        else {
-            const auto& nt = taxa_.none();
-            lins_.emplace(nt.id(), taxa_.ranks(nt));
         }
     }
 
@@ -784,34 +740,30 @@ public:
 
     //---------------------------------------------------------------
     const ranked_lineage&
-    operator [] (const taxon& tax) const {
-        return operator[](tax.id());
+    operator [] (const taxon* tax) const {
+        return tax ? operator[](*tax) : empty_;
     }
     //-----------------------------------------------------
     const ranked_lineage&
-    operator [] (taxon_id tid) const {
+    operator [] (const taxon& tax) const {
         std::lock_guard<std::mutex> lock(mutables_);
-        auto i = lins_.find(tid);
+        auto i = lins_.find(&tax);
         if(i != lins_.end()) return i->second;
-        return lins_.emplace(tid, taxa_.ranks(tid)).first->second;
+        return lins_.emplace(&tax, taxa_.ranks(tax)).first->second;
     }
-
 
     //---------------------------------------------------------------
-    const taxon&
+    const taxon*
     lca(const taxon& a, const taxon& b) const {
-        return taxa_.lca(operator[](a), operator[](b));
+        return taxa_.lca(a, b);
     }
-    //-----------------------------------------------------
-    const taxon&
-    lca(taxon_id a, taxon_id b) const {
-        return taxa_.lca(operator[](a), operator[](b));
-    }
-
 
 private:
+    //---------------------------------------------------------------
     const taxonomy& taxa_;
-    mutable std::map<taxonomy::taxon_id,ranked_lineage> lins_;
+    taxon_rank highestRank_;
+    ranked_lineage empty_;
+    mutable std::unordered_map<const taxon*,ranked_lineage> lins_;
     mutable std::mutex mutables_;
 };
 

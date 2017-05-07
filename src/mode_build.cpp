@@ -418,10 +418,10 @@ make_sequence_to_taxon_id_map(const std::vector<std::string>& mappingFilenames,
  *
  *****************************************************************************/
 void rank_targets_post_process(database& db,
-                               std::set<const taxon*>& taxa,
+                               std::set<const taxon*>& targetTaxa,
                                const std::string& mappingFile)
 {
-    if(taxa.empty()) return;
+    if(targetTaxa.empty()) return;
 
     std::ifstream is {mappingFile};
     if(!is.good()) return;
@@ -449,22 +449,20 @@ void rank_targets_post_process(database& db,
     while(is >> acc >> accver >> taxid >> gi) {
         //target in database?
         //accession.version is the default
-        const taxon* tax = &db.taxon_of_sequence(accver);
+        const taxon* tax = db.taxon_with_name(accver);
 
-        if(tax->is_none()) {
-            tax = &db.taxon_of_sequence(acc);
-            if(tax->is_none()) {
-                tax = &db.taxon_of_sequence(gi);
-            }
+        if(!tax) {
+            tax = db.taxon_with_name(acc);
+            if(!tax) tax = db.taxon_with_name(gi);
         }
 
         //if in database then set parent
-        if(!tax->is_none()) {
-            auto it = taxa.find(tax);
-            if(it != taxa.end()) {
+        if(tax) {
+            auto i = targetTaxa.find(tax);
+            if(i != targetTaxa.end()) {
                 db.reset_parent(*tax, taxid);
-                taxa.erase(it);
-                if(taxa.empty()) break;
+                targetTaxa.erase(i);
+                if(targetTaxa.empty()) break;
             }
         }
 
@@ -494,9 +492,7 @@ unranked_targets(const database& db)
     auto res = std::set<const taxon*>{};
 
     for(const auto& tax : db.target_taxa()) {
-        if(db.parent(tax).is_none()) {
-             res.insert(&tax);
-        }
+        if(!tax.has_parent()) res.insert(&tax);
     }
 
     return res;

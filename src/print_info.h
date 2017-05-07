@@ -53,7 +53,6 @@ void show_info(std::ostream&, const database&, const taxon&);
  *
  *****************************************************************************/
 void show_ranks(std::ostream&,
-                const database&,
                 const ranked_lineage&,
                 taxon_print_mode = taxon_print_mode::name_only,
                 taxon_rank lowest  = taxon_rank::Sequence,

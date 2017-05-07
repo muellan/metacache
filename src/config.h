@@ -43,8 +43,8 @@ namespace mc {
 #ifdef MC_KMER_TYPE
     using kmer_type = MC_KMER_TYPE ;
 #else
-//    using kmer_type = std::uint32_t;
-    using kmer_type = std::uint64_t;
+    using kmer_type = std::uint32_t;
+//    using kmer_type = std::uint64_t;
 #endif
 
 

@@ -33,12 +33,11 @@ void show_info(std::ostream& os, const database& db, const taxon& tax)
         << "    source:     "
         << tax.source().filename << " / " << tax.source().index << '\n';
 
-    for(auto taxid : db.ranks(tax)) {
-        if(taxid > 0) {
-            const auto& taxon = db.taxon_with_id(taxid);
-            auto rn = std::string(taxon.rank_name()) + ":";
+    for(const taxon* t : db.ranks(tax)) {
+        if(t) {
+            auto rn = std::string(t->rank_name()) + ":";
             rn.resize(12, ' ');
-            os << "\n    " << rn << "(" << taxon.id() << ") " << taxon.name();
+            os << "\n    " << rn << "(" << t->id() << ") " << t->name();
         }
     }
     os << '\n';
@@ -49,55 +48,58 @@ void show_info(std::ostream& os, const database& db, const taxon& tax)
 //-------------------------------------------------------------------
 void show_ranks(
     std::ostream& os,
-    const database& db,
     const ranked_lineage& lineage,
     taxon_print_mode mode, taxon_rank lowest, taxon_rank highest)
 {
+    if(lowest == taxon_rank::none) return;
+    if(highest == taxon_rank::none) highest = taxon_rank::root;
+
     //one rank only
     if(lowest == highest) {
-        auto taxid = lineage[int(lowest)];
-        os << taxonomy::rank_name(lowest) << ':';
-        if(mode != taxon_print_mode::id_only) {
-            if(taxid > 1)
-                os << db.taxon_with_id(taxid).name();
-            else
-                os << "n/a";
-            if(mode != taxon_print_mode::name_only)
-                os << "(" << taxid << ")";
-        }
-        else {
-            os << taxid;
+        const taxon* tax = lineage[int(lowest)];
+        if(tax) {
+            os << taxonomy::rank_name(lowest) << ':';
+            if(mode != taxon_print_mode::id_only) {
+                if(tax) {
+                    os << tax->name();
+                    if(mode != taxon_print_mode::name_only)
+                        os << "(" << tax->id() << ")";
+                } else {
+                    os << "n/a";
+                    if(mode != taxon_print_mode::name_only)
+                        os << "(" << taxonomy::none_id() << ")";
+                }
+            } else {
+                os << (tax ? tax->id() : taxonomy::none_id());
+            }
         }
     }
     //range of ranks
     else {
         for(auto r = lowest; r <= highest; ++r) {
-            auto taxid = lineage[int(r)];
-            if(taxid > 1) {
-                auto&& taxon = db.taxon_with_id(taxid);
-                if(taxon.rank() >= lowest && taxon.rank() <= highest) {
-                    os << taxon.rank_name() << ':';
+            const taxon* tax = lineage[int(r)];
+            if(tax) {
+                if(tax->rank() >= lowest && tax->rank() <= highest) {
+                    os << tax->rank_name() << ':';
                     if(mode != taxon_print_mode::id_only) {
-                        os << taxon.name();
+                        os << tax->name();
                         if(mode != taxon_print_mode::name_only) {
-                            os << "(" << taxon.id() << ")";
+                            os << "(" << tax->id() << ")";
                         }
-                    }
-                    else {
-                        os << taxon.id();
+                    } else {
+                        os << tax->id();
                     }
                 }
                 if(r < highest) os << ',';
             }
-            else if (r == lowest && taxid == 0) {
+            else if(r == lowest) {
                 os << taxonomy::rank_name(lowest) << ':';
                 if(mode != taxon_print_mode::id_only) {
                     os << "n/a";
                     if(mode != taxon_print_mode::name_only)
-                        os << "(" << taxid << ")";
-                }
-                else {
-                    os << taxid;
+                        os << "(" << taxonomy::none_id() << ")";
+                } else {
+                    os << taxonomy::none_id();
                 }
             }
         }
