@@ -610,7 +610,7 @@ void process_database_answer(
         std::max(query1.size() + query2.size(), opt.insertSizeMax) /
         db.target_window_stride() ));
 
-    classification_candidates tophits {hits, numWindows};
+    classification_candidates tophits {db, hits, numWindows};
     const taxon* cls = sequence_classification(db, opt, tophits );
 
     //evaluate classification -------------------

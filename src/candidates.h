@@ -66,7 +66,7 @@ struct index_range
 *        window ranges of *distinct* targets
 *
 *****************************************************************************/
-template<int maxNo, class Database>
+template<class Database, int maxNo>
 class top_matches_in_contiguous_window_range
 {
     static_assert(maxNo > 1, "no must be > 1");
@@ -76,10 +76,10 @@ public:
 
     //---------------------------------------------------------------
     using matches_per_location = typename Database::matches_per_location;
-    using target_id     = typename Database::target_id;
-    using window_id     = typename Database::window_id;
-    using hit_count     = std::uint_least64_t;
-    using window_range  = index_range<window_id>;
+    using target_id    = typename Database::target_id;
+    using window_id    = typename Database::window_id;
+    using hit_count    = std::uint_least64_t;
+    using window_range = index_range<window_id>;
 
     //---------------------------------------------------------------
     static constexpr int max_count() noexcept { return maxNo; }
@@ -93,6 +93,7 @@ public:
      * @pre matches must be sorted by target (first) and window (second)
      */
     top_matches_in_contiguous_window_range(
+        const Database&,
         const matches_per_location& matches, window_id numWindows = 3)
     :
         tgt_{}, hits_{}, pos_{}

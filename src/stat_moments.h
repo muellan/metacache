@@ -35,6 +35,7 @@
 #include <limits>
 #include <iterator>
 #include <cstdint>
+#include <cmath>
 
 
 namespace mc {
