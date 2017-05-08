@@ -208,11 +208,11 @@ public:
         queryWindowSize_(targetWindowSize_),
         queryWindowStride_(targetWindowStride_),
         maxLocsPerFeature_(max_supported_locations_per_feature()),
-        targetCount_(0),
         features_{},
-        sid2tid{},
+        targets_{},
         taxa_{},
-        ranksCache_{taxa_, taxon_rank::Sequence}
+        ranksCache_{taxa_, taxon_rank::Sequence},
+        sid2tid{}
     {
         features_.max_load_factor(0.8);
     }
@@ -226,11 +226,11 @@ public:
         queryWindowSize_(targetWindowSize_),
         queryWindowStride_(targetWindowStride_),
         maxLocsPerFeature_(max_supported_locations_per_feature()),
-        targetCount_(0),
         features_{},
-        sid2tid{},
+        targets_{},
         taxa_{},
-        ranksCache_{taxa_, taxon_rank::Sequence}
+        ranksCache_{taxa_, taxon_rank::Sequence},
+        sid2tid{}
     {
         features_.max_load_factor(0.8);
     }
@@ -387,7 +387,7 @@ public:
         using std::end;
 
         //reached hard limit for number of targets
-        if(targetCount_ >= max_target_count()) {
+        if(targets_.size() >= max_target_count()) {
             throw target_limit_exceeded_error{};
         }
 
@@ -400,7 +400,8 @@ public:
         if(it != sid2tid.end()) return false;
 
         //allows lookup via sequence id (e.g. NCBI accession number)
-        const auto taxid = taxon_id_of_target(targetCount_);
+        const auto targetCount = target_id(targets_.size());
+        const auto taxid = taxon_id_of_target(targetCount);
         sid2tid.insert({sid, taxid});
 
         //insert sequence metadata as a new taxon
@@ -413,15 +414,14 @@ public:
         if(nit == taxa_.end()) {
             throw std::runtime_error{"target taxon could not be created"};
         }
-
         //sketch sequence -> insert features
         window_id win = 0;
         for_each_window(seq, targetWindowSize_, targetWindowStride_,
-            [this, &win] (iter_t b, iter_t e) {
+            [&, this] (iter_t b, iter_t e) {
                 auto sk = targetSketcher_(b,e);
                 //insert features from sketch into database
                 for(const auto& f : sk) {
-                    auto it = features_.insert(f, location{targetCount_, win});
+                    auto it = features_.insert(f, location{targetCount, win});
                     if(it->size() > maxLocsPerFeature_) {
                         features_.shrink(it, maxLocsPerFeature_);
                     }
@@ -429,15 +429,16 @@ public:
                 ++win;
             });
 
-        ++targetCount_;
+        //target id -> taxon lookup table
+        targets_.push_back(&(*nit));
 
         return true;
     }
 
     //---------------------------------------------------------------
-    std::uint64_t
+    taxon_id
     target_count() const noexcept {
-        return targetCount_;
+        return targets_.size();
     }
     static constexpr std::uint64_t
     max_target_count() noexcept {
@@ -490,13 +491,13 @@ public:
         if(sid.empty()) return nullptr;
         auto i = sid2tid.find(sid);
         if(i == sid2tid.end()) return nullptr;
-        return taxa_[taxon_id_of_target(i->second)];
+        return (i->second < target_count()) ? targets_[i->second] : nullptr;
     }
     //-----------------------------------------------------
     const taxon*
     taxon_of_target(target_id id) const noexcept {
-        if(id >= targetCount_) return nullptr;
-        return taxa_[taxon_id_of_target(id)];
+        if(id >= targets_.size()) return nullptr;
+        return targets_[id];
     }
 
 
@@ -507,14 +508,14 @@ public:
             taxa_.insert_or_replace(std::move(t));
         }
         //re-initialize ranks cache
-        if(targetCount_ > 0) ranksCache_.update();
+        ranksCache_.update();
     }
 
 
     //---------------------------------------------------------------
     std::uint64_t
     non_target_taxon_count() const noexcept {
-        return taxa_.size() - targetCount_;
+        return taxa_.size() - targets_.size();
     }
     //-----------------------------------------------------
     taxon_range taxa() const {
@@ -777,8 +778,16 @@ public:
         //taxon metadata
         read_binary(is, taxa_);
 
-        read_binary(is, targetCount_);
-        if(targetCount_ < 1) return;
+        target_id targetCount = 0;
+        read_binary(is, targetCount);
+        if(targetCount < 1) return;
+
+
+        //update target id -> target taxon lookup table
+        targets_.reserve(targetCount);
+        for(decltype(targetCount) i = 0 ; i < targetCount; ++i) {
+            targets_.push_back(taxa_[taxon_id_of_target(i)]);
+        }
 
         //sequence id lookup
         sid2tid.clear();
@@ -787,7 +796,7 @@ public:
         }
 
         //ranked linage cache
-        if(targetCount_ > 0) ranksCache_.update();
+        ranksCache_.update();
 
         if(what == scope::metadata_only) return;
 
@@ -840,7 +849,7 @@ public:
 
         //taxon & target metadata
         write_binary(os, taxa_);
-        write_binary(os, targetCount_);
+        write_binary(os, target_id(targets_.size()));
 
         //hash table
         write_binary(os, features_);
@@ -912,9 +921,10 @@ private:
     std::uint64_t maxLocsPerFeature_;
     target_id targetCount_;
     feature_store features_;
-    std::map<sequence_id,taxon_id> sid2tid;
+    std::vector<const taxon*> targets_;
     taxonomy taxa_;
     ranked_lineages_cache ranksCache_;
+    std::map<sequence_id,taxon_id> sid2tid;
 };
 
 

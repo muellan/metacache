@@ -136,7 +136,8 @@ void show_lineage_table(const args_parser& args)
         std::cout << tax.name();
         auto ranks = db.ranks(tax);
         for(auto r = rank::Sequence; r <= rank::Domain; ++r) {
-            std::cout << '\t' << ranks[int(r)];
+            std::cout << '\t'
+                << (ranks[int(r)] ? ranks[int(r)]->id() : taxonomy::none_id());
         }
         std::cout << '\n';
     }
