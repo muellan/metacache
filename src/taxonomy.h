@@ -327,8 +327,12 @@ public:
 
 
 private:
+//    struct taxon_hasher {
+//        std::size_t operator () (const taxon& tax) const noexcept {
+//            return tax.id();
+//        }
+//    };
     using taxon_store = std::set<taxon>;
-
 
 public:
     //-----------------------------------------------------
