@@ -953,6 +953,16 @@ public:
     }
 
 
+    //---------------------------------------------------------------
+    void print_feature_counts(std::ostream& os) const {
+        for(const auto& bucket : features_) {
+            if(!bucket.empty()) {
+                os << bucket.key() << " -> " << bucket.size() << '\n';
+            }
+        }
+    }
+
+
 private:
     //---------------------------------------------------------------
     sketcher targetSketcher_;
