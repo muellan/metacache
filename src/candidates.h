@@ -35,27 +35,48 @@ namespace mc {
  * @brief
  *
  *****************************************************************************/
-template<class ValueT>
-struct index_range
+template<class WindowId>
+struct window_range
 {
-    using value_type = ValueT;
+    using value_type = WindowId;
 
     constexpr
-    index_range() noexcept :
-        beg(0), end(0)
-    {}
+    window_range() noexcept = default;
+
     constexpr
-    index_range(value_type first, value_type last) noexcept :
+    window_range(value_type first, value_type last) noexcept :
         beg{first}, end{last}
     {}
 
-    constexpr value_type size()  const noexcept { return beg - end; }
+    constexpr value_type size()  const noexcept { return end - beg; }
     constexpr value_type empty() const noexcept { return beg == end; }
 
-    value_type beg;
-    value_type end;
+    value_type beg = 0;
+    value_type end = 0;
 };
 
+
+
+/*****************************************************************************
+ *
+ * @brief
+ *
+ *****************************************************************************/
+template<class Database>
+struct match_candidate
+{
+    using taxon        = typename Database::taxon;
+    using window_id    = typename Database::window_id;
+    using count_type   = std::uint_least64_t;
+    using window_range = mc::window_range<window_id>;
+
+
+    match_candidate() = default;
+
+    const taxon* tax = nullptr;
+    count_type   hits = 0;
+    window_range pos;
+};
 
 
 
@@ -67,46 +88,41 @@ struct index_range
 *
 *****************************************************************************/
 template<class Database, int maxNo>
-class top_matches_in_contiguous_window_range
+class top_distinct_matches_in_contiguous_window_range
 {
     static_assert(maxNo > 1, "no must be > 1");
 
 
 public:
-
     //---------------------------------------------------------------
     using matches_per_location = typename Database::matches_per_location;
-    using target_id    = typename Database::target_id;
-    using window_id    = typename Database::window_id;
-    using hit_count    = std::uint_least64_t;
-    using window_range = index_range<window_id>;
+    using target_id  = typename Database::target_id;
+    using window_id  = typename Database::window_id;
+    using taxon      = typename Database::taxon;
+    using taxon_rank = typename Database::taxon_rank;
+    using candidate  = match_candidate<Database>;
+    using hit_count  = typename candidate::count_type;
+
 
     //---------------------------------------------------------------
     static constexpr int max_count() noexcept { return maxNo; }
-
-    static constexpr target_id invalid_target_id() noexcept {
-        return std::numeric_limits<target_id>::max();
-    }
 
 
     /****************************************************************
      * @pre matches must be sorted by target (first) and window (second)
      */
-    top_matches_in_contiguous_window_range(
+    top_distinct_matches_in_contiguous_window_range(
         const Database&,
-        const matches_per_location& matches, window_id numWindows = 3)
+        const matches_per_location& matches,
+        window_id numWindows = 3,
+        taxon_rank = taxon_rank::Sequence)
     :
-        tgt_{}, hits_{}, pos_{}
+        top_{}
     {
         using std::begin;
         using std::end;
 
-        for(int i = 0; i < maxNo; ++i) {
-            tgt_[i] = invalid_target_id();
-            hits_[i] = 0;
-        }
-
-        target_id tgt = invalid_target_id();
+        const taxon* tax = nullptr;
         window_id win = 0;
         window_id maxWinBeg = 0;
         window_id maxWinEnd = 0;
@@ -120,7 +136,7 @@ public:
             //look for neighboring windows with the highest total hit count
             //as long as we are in the same target and the windows are in a
             //contiguous range
-            if(lst->first.tgt == tgt) {
+            if(lst->first.tax == tax) {
                 //add new hits to the right
                 hits += lst->second;
                 //subtract hits to the left that fall out of range
@@ -140,72 +156,58 @@ public:
                 }
             }
             else {
+                //keep track of 'maxNo' largest hits for *distinct* targets
+                for(int i = 0; i < maxNo; ++i) {
+                    if(maxHits >= top_[i].hits) {
+                        //shift targets left of tax to the right
+                        // for(int j = maxNo-1; j > i; --j) {
+                        for(int j = maxNo-1; j > i; --j) {
+                            top_[j].tax  = top_[j-1].tax;
+                            top_[j].hits = top_[j-1].hits;
+                            top_[j].pos  = top_[j-1].pos;
+                        }
+                        //set hits & associated sequence (position)
+                        top_[i].hits = maxHits;
+                        top_[i].tax = tax;
+                        top_[i].pos.beg = maxWinBeg;
+                        top_[i].pos.end = maxWinEnd;
+                        break;
+                    }
+                }
+
                 //reset to new target
-                win = lst->first.win;
-                tgt = lst->first.tgt;
+                win  = lst->first.win;
+                tax  = lst->first.tax;
                 hits = lst->second;
                 maxHits = hits;
                 maxWinBeg = win;
                 maxWinEnd = win;
                 fst = lst;
             }
-            //keep track of 'maxNo' largest hits for *distinct* targets
-            for(int i = 0; i < maxNo; ++i) {
-                if(maxHits >= hits_[i]) {
-                    //check if tgt already in list
-                    int pos = maxNo-1;
-                    for(int j = i; j < maxNo; ++j) {
-                        if(tgt == tgt_[j]) {
-                            pos = j;
-                            break;
-                        }
-                    }
-                    //shift targets left of tgt to the right
-                    // for(int j = maxNo-1; j > i; --j) {
-                    for(int j = pos; j > i; --j) {
-                        hits_[j] = hits_[j-1];
-                        tgt_[j] = tgt_[j-1];
-                        pos_[j] = pos_[j-1];
-                    }
-                    //set hits & associated sequence (position)
-                    hits_[i] = maxHits;
-                    tgt_[i] = tgt;
-                    pos_[i].beg = maxWinBeg;
-                    pos_[i].end = maxWinEnd;
-                    break;
-                }
-            }
+
             ++lst;
         }
     }
 
-    int count() const noexcept {
+    int size() const noexcept {
         for(int i = 0; i < maxNo; ++i) {
-            if(hits_[i] < 1) return i;
+            if(!top_[i].tax) return i;
         }
         return maxNo;
     }
 
-    target_id target(int rank) const noexcept { return tgt_[rank];  }
-    hit_count hits(int rank)   const noexcept { return hits_[rank]; }
+    const candidate& operator [] (int rank) const noexcept {
+        return top_[rank];
+    }
 
     hit_count total_hits() const noexcept {
         hit_count h = 0;
-        for(int i = 0; i < maxNo; ++i) h += hits_[i];
+        for(int i = 0; i < maxNo; ++i) h += top_[i].hits;
         return h;
     }
 
-    const window_range&
-    window(int rank) const noexcept { return pos_[rank]; }
-
-    window_id window_length(int rank) const noexcept {
-        return pos_[rank].end - pos_[rank].beg;
-    }
-
 private:
-    target_id tgt_[maxNo];
-    hit_count hits_[maxNo];
-    window_range pos_[maxNo];
+    candidate top_[maxNo];
 };
 
 

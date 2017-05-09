@@ -32,27 +32,22 @@ void show_matches(std::ostream& os,
                   taxon_rank lowest)
 {
     if(lowest == taxon_rank::Sequence) {
-        if(cand.hits(0) > 0) {
-            const taxon* tax = db.taxon_of_target(cand.target(0));
-            if(tax) os << tax->name() << ':' << cand.hits(0);
+        if(cand[0].hits > 0) {
+            if(cand[0].tax) os << cand[0].tax->name() << ':' << cand[0].hits;
         }
-
-        for(int i = 1; i < cand.count() && cand.hits(i) > 0; ++i) {
-            const taxon* tax = db.taxon_of_target(cand.target(i));
-            if(tax) os  << ',' << tax->name() << ':' << cand.hits(i);
-            ++i;
+        for(int i = 1; i < cand.size() && cand[i].hits > 0; ++i) {
+            if(cand[i].tax) os  << ',' << cand[i].tax->name() << ':' << cand[i].hits;
         }
     }
     else {
-        if(cand.hits(0) > 0) {
-            const taxon* tax = db.ranks(db.taxon_of_target(cand.target(0)))[int(lowest)];
-            if(tax) os << tax->id() << ':' << cand.hits(0);
+        if(cand[0].hits > 0) {
+            const taxon* tax = db.ancestor(cand[0].tax, lowest);
+            if(tax) os << tax->id() << ':' << cand[0].hits;
         }
 
-        for(int i = 1; i < cand.count() && cand.hits(i) > 0; ++i) {
-            const taxon* tax = db.ranks(db.taxon_of_target(cand.target(i)))[int(lowest)];
-            if(tax) os << ',' << tax->id() << ':' << cand.hits(i);
-            ++i;
+        for(int i = 1; i < cand.size() && cand[i].hits > 0; ++i) {
+            const taxon* tax = db.ancestor(cand[i].tax,lowest);
+            if(tax) os << ',' << tax->id() << ':' << cand[i].hits;
         }
     }
 }
@@ -69,7 +64,7 @@ void show_matches(std::ostream& os,
 
     if(lowest == taxon_rank::Sequence) {
         for(const auto& r : matches) {
-            const taxon* tax = db.taxon_of_target(r.first.tgt);
+            const taxon* tax = r.first.tax;
             if(tax) os << tax->name()
                        << '/' << int(r.first.win)
                        << ':' << int(r.second) << ',';
@@ -77,7 +72,7 @@ void show_matches(std::ostream& os,
     }
     else {
         for(const auto& r : matches) {
-            const taxon* tax = db.ranks(db.taxon_of_target(r.first.tgt))[int(lowest)];
+            const taxon* tax = db.ancestor(r.first.tax, lowest);
             if(tax) os << tax->name() << ':' << int(r.second) << ',';
         }
     }
@@ -92,9 +87,9 @@ void show_candidate_ranges(std::ostream& os,
 {
     const auto w = db.target_window_stride();
 
-    for(int i = 0; i < cand.count(); ++i) {
-        os << '[' << (w * cand.window(i).beg)
-           << ',' << (w * cand.window(i).end) << "] ";
+    for(int i = 0; i < cand.size(); ++i) {
+        os << '[' << (w * cand[i].pos.beg)
+           << ',' << (w * cand[i].pos.end) << "] ";
     }
 }
 

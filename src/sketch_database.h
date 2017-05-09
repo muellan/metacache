@@ -147,17 +147,14 @@ private:
     taxon_id_of_target(target_id id) noexcept { return -id-1; }
 
 
-public:
     //-----------------------------------------------------
-    using sketch  = typename sketcher::sketch_type;  //range of features
-    using feature = typename sketch::value_type;
-
-    //-----------------------------------------------------
-    ///@brief location = (target index, window index)
-    struct location
+    /** @brief internal location representation = (target index, window index)
+     *         these are stored in the in-memory database and on disk
+     */
+    struct target_location
     {
         constexpr
-        location(target_id g = 0, window_id w = 0) noexcept :
+        target_location(target_id g = 0, window_id w = 0) noexcept :
             tgt{g}, win{w}
         {}
 
@@ -165,34 +162,63 @@ public:
         window_id win;
 
         friend bool
-        operator < (const location& a, const location& b) noexcept {
+        operator < (const target_location& a, const target_location& b) noexcept {
             if(a.tgt < b.tgt) return true;
             if(a.tgt > b.tgt) return false;
             return (a.win < b.win);
         }
 
-        friend void read_binary(std::istream& is, location& p) {
+        friend void read_binary(std::istream& is, target_location& p) {
             read_binary(is, p.tgt);
             read_binary(is, p.win);
         }
-        friend void write_binary(std::ostream& os, const location& p) {
+        friend void write_binary(std::ostream& os, const target_location& p) {
             write_binary(os, p.tgt);
             write_binary(os, p.win);
         }
     };
 
 
+public:
+    //-----------------------------------------------------
+    using sketch  = typename sketcher::sketch_type;  //range of features
+    using feature = typename sketch::value_type;
+
+
 private:
     //-----------------------------------------------------
     //"heart of the database": maps features to target locations
-    using feature_store = hash_multimap<feature,location, //key, value
+    using feature_store = hash_multimap<feature,target_location, //key, value
                               feature_hash,               //key hasher
                               std::equal_to<feature>,     //key comparator
-                              chunk_allocator<location>,  //value allocator
+                              chunk_allocator<target_location>,  //value allocator
                               std::allocator<feature>,    //bucket+key allocator
                               bucket_size_type>;          //location list size
 
+
 public:
+    //-----------------------------------------------------
+    /** @brief location = (target sequence taxon pointer, window index)
+     *         these are used to return match results
+     */
+    struct location
+    {
+        constexpr
+        location(const taxon* t = nullptr, window_id w = 0) noexcept :
+            tax{t}, win{w}
+        {}
+
+        const taxon* tax;
+        window_id win;
+
+        friend bool
+        operator < (const location& a, const location& b) noexcept {
+            if(a.tax < b.tax) return true;
+            if(a.tax > b.tax) return false;
+            return (a.win < b.win);
+        }
+    };
+
     //-------------------------------------------------------------------
     //map: location (= target window) -> number of featers
     using matches_per_location = std::map<location,match_count_type>;
@@ -421,7 +447,7 @@ public:
                 auto sk = targetSketcher_(b,e);
                 //insert features from sketch into database
                 for(const auto& f : sk) {
-                    auto it = features_.insert(f, location{targetCount, win});
+                    auto it = features_.insert(f, target_location{targetCount, win});
                     if(it->size() > maxLocsPerFeature_) {
                         features_.shrink(it, maxLocsPerFeature_);
                     }
@@ -536,11 +562,17 @@ public:
             ranksCache_.update(tax);
         }
     }
+    //-----------------------------------------------------
+    void reset_parent(const taxon& tax, const taxon& parent) {
+        if(taxa_.reset_parent(tax.id(), parent.id())) {
+            ranksCache_.update(tax);
+        }
+    }
 
     //-----------------------------------------------------
     full_lineage
     lineage(const taxon* tax) const noexcept {
-        return tax ? taxa_.lineage(*tax) : full_lineage();
+        return tax ? lineage(*tax) : full_lineage();
     }
     full_lineage
     lineage(const taxon& tax) const noexcept {
@@ -555,10 +587,11 @@ public:
     ranks(const taxon& tax) const noexcept {
         return ranksCache_[tax];
     }
+
     //-----------------------------------------------------
     const taxon*
     parent(const taxon* tax) const noexcept {
-        return tax ? taxa_.parent(*tax) : nullptr;
+        return tax ? parent(*tax) : nullptr;
     }
     const taxon*
     parent(const taxon& tax) const noexcept {
@@ -566,18 +599,35 @@ public:
     }
     //-----------------------------------------------------
     const taxon*
-    next_ranked(const taxon* tax) const noexcept {
-        return tax ? taxa_.next_ranked(*tax) : nullptr;
+    ancestor(const taxon* tax, taxon_rank r) const noexcept {
+        return tax ? ancestor(*tax,r) : nullptr;
     }
     const taxon*
-    next_ranked(const taxon& tax) const noexcept {
-        return taxa_.next_ranked(tax);
+    ancestor(const taxon& tax, taxon_rank r) const noexcept {
+        return ranksCache_[tax][int(r)];
+    }
+
+    //-----------------------------------------------------
+    const taxon*
+    next_ranked_ancestor(const taxon* tax) const noexcept {
+        return tax ? next_ranked_ancestor(*tax) : nullptr;
+    }
+    const taxon*
+    next_ranked_ancestor(const taxon& tax) const noexcept {
+        if(tax.is_sequence()) {
+            for(const taxon* a : ranksCache_[tax]) {
+                if(a->rank() != taxon_rank::none && a->rank() > tax.rank())
+                    return a;
+            }
+            return nullptr;
+        }
+        return taxa_.next_ranked_ancestor(tax);
     }
 
     //---------------------------------------------------------------
     const taxon*
     lca(const taxon* ta, const taxon* tb) const {
-        return (ta && tb) ? taxa_.lca(*ta,*tb) : nullptr;
+        return (ta && tb) ? lca(*ta,*tb) : nullptr;
     }
     const taxon*
     lca(const taxon& ta, const taxon& tb) const {
@@ -587,7 +637,7 @@ public:
     //---------------------------------------------------------------
     const taxon*
     ranked_lca(const taxon* ta, const taxon* tb) const {
-        return (ta && tb) ? ranksCache_.lca(*ta,*tb) : nullptr;
+        return (ta && tb) ? lca(*ta,*tb) : nullptr;
     }
     const taxon*
     ranked_lca(const taxon& ta, const taxon& tb) const {
@@ -651,10 +701,10 @@ public:
             [this, &consume] (iter_t b, iter_t e) {
                 auto sk = querySketcher_(b,e);
                 for(auto f : sk) {
-                    auto sit = features_.find(f);
-                    if(sit != features_.end()) {
-                        for(const auto& pos : *sit) {
-                            consume(pos);
+                    auto locs = features_.find(f);
+                    if(locs != features_.end()) {
+                        for(const auto& loc : *locs) {
+                            consume(location{targets_[loc.tgt], loc.win});
                         }
                     }
                 }
@@ -894,7 +944,7 @@ public:
         for(const auto& bucket : features_) {
             if(!bucket.empty()) {
                 os << bucket.key() << " -> ";
-                for(location p : bucket) {
+                for(target_location p : bucket) {
                     os << '(' << p.tgt << ',' << p.win << ')';
                 }
                 os << '\n';
@@ -904,13 +954,6 @@ public:
 
 
 private:
-    //---------------------------------------------------------------
-    void update_lineages()
-    {
-        //TODO
-    }
-
-
     //---------------------------------------------------------------
     sketcher targetSketcher_;
     sketcher querySketcher_;

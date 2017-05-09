@@ -125,7 +125,7 @@ using matches_per_location = database::matches_per_location;
 #endif
 
 using classification_candidates =
-    top_matches_in_contiguous_window_range<database,MC_VOTE_TOP>;
+    top_distinct_matches_in_contiguous_window_range<database,MC_VOTE_TOP>;
 
 
 } // namespace mc

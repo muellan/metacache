@@ -523,13 +523,13 @@ public:
     //---------------------------------------------------------------
     /** @brief return next taxon that has a rank assigned */
     const taxon*
-    next_ranked(const taxon& tax) const {
+    next_ranked_ancestor(const taxon& tax) const {
         if(tax.rank() != rank::none) return &tax;
-        return next_ranked(tax.id());
+        return next_ranked_ancestor(tax.id());
     }
     //-----------------------------------------------------
     const taxon*
-    next_ranked(taxon_id id) const
+    next_ranked_ancestor(taxon_id id) const
     {
         while(id != none_id()) {
             auto it = taxa_.find(taxon{id});

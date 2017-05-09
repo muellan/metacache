@@ -109,7 +109,7 @@ struct query_options
     taxon_rank excludedRank = taxon_rank::none;
     //
     std::uint16_t hitsMin  = 0;  //< 1 : deduced from database parameters
-    float hitsDiff = 0.5;
+    float hitsDiffFraction = 0.51;
     //maximum range in sequence that read (pair) is expected to be in
     std::size_t insertSizeMax = 0;
 
@@ -237,7 +237,9 @@ get_query_options(const args_parser& args)
 
     //query classification
     param.hitsMin  = args.get<std::uint16_t>("hitmin", defaults.hitsMin);
-    param.hitsDiff = args.get<float>("hitdiff", defaults.hitsDiff);
+    param.hitsDiffFraction = args.get<float>("hitdiff", defaults.hitsDiffFraction);
+    //interprest numbers > 1 as percentage
+    if(param.hitsDiffFraction > 1) param.hitsDiffFraction *= 0.01;
 
     //alignment
     param.showAlignment = args.contains("showalign");
@@ -323,13 +325,13 @@ get_query_options(const args_parser& args)
 template<class Sequence, class Index>
 inline auto
 make_view_from_window_range(
-    const Sequence& s, const index_range<Index>& winRange, int stride = 1)
+    const Sequence& s, const window_range<Index>& range, int stride = 1)
     -> decltype(make_view(s.begin(),s.end()))
 {
-    auto end = s.begin() + (stride * winRange.end);
+    auto end = s.begin() + (stride * range.end);
     if(end > s.end()) end = s.end();
 
-    return make_view(s.begin() + (stride * winRange.beg), end);
+    return make_view(s.begin() + (stride * range.beg), end);
 }
 
 
@@ -379,14 +381,14 @@ ground_truth(const database& db, const std::string& header)
     //try to extract query id and find the corresponding target in database
     const taxon* tax = nullptr;
     tax = db.taxon_with_name(extract_ncbi_accession_version_number(header));
-    if(tax) return db.next_ranked(tax);
+    if(tax) return db.next_ranked_ancestor(tax);
 
     tax = db.taxon_with_name(extract_ncbi_accession_number(header));
-    if(tax) return db.next_ranked(tax);
+    if(tax) return db.next_ranked_ancestor(tax);
 
     //try to extract id from header
     tax = db.taxon_with_id(extract_taxon_id(header));
-    if(tax) return db.next_ranked(tax);
+    if(tax) return db.next_ranked_ancestor(tax);
 
     return nullptr;
 }
@@ -403,15 +405,12 @@ void remove_hits_on_rank(const database& db,
                          const taxon& tax, taxon_rank rank,
                          matches_per_location& hits)
 {
-    const taxon* excl = db.ranks(tax)[int(rank)];
+    const taxon* excl = db.ancestor(tax,rank);
 
     auto maskedHits = hits;
     for(const auto& hit : hits) {
-        const taxon* tgt = db.taxon_of_target(hit.first.tgt);
-        if(tgt) {
-            auto t = db.ranks(*tgt)[int(rank)];
-            if(t != excl) maskedHits.insert(hit);
-        }
+        auto t = db.ancestor(hit.first.tax, rank);
+        if(t != excl) maskedHits.insert(hit);
     }
 
     hits.swap(maskedHits);
@@ -440,9 +439,8 @@ lowest_common_taxon(
     taxon_rank lowestRank = taxon_rank::subSpecies,
     taxon_rank highestRank = taxon_rank::Domain)
 {
-    if(cand.count() < 3) {
-        const taxon* tax = db.ranked_lca(db.taxon_of_target(cand.target(0)),
-                                         db.taxon_of_target(cand.target(1)) );
+    if(cand.size() < 3) {
+        const taxon* tax = db.ranked_lca(cand[0].tax, cand[1].tax);
 
         //classify if rank is below or at the highest rank of interest
         if(tax && tax->rank() <= highestRank) return tax;
@@ -453,15 +451,15 @@ lowest_common_taxon(
         }
 
         std::unordered_map<const taxon*,int> scores;
-        scores.rehash(2*cand.count());
+        scores.rehash(2*cand.size());
 
-        for(auto r = lowestRank; r <= highestRank; r = taxonomy::next_main_rank(r)) {
+        for(auto rank = lowestRank; rank <= highestRank; ++rank) {
             //hash-count taxon id occurrences on rank 'r'
             int totalscore = 0;
-            for(int i = 0, n = cand.count(); i < n; ++i) {
+            for(int i = 0, n = cand.size(); i < n; ++i) {
                 //use target id instead of taxon if at sequence level
-                const taxon* tax = db.ranks(db.taxon_of_target(cand.target(i)))[int(r)];
-                auto score = cand.hits(i);
+                const taxon* tax = db.ancestor(cand[i].tax, rank);
+                auto score = cand[i].hits;
                 totalscore += score;
                 auto it = scores.find(tax);
                 if(it != scores.end()) {
@@ -506,18 +504,18 @@ sequence_classification(
     const classification_candidates& cand)
 {
     //sum of top-2 hits < threshold => considered not classifiable
-    if((cand.hits(0) + cand.hits(1)) < param.hitsMin) return nullptr;
+    if((cand[0].hits + cand[1].hits) < param.hitsMin) return nullptr;
 
     //either top 2 are the same sequences with at least 'hitsMin' many hits
     //(checked before) or hit difference between these top 2 is above threshhold
-    if( (cand.target(0) == cand.target(1))
-        || (cand.hits(0) - cand.hits(1)) >= param.hitsMin)
+    if( (cand[0].tax == cand[1].tax)
+        || (cand[0].hits - cand[1].hits) >= param.hitsMin)
     {
         //return top candidate
-        return db.taxon_of_target(cand.target(0));
+        return cand[0].tax;
     }
 
-    return lowest_common_taxon(db, cand, param.hitsDiff,
+    return lowest_common_taxon(db, cand, param.hitsDiffFraction,
                                param.lowestRank, param.highestRank);
 }
 
@@ -678,7 +676,7 @@ void process_database_answer(
     //optional alignment ------------------------------
     if(opt.testAlignment && cls) {
         //check which of the top sequences has a better alignment
-        const taxon* tgtTax = db.taxon_of_target(tophits.target(0));
+        const taxon* tgtTax = tophits[0].tax;
         if(tgtTax) {
             const auto& src = tgtTax->source();
             try {
@@ -689,7 +687,7 @@ void process_database_answer(
                 if(reader->has_next()) {
                     auto tgtSequ = reader->next().data;
                     auto subject = make_view_from_window_range(tgtSequ,
-                                        tophits.window(0),
+                                        tophits[0].pos,
                                         db.target_window_stride());
 
                     auto align = make_alignment(query1, query2, subject,
@@ -705,8 +703,8 @@ void process_database_answer(
                            << opt.comment << "  score  " << align.score
                            << "  aligned to "
                            << src.filename << " #" << src.index
-                           << " in range [" << (w * tophits.window(0).beg)
-                           << ',' << (w * tophits.window(0).end) << "]\n"
+                           << " in range [" << (w * tophits[0].pos.beg)
+                           << ',' << (w * tophits[0].pos.end) << "]\n"
                            << opt.comment << "  query  " << align.query << '\n'
                            << opt.comment << "  target " << align.subject;
                     }
