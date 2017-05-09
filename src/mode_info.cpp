@@ -71,6 +71,21 @@ void show_feature_map(const args_parser& args)
 
 
 
+/*****************************************************************************
+ *
+ *
+ *****************************************************************************/
+void show_feature_counts(const args_parser& args)
+{
+    auto dbfilename = database_name(args);
+    auto db = make_database<database>(dbfilename);
+    print_properties(db);
+    std::cout << "\n===================================================\n";
+    db.print_feature_counts(std::cout);
+    std::cout << "===================================================\n";
+}
+
+
 
 /*****************************************************************************
  *
@@ -238,6 +253,9 @@ void main_mode_info(const args_parser& args)
         }
         else if(mode == "features" || mode == "featuremap") {
             show_feature_map(args);
+        }
+        else if(mode == "featurecounts" || mode == "featuresizes") {
+            show_feature_counts(args);
         }
         else {
             std::cerr << "Info mode '" << mode << "' not recognized.\n"
