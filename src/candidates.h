@@ -174,7 +174,6 @@ public:
                         break;
                     }
                 }
-
                 //reset to new target
                 win  = lst->first.win;
                 tax  = lst->first.tax;

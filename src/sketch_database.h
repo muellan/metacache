@@ -614,7 +614,7 @@ public:
     }
     const taxon*
     next_ranked_ancestor(const taxon& tax) const noexcept {
-        if(tax.is_sequence()) {
+        if(tax.rank() == taxon_rank::Sequence) {
             for(const taxon* a : ranksCache_[tax]) {
                 if(a->rank() != taxon_rank::none && a->rank() > tax.rank())
                     return a;
@@ -659,7 +659,7 @@ public:
         auto coverage = std::uint_least64_t(0);
 
         for(const auto& tax : taxa_) {
-            if(tax.is_sequence()) {
+            if(tax.rank() == taxon_rank::Sequence) {
                 for(const taxon* t : taxa_.lineage(tax)) {
                     if(t == &covered) ++coverage;
                 }
@@ -678,7 +678,7 @@ public:
     //-----------------------------------------------------
     bool covers(const taxon& covered) const {
         for(const auto& tax : taxa_) {
-            if(tax.is_sequence()) {
+            if(tax.rank() == taxon_rank::Sequence) {
                 for(const taxon* t : taxa_.lineage(tax)) {
                     if(t == &covered) return true;
                 }
@@ -842,7 +842,7 @@ public:
         //sequence id lookup
         sid2tid.clear();
         for(const auto& t : taxa_) {
-            if(t.is_sequence()) sid2tid.insert({t.name(), t.id()});
+            if(t.rank() == taxon_rank::Sequence) sid2tid.insert({t.name(), t.id()});
         }
 
         //ranked linage cache
@@ -1088,7 +1088,7 @@ void print_properties(const sketch_database<S,K,H,G,W,L>& db)
         std::cout
         << "------------------------------------------------\n"
         << "targets           " << db.target_count() << '\n'
-        << "tanked targets    " << numRankedTargets << '\n'
+        << "ranked targets    " << numRankedTargets << '\n'
         << "taxa in tree      " << db.non_target_taxon_count() << '\n';
     }
 

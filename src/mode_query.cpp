@@ -675,9 +675,9 @@ void process_database_answer(
 
     //optional alignment ------------------------------
     if(opt.testAlignment && cls) {
-        //check which of the top sequences has a better alignment
+        //try to align to top target
         const taxon* tgtTax = tophits[0].tax;
-        if(tgtTax) {
+        if(tgtTax && tgtTax->rank() == taxon_rank::Sequence) {
             const auto& src = tgtTax->source();
             try {
                 //load candidate file and forward to sequence

@@ -460,7 +460,7 @@ void rank_targets_post_process(database& db,
         if(tax) {
             auto i = targetTaxa.find(tax);
             if(i != targetTaxa.end()) {
-                db.reset_parent(*tax, taxid);
+                db.reset_parent(**i, taxid);
                 targetTaxa.erase(i);
                 if(targetTaxa.empty()) break;
             }

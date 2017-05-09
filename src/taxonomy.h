@@ -286,9 +286,6 @@ public:
             return taxonomy::rank_name(rank_);
         }
 
-        bool is_sequence() const noexcept {
-            return rank_ == rank_type::Sequence;
-        }
         bool has_parent() const noexcept {
             return parent_ != taxonomy::none_id();
         }
