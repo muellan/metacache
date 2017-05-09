@@ -96,12 +96,13 @@ class top_distinct_matches_in_contiguous_window_range
 public:
     //---------------------------------------------------------------
     using matches_per_location = typename Database::matches_per_location;
-    using target_id  = typename Database::target_id;
-    using window_id  = typename Database::window_id;
-    using taxon      = typename Database::taxon;
-    using taxon_rank = typename Database::taxon_rank;
-    using candidate  = match_candidate<Database>;
-    using hit_count  = typename candidate::count_type;
+    using target_id    = typename Database::target_id;
+    using window_id    = typename Database::window_id;
+    using taxon        = typename Database::taxon;
+    using taxon_rank   = typename Database::taxon_rank;
+    using candidate    = match_candidate<Database>;
+    using window_range = typename candidate::window_range;
+    using hit_count    = typename candidate::count_type;
 
 
     //---------------------------------------------------------------
@@ -109,25 +110,24 @@ public:
 
 
     /****************************************************************
-     * @pre matches must be sorted by target (first) and window (second)
+     * @pre matches must be sorted by taxon (first) and window (second)
      */
     top_distinct_matches_in_contiguous_window_range(
-        const Database&,
+        const Database& db,
         const matches_per_location& matches,
+        //max. allowed number of windows in a contiguous range
         window_id numWindows = 3,
-        taxon_rank = taxon_rank::Sequence)
+        //list only the best candidate of a taxon on rank 'mergeOn'
+        taxon_rank mergeOn = taxon_rank::Sequence)
     :
         top_{}
     {
         using std::begin;
         using std::end;
 
-        const taxon* tax = nullptr;
+        candidate curBest;
         window_id win = 0;
-        window_id maxWinBeg = 0;
-        window_id maxWinEnd = 0;
         hit_count hits = 0;
-        hit_count maxHits = 0;
 
         //check hits per query sequence
         auto fst = begin(matches);
@@ -136,7 +136,7 @@ public:
             //look for neighboring windows with the highest total hit count
             //as long as we are in the same target and the windows are in a
             //contiguous range
-            if(lst->first.tax == tax) {
+            if(lst->first.tax == curBest.tax) {
                 //add new hits to the right
                 hits += lst->second;
                 //subtract hits to the left that fall out of range
@@ -149,38 +149,28 @@ public:
                     win = fst->first.win;
                 }
                 //track best of the local sub-ranges
-                if(hits > maxHits) {
-                    maxHits = hits;
-                    maxWinBeg = win;
-                    maxWinEnd = win + distance(fst,lst);
+                if(hits > curBest.hits) {
+                    curBest.hits = hits;
+                    curBest.pos.beg = win;
+                    curBest.pos.end = win + distance(fst,lst);
                 }
             }
-            else {
-                //keep track of 'maxNo' largest hits for *distinct* targets
-                for(int i = 0; i < maxNo; ++i) {
-                    if(maxHits >= top_[i].hits) {
-                        //shift targets left of tax to the right
-                        // for(int j = maxNo-1; j > i; --j) {
-                        for(int j = maxNo-1; j > i; --j) {
-                            top_[j].tax  = top_[j-1].tax;
-                            top_[j].hits = top_[j-1].hits;
-                            top_[j].pos  = top_[j-1].pos;
-                        }
-                        //set hits & associated sequence (position)
-                        top_[i].hits = maxHits;
-                        top_[i].tax = tax;
-                        top_[i].pos.beg = maxWinBeg;
-                        top_[i].pos.end = maxWinEnd;
-                        break;
+            else { //end of current target
+                if(curBest.tax) {
+                    if(mergeOn > taxon_rank::Sequence) {
+                        auto ancestor = db.ancestor(curBest.tax, mergeOn);
+                        if(ancestor) curBest.tax = ancestor;
                     }
+                    update_with(curBest);
                 }
+
                 //reset to new target
                 win  = lst->first.win;
-                tax  = lst->first.tax;
                 hits = lst->second;
-                maxHits = hits;
-                maxWinBeg = win;
-                maxWinEnd = win;
+                curBest.tax  = lst->first.tax;
+                curBest.hits = hits;
+                curBest.pos.beg = win;
+                curBest.pos.end = win;
                 fst = lst;
             }
 
@@ -189,9 +179,7 @@ public:
     }
 
     int size() const noexcept {
-        for(int i = 0; i < maxNo; ++i) {
-            if(!top_[i].tax) return i;
-        }
+        for(int i = 0; i < maxNo; ++i) if(!top_[i].tax) return i;
         return maxNo;
     }
 
@@ -206,6 +194,53 @@ public:
     }
 
 private:
+    //---------------------------------------------------------------
+    /** @brief keeps track of 'maxNo' taxa with largest hits */
+    void update_with(const candidate& latest)
+    {
+        if(latest.tax->rank() == taxon_rank::Sequence) {
+            //note: sequence-level duplicates are not possible
+            for(int i = 0; i < maxNo; ++i) {
+                if(latest.hits >= top_[i].hits) {
+                    top_[i] = latest;
+                    //shift targets left of tax to the right
+                    for(int j = maxNo-1; j > i; --j) top_[j] = top_[j-1];
+                    return;
+                }
+            }
+        }
+        else {
+            for(int i = 0; i < maxNo; ++i) {
+                if(top_[i].tax == latest.tax) { //same taxon already in
+                    //more hits -> replace
+                    if(latest.hits > top_[i].hits) {
+                        top_[i] = latest;
+                        return;
+                    }
+                    //less hits -> done
+                    if(latest.hits <= top_[i].hits) return;
+                }
+                //not same taxon and more hits
+                else if(latest.hits > top_[i].hits) {
+                    top_[i] = latest;
+                    //look for duplicates (can only be behind the current one)
+                    for(int j = i+1; j < maxNo; ++j) {
+                        if(top_[j].tax == latest.tax) {
+                            //shift targets right of j to the left
+                            for(int k = j+1; k < maxNo; ++k) top_[k-1] = top_[k];
+                            //blank out last one
+                            top_[maxNo-1].tax = nullptr;
+                            top_[maxNo-1].hits = 0;
+                            return; //can only happen once
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+    //---------------------------------------------------------------
     candidate top_[maxNo];
 };
 

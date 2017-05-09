@@ -86,6 +86,7 @@ using sequence = std::string;
 
 /**************************************************************************
  * @brief controls how nucleotide sequences are transformed into 'features'
+ *        (called "h_1" in the paper)
  */
 using sketching_hash = same_size_hash<kmer_type>;
 
@@ -95,7 +96,9 @@ using sketcher = single_function_min_hasher<kmer_type,sketching_hash>;
 
 
 /**************************************************************************
- * @brief hash function for database hash multi-map
+ * @brief hash function for database hash multi-map (called "h_2" in the paper)
+ *        note: std::hash<SomeUnsignedIntegerType>
+ *              is often implemented as the identity function
  */
 using feature_hash = std::hash<typename sketcher::feature_type>;
 //using feature_hash = same_size_hash<typename sketcher::feature_type>;

@@ -242,7 +242,7 @@ get_query_options(const args_parser& args)
     if(param.hitsDiffFraction > 1) param.hitsDiffFraction *= 0.01;
 
     //alignment
-    param.showAlignment = args.contains("showalign");
+    param.showAlignment = args.contains({"showalign", "show-align", "show_align"});
 
     param.testAlignment = param.showAlignment ||
                           args.contains({"align", "alignment",
@@ -436,7 +436,7 @@ lowest_common_taxon(
     const database& db,
     const classification_candidates& cand,
     float trustedMajority,
-    taxon_rank lowestRank = taxon_rank::subSpecies,
+    taxon_rank lowestRank = taxon_rank::Sequence,
     taxon_rank highestRank = taxon_rank::Domain)
 {
     if(cand.size() < 3) {
@@ -446,9 +446,7 @@ lowest_common_taxon(
         if(tax && tax->rank() <= highestRank) return tax;
     }
     else {
-        if(lowestRank == taxon_rank::Sequence) {
-            lowestRank = taxonomy::next_main_rank(lowestRank);
-        }
+        if(lowestRank == taxon_rank::Sequence) ++lowestRank;
 
         std::unordered_map<const taxon*,int> scores;
         scores.rehash(2*cand.size());
@@ -499,9 +497,8 @@ lowest_common_taxon(
  *
  *****************************************************************************/
 const taxon*
-sequence_classification(
-    const database& db, const query_options& param,
-    const classification_candidates& cand)
+classification(const database& db, const query_options& param,
+               const classification_candidates& cand)
 {
     //sum of top-2 hits < threshold => considered not classifiable
     if((cand[0].hits + cand[1].hits) < param.hitsMin) return nullptr;
@@ -608,8 +605,8 @@ void process_database_answer(
         std::max(query1.size() + query2.size(), opt.insertSizeMax) /
         db.target_window_stride() ));
 
-    classification_candidates tophits {db, hits, numWindows};
-    const taxon* cls = sequence_classification(db, opt, tophits );
+    classification_candidates tophits {db, hits, numWindows, opt.lowestRank};
+    const taxon* cls = classification(db, opt, tophits );
 
     //evaluate classification -------------------
     if(opt.testPrecision) {
