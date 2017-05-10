@@ -197,6 +197,10 @@ private:
 
 
 public:
+    //---------------------------------------------------------------
+    using feature_count_type = typename feature_store::size_type;
+
+
     //-----------------------------------------------------
     /** @brief location = (target sequence taxon pointer, window index)
      *         these are used to return match results
@@ -353,17 +357,26 @@ public:
     }
 
     //-----------------------------------------------------
-    void remove_features_with_more_locations_than(bucket_size_type n)
+    feature_count_type
+    remove_features_with_more_locations_than(bucket_size_type n)
     {
+        feature_count_type rem = 0;
         for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
-            if(i->size() > n) features_.clear(i);
+            if(i->size() > n) {
+                features_.clear(i);
+                ++rem;
+            }
         }
+        return rem;
     }
 
 
     //---------------------------------------------------------------
-    void remove_ambiguous_features(taxon_rank r, bucket_size_type maxambig)
+    feature_count_type
+    remove_ambiguous_features(taxon_rank r, bucket_size_type maxambig)
     {
+        feature_count_type rem = 0;
+
         if(taxa_.empty()) {
             throw std::runtime_error{"no taxonomy available!"};
         }
@@ -378,6 +391,7 @@ public:
                         targets.insert(loc.tgt);
                         if(targets.size() > maxambig) {
                             features_.clear(i);
+                            ++rem;
                             break;
                         }
                     }
@@ -394,6 +408,7 @@ public:
                             taxa.insert(ranksCache_[*tgtTax][int(r)]);
                             if(taxa.size() > maxambig) {
                                 features_.clear(i);
+                                ++rem;
                                 break;
                             }
                         }
@@ -401,6 +416,7 @@ public:
                 }
             }
         }
+        return rem;
     }
 
 

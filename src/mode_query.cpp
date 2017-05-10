@@ -134,8 +134,10 @@ struct query_options
     // tuning parameters
     //-----------------------------------------------------
     float maxLoadFactor = -1;        //< 0 : use value from database
-    int maxTargetsPerSketchVal = -1; //< 0 : use value from database
+    int maxLocationsPerFeature = -1; //< 0 : use value from database
     int numThreads = 1;
+    bool removeOverpopulatedFeatures = false;
+
 
     //-----------------------------------------------------
     //filenames
@@ -303,9 +305,13 @@ get_query_options(const args_parser& args)
     param.maxLoadFactor = args.get<float>({"max-load-fac", "max_load_fac"},
                                           defaults.maxLoadFactor);
 
-    param.maxTargetsPerSketchVal = args.get<int>({"max_locations_per_feature"
+    param.maxLocationsPerFeature = args.get<int>({"max_locations_per_feature"
                                                   "max-locations-per-feature"},
-                                                defaults.maxTargetsPerSketchVal);
+                                                defaults.maxLocationsPerFeature);
+
+    param.removeOverpopulatedFeatures = args.get<int>({"remove-overpopulated-features",
+                                                       "remove_overpopulated_features" },
+                                                      defaults.maxLocationsPerFeature);
 
     param.numThreads = args.get<int>("threads",
                                      std::thread::hardware_concurrency());
@@ -1027,8 +1033,12 @@ void main_mode_query(const args_parser& args)
     if(param.maxLoadFactor > 0) {
         db.max_load_factor(param.maxLoadFactor);
     }
-    if(param.maxTargetsPerSketchVal > 1) {
-        db.remove_features_with_more_locations_than(param.maxTargetsPerSketchVal);
+    if(param.maxLocationsPerFeature > 1) {
+        db.max_locations_per_feature(param.maxLocationsPerFeature);
+    }
+    if(param.removeOverpopulatedFeatures) {
+        db.remove_features_with_more_locations_than(
+            database::max_supported_locations_per_feature()-1);
     }
 
     //deduced query parameters

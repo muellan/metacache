@@ -56,6 +56,7 @@ struct build_options
 
     float maxLoadFactor = -1;           //< 0 : use database default
     int maxLocationsPerFeature = database::max_supported_locations_per_feature();
+    bool removeOverpopulatedFeatures = true;
 
     taxon_rank removeAmbigFeaturesOnRank = taxon_rank::none;
     int maxTaxaPerFeature = 1;
@@ -103,6 +104,10 @@ get_build_options(const args_parser& args)
     param.maxLocationsPerFeature = args.get<int>({"max-locations-per-feature",
                                                   "max_locations_per_feature" },
                                                  defaults.maxLocationsPerFeature);
+
+    param.removeOverpopulatedFeatures = args.get<int>({"remove-overpopulated-features",
+                                                       "remove_overpopulated_features" },
+                                                      defaults.maxLocationsPerFeature);
 
     param.removeAmbigFeaturesOnRank = taxonomy::rank_from_name(
         args.get<std::string>({"remove-ambig-features",
@@ -718,15 +723,26 @@ void add_to_database(database& db, const build_options& param)
 
     try_to_rank_unranked_targets(db, param);
 
+    if(param.removeOverpopulatedFeatures) {
+        std::cout << "\nRemoving overpopulated features... " << std::flush;
+
+        auto n = db.remove_features_with_more_locations_than(
+                        database::max_supported_locations_per_feature()-1);
+
+        std::cout << " removed " << n << "." << std::endl;
+    }
+
     if(param.removeAmbigFeaturesOnRank != taxon_rank::none &&
         db.non_target_taxon_count() > 1)
     {
         std::cout << "\nRemoving ambiguous features on rank "
                   << taxonomy::rank_name(param.removeAmbigFeaturesOnRank)
-                  << "..." << std::endl;
+                  << "... " << std::flush;
 
-        db.remove_ambiguous_features(param.removeAmbigFeaturesOnRank,
-                                     param.maxTaxaPerFeature);
+        auto n = db.remove_ambiguous_features(param.removeAmbigFeaturesOnRank,
+                                              param.maxTaxaPerFeature);
+
+        std::cout << " removed " << n << "." << std::endl;
 
         print_properties(db);
         std::cout << '\n';

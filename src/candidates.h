@@ -202,38 +202,28 @@ private:
             //note: sequence-level duplicates are not possible
             for(int i = 0; i < maxNo; ++i) {
                 if(latest.hits >= top_[i].hits) {
-                    top_[i] = latest;
                     //shift targets left of tax to the right
                     for(int j = maxNo-1; j > i; --j) top_[j] = top_[j-1];
+                    top_[i] = latest;
                     return;
                 }
             }
         }
         else {
             for(int i = 0; i < maxNo; ++i) {
-                if(top_[i].tax == latest.tax) { //same taxon already in
-                    //more hits -> replace
-                    if(latest.hits > top_[i].hits) {
-                        top_[i] = latest;
-                        return;
-                    }
-                    //less hits -> done
-                    if(latest.hits <= top_[i].hits) return;
-                }
-                //not same taxon and more hits
-                else if(latest.hits > top_[i].hits) {
-                    top_[i] = latest;
-                    //look for duplicates (can only be behind the current one)
-                    for(int j = i+1; j < maxNo; ++j) {
-                        if(top_[j].tax == latest.tax) {
-                            //shift targets right of j to the left
-                            for(int k = j+1; k < maxNo; ++k) top_[k-1] = top_[k];
-                            //blank out last one
-                            top_[maxNo-1].tax = nullptr;
-                            top_[maxNo-1].hits = 0;
-                            return; //can only happen once
+                if(latest.hits >= top_[i].hits) {
+                    //check if tgt already in list
+                    int pos = maxNo-1;
+                    for(int j = i; j < maxNo; ++j) {
+                        if(latest.tax == top_[j].tax) {
+                            pos = j;
+                            break;
                         }
                     }
+                    //shift targets left of tgt to the right
+                    for(int j = pos; j > i; --j) top_[j] = top_[j-1];
+                    top_[i] = latest;
+                    break;
                 }
             }
         }
