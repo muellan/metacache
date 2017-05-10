@@ -305,7 +305,7 @@ get_query_options(const args_parser& args)
     param.maxLoadFactor = args.get<float>({"max-load-fac", "max_load_fac"},
                                           defaults.maxLoadFactor);
 
-    param.maxLocationsPerFeature = args.get<int>({"max_locations_per_feature"
+    param.maxLocationsPerFeature = args.get<int>({"max_locations_per_feature",
                                                   "max-locations-per-feature"},
                                                 defaults.maxLocationsPerFeature);
 
