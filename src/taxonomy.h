@@ -48,7 +48,8 @@ class taxonomy
 {
 public:
     //---------------------------------------------------------------
-    using taxon_id  = std::int_least64_t;
+    using taxon_id   = std::int_least64_t;
+    using taxon_name = std::string;
 
     static constexpr taxon_id none_id() noexcept { return 0; }
 
@@ -276,7 +277,7 @@ public:
 
         taxon_id id() const noexcept { return id_; }
 
-        std::string name() const noexcept { return name_; }
+        const taxon_name& name() const noexcept { return name_; }
 
         rank_type rank() const noexcept { return rank_; }
 
@@ -317,7 +318,7 @@ public:
     private:
         taxon_id id_;
         taxon_id parent_;
-        std::string name_;
+        taxon_name name_;
         file_source source_;
         rank_type rank_;
     };

@@ -113,11 +113,10 @@ public:
     using bucket_size_type = BucketSizeT;
     using match_count_type = std::uint16_t;
     //-----------------------------------------------------
-    using sequence_id = std::string;
-    //-----------------------------------------------------
-    using taxon_id   = taxonomy::taxon_id;
-    using taxon      = taxonomy::taxon;
-    using taxon_rank = taxonomy::rank;
+    using taxon_id    = taxonomy::taxon_id;
+    using taxon       = taxonomy::taxon;
+    using taxon_rank  = taxonomy::rank;
+    using sequence_id = taxonomy::taxon_name;
     //-----------------------------------------------------
     using ranked_lineage = taxonomy::ranked_lineage;
     using full_lineage   = taxonomy::full_lineage;
@@ -242,7 +241,7 @@ public:
         targets_{},
         taxa_{},
         ranksCache_{taxa_, taxon_rank::Sequence},
-        sid2tid{}
+        name2tax{}
     {
         features_.max_load_factor(0.8);
     }
@@ -260,7 +259,7 @@ public:
         targets_{},
         taxa_{},
         ranksCache_{taxa_, taxon_rank::Sequence},
-        sid2tid{}
+        name2tax{}
     {
         features_.max_load_factor(0.8);
     }
@@ -403,14 +402,11 @@ public:
                 if(!i->empty()) {
                     std::set<const taxon*> taxa;
                     for(auto loc : *i) {
-                        const taxon* tgtTax = taxon_of_target(loc.tgt);
-                        if(tgtTax) {
-                            taxa.insert(ranksCache_[*tgtTax][int(r)]);
-                            if(taxa.size() > maxambig) {
-                                features_.clear(i);
-                                ++rem;
-                                break;
-                            }
+                        taxa.insert(ranksCache_[*targets_[loc.tgt]][int(r)]);
+                        if(taxa.size() > maxambig) {
+                            features_.clear(i);
+                            ++rem;
+                            break;
                         }
                     }
                 }
@@ -438,19 +434,20 @@ public:
         if(seq.empty()) return false;
 
         //don't allow non-unique sequence ids
-        auto it = sid2tid.find(sid);
-        if(it != sid2tid.end()) return false;
+        if(name2tax.find(sid) != name2tax.end()) return false;
 
-        //allows lookup via sequence id (e.g. NCBI accession number)
         const auto targetCount = target_id(targets_.size());
         const auto taxid = taxon_id_of_target(targetCount);
-        sid2tid.insert({sid, taxid});
 
         //insert sequence metadata as a new taxon
         if(parentTaxid < 1) parentTaxid = 0;
         auto nit = taxa_.emplace(
             taxid, parentTaxid, std::move(sid),
             taxon_rank::Sequence, std::move(source));
+
+        //allows lookup via sequence id (e.g. NCBI accession number)
+        const taxon* newtax = &(*nit);
+        name2tax.insert({sid, newtax});
 
         //should never happen
         if(nit == taxa_.end()) {
@@ -472,7 +469,7 @@ public:
             });
 
         //target id -> taxon lookup table
-        targets_.push_back(&(*nit));
+        targets_.push_back(newtax);
 
         return true;
     }
@@ -500,7 +497,7 @@ public:
     //---------------------------------------------------------------
     void clear() {
         ranksCache_.clear();
-        sid2tid.clear();
+        name2tax.clear();
         features_.clear();
     }
 
@@ -511,7 +508,7 @@ public:
      */
     void clear_without_deallocation() {
         ranksCache_.clear();
-        sid2tid.clear();
+        name2tax.clear();
         features_.clear_without_deallocation();
     }
 
@@ -528,18 +525,15 @@ public:
         return taxa_[id];
     }
     //-----------------------------------------------------
+    /**
+     * @brief will only find sequence-level taxon names == sequence id
+     */
     const taxon*
-    taxon_with_name(const sequence_id& sid) const noexcept {
-        if(sid.empty()) return nullptr;
-        auto i = sid2tid.find(sid);
-        if(i == sid2tid.end()) return nullptr;
-        return (i->second < target_count()) ? targets_[i->second] : nullptr;
-    }
-    //-----------------------------------------------------
-    const taxon*
-    taxon_of_target(target_id id) const noexcept {
-        if(id >= targets_.size()) return nullptr;
-        return targets_[id];
+    taxon_with_name(const sequence_id& name) const noexcept {
+        if(name.empty()) return nullptr;
+        auto i = name2tax.find(name);
+        if(i == name2tax.end()) return nullptr;
+        return i->second;
     }
 
 
@@ -848,7 +842,6 @@ public:
         read_binary(is, targetCount);
         if(targetCount < 1) return;
 
-
         //update target id -> target taxon lookup table
         targets_.reserve(targetCount);
         for(decltype(targetCount) i = 0 ; i < targetCount; ++i) {
@@ -856,9 +849,10 @@ public:
         }
 
         //sequence id lookup
-        sid2tid.clear();
+        name2tax.clear();
         for(const auto& t : taxa_) {
-            if(t.rank() == taxon_rank::Sequence) sid2tid.insert({t.name(), t.id()});
+            if(t.rank() == taxon_rank::Sequence)
+                name2tax.insert({t.name(), &t});
         }
 
         //ranked linage cache
@@ -993,7 +987,7 @@ private:
     std::vector<const taxon*> targets_;
     taxonomy taxa_;
     ranked_lineages_cache ranksCache_;
-    std::map<sequence_id,taxon_id> sid2tid;
+    std::map<sequence_id,const taxon*> name2tax;
 };
 
 
