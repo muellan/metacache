@@ -81,45 +81,44 @@ get_build_options(const args_parser& args)
 {
     const build_options defaults;
 
-    build_options param;
+    build_options opt;
 
-    param.dbfile = database_name(args);
+    opt.dbfile = database_name(args);
 
-    param.infiles = sequence_filenames(args);
+    opt.infiles = sequence_filenames(args);
 
     if(args.contains("silent")) {
-        param.infoMode = build_info::silent;
+        opt.infoMode = build_info::silent;
     } else if(args.contains("verbose")) {
-        param.infoMode = build_info::verbose;
+        opt.infoMode = build_info::verbose;
     }
 
-    param.kmerlen   = args.get<int>({"kmerlen"}, defaults.kmerlen);
-    param.sketchlen = args.get<int>({"sketchlen"}, defaults.sketchlen);
-    param.winlen    = args.get<int>({"winlen"}, defaults.winlen);
-    param.winstride = args.get<int>({"winstride"}, param.winlen - param.kmerlen + 1);
+    opt.kmerlen   = args.get<int>({"kmerlen"}, defaults.kmerlen);
+    opt.sketchlen = args.get<int>({"sketchlen"}, defaults.sketchlen);
+    opt.winlen    = args.get<int>({"winlen"}, defaults.winlen);
+    opt.winstride = args.get<int>({"winstride"}, opt.winlen - opt.kmerlen + 1);
 
-    param.maxLoadFactor = args.get<float>({"max-load-fac", "max_load_fac"},
+    opt.maxLoadFactor = args.get<float>({"max-load-fac", "max_load_fac"},
                                           defaults.maxLoadFactor);
 
-    param.maxLocationsPerFeature = args.get<int>({"max-locations-per-feature",
+    opt.maxLocationsPerFeature = args.get<int>({"max-locations-per-feature",
                                                   "max_locations_per_feature" },
                                                  defaults.maxLocationsPerFeature);
 
-    param.removeOverpopulatedFeatures = args.get<int>({"remove-overpopulated-features",
-                                                       "remove_overpopulated_features" },
-                                                      defaults.maxLocationsPerFeature);
+    opt.removeOverpopulatedFeatures = args.contains({"remove-overpopulated-features",
+                                                     "remove_overpopulated_features" });
 
-    param.removeAmbigFeaturesOnRank = taxonomy::rank_from_name(
+    opt.removeAmbigFeaturesOnRank = taxonomy::rank_from_name(
         args.get<std::string>({"remove-ambig-features",
                                "remove_ambig_features"}, "none"));
 
-    param.maxTaxaPerFeature = args.get<int>({"max-ambig-per-feature",
+    opt.maxTaxaPerFeature = args.get<int>({"max-ambig-per-feature",
                                              "max_ambig_per_feature"},
                                             defaults.maxTaxaPerFeature);
 
-    param.taxonomy = get_taxonomy_options(args);
+    opt.taxonomy = get_taxonomy_options(args);
 
-    return param;
+    return opt;
 }
 
 
@@ -254,12 +253,12 @@ make_taxonomic_hierarchy(const std::string& taxNodesFile,
  *
  *****************************************************************************/
 void load_taxonomy_into_database(database& db,
-                                 const build_options& param)
+                                 const build_options& opt)
 {
     db.reset_taxa_above_sequence_level(
-        make_taxonomic_hierarchy(param.taxonomy.nodesFile,
-                                 param.taxonomy.namesFile,
-                                 param.taxonomy.mergeFile) );
+        make_taxonomic_hierarchy(opt.taxonomy.nodesFile,
+                                 opt.taxonomy.namesFile,
+                                 opt.taxonomy.mergeFile) );
 
     std::cout << "Taxonomy applied to database." << std::endl;
 }
@@ -465,7 +464,7 @@ void rank_targets_post_process(database& db,
         if(tax) {
             auto i = targetTaxa.find(tax);
             if(i != targetTaxa.end()) {
-                db.reset_parent(**i, taxid);
+                db.reset_parent(*tax, taxid);
                 targetTaxa.erase(i);
                 if(targetTaxa.empty()) break;
             }
@@ -511,7 +510,7 @@ unranked_targets(const database& db)
  *
  *
  *****************************************************************************/
-void try_to_rank_unranked_targets(database& db, const build_options& param)
+void try_to_rank_unranked_targets(database& db, const build_options& opt)
 {
     auto unranked = unranked_targets(db);
 
@@ -519,7 +518,7 @@ void try_to_rank_unranked_targets(database& db, const build_options& param)
         std::cout << unranked.size()
                   << " targets could not be ranked." << std::endl;
 
-        for(const auto& file : param.taxonomy.mappingPostFiles) {
+        for(const auto& file : opt.taxonomy.mappingPostFiles) {
             rank_targets_post_process(db, unranked, file);
         }
     }
@@ -583,7 +582,6 @@ void add_targets_to_database(database& db,
             auto reader = make_sequence_reader(filename);
             while(reader->has_next()) {
 
-
                 auto sequ = reader->next();
                 if(!sequ.data.empty()) {
                     auto seqId = extract_sequence_id(sequ.header);
@@ -612,14 +610,12 @@ void add_targets_to_database(database& db,
                         }
                     }
                     //no valid taxid assigned -> try to find one in annotation
-                    if(parentTaxId > 0) {
-                        if(infoMode == build_info::verbose)
-                            std::cout << "[" << seqId << ":" << parentTaxId << "] ";
-                    }
-                    else {
-                        parentTaxId = extract_taxon_id(sequ.header);
-                        if(infoMode == build_info::verbose)
-                            std::cout << "[" << seqId << "] ";
+                    if(parentTaxId < 1) parentTaxId = extract_taxon_id(sequ.header);
+
+                    if(infoMode == build_info::verbose) {
+                        std::cout << "[" << seqId;
+                        if(parentTaxId > 0) std::cout << ":" << parentTaxId;
+                        std::cout << "] ";
                     }
 
                     //try to add to database
@@ -664,18 +660,18 @@ void add_targets_to_database(database& db,
  * @brief prepares datbase for build, adds targets and writes database to disk
  *
  *****************************************************************************/
-void add_to_database(database& db, const build_options& param)
+void add_to_database(database& db, const build_options& opt)
 {
-    if(param.maxLocationsPerFeature > 0) {
-        db.max_locations_per_feature(param.maxLocationsPerFeature);
+    if(opt.maxLocationsPerFeature > 0) {
+        db.max_locations_per_feature(opt.maxLocationsPerFeature);
     }
 
-    if(param.maxLoadFactor > 0) {
-        db.max_load_factor(param.maxLoadFactor);
+    if(opt.maxLoadFactor > 0) {
+        db.max_load_factor(opt.maxLoadFactor);
     }
 
-    if(!param.taxonomy.path.empty()) {
-        load_taxonomy_into_database(db, param);
+    if(!opt.taxonomy.path.empty()) {
+        load_taxonomy_into_database(db, opt);
     }
 
     if(db.non_target_taxon_count() < 1) {
@@ -685,10 +681,10 @@ void add_to_database(database& db, const build_options& param)
                   << std::endl;
     }
 
-    if(param.removeAmbigFeaturesOnRank != taxon_rank::none) {
+    if(opt.removeAmbigFeaturesOnRank != taxon_rank::none) {
         if(db.non_target_taxon_count() > 1) {
             std::cout << "Ambiguous features on rank "
-                      << taxonomy::rank_name(param.removeAmbigFeaturesOnRank)
+                      << taxonomy::rank_name(opt.removeAmbigFeaturesOnRank)
                       << " will be removed afterwards.\n";
         } else {
             std::cout << "Could not determine amiguous features "
@@ -701,18 +697,18 @@ void add_to_database(database& db, const build_options& param)
     timer time;
     time.start();
 
-    if(!param.infiles.empty()) {
+    if(!opt.infiles.empty()) {
         std::cout << "\nProcessing reference sequences." << std::endl;
         const auto initNumTargets = db.target_count();
 
         add_targets_to_database(db,
-            param.infiles,
-            make_sequence_to_taxon_id_map(param.taxonomy.mappingPreFiles,
-                                          param.infiles),
-            param.infoMode);
+            opt.infiles,
+            make_sequence_to_taxon_id_map(opt.taxonomy.mappingPreFiles,
+                                          opt.infiles),
+            opt.infoMode);
 
 
-        if(param.infoMode == build_info::moderate) {
+        if(opt.infoMode == build_info::moderate) {
             clear_current_line();
         }
         std::cout << "Added "
@@ -721,28 +717,32 @@ void add_to_database(database& db, const build_options& param)
 
     }
 
-    try_to_rank_unranked_targets(db, param);
+    try_to_rank_unranked_targets(db, opt);
 
-    if(param.removeOverpopulatedFeatures) {
-        std::cout << "\nRemoving overpopulated features... " << std::flush;
-
+    if(opt.removeOverpopulatedFeatures) {
         auto old = db.feature_count();
-        auto rem = db.remove_features_with_more_locations_than(
-                        database::max_supported_locations_per_feature()-1);
 
-        std::cout << rem << " of " << old << "." << std::endl;
+        auto maxlpf = opt.maxLocationsPerFeature;
+        if(maxlpf < 0 || maxlpf == database::max_supported_locations_per_feature())
+            maxlpf = database::max_supported_locations_per_feature() - 1;
+
+        std::cout << "\nRemoving features with more than "
+                  << maxlpf << "locations... " << std::flush;
+
+        auto rem = db.remove_features_with_more_locations_than(maxlpf);
+        std::cout << rem << " of " << old << " removed." << std::endl;
     }
 
-    if(param.removeAmbigFeaturesOnRank != taxon_rank::none &&
+    if(opt.removeAmbigFeaturesOnRank != taxon_rank::none &&
         db.non_target_taxon_count() > 1)
     {
         std::cout << "\nRemoving ambiguous features on rank "
-                  << taxonomy::rank_name(param.removeAmbigFeaturesOnRank)
+                  << taxonomy::rank_name(opt.removeAmbigFeaturesOnRank)
                   << "... " << std::flush;
 
         auto old = db.feature_count();
-        auto rem = db.remove_ambiguous_features(param.removeAmbigFeaturesOnRank,
-                                              param.maxTaxaPerFeature);
+        auto rem = db.remove_ambiguous_features(opt.removeAmbigFeaturesOnRank,
+                                              opt.maxTaxaPerFeature);
 
         std::cout << rem << " of " << old << "." << std::endl;
 
@@ -750,7 +750,7 @@ void add_to_database(database& db, const build_options& param)
         std::cout << '\n';
     }
 
-    write_database(db, param.dbfile);
+    write_database(db, opt.dbfile);
 
     time.stop();
 
@@ -772,23 +772,27 @@ void main_mode_build(const args_parser& args)
 {
     std::cout << "Building new database from reference sequences." << std::endl;
 
-    auto param = get_build_options(args);
+    auto opt = get_build_options(args);
 
-    if(param.infiles.empty()) {
+    if(opt.dbfile.empty()) {
+        throw std::invalid_argument{"No database filename provided."};
+    }
+
+    if(opt.infiles.empty()) {
         throw std::invalid_argument{
             "Nothing to do - no reference sequences provided."};
     }
 
     //configure sketching scheme
     auto sketcher = database::sketcher{};
-    sketcher.kmer_size(param.kmerlen);
-    sketcher.sketch_size(param.sketchlen);
+    sketcher.kmer_size(opt.kmerlen);
+    sketcher.sketch_size(opt.sketchlen);
 
     auto db = database{sketcher};
-    db.target_window_size(param.winlen);
-    db.target_window_stride(param.winstride);
+    db.target_window_size(opt.winlen);
+    db.target_window_stride(opt.winstride);
 
-    add_to_database(db, param);
+    add_to_database(db, opt);
 }
 
 
@@ -801,17 +805,21 @@ void main_mode_build(const args_parser& args)
  *****************************************************************************/
 void main_mode_build_modify(const args_parser& args)
 {
-    auto param = get_build_options(args);
+    auto opt = get_build_options(args);
 
-    std::cout << "Modify database " << param.dbfile << std::endl;
+    if(opt.dbfile.empty()) {
+        throw std::invalid_argument{"No database filename provided."};
+    }
 
-    auto db = make_database<database>(param.dbfile);
+    std::cout << "Modify database " << opt.dbfile << std::endl;
 
-    if(!param.infiles.empty()) {
+    auto db = make_database<database>(opt.dbfile);
+
+    if(!opt.infiles.empty()) {
         std::cout << "Adding reference sequences to database..." << std::endl;
     }
 
-    add_to_database(db, param);
+    add_to_database(db, opt);
 }
 
 

@@ -1,3 +1,4 @@
+
 /*****************************************************************************
  *
  * MetaCache - Meta-Genomic Classification Tool
@@ -172,7 +173,7 @@ struct make_default<T,true> { static constexpr T value = T(0); };
  *
  * @brief simple ad-hoc command line argument parser
  *
- * 2008-2015 André Müller
+ * 2008-2017 André Müller
  *
  * The parser distinguishes between non-prefixed and prefixed arguments
  * based on the prefix setting. The default prefix is '-'.
@@ -251,24 +252,35 @@ struct make_default<T,true> { static constexpr T value = T(0); };
  *****************************************************************************/
 class args_parser
 {
+    using args_store = std::vector<std::string>;
+
 public:
     //---------------------------------------------------------------
-    using size_type = std::size_t;
-    using string    = std::string;
+    using size_type = args_store::size_type;
+    using string    = args_store::value_type;
 
 
     //---------------------------------------------------------------
     explicit
-    args_parser(int argCount, char** argVec):
-        argc_(argCount), argv_(argVec),
-        prefix_('-'), listDelimiter_(','),
-        appPath_("")
+    args_parser(int argc, char** argv):
+        args_(),
+        prefix_('-'), listDelimiter_(',')
     {
-        appPath_ = string(argv_[0]);
-        size_type i = std::strlen(argv_[0]) - 1;
-        while ((i > 0) && (argv_[0][i] != '\\') && (argv_[0][i] != '/')) --i;
-        appPath_ = (i > 0) ? appPath_.substr(0, i+1) : "";
+        if(argc > 0) {
+            //ignore first arg
+            args_.reserve(argc-1);
+            for(int i = 1; i < argc; ++i) {
+                args_.emplace_back(argv[i]);
+            }
+        }
     }
+
+    //---------------------------------------------------------------
+    explicit
+    args_parser(std::vector<std::string> args):
+        args_(std::move(args)),
+        prefix_('-'), listDelimiter_(',')
+    {}
 
 
     //---------------------------------------------------------------
@@ -291,21 +303,21 @@ public:
 
     //---------------------------------------------------------------
     size_type size() const noexcept {
-        return (argc_ > 1) ? static_cast<size_type>(argc_-1) : 0;
+        return args_.size();
     }
     //-------------------------------------------
     size_type non_prefixed_count() const noexcept {
-        size_type j = 0;
-        for(int i = 1; i < argc_; ++i)
-            if(argv_[i][0] != prefix_) ++j;
-        return j;
+        size_type n = 0;
+        for(const auto& arg : args_)
+            if(!arg.empty() && arg[0] != prefix_) ++n;
+        return n;
     }
     //-------------------------------------------
     size_type prefixed_count() const noexcept {
-        size_type j = 0;
-        for(int i = 1; i < argc_; ++i)
-            if(argv_[i][0] == prefix_) ++j;
-        return j;
+        size_type n = 0;
+        for(const auto& arg : args_)
+            if(!arg.empty() && arg[0] == prefix_) ++n;
+        return n;
     }
 
 
@@ -337,11 +349,11 @@ public:
 
     //---------------------------------------------------------------
     bool is_prefixed(size_type i) const noexcept {
-        return (argv_[i+1][0] == prefix_);
+        return (args_[i][0] == prefix_);
     }
     //-----------------------------------------------------
     bool is_preceded_by_prefixed_arg(size_type i) const noexcept {
-        return (argv_[i+1][0] == prefix_);
+        return (args_[i][0] == prefix_);
     }
 
 
@@ -350,10 +362,7 @@ public:
     //---------------------------------------------------------------
     string
     operator [] (size_type i) const {
-        if((i+1) < static_cast<size_type>(argc_))
-            return string(argv_[i+1]);
-        else
-            return string("");
+        return (i < args_.size()) ? string(args_[i]) : string("");
     }
     //-----------------------------------------------------
     string
@@ -494,14 +503,13 @@ private:
     //---------------------------------------------------------------
     bool
     parse(const string& arg, bool subarg = true) const {
-        if(argc_ < 2) return false;
+        if(args_.empty()) return false;
 
-        for(int i = 1; i < argc_; ++i) {
-            if(argv_[i][0] == prefix_) {
-                size_type len = std::strlen(argv_[i]);
+        for(const auto& a : args_) {
+            if(a[0] == prefix_) {
                 string s = "";
-                for(size_type j = 1; j < len; ++j) {
-                    s += argv_[i][j];
+                for(size_type j = 1; j < a.size(); ++j) {
+                    s += a[j];
                     if(subarg && s == arg) return true;
                 }
                 if(s == arg) return true;
@@ -510,24 +518,24 @@ private:
         return false;
     }
 
+
     //---------------------------------------------------------------
     bool
     parse(const string& arg, string& value) const
     {
-        if(argc_ < 2) return false;
+        if(args_.empty()) return false;
 
-        for(int i = 1; i < argc_; ++i) {
-            if(argv_[i][0] == prefix_) {
-                size_type len = std::strlen(argv_[i]);
+        for(size_type i = 0; i < args_.size(); ++i) {
+            if(args_[i][0] == prefix_) {
                 string s = "";
-                for(size_type j = 1; j < len; ++j) {
-                    s += argv_[i][j];
+                for(size_type j = 1; j < args_[i].size(); ++j) {
+                    s += args_[i][j];
                     if(s == arg) {
-                        string p(argv_[i]);
-                        value = p.substr(j+1,len-j-1);
-                        for(int k = i+1; k < argc_; ++k) {
-                            if(argv_[k][0] == prefix_) break;
-                            string ps(argv_[k]);
+                        string p(args_[i]);
+                        value = p.substr(j+1, args_[i].size()-j-1);
+                        for(size_type k = i+1; k < args_.size(); ++k) {
+                            if(args_[k][0] == prefix_) break;
+                            string ps(args_[k]);
                             if(value.length() > 0) value += " ";
                             value += ps;
                         }
@@ -543,13 +551,13 @@ private:
     string
     prefixed_str(size_type index, const string& def = "") const
     {
-        if(argc_ < 2) return def;
+        if(args_.empty()) return def;
 
-        size_type j = 0;
-        for(int i = 1; i < argc_; ++i) {
-            if(argv_[i][0] == prefix_) {
-                if(j == index) return argv_[i];
-                ++j;
+        size_type i = 0;
+        for(const auto& arg : args_) {
+            if(arg[0] == prefix_) {
+                if(i == index) return arg;
+                ++i;
             }
         }
         return def;
@@ -558,25 +566,22 @@ private:
     string
     non_prefixed_str(size_type index, const string& def = "") const
     {
-        if(argc_ < 2) return def;
+        if(args_.empty()) return def;
 
         size_type j = 0;
-        for(int i = 1; i < argc_; ++i) {
-            if(argv_[i][0] != prefix_) {
-                if(j == index) return argv_[i];
+        for(const auto& arg : args_) {
+            if(arg[0] != prefix_) {
+                if(j == index) return arg;
                 ++j;
             }
         }
         return def;
     }
 
-
     //---------------------------------------------------------------
-    int argc_;
-    char** argv_;
+    args_store args_;
     char prefix_;
     char listDelimiter_;
-    string appPath_;
 };
 
 

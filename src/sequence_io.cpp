@@ -37,7 +37,7 @@ constexpr const char* accession_prefix[]
     "NC_", "NG_", "NS_", "NT_", "NW_", "NZ_", "AC_", "GCF_",
     "AE", "AJ", "AL", "AM", "AP", "AY",
     "BA", "BK", "BX",
-    "CP", "CR", "CT", "CU",
+    "CM", "CP", "CR", "CT", "CU",
     "FM", "FN", "FO", "FP", "FQ", "FR",
     "HE", "JH"
 };

@@ -138,25 +138,31 @@ void show_classification_statistics(std::ostream& os,
         }
         os << prefix << "ground truth known:\n";
         for(auto r : ranks) {
-            std::string rn = taxonomy::rank_name(r);
-            rn.resize(11, ' ');
-            os  << prefix <<"  "<< rn
-                << (100 * stats.known_rate(r))
-                << "% (" << stats.known(r) << ")\n";
+            if(stats.assigned(r) > 0) {
+                std::string rn = taxonomy::rank_name(r);
+                rn.resize(11, ' ');
+                os  << prefix <<"  "<< rn
+                    << (100 * stats.known_rate(r))
+                    << "% (" << stats.known(r) << ")\n";
+            }
         }
 
         os << prefix << "correctly classified:\n";
         for(auto r : ranks) {
-            std::string rn = taxonomy::rank_name(r);
-            rn.resize(11, ' ');
-            os << prefix <<"  "<< rn << stats.correct(r) << '\n';
+            if(stats.assigned(r) > 0) {
+                std::string rn = taxonomy::rank_name(r);
+                rn.resize(11, ' ');
+                os << prefix <<"  "<< rn << stats.correct(r) << '\n';
+            }
         }
 
         os << prefix << "precision (correctly classified / classified) if ground truth known:\n";
         for(auto r : ranks) {
-            std::string rn = taxonomy::rank_name(r);
-            rn.resize(11, ' ');
-            os << prefix <<"  "<< rn << (100 * stats.precision(r)) << "%\n";
+            if(stats.assigned(r) > 0) {
+                std::string rn = taxonomy::rank_name(r);
+                rn.resize(11, ' ');
+                os << prefix <<"  "<< rn << (100 * stats.precision(r)) << "%\n";
+            }
         }
 
         os << prefix << "sensitivity (correctly classified / all) if ground truth known:\n";

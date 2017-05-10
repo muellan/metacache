@@ -1022,14 +1022,6 @@ make_database(const std::string& filename,
     return db;
 }
 
-//-------------------------------------------------------------------
-template<class Database>
-Database
-make_database_metadata_only(const std::string& filename)
-{
-    return make_database<Database>(filename, Database::scope::metadata_only);
-}
-
 
 
 

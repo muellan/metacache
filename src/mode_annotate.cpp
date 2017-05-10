@@ -115,7 +115,7 @@ annotation_options
 get_annotation_options(const args_parser& args)
 {
     const annotation_options defaults;
-    annotation_options param;
+    annotation_options opt;
 
     if(args.non_prefixed_count() < 2) {
         throw std::invalid_argument{"No annotation mode provided."};
@@ -127,7 +127,7 @@ get_annotation_options(const args_parser& args)
     }
 
     if(modestr == "taxid") {
-        param.mode = annotation_mode::taxid;
+        opt.mode = annotation_mode::taxid;
     }
     else {
         throw std::invalid_argument{
@@ -138,26 +138,26 @@ get_annotation_options(const args_parser& args)
         throw std::invalid_argument{"No input filename provided."};
     }
 
-    param.infile = args.non_prefixed(2);
+    opt.infile = args.non_prefixed(2);
 
-    param.outfile = args.get<std::string>("out", defaults.outfile);
+    opt.outfile = args.get<std::string>("out", defaults.outfile);
 
-    param.mappingFiles = mapping_filenames(args);
+    opt.mappingFiles = mapping_filenames(args);
 
-    param.fieldSeparator = args.get<std::string>({"field-sep", "field-separator"},
+    opt.fieldSeparator = args.get<std::string>({"field-sep", "field-separator"},
                                                  defaults.fieldSeparator);
 
-    param.valueSeparator = args.get<std::string>({"value-sep", "value-separator"},
+    opt.valueSeparator = args.get<std::string>({"value-sep", "value-separator"},
                                                  defaults.valueSeparator);
 
     if(args.contains("id=accver"))
-        param.idtype = sequence_id_type::acc_ver;
+        opt.idtype = sequence_id_type::acc_ver;
     else if(args.contains("id=acc"))
-        param.idtype = sequence_id_type::acc;
+        opt.idtype = sequence_id_type::acc;
     else if(args.contains("id=gi"))
-        param.idtype = sequence_id_type::gi;
+        opt.idtype = sequence_id_type::gi;
 
-    return param;
+    return opt;
 }
 
 
@@ -224,7 +224,7 @@ void read_mappings_from_file(sequence_id_type idtype,
  *
  *
  *****************************************************************************/
-void annotate_with_taxid(const annotation_options& param,
+void annotate_with_taxid(const annotation_options& opt,
                          const std::map<std::string,taxid_t>& map,
                          std::istream& is,
                          std::ostream& os)
@@ -238,7 +238,7 @@ void annotate_with_taxid(const annotation_options& param,
            //if line is header
            if(line[0] == '>' || line[0] == '@') {
                std::string id;
-               switch(param.idtype) {
+               switch(opt.idtype) {
                    case sequence_id_type::acc:
                        id = extract_ncbi_accession_number(line);
                        break;
@@ -255,11 +255,11 @@ void annotate_with_taxid(const annotation_options& param,
                {
                    auto j = line.find("taxid");
                    if(j != std::string::npos) {
-                       auto k = line.find(param.valueSeparator, j+4);
+                       auto k = line.find(opt.valueSeparator, j+4);
                        if(k != std::string::npos) {
-                           auto l = line.find(param.fieldSeparator, k+1);
+                           auto l = line.find(opt.fieldSeparator, k+1);
                            if(l == std::string::npos)
-                               l = line.find(param.valueSeparator, k+1);
+                               l = line.find(opt.valueSeparator, k+1);
                            line.erase(j, l-j+1);
                        }
                    }
@@ -273,16 +273,16 @@ void annotate_with_taxid(const annotation_options& param,
                    }
 
                    //insert taxid after first field separator / end of line
-                   auto ipos = line.find(param.fieldSeparator);
+                   auto ipos = line.find(opt.fieldSeparator);
                    if(ipos == std::string::npos) {
-                       line += param.fieldSeparator + "taxid" +
-                               param.valueSeparator + std::to_string(taxid) +
-                               param.fieldSeparator;
+                       line += opt.fieldSeparator + "taxid" +
+                               opt.valueSeparator + std::to_string(taxid) +
+                               opt.fieldSeparator;
                    }
                    else {
                        line.insert(ipos+1, "taxid" +
-                                   param.valueSeparator + std::to_string(taxid) +
-                                   param.fieldSeparator);
+                                   opt.valueSeparator + std::to_string(taxid) +
+                                   opt.fieldSeparator);
                    }
                }
            }
@@ -306,33 +306,33 @@ void annotate_with_taxid(const annotation_options& param,
  *
  *
  *****************************************************************************/
-void annotate_with_taxid(const annotation_options& param)
+void annotate_with_taxid(const annotation_options& opt)
 {
 
-    std::ifstream is {param.infile};
+    std::ifstream is {opt.infile};
     if(!is.good()) {
-        std::cerr << "Input file " << param.infile << " could not be opened."
+        std::cerr << "Input file " << opt.infile << " could not be opened."
                   << std::endl;
     }
 
     auto map = std::map<std::string,taxid_t>{};
 
-    for(const auto& file : param.mappingFiles) {
-        read_mappings_from_file(param.idtype, file, map);
+    for(const auto& file : opt.mappingFiles) {
+        read_mappings_from_file(opt.idtype, file, map);
     }
 
-    if(param.outfile.empty()) {
-        annotate_with_taxid(param, map, is, std::cout);
+    if(opt.outfile.empty()) {
+        annotate_with_taxid(opt, map, is, std::cout);
     }
     else {
-        std::ofstream os {param.outfile};
+        std::ofstream os {opt.outfile};
         if(os.good()) {
             std::cout << "Mapping ... " << std::flush;
-            annotate_with_taxid(param, map, is, os);
+            annotate_with_taxid(opt, map, is, os);
             std::cout << "complete." << std::endl;
         }
         else {
-            std::cerr << "Output file " << param.outfile
+            std::cerr << "Output file " << opt.outfile
                       << " could not be opened."
                       << std::endl;
         }
@@ -350,21 +350,21 @@ void annotate_with_taxid(const annotation_options& param)
 void main_mode_annotate(const args_parser& args)
 {
     try {
-        auto param = get_annotation_options(args);
+        auto opt = get_annotation_options(args);
 
-        switch(param.mode) {
+        switch(opt.mode) {
             case annotation_mode::taxid: {
                 std::cout
                     << "Annotating sequences in '"
-                    << param.infile << "' with taxonomic ids.\n"
+                    << opt.infile << "' with taxonomic ids.\n"
                     << "Output will be written to ";
 
-                if(!param.outfile.empty()) {
-                    std::cout << "'" << param.outfile << "'" << std::endl;
+                if(!opt.outfile.empty()) {
+                    std::cout << "'" << opt.outfile << "'" << std::endl;
                 } else {
                     std::cout << "'stdout'" << std::endl;
                 }
-                annotate_with_taxid(param);
+                annotate_with_taxid(opt);
                 break;
             }
             case annotation_mode::none:

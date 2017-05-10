@@ -1,7 +1,7 @@
 Documentation for MetaCache mode "query"
 
 SYNOPSIS
-    metacache query <database name> <query sequence>... OPTIONS
+    metacache query <database name> [<query sequence>...] OPTIONS
 
 DESCRIPTION
     Map sequences (short reads) to their most likely origin.
@@ -9,6 +9,9 @@ DESCRIPTION
     You can also provide names of directories that contain
     sequence files instead of single filenames. MetaCache will
     search at most 10 levels down in the file hierarchy.
+
+    If no input sequence filenames or directories are given, MetaCache will
+    run in interactive query mode. 
 
 OPTIONS
     -out <file>        Redirect output to file <file>.

@@ -31,11 +31,26 @@ namespace mc {
  *
  *
  *****************************************************************************/
-void show_database_config(const args_parser& args)
+database
+make_database(const args_parser& args,
+              database::scope scope = database::scope::everything)
 {
     auto dbfilename = database_name(args);
-    auto db = make_database<database>(dbfilename, database::scope::metadata_only);
-    print_properties(db);
+    if(dbfilename.empty()) {
+        throw std::invalid_argument{"No database filename provided."};
+    }
+    return make_database<database>(dbfilename, scope);
+}
+
+
+
+/*****************************************************************************
+ *
+ *
+ *****************************************************************************/
+void show_database_config(const args_parser& args)
+{
+    print_properties(make_database(args, database::scope::metadata_only));
     std::cout << std::endl;
 }
 
@@ -47,11 +62,10 @@ void show_database_config(const args_parser& args)
  *****************************************************************************/
 void show_database_statistics(const args_parser& args)
 {
-    auto dbfilename = database_name(args);
-    auto db = make_database<database>(dbfilename);
-    print_properties(db);
+    print_properties(make_database(args));
     std::cout << std::endl;
 }
+
 
 
 
@@ -61,8 +75,7 @@ void show_database_statistics(const args_parser& args)
  *****************************************************************************/
 void show_feature_map(const args_parser& args)
 {
-    auto dbfilename = database_name(args);
-    auto db = make_database<database>(dbfilename);
+    auto db = make_database(args);
     print_properties(db);
     std::cout << "\n===================================================\n";
     db.print_feature_map(std::cout);
@@ -77,8 +90,7 @@ void show_feature_map(const args_parser& args)
  *****************************************************************************/
 void show_feature_counts(const args_parser& args)
 {
-    auto dbfilename = database_name(args);
-    auto db = make_database<database>(dbfilename);
+    auto db = make_database(args);
     print_properties(db);
     std::cout << "\n===================================================\n";
     db.print_feature_counts(std::cout);
@@ -94,14 +106,12 @@ void show_feature_counts(const args_parser& args)
  *****************************************************************************/
 void show_info(const args_parser& args)
 {
-    auto dbfilename = database_name(args);
-
     auto sids = std::vector<std::string>{};
     for(std::size_t i = 3; i < args.non_prefixed_count(); ++i) {
         sids.push_back(args.non_prefixed(i));
     }
 
-    auto db = make_database_metadata_only<database>(dbfilename);
+    auto db = make_database(args, database::scope::metadata_only);
 
     if(!sids.empty()) {
         for(const auto& sid : sids) {
@@ -134,9 +144,7 @@ void show_lineage_table(const args_parser& args)
 {
     using rank = taxonomy::rank;
 
-    auto dbfilename = database_name(args);
-
-    auto db = make_database_metadata_only<database>(dbfilename);
+    auto db = make_database(args, database::scope::metadata_only);
     if(db.target_count() < 1) return;
 
     //table header
@@ -175,9 +183,7 @@ void show_rank_statistics(const args_parser& args)
         return;
     }
 
-    auto dbfilename = database_name(args);
-
-    auto db = make_database_metadata_only<database>(dbfilename);
+    auto db = make_database(args, database::scope::metadata_only);
 
     std::map<const taxon*, std::size_t> stat;
 

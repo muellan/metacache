@@ -38,9 +38,9 @@ database_name(const args_parser& args)
         if(filename.find(".db") == std::string::npos) {
             filename += ".db";
         }
-        if(filename != "") return filename;
+        return filename;
     }
-    throw std::invalid_argument{"No database filename provided"};
+    return "";
 }
 
 
@@ -53,9 +53,6 @@ sequence_filenames(const args_parser& args)
     //all other non-prefixed args that are not
     //preceded by options ("-xyz") should be sequence file or folder names
     auto n = args.non_prefixed_count();
-    if(n < 3) {
-        throw std::invalid_argument{"No input sequence filenames provided"};
-    }
 
     auto files = std::vector<std::string>{};
     files.reserve(n-2);

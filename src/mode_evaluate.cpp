@@ -122,9 +122,12 @@ void main_mode_evaluate(const args_parser& )
 {
 //    std::cout << "Evaluating read mappings against ground truth." << std::endl;
 
-//    auto param = get_eval_options(args);
+//    auto opt = get_eval_options(args);
 
-//    auto db = make_database<database>(param.dbfile);
+//    if(opt.dbfile.empty()) {
+//        throw std::invalid_argument{"No database filename provided"};
+//    }
+//    auto db = make_database<database>(opt.dbfile);
 
 }
 
