@@ -442,12 +442,12 @@ public:
         //insert sequence metadata as a new taxon
         if(parentTaxid < 1) parentTaxid = 0;
         auto nit = taxa_.emplace(
-            taxid, parentTaxid, std::move(sid),
+            taxid, parentTaxid, sid,
             taxon_rank::Sequence, std::move(source));
 
         //allows lookup via sequence id (e.g. NCBI accession number)
         const taxon* newtax = &(*nit);
-        name2tax.insert({sid, newtax});
+        name2tax.insert({std::move(sid), newtax});
 
         //should never happen
         if(nit == taxa_.end()) {
