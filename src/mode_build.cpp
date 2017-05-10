@@ -730,7 +730,7 @@ void add_to_database(database& db, const build_options& param)
         auto rem = db.remove_features_with_more_locations_than(
                         database::max_supported_locations_per_feature()-1);
 
-        std::cout << " removed " <<rem << " of " << old << "." << std::endl;
+        std::cout << rem << " of " << old << "." << std::endl;
     }
 
     if(param.removeAmbigFeaturesOnRank != taxon_rank::none &&
@@ -744,7 +744,7 @@ void add_to_database(database& db, const build_options& param)
         auto rem = db.remove_ambiguous_features(param.removeAmbigFeaturesOnRank,
                                               param.maxTaxaPerFeature);
 
-        std::cout << " removed " <<rem << " of " << old << "." << std::endl;
+        std::cout << rem << " of " << old << "." << std::endl;
 
         print_properties(db);
         std::cout << '\n';
