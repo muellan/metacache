@@ -726,11 +726,11 @@ void add_to_database(database& db, const build_options& param)
     if(param.removeOverpopulatedFeatures) {
         std::cout << "\nRemoving overpopulated features... " << std::flush;
 
-        auto n = db.remove_features_with_more_locations_than(
+        auto old = db.feature_count();
+        auto rem = db.remove_features_with_more_locations_than(
                         database::max_supported_locations_per_feature()-1);
 
-        std::cout << " removed " << n << " of " << db.feature_count() << "."
-                  << std::endl;
+        std::cout << " removed " <<rem << " of " << old << "." << std::endl;
     }
 
     if(param.removeAmbigFeaturesOnRank != taxon_rank::none &&
@@ -740,11 +740,11 @@ void add_to_database(database& db, const build_options& param)
                   << taxonomy::rank_name(param.removeAmbigFeaturesOnRank)
                   << "... " << std::flush;
 
-        auto n = db.remove_ambiguous_features(param.removeAmbigFeaturesOnRank,
+        auto old = db.feature_count();
+        auto rem = db.remove_ambiguous_features(param.removeAmbigFeaturesOnRank,
                                               param.maxTaxaPerFeature);
 
-        std::cout << " removed " << n << " of " << db.feature_count() << "."
-                  << std::endl;
+        std::cout << " removed " <<rem << " of " << old << "." << std::endl;
 
         print_properties(db);
         std::cout << '\n';
