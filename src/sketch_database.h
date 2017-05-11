@@ -641,7 +641,7 @@ public:
     next_ranked_ancestor(const taxon& tax) const noexcept {
         if(tax.rank() == taxon_rank::Sequence) {
             for(const taxon* a : ranksCache_[tax]) {
-                if(a->rank() != taxon_rank::none && a->rank() > tax.rank())
+                if(a && a->rank() != taxon_rank::none && a->rank() > tax.rank())
                     return a;
             }
             return nullptr;
