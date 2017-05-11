@@ -1181,7 +1181,6 @@ void run_interactive_mode(const database& db, const query_options& opt)
         std::vector<string> args {"query", opt.dbfile};
         std::istringstream iss(input);
         while(iss >> input) { args.push_back(input); }
-        for(const auto& a : args) cout << a << " " << endl;
 
         auto imargs = args_parser{std::move(args)};
 
