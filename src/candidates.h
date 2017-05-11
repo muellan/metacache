@@ -156,14 +156,7 @@ public:
                 }
             }
             else { //end of current target
-                if(curBest.tax) {
-                    if(mergeOn > taxon_rank::Sequence) {
-                        auto ancestor = db.ancestor(curBest.tax, mergeOn);
-                        if(ancestor) curBest.tax = ancestor;
-                    }
-                    update_with(curBest);
-                }
-
+                update_with(curBest, db, mergeOn);
                 //reset to new target
                 win  = lst->first.win;
                 hits = lst->second;
@@ -176,6 +169,7 @@ public:
 
             ++lst;
         }
+        update_with(curBest, db, mergeOn);
     }
 
     int size() const noexcept {
@@ -196,8 +190,16 @@ public:
 private:
     //---------------------------------------------------------------
     /** @brief keeps track of 'maxNo' taxa with largest hits */
-    void update_with(const candidate& latest)
+    void update_with(candidate latest,
+                     const Database& db, taxon_rank mergeOn)
     {
+        if(!latest.tax) return;
+
+        if(mergeOn > taxon_rank::Sequence) {
+            auto ancestor = db.ancestor(latest.tax, mergeOn);
+            if(ancestor) latest.tax = ancestor;
+        }
+
         if(latest.tax->rank() == taxon_rank::Sequence) {
             //note: sequence-level duplicates are not possible
             for(int i = 0; i < maxNo; ++i) {
