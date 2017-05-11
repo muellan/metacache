@@ -243,13 +243,11 @@ get_query_options(const args_parser& args,
 
     opt.outfile = args.get<string>("out", defaults.outfile);
 
+    opt.splitOutput = defaults.splitOutput ||
+                      args.contains({"splitout","split-out"});
+
     if(opt.outfile.empty()) {
         opt.outfile = args.get<string>({"splitout","split-out"}, "");
-        opt.splitOutput = true;
-    }
-    else {
-        opt.splitOutput = defaults.splitOutput ||
-                          args.contains({"splitout","split-out"});
     }
 
     opt.outSeparator = args.get<string>("separator", defaults.outSeparator);
