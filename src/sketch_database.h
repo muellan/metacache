@@ -51,45 +51,45 @@ namespace mc {
  * @brief  maps 'features' (e.g. hash values obtained by min-hashing)
  *         to 'locations' = positions in targets/reference genomes
  *
+ *         not copyable, but movable
+ *
  * @details terminology
  *  target          reference sequence whose sketches are stored in the DB
+ *
+ *  taxon           one node in a taxonomic hierarchy (sequence metadata is
+ *                  also stored in taxa)
+ *
+ *  taxon_id        numeric taxon identifier
+ *  taxon_name      alphanumeric sequence identifier (e.g. an NCBI accession)
  *
  *  query           sequence (usually short reads) that shall be matched against
  *                  the reference targets
  *
- *  target_id       numeric database identifier of reference targets
- *                  in the range [0,n-1] where n is the number of targets in the DB
+ *  window_id       window index (starting with 0) within a target
  *
- *  window_id       window index (starting with 0) within a reference target
+ *  location        (const taxon*, window_id) = "window within a target sequence"
  *
- *  location        (target_id,window_id) = "window within a target"
- *
- *  sequence_id     alphanumeric sequence identifier (e.g. an NCBI accession)
- *
- *  taxon_id        numeric taxon identifier
- *
- *  full_lineage    path from root -> lowest taxon (vector of taxon ids);
+ *  full_lineage    path from root -> lowest taxon (vector of const taxon*);
  *                  may have arbitrary length
  *
- *  ranked_lineage  main rank taxon ids (array of taxon ids);
- *                  has fixed length; each index always refers to same rank
+ *  ranked_lineage  main rank taxon ids (array of const taxon*);
+ *                  has fixed length; each index always refers to the same rank
  *
- * @tparam
- *  SequenceType    type of reference and query sequence, usually std::string
+ * @tparam SequenceType  reference and query sequence type, usually std::string
  *
- *  Sketcher        function object type, that maps reference sequence
- *                  windows (= sequence interval) to
- *                  sketches (= collection of features of the same static type)
+ * @tparam Sketcher      function object type, that maps reference sequence
+ *                       windows (= sequence interval) to
+ *                       sketches (= collection of features of the same type)
  *
- *  FeatureHash     hash function for feature map
- *                  (default: identity for integer features,
- *                   so h(x) = x mod tablesize)
+ * @tparam FeatureHash   hash function for feature map
+ *                       (default: identity for integer features,
+ *                       so h(x) = x mod tablesize)
  *
- *  TargetId        type for target (reference sequence) identification
+ * @tparam TargetId      internal target (reference sequence) identification
+
+ * @tparam WindowId      target window identification
  *
- *  WindowId        type for target window identification
- *
- *  BucketSizeT     type for bucket (location list) size tracking
+ * @tparam BucketSizeT   bucket (location list) size tracking
  *
  *****************************************************************************/
 template<
@@ -116,7 +116,7 @@ public:
     using taxon_id    = taxonomy::taxon_id;
     using taxon       = taxonomy::taxon;
     using taxon_rank  = taxonomy::rank;
-    using sequence_id = taxonomy::taxon_name;
+    using taxon_name  = taxonomy::taxon_name;
     //-----------------------------------------------------
     using ranked_lineage = taxonomy::ranked_lineage;
     using full_lineage   = taxonomy::full_lineage;
@@ -201,7 +201,8 @@ public:
 
 
     //-----------------------------------------------------
-    /** @brief location = (target sequence taxon pointer, window index)
+    /** @brief external location represenation
+     *         = (target sequence taxon pointer, window index)
      *         these are used to return match results
      */
     struct location
@@ -230,21 +231,8 @@ public:
     //---------------------------------------------------------------
     explicit
     sketch_database(sketcher targetSketcher = sketcher{}) :
-        targetSketcher_{std::move(targetSketcher)},
-        querySketcher_{targetSketcher_},
-        targetWindowSize_(128),
-        targetWindowStride_(128-15),
-        queryWindowSize_(targetWindowSize_),
-        queryWindowStride_(targetWindowStride_),
-        maxLocsPerFeature_(max_supported_locations_per_feature()),
-        features_{},
-        targets_{},
-        taxa_{},
-        ranksCache_{taxa_, taxon_rank::Sequence},
-        name2tax{}
-    {
-        features_.max_load_factor(0.8);
-    }
+        sketch_database{targetSketcher, targetSketcher}
+    {}
     //-----------------------------------------------------
     explicit
     sketch_database(sketcher targetSketcher, sketcher querySketcher) :
@@ -272,59 +260,78 @@ public:
 
 
     //---------------------------------------------------------------
+    /**
+     * @return const ref to the object that transforms target sequence
+     *         snippets into a collection of features
+     */
     const sketcher&
     target_sketcher() const noexcept {
         return targetSketcher_;
     }
     //-----------------------------------------------------
+    /**
+     * @return const ref to the object that transforms query sequence
+     *         snippets into a collection of features
+     */
     const sketcher&
     query_sketcher() const noexcept {
         return querySketcher_;
     }
     //-----------------------------------------------------
-    void
-    query_sketcher(const sketcher& s) {
+    /**
+     * @brief sets the object that transforms query sequence
+     *        snippets into a collection of features
+     */
+    void query_sketcher(const sketcher& s) {
         querySketcher_ = s;
     }
-    void
-    query_sketcher(sketcher&& s) {
+    void query_sketcher(sketcher&& s) {
         querySketcher_ = std::move(s);
     }
 
 
     //---------------------------------------------------------------
+    /** @brief set size of target windows that are fed to the target sketcher */
     void target_window_size(std::size_t s) {
         targetWindowSize_ = s;
     }
     //-----------------------------------------------------
+    /** @return size of target windows that are fed to the target sketcher */
     size_t target_window_size() const noexcept {
         return targetWindowSize_;
     }
+
     //---------------------------------------------------------------
+    /** @brief set target window stride for target sketching */
     void target_window_stride(std::size_t s) {
         if(s < 1) s = 1;
         targetWindowStride_ = s;
     }
     //-----------------------------------------------------
+    /** @return target window stride for target sketching */
     size_t target_window_stride() const noexcept {
         return targetWindowStride_;
     }
 
 
     //---------------------------------------------------------------
+    /** @brief set size of query windows that are fed to the query sketcher */
     void query_window_size(std::size_t s) {
         queryWindowSize_ = s;
     }
     //-----------------------------------------------------
+    /** @return size of query windows that are fed to the query sketcher */
     size_t query_window_size() const noexcept {
         return queryWindowSize_;
     }
     //---------------------------------------------------------------
+    /** @brief set query window stride for query sketching */
     void query_window_stride(std::size_t s) {
         if(s < 1) s = 1;
         queryWindowStride_ = s;
     }
     //-----------------------------------------------------
+    /** @return query window stride for query sketching */
     size_t query_window_stride() const noexcept {
         return queryWindowStride_;
     }
@@ -371,6 +378,13 @@ public:
 
 
     //---------------------------------------------------------------
+    /**
+     * @brief  removes features that have more than 'maxambig' different
+     *         taxa on a certain taxonomic rank
+     *         e.g. remove features that are present in more than 4 phyla
+     *
+     * @return number of features (hash table buckets) that were removed
+     */
     feature_count_type
     remove_ambiguous_features(taxon_rank r, bucket_size_type maxambig)
     {
@@ -417,7 +431,7 @@ public:
 
 
     //---------------------------------------------------------------
-    bool add_target(const sequence& seq, sequence_id sid,
+    bool add_target(const sequence& seq, taxon_name  sid,
                     taxon_id parentTaxid = 0,
                     file_source source = file_source{})
     {
@@ -529,7 +543,7 @@ public:
      * @brief will only find sequence-level taxon names == sequence id
      */
     const taxon*
-    taxon_with_name(const sequence_id& name) const noexcept {
+    taxon_with_name(const taxon_name & name) const noexcept {
         if(name.empty()) return nullptr;
         auto i = name2tax.find(name);
         if(i == name2tax.end()) return nullptr;
@@ -987,7 +1001,7 @@ private:
     std::vector<const taxon*> targets_;
     taxonomy taxa_;
     ranked_lineages_cache ranksCache_;
-    std::map<sequence_id,const taxon*> name2tax;
+    std::map<taxon_name ,const taxon*> name2tax;
 };
 
 

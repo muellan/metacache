@@ -165,7 +165,8 @@ public:
 
     //---------------------------------------------------------------
     static rank
-    rank_from_name(const std::string& name) noexcept {
+    rank_from_name(std::string name) noexcept {
+        std::transform(name.begin(), name.end(), name.begin(), ::tolower);
         if(name == "sequence")      return rank::Sequence;
         if(name == "genome")        return rank::Sequence;
         if(name == "form")          return rank::Form;

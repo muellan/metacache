@@ -102,7 +102,7 @@ get_build_options(const args_parser& args)
                                           defaults.maxLoadFactor);
 
     opt.maxLocationsPerFeature = args.get<int>({"max-locations-per-feature",
-                                                  "max_locations_per_feature" },
+                                                "max_locations_per_feature" },
                                                  defaults.maxLocationsPerFeature);
 
     opt.removeOverpopulatedFeatures = args.contains({"remove-overpopulated-features",
@@ -110,10 +110,11 @@ get_build_options(const args_parser& args)
 
     opt.removeAmbigFeaturesOnRank = taxonomy::rank_from_name(
         args.get<std::string>({"remove-ambig-features",
-                               "remove_ambig_features"}, "none"));
+                               "remove_ambig_features"},
+                    taxonomy::rank_name(defaults.removeAmbigFeaturesOnRank)));
 
     opt.maxTaxaPerFeature = args.get<int>({"max-ambig-per-feature",
-                                             "max_ambig_per_feature"},
+                                           "max_ambig_per_feature"},
                                             defaults.maxTaxaPerFeature);
 
     opt.taxonomy = get_taxonomy_options(args);
@@ -742,7 +743,7 @@ void add_to_database(database& db, const build_options& opt)
 
         auto old = db.feature_count();
         auto rem = db.remove_ambiguous_features(opt.removeAmbigFeaturesOnRank,
-                                              opt.maxTaxaPerFeature);
+                                                opt.maxTaxaPerFeature);
 
         std::cout << rem << " of " << old << "." << std::endl;
 

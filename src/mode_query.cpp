@@ -294,7 +294,7 @@ get_query_options(const args_parser& args,
                                           defaults.maxLoadFactor);
 
     opt.maxLocationsPerFeature = args.get<int>({"max_locations_per_feature",
-                                                  "max-locations-per-feature"},
+                                                "max-locations-per-feature"},
                                                 defaults.maxLocationsPerFeature);
 
     opt.removeOverpopulatedFeatures = defaults.removeOverpopulatedFeatures ||
