@@ -11,19 +11,9 @@ DESCRIPTION
     search at most 10 levels down in the file hierarchy.
 
 OPTIONS
-    -sketchlen <no>       number of stored k-mers per sampling window
-                          default: 16
-
-    -winlen <no>          number of letters in each sampling window
-                          default: 128
-
-    -winstride <no>       distance between window start positions
-                          default: 0
-
-    -kmerlen <no>         number of letters in a k-mer
-                          default: 16
-
     -verbose              show detailed status information during build
+
+    -silent               don't show any information during the build
 
     -taxonomy <path>      directory with taxonomic hierarchy data 
                           (see NCBI's taxonomic data files)
@@ -31,6 +21,19 @@ OPTIONS
     -taxpostmap <file>    file with sequence to taxon id mappings that is used
                           as alternative source in a post processing step
                           default: 'nucl_(gb|wgs|est|gss).accession2taxid'
+
+    -kmerlen <no>         number of letters in a k-mer
+                          default: 16
+
+    -sketchlen <no>       number of features (k-mer hashes) per sampling window
+                          default: 16
+
+    -winlen <no>          number of letters in each sampling window
+                          default: 128
+
+    -winstride <no>       distance between window start positions
+                          default: 113
+
 
 EXAMPLES
     Build database 'mydb' from sequence file 'genomes.fna':
