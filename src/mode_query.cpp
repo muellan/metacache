@@ -1233,7 +1233,7 @@ void main_mode_query(const args_parser& args)
             " - The initially given command line options will be used as defaults.\n"
             " - All command line options that would modify the database are ignored.\n"
             " - Each line will be processed separately.\n"
-            " - Abort with Ctrl-C or by entering an empty line."
+            " - Abort by entering an empty line."
             << endl;
 
         run_interactive_mode(db, opt);
