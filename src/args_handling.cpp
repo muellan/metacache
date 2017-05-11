@@ -82,39 +82,44 @@ sequence_filenames(const args_parser& args)
 taxonomy_options
 get_taxonomy_options(const args_parser& args)
 {
-    taxonomy_options param;
+    taxonomy_options opt;
 
-    param.path = args.get<std::string>("taxonomy", std::string(""));
-    if(!param.path.empty() &&
-        param.path.back() != '/') param.path += '/';
+    opt.path = args.get<std::string>("taxonomy", std::string(""));
+    if(!opt.path.empty() &&
+        opt.path.back() != '/') opt.path += '/';
 
-    param.nodesFile = param.path + "nodes.dmp";
-    param.namesFile = param.path + "names.dmp";
-    param.mergeFile = param.path + "merged.dmp";
+    opt.nodesFile = opt.path + "nodes.dmp";
+    opt.namesFile = opt.path + "names.dmp";
+    opt.mergeFile = opt.path + "merged.dmp";
 
-    param.mappingPreFiles.push_back("assembly_summary.txt");
+    opt.mappingPreFiles.push_back("assembly_summary.txt");
 
     //manually added accession to taxon map file names
     auto postm = args.get<std::string>({"taxpostmap", "taxonomy-postmap"}, "");
 
     if(!postm.empty()) {
-        param.mappingPostFiles.push_back(postm);
+        opt.mappingPostFiles.push_back(postm);
     }
 
     //default NCBI accession to taxon map file names
-    param.mappingPostFiles.push_back(param.path + "nucl_gb.accession2taxid");
-    param.mappingPostFiles.push_back(param.path + "nucl_wgs.accession2taxid");
-    param.mappingPostFiles.push_back(param.path + "nucl_est.accession2taxid");
-    param.mappingPostFiles.push_back(param.path + "nucl_gss.accession2taxid");
+    opt.mappingPostFiles.push_back(opt.path + "nucl_gb.accession2taxid");
+    opt.mappingPostFiles.push_back(opt.path + "nucl_wgs.accession2taxid");
+    opt.mappingPostFiles.push_back(opt.path + "nucl_est.accession2taxid");
+    opt.mappingPostFiles.push_back(opt.path + "nucl_gss.accession2taxid");
 
     //find additional maps by file extension ".accession2taxid"
-    for(const auto f : files_in_directory(param.path)) {
+    for(const auto f : files_in_directory(opt.path)) {
         if(f.find(".accession2taxid") != std::string::npos) {
-            param.mappingPostFiles.push_back(f);
+            if(std::find(opt.mappingPostFiles.begin(),
+                         opt.mappingPostFiles.end(), f)
+               != opt.mappingPostFiles.end())
+            {
+                opt.mappingPostFiles.push_back(f);
+            }
         }
     }
 
-    return param;
+    return opt;
 }
 
 
