@@ -40,6 +40,7 @@ using std::string;
 using std::cout;
 using std::cerr;
 using std::endl;
+using std::flush;
 
 
 /*****************************************************************************
@@ -162,7 +163,7 @@ struct query_options
  *****************************************************************************/
 query_options
 get_query_options(const args_parser& args,
-                  const query_options& defaults = query_options{})
+                  const query_options defaults = query_options{})
 {
     query_options opt;
 
@@ -196,13 +197,16 @@ get_query_options(const args_parser& args,
     opt.testPrecision = defaults.testPrecision || opt.testCoverage ||
                         args.contains("precision");
 
+
     //classification ranks
+    opt.lowestRank  = defaults.lowestRank;
     auto lowestRank = args.get<string>("lowest", "");
     if(!lowestRank.empty()) {
         auto r = taxonomy::rank_from_name(lowestRank);
         if(r < taxonomy::rank::root) opt.lowestRank = r;
     }
 
+    opt.highestRank = defaults.highestRank;
     auto highestRank = args.get<string>("highest", "");
     if(!highestRank.empty()) {
         auto r = taxonomy::rank_from_name(highestRank);
@@ -212,6 +216,7 @@ get_query_options(const args_parser& args,
     if(opt.lowestRank  > opt.highestRank) opt.lowestRank  = opt.highestRank;
     if(opt.highestRank < opt.lowestRank ) opt.highestRank = opt.lowestRank;
 
+    opt.excludedRank = defaults.excludedRank;
     auto excludedRank = args.get<string>("exclude", "");
     if(!excludedRank.empty()) {
         auto r = taxonomy::rank_from_name(excludedRank);
@@ -269,14 +274,18 @@ get_query_options(const args_parser& args,
         opt.showTaxaAs = taxon_print_mode::id_name;
     }
     else {
-        opt.showTaxaAs = taxon_print_mode::name_only;
+        opt.showTaxaAs = defaults.showTaxaAs;
     }
 
+    opt.mapViewMode = defaults.mapViewMode;
     if(args.contains({"nomap","no-map","noshowmap","nomapping","nomappings"})) {
         opt.mapViewMode = map_view_mode::none;
     }
     else if(args.contains({"mapped-only", "mapped_only", "mappedonly"})) {
         opt.mapViewMode = map_view_mode::mapped_only;
+    }
+    else if(args.contains({"showallmap","show-all-map","show-all-mappings"})) {
+        opt.mapViewMode = map_view_mode::all;
     }
 
     //showing hits changes the mapping mode!
@@ -1160,37 +1169,36 @@ void configure_query_options_according_to_database(
 
 /*****************************************************************************
  *
- * @brief
+ * @brief primitive REPL mode for repeated querying using the same database
  *
  *****************************************************************************/
-void run_interactive_mode(const database& db, const query_options& opt)
+void run_interactive_query_mode(const database& db, const query_options& initOpt)
 {
     while(true) {
         cout << "$> " << std::flush;
 
-        //tokenize input into whitespace-separated words
         string input;
         std::getline(std::cin, input);
-        if(input.empty()) {
-            cout << "No input - terminate." << endl;
+        if(input.empty() || input.find(":q") == 0) {
+            cout << "Terminate." << endl;
             return;
         }
+        else {
+            //tokenize input into whitespace-separated words and build args list
+            std::vector<string> args {"query", initOpt.dbfile};
+            std::istringstream iss(input);
+            while(iss >> input) { args.push_back(input); }
 
-        std::vector<string> args {"query", opt.dbfile};
-        std::istringstream iss(input);
-        while(iss >> input) { args.push_back(input); }
+            //read command line options (use initial ones as defaults)
+            auto opt = get_query_options(args_parser{std::move(args)}, initOpt);
+            configure_query_options_according_to_database(opt, db);
 
-        auto imargs = args_parser{std::move(args)};
-
-        //read command line options (use previous ones as defaults)
-        auto imopt = get_query_options(imargs, opt);
-        configure_query_options_according_to_database(imopt, db);
-
-        try {
-            process_input_files(db, imopt);
-        }
-        catch(std::exception& e) {
-            if(opt.showErrors) cerr << e.what() << endl;
+            try {
+                process_input_files(db, opt);
+            }
+            catch(std::exception& e) {
+                if(initOpt.showErrors) cerr << e.what() << endl;
+            }
         }
     }
 }
@@ -1233,10 +1241,10 @@ void main_mode_query(const args_parser& args)
             " - The initially given command line options will be used as defaults.\n"
             " - All command line options that would modify the database are ignored.\n"
             " - Each line will be processed separately.\n"
-            " - Abort by entering an empty line."
+            " - Enter an empty line or press Ctrl-D to quit MetaCache.\n"
             << endl;
 
-        run_interactive_mode(db, opt);
+        run_interactive_query_mode(db, opt);
     }
 }
 
