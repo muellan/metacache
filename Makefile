@@ -35,6 +35,7 @@ HEADERS = \
           src/hash_multimap.h \
           src/io_error.h \
           src/io_serialize.h \
+          src/io_options.h \
           src/modes.h \
           src/parallel_task_queue.h \
           src/print_info.h \
@@ -46,6 +47,7 @@ HEADERS = \
           src/stat_moments.h \
           src/statistics.h \
           src/taxonomy.h \
+          src/taxonomy_io.h \
           src/timer.h \
           src/version.h
 
@@ -62,10 +64,11 @@ SOURCES = \
           src/mode_query.cpp \
           src/print_info.cpp \
           src/print_results.cpp \
-          src/sequence_io.cpp
-          
+          src/sequence_io.cpp \
+          src/taxonomy_io.cpp
+
 TEST_HEADERS = \
-          
+
 TEST_SOURCES = \
           test\tests.cpp \
           test/hash_multimap_test.cpp
@@ -150,6 +153,9 @@ $(REL_DIR)/mode_info.o : src/mode_info.cpp $(HEADERS)
 $(REL_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 	$(REL_COMPILE)
 
+$(REL_DIR)/taxonomy_io.o : src/taxonomy_io.cpp $(HEADERS)
+	$(REL_COMPILE)
+
 $(REL_DIR)/sequence_io.o : src/sequence_io.cpp src/sequence_io.h src/io_error.h
 	$(REL_COMPILE)
 
@@ -198,6 +204,9 @@ $(DBG_DIR)/mode_info.o : src/mode_info.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
 $(DBG_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
+	$(DBG_COMPILE)
+
+$(DBG_DIR)/taxonomy_io.o : src/taxonomy_io.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
 $(DBG_DIR)/sequence_io.o : src/sequence_io.cpp src/sequence_io.h src/io_error.h

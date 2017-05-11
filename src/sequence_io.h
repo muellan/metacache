@@ -210,7 +210,6 @@ std::string extract_genbank_identifier(const std::string&);
 
 
 
-
 /*****************************************************************************
  *
  * @brief extracts any string recognized as accession ID

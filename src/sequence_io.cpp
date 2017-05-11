@@ -30,6 +30,8 @@
 
 namespace mc {
 
+using std::string;
+
 
 //-------------------------------------------------------------------
 constexpr const char* accession_prefix[]
@@ -76,7 +78,7 @@ void sequence_reader::skip(index_type skip)
 
 
 //-------------------------------------------------------------------
-fasta_reader::fasta_reader(std::string filename):
+fasta_reader::fasta_reader(string filename):
     sequence_reader{},
     file_{},
     linebuffer_{}
@@ -98,7 +100,7 @@ void fasta_reader::read_next(sequence& seq)
         invalidate();
         return;
     }
-    std::string line;
+    string line;
 
     if(linebuffer_.empty()) {
         getline(file_, line);
@@ -141,7 +143,7 @@ void fasta_reader::read_next(sequence& seq)
 
 
 //-------------------------------------------------------------------
-fastq_reader::fastq_reader(std::string filename):
+fastq_reader::fastq_reader(string filename):
     sequence_reader{},
     file_{}
 {
@@ -163,7 +165,7 @@ void fastq_reader::read_next(sequence& seq)
         return;
     }
 
-    std::string line;
+    string line;
     getline(file_, line);
     if(line.empty()) {
         invalidate();
@@ -194,7 +196,7 @@ void fastq_reader::read_next(sequence& seq)
 
 
 //-------------------------------------------------------------------
-sequence_header_reader::sequence_header_reader(std::string filename):
+sequence_header_reader::sequence_header_reader(string filename):
     file_{}
 {
     file_.open(filename.c_str());
@@ -218,7 +220,7 @@ void sequence_header_reader::read_next(sequence& seq)
             return;
         }
 
-        std::string line;
+        string line;
         getline(file_, line);
 
         headerFound = line[0] == '>' || line[0] == '@';
@@ -232,7 +234,7 @@ void sequence_header_reader::read_next(sequence& seq)
 
 //-------------------------------------------------------------------
 std::unique_ptr<sequence_reader>
-make_sequence_reader(const std::string& filename)
+make_sequence_reader(const string& filename)
 {
     auto n = filename.size();
     if(filename.find(".fq")    == (n-3) ||
@@ -251,7 +253,7 @@ make_sequence_reader(const std::string& filename)
     //try to determine file type content
     std::ifstream is {filename};
     if(is.good()) {
-        std::string line;
+        string line;
         getline(is,line);
         if(!line.empty()) {
             if(line[0] == '<') {
@@ -271,41 +273,41 @@ make_sequence_reader(const std::string& filename)
 
 
 //-------------------------------------------------------------------
-std::string::size_type
-end_of_accession_number(const std::string& text,
-                        std::string::size_type start = 0)
+string::size_type
+end_of_accession_number(const string& text,
+                        string::size_type start = 0)
 {
     if(start >= text.size()) return text.size();
 
     auto k = text.find('|', start);
-    if(k != std::string::npos) return k;
+    if(k != string::npos) return k;
 
     k = text.find(' ', start);
-    if(k != std::string::npos) return k;
+    if(k != string::npos) return k;
 
     k = text.find('-', start);
-    if(k != std::string::npos) return k;
+    if(k != string::npos) return k;
 
     k = text.find('_', start);
-    if(k != std::string::npos) return k;
+    if(k != string::npos) return k;
 
     k = text.find(',', start);
-    if(k != std::string::npos) return k;
+    if(k != string::npos) return k;
 
     return text.size();
 }
 
 
 //-------------------------------------------------------------------
-std::string
-extract_ncbi_accession_version_number(const std::string& prefix,
-                                      const std::string& text)
+string
+extract_ncbi_accession_version_number(const string& prefix,
+                                      const string& text)
 {
     auto i = text.find(prefix);
     if(i < 20) {
         //find separator *after* prefix
         auto s = text.find('.', i+1);
-        if(s == std::string::npos || (s-i) > 20) return "";
+        if(s == string::npos || (s-i) > 20) return "";
         auto k = end_of_accession_number(text,s+1);
         return text.substr(i, k-i);
     }
@@ -313,8 +315,8 @@ extract_ncbi_accession_version_number(const std::string& prefix,
 }
 
 //---------------------------------------------------------
-std::string
-extract_ncbi_accession_version_number(const std::string& text)
+string
+extract_ncbi_accession_version_number(const string& text)
 {
     //try to find any known prefix + separator
     for(auto prefix : accession_prefix) {
@@ -334,12 +336,12 @@ extract_ncbi_accession_version_number(const std::string& text)
 
 
 //-------------------------------------------------------------------
-std::string
-extract_ncbi_accession_number(const std::string& prefix,
-                              const std::string& text)
+string
+extract_ncbi_accession_number(const string& prefix,
+                              const string& text)
 {
     auto i = text.find(prefix);
-    if(i != std::string::npos) {
+    if(i != string::npos) {
         auto j = i + prefix.size();
         auto k = end_of_accession_number(text,j);
         return text.substr(i, k-i);
@@ -348,8 +350,8 @@ extract_ncbi_accession_number(const std::string& prefix,
 }
 
 //---------------------------------------------------------
-std::string
-extract_ncbi_accession_number(const std::string& text)
+string
+extract_ncbi_accession_number(const string& text)
 {
 
     for(auto prefix : accession_prefix) {
@@ -363,18 +365,18 @@ extract_ncbi_accession_number(const std::string& text)
 
 
 //-------------------------------------------------------------------
-std::string
-extract_genbank_identifier(const std::string& text)
+string
+extract_genbank_identifier(const string& text)
 {
     auto i = text.find("gi|");
-    if(i != std::string::npos) {
+    if(i != string::npos) {
         //skip prefix
         i += 3;
         //find end of number
         auto j = text.find('|', i);
-        if(j == std::string::npos) {
+        if(j == string::npos) {
             j = text.find(' ', i);
-            if(j == std::string::npos) j = text.size();
+            if(j == string::npos) j = text.size();
         }
         return text.substr(i, j-i);
     }
@@ -384,8 +386,8 @@ extract_genbank_identifier(const std::string& text)
 
 
 //-------------------------------------------------------------------
-std::string
-extract_accession_string(const std::string& text)
+string
+extract_accession_string(const string& text)
 {
     auto s = extract_ncbi_accession_version_number(text);
     if(!s.empty()) return s;
@@ -402,17 +404,17 @@ extract_accession_string(const std::string& text)
 
 //-------------------------------------------------------------------
 std::int_least64_t
-extract_taxon_id(const std::string& text)
+extract_taxon_id(const string& text)
 {
     auto i = text.find("taxid");
-    if(i != std::string::npos) {
+    if(i != string::npos) {
         //skip "taxid" + separator char
         i += 6;
         //find end of number
         auto j = text.find('|', i);
-        if(j == std::string::npos) {
+        if(j == string::npos) {
             j = text.find(' ', i);
-            if(j == std::string::npos) j = text.size();
+            if(j == string::npos) j = text.size();
         }
 
         try {

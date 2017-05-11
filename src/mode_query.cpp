@@ -36,6 +36,11 @@
 
 namespace mc {
 
+using std::string;
+using std::cout;
+using std::cerr;
+using std::endl;
+
 
 /*****************************************************************************
  * @brief pairing of queries
@@ -73,9 +78,9 @@ struct query_options
     //output options & formatting
     //-----------------------------------------------------
     //prefix for each non-mapping line
-    std::string comment = "# ";
+    string comment = "# ";
     //separates individual mapping fields
-    std::string outSeparator = "\t|\t";
+    string outSeparator = "\t|\t";
     //show database properties
     bool showDBproperties = false;
     //make a separate output file for each input file
@@ -121,7 +126,7 @@ struct query_options
     bool testCoverage = false;
     bool testAlignment = false;
     //additional file with query -> ground truth mapping
-    std::string sequ2taxonPreFile;
+    string sequ2taxonPreFile;
 
     //-----------------------------------------------------
     //query sampling scheme
@@ -142,9 +147,9 @@ struct query_options
     //-----------------------------------------------------
     //filenames
     //-----------------------------------------------------
-    std::string dbfile;
-    std::vector<std::string> infiles;
-    std::string outfile;
+    string dbfile;
+    std::vector<string> infiles;
+    string outfile;
 };
 
 
@@ -192,13 +197,13 @@ get_query_options(const args_parser& args,
                         args.contains("precision");
 
     //classification ranks
-    auto lowestRank = args.get<std::string>("lowest", "");
+    auto lowestRank = args.get<string>("lowest", "");
     if(!lowestRank.empty()) {
         auto r = taxonomy::rank_from_name(lowestRank);
         if(r < taxonomy::rank::root) opt.lowestRank = r;
     }
 
-    auto highestRank = args.get<std::string>("highest", "");
+    auto highestRank = args.get<string>("highest", "");
     if(!highestRank.empty()) {
         auto r = taxonomy::rank_from_name(highestRank);
         if(r < taxon_rank::root) opt.highestRank = r;
@@ -207,7 +212,7 @@ get_query_options(const args_parser& args,
     if(opt.lowestRank  > opt.highestRank) opt.lowestRank  = opt.highestRank;
     if(opt.highestRank < opt.lowestRank ) opt.highestRank = opt.lowestRank;
 
-    auto excludedRank = args.get<std::string>("exclude", "");
+    auto excludedRank = args.get<string>("exclude", "");
     if(!excludedRank.empty()) {
         auto r = taxonomy::rank_from_name(excludedRank);
         if(r < taxon_rank::root) opt.excludedRank = r;
@@ -236,10 +241,10 @@ get_query_options(const args_parser& args,
     //output formatting
     opt.showLineage = defaults.showLineage || args.contains("lineage");
 
-    opt.outfile = args.get<std::string>("out", defaults.outfile);
+    opt.outfile = args.get<string>("out", defaults.outfile);
 
     if(opt.outfile.empty()) {
-        opt.outfile = args.get<std::string>({"splitout","split-out"}, "");
+        opt.outfile = args.get<string>({"splitout","split-out"}, "");
         opt.splitOutput = true;
     }
     else {
@@ -247,7 +252,7 @@ get_query_options(const args_parser& args,
                           args.contains({"splitout","split-out"});
     }
 
-    opt.outSeparator = args.get<std::string>("separator", defaults.outSeparator);
+    opt.outSeparator = args.get<string>("separator", defaults.outSeparator);
 
     opt.showLocations = defaults.showLocations || args.contains("locations");
 
@@ -369,7 +374,7 @@ make_alignment(const Query& query1, const Query& query2,
  *
  *****************************************************************************/
 const taxon*
-ground_truth(const database& db, const std::string& header)
+ground_truth(const database& db, const string& header)
 {
     //try to extract query id and find the corresponding target in database
     const taxon* tax = nullptr;
@@ -569,14 +574,68 @@ void update_coverage_statistics(const database& db,
 
 /*****************************************************************************
  *
+ * @brief compute alignment of top hits and optionally show it
+ *
+ *****************************************************************************/
+void use_alignment(const database& db, const query_options& opt,
+                   const sequence& query1, const sequence& query2,
+                   const classification_candidates& tophits,
+                   classification_statistics& stats,
+                   std::ostream& os)
+{
+    //try to align to top target
+    const taxon* tgtTax = tophits[0].tax;
+    if(tgtTax && tgtTax->rank() == taxon_rank::Sequence) {
+        const auto& src = tgtTax->source();
+        try {
+            //load candidate file and forward to sequence
+            auto reader = make_sequence_reader(src.filename);
+            reader->skip(src.index);
+
+            if(reader->has_next()) {
+                auto tgtSequ = reader->next().data;
+                auto subject = make_view_from_window_range(tgtSequ,
+                                                           tophits[0].pos,
+                                                           db.target_window_stride());
+
+                auto align = make_alignment(query1, query2, subject,
+                                            needleman_wunsch_scheme{});
+
+                stats.register_alignment_score(align.score);
+
+                //print alignment to top candidate
+                if(align.score > 0 && opt.showAlignment) {
+                    const auto w = db.target_window_stride();
+
+                    os << '\n'
+                        << opt.comment << "  score  " << align.score
+                        << "  aligned to "
+                        << src.filename << " #" << src.index
+                        << " in range [" << (w * tophits[0].pos.beg)
+                        << ',' << (w * tophits[0].pos.end) << "]\n"
+                        << opt.comment << "  query  " << align.query << '\n'
+                        << opt.comment << "  target " << align.subject;
+                }
+            }
+        } catch(std::exception& e) {
+            if(opt.showErrors) cerr << e.what() << '\n';
+        }
+    }
+}
+
+
+
+/*****************************************************************************
+ *
  * @brief process database hit results: classify & print mapping
  *
  *****************************************************************************/
 void process_database_answer(
      const database& db, const query_options& opt,
-     const std::string& header,
+     const string& header,
      const sequence& query1, const sequence& query2,
-     matches_per_location&& hits, std::ostream& os, classification_statistics& stats)
+     matches_per_location&& hits,
+     classification_statistics& stats, std::ostream& os)
 {
     if(header.empty()) return;
 
@@ -627,7 +686,7 @@ void process_database_answer(
     if(showMapping) {
         //print query header (first contiguous string only)
         auto l = header.find(' ');
-        if(l != std::string::npos) {
+        if(l != string::npos) {
             auto oit = std::ostream_iterator<char>{os, ""};
             std::copy(header.begin(), header.begin() + l, oit);
         }
@@ -665,44 +724,7 @@ void process_database_answer(
 
     //optional alignment ------------------------------
     if(opt.testAlignment && cls) {
-        //try to align to top target
-        const taxon* tgtTax = tophits[0].tax;
-        if(tgtTax && tgtTax->rank() == taxon_rank::Sequence) {
-            const auto& src = tgtTax->source();
-            try {
-                //load candidate file and forward to sequence
-                auto reader = make_sequence_reader(src.filename);
-                reader->skip(src.index);
-
-                if(reader->has_next()) {
-                    auto tgtSequ = reader->next().data;
-                    auto subject = make_view_from_window_range(tgtSequ,
-                                        tophits[0].pos,
-                                        db.target_window_stride());
-
-                    auto align = make_alignment(query1, query2, subject,
-                                                needleman_wunsch_scheme{});
-
-                    stats.register_alignment_score(align.score);
-
-                    //print alignment to top candidate
-                    if(align.score > 0 && opt.showAlignment) {
-                        const auto w = db.target_window_stride();
-
-                        os << '\n'
-                           << opt.comment << "  score  " << align.score
-                           << "  aligned to "
-                           << src.filename << " #" << src.index
-                           << " in range [" << (w * tophits[0].pos.beg)
-                           << ',' << (w * tophits[0].pos.end) << "]\n"
-                           << opt.comment << "  query  " << align.query << '\n'
-                           << opt.comment << "  target " << align.subject;
-                    }
-                }
-            } catch(std::exception& e) {
-                if(opt.showErrors) std::cerr << e.what() << '\n';
-            }
-        }
+        use_alignment(db, opt, query1, query2, tophits, stats, os);
     }
 
     if(showMapping) os << '\n';
@@ -724,8 +746,6 @@ void classify(parallel_queue& queue,
     const auto load = 32 * queue.concurrency();
     const auto batchSize = 4096 * queue.concurrency();
 
-//    std::vector<std::ostringstream> outbufs(load);
-
     while(reader.has_next()) {
         if(queue.unsafe_waiting() < load) {
             queue.enqueue([&]{
@@ -738,7 +758,7 @@ void classify(parallel_queue& queue,
 
                         process_database_answer(db, opt,
                             query.header, query.data, sequence{},
-                            std::move(matches), obuf, stats);
+                            std::move(matches), stats, obuf);
                     }
                 }
                 //flush output buffer
@@ -787,7 +807,7 @@ void classify_pairs(parallel_queue& queue,
 
                         process_database_answer(db, opt,
                             query1.header, query1.data, query2.data,
-                            std::move(matches), obuf, stats);
+                            std::move(matches), stats, obuf);
                     }
                 }
                 //flush output buffer
@@ -809,7 +829,7 @@ void classify_pairs(parallel_queue& queue,
  *****************************************************************************/
 void classify_per_file(parallel_queue& queue,
                        const database& db, const query_options& opt,
-                       const std::vector<std::string>& infilenames,
+                       const std::vector<string>& infilenames,
                        std::ostream& os, classification_statistics& stats)
 {
     for(size_t i = 0; i < infilenames.size(); ++i) {
@@ -830,7 +850,7 @@ void classify_per_file(parallel_queue& queue,
         }
         catch(std::exception& e) {
             if(opt.mapViewMode != map_view_mode::none) {
-                os << "FAIL: " << e.what() << std::endl;
+                os << "FAIL: " << e.what() << endl;
             }
         }
     }
@@ -845,7 +865,7 @@ void classify_per_file(parallel_queue& queue,
  *****************************************************************************/
 void classify_on_file_pairs(parallel_queue& queue,
                             const database& db, const query_options& opt,
-                            const std::vector<std::string>& infilenames,
+                            const std::vector<string>& infilenames,
                             std::ostream& os, classification_statistics& stats)
 {
     //pair up reads from two consecutive files in the list
@@ -865,7 +885,7 @@ void classify_on_file_pairs(parallel_queue& queue,
         }
         catch(std::exception& e) {
             if(opt.mapViewMode != map_view_mode::none) {
-                os << "FAIL: " << e.what() << std::endl;
+                os << "FAIL: " << e.what() << endl;
             }
         }
     }
@@ -875,16 +895,12 @@ void classify_on_file_pairs(parallel_queue& queue,
 
 /*****************************************************************************
  *
- * @brief prints classification parameters & results
- *        decides how to handle paired sequences
+ * @brief prints classification parameters
  *
  *****************************************************************************/
-void classify_sequences(const database& db, const query_options& opt,
-                        const std::vector<std::string>& infilenames,
-                        std::ostream& os)
+void show_classification_parameters(const query_options& opt, std::ostream& os)
 {
     const auto& comment = opt.comment;
-
     if(opt.mapViewMode != map_view_mode::none) {
         os << comment << "Reporting per-read mappings (non-mapping lines start with '"
            << comment << "').\n";
@@ -927,6 +943,23 @@ void classify_sequences(const database& db, const query_options& opt,
     }
 
     os << comment << "Using " << opt.numThreads << " threads\n";
+
+}
+
+
+
+/*****************************************************************************
+ *
+ * @brief prints classification parameters & results
+ *        decides how to handle paired sequences
+ *
+ *****************************************************************************/
+void classify_sequences(const database& db, const query_options& opt,
+                        const std::vector<string>& infilenames,
+                        std::ostream& os)
+{
+    show_classification_parameters(opt, os);
+
     if(opt.outfile.empty()) os.flush();
 
     parallel_queue queue(opt.numThreads);
@@ -952,6 +985,7 @@ void classify_sequences(const database& db, const query_options& opt,
                             ? stats.total() : 2 * stats.total();
 
     const auto speed = numQueries / time.minutes();
+    const auto& comment = opt.comment;
     os << comment << "queries: " << numQueries << '\n'
        << comment << "time:    " << time.milliseconds() << " ms\n"
        << comment << "speed:   " << speed << " queries/min\n";
@@ -959,7 +993,7 @@ void classify_sequences(const database& db, const query_options& opt,
     if(stats.total() > 0) {
         show_classification_statistics(os, stats, comment);
     } else {
-        os << comment << "No valid query sequences found." << std::endl;
+        os << comment << "No valid query sequences found." << endl;
     }
 
     if(opt.outfile.empty()) os.flush();
@@ -974,19 +1008,18 @@ void classify_sequences(const database& db, const query_options& opt,
  *
  *****************************************************************************/
 void process_input_files(const database& db, const query_options& opt,
-                         const std::vector<std::string>& infilenames,
-                         const std::string& outfilename)
+                         const std::vector<string>& infilenames,
+                         const string& outfilename)
 {
 
     if(outfilename.empty()) {
-        classify_sequences(db, opt, infilenames, std::cout);
+        classify_sequences(db, opt, infilenames, cout);
     }
     else {
         std::ofstream os {outfilename, std::ios::out};
 
         if(os.good()) {
-            std::cout << "Output will be redirected to file: "
-                      << outfilename << std::endl;
+            cout << "Output will be redirected to file: " << outfilename << endl;
 
             classify_sequences(db, opt, infilenames, os);
         }
@@ -1007,7 +1040,7 @@ void process_input_files(const database& db, const query_options& opt,
 void process_input_files(const database& db, const query_options& opt)
 {
     if(opt.infiles.empty()) {
-        std::cerr << "No input filenames provided!" << std::endl;
+        cerr << "No input filenames provided!" << endl;
         return;
     }
     else {
@@ -1023,7 +1056,7 @@ void process_input_files(const database& db, const query_options& opt)
 
     //process files / file pairs separately
     if(opt.splitOutput) {
-        std::string outfile;
+        string outfile;
         //process each input file pair separately
         if(opt.pairing == pairing_mode::files && opt.infiles.size() > 1) {
             for(std::size_t i = 0; i < opt.infiles.size(); i += 2) {
@@ -1035,7 +1068,7 @@ void process_input_files(const database& db, const query_options& opt)
                                             + ".txt";
                 }
                 process_input_files(db, opt,
-                                    std::vector<std::string>{f1,f2}, outfile);
+                                    std::vector<string>{f1,f2}, outfile);
             }
         }
         //process each input file separately
@@ -1045,7 +1078,7 @@ void process_input_files(const database& db, const query_options& opt)
                     outfile = opt.outfile + "_" + extract_filename(f) + ".txt";
                 }
                 process_input_files(db, opt,
-                                    std::vector<std::string>{f}, outfile);
+                                    std::vector<string>{f}, outfile);
             }
         }
     }
@@ -1064,17 +1097,17 @@ void process_input_files(const database& db, const query_options& opt)
  *
  *****************************************************************************/
 void configure_database_according_to_query_options(
-    const query_options& opt, database& db)
+    database& db, const query_options& opt)
 {
     if(opt.maxLoadFactor > 0) {
         db.max_load_factor(opt.maxLoadFactor);
-        std::cout << "max load factor of database hash table set to "
-                  << opt.maxLoadFactor << std::endl;
+        cout << "max load factor of database hash table set to "
+             << opt.maxLoadFactor << endl;
     }
     if(opt.maxLocationsPerFeature > 1) {
         db.max_locations_per_feature(opt.maxLocationsPerFeature);
-        std::cout << "max locations per feature set to "
-                  << opt.maxLocationsPerFeature << std::endl;
+        cout << "max locations per feature set to "
+             << opt.maxLocationsPerFeature << endl;
     }
     if(opt.removeOverpopulatedFeatures) {
         auto old = db.feature_count();
@@ -1083,11 +1116,11 @@ void configure_database_according_to_query_options(
         if(maxlpf < 0 || maxlpf == database::max_supported_locations_per_feature())
             maxlpf = database::max_supported_locations_per_feature() - 1;
 
-        std::cout << "\nRemoving features with more than "
-                  << maxlpf << "locations... " << std::flush;
+        cout << "\nRemoving features with more than "
+             << maxlpf << "locations... " << std::flush;
 
         auto rem = db.remove_features_with_more_locations_than(maxlpf);
-        std::cout << rem << " of " << old << " removed." << std::endl;
+        cout << rem << " of " << old << " removed." << endl;
     }
 
     //use a different sketching scheme for querying?
@@ -1110,7 +1143,7 @@ void configure_database_according_to_query_options(
  *
  *****************************************************************************/
 void configure_query_options_according_to_database(
-    const database& db, query_options& opt)
+    query_options& opt, const database& db)
 {
     //deduce hit threshhold from database?
     if(opt.hitsMin < 1) {
@@ -1135,32 +1168,32 @@ void configure_query_options_according_to_database(
 void run_interactive_mode(const database& db, const query_options& opt)
 {
     while(true) {
-        std::cout << "$> " << std::flush;
+        cout << "$> " << std::flush;
 
         //tokenize input into whitespace-separated words
-        std::string input;
+        string input;
         std::getline(std::cin, input);
         if(input.empty()) {
-            std::cout << "No input - terminate." << std::endl;
+            cout << "No input - terminate." << endl;
             return;
         }
 
-        std::vector<std::string> args {"query", opt.dbfile};
+        std::vector<string> args {"query", opt.dbfile};
         std::istringstream iss(input);
         while(iss >> input) { args.push_back(input); }
-        for(const auto& a : args) std::cout << a << " " << std::endl;
+        for(const auto& a : args) cout << a << " " << endl;
 
         auto imargs = args_parser{std::move(args)};
 
         //read command line options (use previous ones as defaults)
         auto imopt = get_query_options(imargs, opt);
-        configure_query_options_according_to_database(db, imopt);
+        configure_query_options_according_to_database(imopt, db);
 
         try {
             process_input_files(db, imopt);
         }
         catch(std::exception& e) {
-            if(opt.showErrors) std::cerr << e.what() << std::endl;
+            if(opt.showErrors) cerr << e.what() << endl;
         }
     }
 }
@@ -1179,32 +1212,32 @@ void run_interactive_mode(const database& db, const query_options& opt)
  *****************************************************************************/
 void main_mode_query(const args_parser& args)
 {
-    std::cout << "Classifying query sequences." << std::endl;
+    cout << "Classifying query sequences." << endl;
 
     auto opt = get_query_options(args);
 
     auto db = make_database<database>(opt.dbfile);
 
-    configure_database_according_to_query_options(opt, db);
+    configure_database_according_to_query_options(db, opt);
 
     if(opt.showDBproperties) {
         print_properties(db);
-        std::cout << '\n';
+        cout << '\n';
     }
 
     if(!opt.infiles.empty()) {
-        configure_query_options_according_to_database(db, opt);
+        configure_query_options_according_to_database(opt, db);
         process_input_files(db, opt);
     }
     else {
-        std::cout << "No input files provided.\n"
+        cout << "No input files provided.\n"
             "Running in interactive mode:\n"
             " - Enter input file name(s) and command line options and press return.\n"
             " - The initially given command line options will be used as defaults.\n"
             " - All command line options that would modify the database are ignored.\n"
             " - Each line will be processed separately.\n"
             " - Abort with Ctrl-C or by entering an empty line."
-            << std::endl;
+            << endl;
 
         run_interactive_mode(db, opt);
     }

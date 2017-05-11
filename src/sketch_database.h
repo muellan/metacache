@@ -39,6 +39,7 @@
 
 #include "version.h"
 #include "io_error.h"
+#include "io_options.h"
 #include "stat_moments.h"
 #include "taxonomy.h"
 #include "hash_multimap.h"
@@ -661,11 +662,11 @@ public:
     //---------------------------------------------------------------
     const taxon*
     ranked_lca(const taxon* ta, const taxon* tb) const {
-        return (ta && tb) ? lca(*ta,*tb) : nullptr;
+        return (ta && tb) ? ranked_lca(*ta,*tb) : nullptr;
     }
     const taxon*
     ranked_lca(const taxon& ta, const taxon& tb) const {
-        return ranksCache_.lca(ta,tb);
+        return ranksCache_.ranked_lca(ta,tb);
     }
 
 
@@ -1016,15 +1017,20 @@ private:
 template<class Database>
 Database
 make_database(const std::string& filename,
-              typename Database::scope what = Database::scope::everything)
+              typename Database::scope what = Database::scope::everything,
+              info_level info = info_level::moderate)
 {
     Database db;
 
-    std::cout << "Reading database from file '"
-              << filename << "' ... " << std::flush;
+    const bool showInfo = info != info_level::silent;
+
+    if(showInfo) {
+        std::cout << "Reading database from file '"
+                  << filename << "' ... " << std::flush;
+    }
     try {
         db.read(filename, what);
-        std::cout << "done." << std::endl;
+        if(showInfo) std::cout << "done." << std::endl;
 
         return db;
     }
@@ -1034,32 +1040,6 @@ make_database(const std::string& filename,
     }
 
     return db;
-}
-
-
-
-
-/*****************************************************************************
- *
- * @brief writes database to file
- *
- *****************************************************************************/
-template<class S, class K, class H, class G, class W, class L>
-void
-write_database(const sketch_database<S,K,H,G,W,L>& db,
-               const std::string& filename)
-{
-    std::cout << "Writing database to file'"
-              << filename << "' ... " << std::flush;
-    try {
-        db.write(filename);
-        std::cout << "done." << std::endl;
-
-    }
-    catch(const file_access_error&) {
-        std::cerr << "FAIL" << std::endl;
-        throw file_access_error{"Could not write database file '" + filename + "'"};
-    }
 }
 
 

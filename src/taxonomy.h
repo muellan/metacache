@@ -757,8 +757,8 @@ public:
 
     //---------------------------------------------------------------
     const taxon*
-    lca(const taxon& a, const taxon& b) const {
-        return taxa_.lca(a, b);
+    ranked_lca(const taxon& a, const taxon& b) const {
+        return taxa_.ranked_lca(operator[](a), operator[](b));
     }
 
 private:
