@@ -1111,23 +1111,29 @@ void configure_database_according_to_query_options(
         cout << "max load factor of database hash table set to "
              << opt.maxLoadFactor << endl;
     }
-    if(opt.maxLocationsPerFeature > 1) {
-        db.max_locations_per_feature(opt.maxLocationsPerFeature);
-        cout << "max locations per feature set to "
-             << opt.maxLocationsPerFeature << endl;
-    }
     if(opt.removeOverpopulatedFeatures) {
         auto old = db.feature_count();
 
-        auto maxlpf = opt.maxLocationsPerFeature;
-        if(maxlpf < 0 || maxlpf == database::max_supported_locations_per_feature())
+        auto maxlpf = opt.maxLocationsPerFeature - 1;
+        if(maxlpf < 0 || maxlpf >= database::max_supported_locations_per_feature())
             maxlpf = database::max_supported_locations_per_feature() - 1;
 
-        cout << "\nRemoving features with more than "
-             << maxlpf << "locations... " << std::flush;
+        maxlpf = std::min(maxlpf, db.max_locations_per_feature() - 1);
+        if(maxlpf > 0) { //always keep buckets with size 1
+            cout << "\nRemoving features with more than "
+                 << maxlpf << "locations... " << std::flush;
 
-        auto rem = db.remove_features_with_more_locations_than(maxlpf);
-        cout << rem << " of " << old << " removed." << endl;
+            auto rem = db.remove_features_with_more_locations_than(maxlpf);
+
+            cout << rem << " of " << old << " removed." << endl;
+        }
+        //in case new max is less than the database setting
+        db.max_locations_per_feature(opt.maxLocationsPerFeature);
+    }
+    else if(opt.maxLocationsPerFeature > 1) {
+        db.max_locations_per_feature(opt.maxLocationsPerFeature);
+        cout << "max locations per feature set to "
+             << opt.maxLocationsPerFeature << endl;
     }
 
     //use a different sketching scheme for querying?

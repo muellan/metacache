@@ -402,19 +402,16 @@ void post_process_features(database& db, const build_options& opt)
 
     if(opt.removeOverpopulatedFeatures) {
         auto old = db.feature_count();
+        auto maxlpf = db.max_locations_per_feature() - 1;
+        if(maxlpf > 0) { //always keep buckets with size 1
+            if(showInfo) {
+                cout << "\nRemoving features with more than "
+                     << maxlpf << "locations... " << flush;
+            }
+            auto rem = db.remove_features_with_more_locations_than(maxlpf);
 
-        auto maxlpf = opt.maxLocationsPerFeature;
-        if(maxlpf < 0 || maxlpf == database::max_supported_locations_per_feature())
-            maxlpf = database::max_supported_locations_per_feature() - 1;
-
-        if(showInfo) {
-            cout << "\nRemoving features with more than "
-                 << maxlpf << "locations... " << flush;
+            if(showInfo) cout << rem << " of " << old << " removed." << endl;
         }
-
-        auto rem = db.remove_features_with_more_locations_than(maxlpf);
-
-        if(showInfo) cout << rem << " of " << old << " removed." << endl;
     }
 
     if(opt.removeAmbigFeaturesOnRank != taxon_rank::none &&
