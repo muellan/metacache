@@ -916,6 +916,9 @@ private:
         read_binary(is, nvalues);
 
         if(nkeys > 0) {
+            //if the allocator supports it: reserve one large memory chunk
+            //for all values; individual buckets will then point into this
+            //array; the default chunk_allocator does this
             reserve_values(nvalues);
             reserve_keys(nkeys);
 
