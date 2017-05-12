@@ -1121,7 +1121,7 @@ void configure_database_according_to_query_options(
         maxlpf = std::min(maxlpf, db.max_locations_per_feature() - 1);
         if(maxlpf > 0) { //always keep buckets with size 1
             cout << "\nRemoving features with more than "
-                 << maxlpf << "locations... " << std::flush;
+                 << maxlpf << " locations... " << std::flush;
 
             auto rem = db.remove_features_with_more_locations_than(maxlpf);
 
