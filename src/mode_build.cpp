@@ -406,7 +406,7 @@ void post_process_features(database& db, const build_options& opt)
         if(maxlpf > 0) { //always keep buckets with size 1
             if(showInfo) {
                 cout << "\nRemoving features with more than "
-                     << maxlpf << "locations... " << flush;
+                     << maxlpf << " locations... " << flush;
             }
             auto rem = db.remove_features_with_more_locations_than(maxlpf);
 
@@ -476,7 +476,7 @@ void add_to_database(database& db, const build_options& opt)
     post_process_features(db, opt);
 
     if(showInfo) {
-        cout << "Writing database to file'" << opt.dbfile << "' ... " << flush;
+        cout << "Writing database to file '" << opt.dbfile << "' ... " << flush;
     }
     try {
         db.write(opt.dbfile);
