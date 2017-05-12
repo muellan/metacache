@@ -163,7 +163,7 @@ struct query_options
  *****************************************************************************/
 query_options
 get_query_options(const args_parser& args,
-                  const query_options defaults = query_options{})
+                  const query_options& defaults = query_options{})
 {
     query_options opt;
 
