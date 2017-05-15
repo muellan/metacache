@@ -1105,7 +1105,7 @@ void print_properties(const sketch_database<S,K,H,G,W,L>& db)
         << "------------------------------------------------\n"
         << "buckets           " << db.bucket_count() << '\n'
         << "bucket size       " << "max: " << lss.max()
-                                << "mean: " << lss.mean()
+                                << " mean: " << lss.mean()
                                 << " +/- " << lss.stddev()
                                 << " <> " << lss.skewness() << '\n'
         << "features          " << db.feature_count() << '\n'
