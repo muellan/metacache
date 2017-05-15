@@ -174,9 +174,6 @@ class hash_multimap
     using value_alloc  = std::allocator_traits<ValueAllocator>;
     using alloc_config = allocator_config<ValueAllocator>;
 
-    using probelen_t = std::uint8_t;
-
-
 public:
     //---------------------------------------------------------------
     using key_type         = Key;
@@ -213,11 +210,11 @@ public:
 
         bucket_type():
             values_{nullptr}, key_{},
-            size_(0), capacity_(0)//, probelen_(0)
+            size_(0), capacity_(0)
         {}
         bucket_type(key_type&& key):
             values_{nullptr}, key_{std::move(key)},
-            size_(0), capacity_(0)//, probelen_(0)
+            size_(0), capacity_(0)
         {}
 
         bool unused() const noexcept { return !values_; }
@@ -243,9 +240,6 @@ public:
               iterator  end()       noexcept { return values_ + size_; }
         const_iterator  end() const noexcept { return values_ + size_; }
         const_iterator cend() const noexcept { return values_ + size_; }
-
-//        probelen_t probe_length() const noexcept { return probelen_; }
-        probelen_t probe_length() const noexcept { return 0; }
 
     private:
         //-----------------------------------------------------
@@ -287,7 +281,6 @@ public:
             values_ = nullptr;
             size_ = 0;
             capacity_ = 0;
-//            probelen_ = 0;
         }
         //-------------------------------------------
         void clear() {
@@ -368,7 +361,6 @@ public:
         key_type key_;
         size_type size_;
         size_type capacity_;
-//        probelen_t probelen_;
     };
 
 
@@ -647,31 +639,6 @@ public:
     }
 
 
-    //---------------------------------------------------------------
-    /*
-    size_type
-    erase(const key_type& key)
-    {
-        auto it = find(key);
-        return (it != end()) ? erase_slot(it) : 0;
-    }
-    //-----------------------------------------------------
-    size_type
-    erase(iterator it)
-    {
-        using std::distance;
-        return erase_slot(it);
-    }
-    //-----------------------------------------------------
-    size_type
-    erase(const_iterator it)
-    {
-        using std::distance;
-        return erase_slot(cbegin() + distance(cbegin(),it));
-    }
-    */
-
-
     /****************************************************************
      * @brief discards values with indices n-1 ... size-1
      *        in the bucket associated with 'key'
@@ -733,7 +700,6 @@ public:
             b.values_ = nullptr;
             b.size_ = 0;
             b.capacity_ = 0;
-//            b.probelen_ = 0;
         }
         numKeys_ = 0;
         numValues_ = 0;
@@ -974,22 +940,10 @@ private:
             buckets_.begin() + (hash_(key) % buckets_.size()),
             buckets_.begin(), buckets_.end()};
 
-        probelen_t probelen = 0;
-
         //find bucket
         do {
             if(it->unused()) return buckets_.end();
             if(keyEqual_(it->key(), key)) return iterator(it);
-            /*
-            //robin hood hashing code disabled at the moment;
-            //simple linear probing performs better most of the time
-
-            //early out, possible due to Robin Hood invariant
-            if(probelen < std::numeric_limits<probelen_t>::max()) {
-                if(probelen > it->probelen_) return buckets_.end();
-                ++probelen;
-            }
-            */
         } while(++it);
 
         return buckets_.end();
@@ -1027,109 +981,8 @@ private:
             }
         } while(++it);
 
-        /*
-        //robin hood hashing code disabled at the moment;
-        //simple linear probing performs better most of the time
-        bool inserted = false;
-        value_type* values = nullptr;
-        bucket_size_type size = 0;
-        bucket_size_type capacity = 0;
-        probelen_t probelen = 0;
-
-        //find bucket
-        do {
-            //new slot found
-            if(it->unused()) {
-                if(inserted) { //last in a "swap chain"
-                    it->key_ = std::move(key);
-                    it->values_ = values;
-                    it->size_ = size;
-                    it->capacity_ = capacity;
-                    it->probelen_ = probelen;
-                    return iterator(it);
-                }
-                if(it->insert(alloc_, std::forward<Values>(newvalues)...)) {
-                    it->probelen_ = probelen;
-                    it->key_ = std::move(key);
-                    ++numKeys_;
-                    numValues_ += it->size();
-                    return iterator(it);
-                }
-                //could not insert
-                return buckets_.end();
-            }
-            //key already inserted
-            if(keyEqual_(it->key(), key)) {
-                auto oldsize = it->size();
-                if(it->insert(alloc_, std::forward<Values>(newvalues)...)) {
-                    numValues_ += it->size() - oldsize;
-                    return iterator(it);
-                }
-                return buckets_.end();
-            }
-            //neither empty slot nor key found
-            if(probelen < std::numeric_limits<probelen_t>::max()) {
-                //Robin Hood criterion
-                if(probelen > it->probelen_) {
-                    //swap current key/values with it's
-                    std::swap(it->key_, key);
-                    std::swap(it->probelen_, probelen);
-                    std::swap(it->values_, values);
-                    std::swap(it->size_, size);
-                    std::swap(it->capacity_, capacity);
-                    //did we already insert our key/values somewhere?
-                    if(!inserted) {
-                        if(!(it->insert(alloc_, std::forward<Values>(newvalues)...))) {
-                            //not enough memory -> change back and abort
-                            it->key_ = std::move(key);
-                            it->probelen_ = probelen;
-                            it->values_ = values;
-                            it->size_ = size;
-                            it->capacity_ = capacity;
-                            return buckets_.end();
-                        }
-                        numValues_ += it->size();
-                        ++numKeys_;
-                        inserted = true;
-                    }
-                }
-                ++probelen;
-            }
-        } while(++it);
-        */
         return buckets_.end();
     }
-
-    //---------------------------------------------------------------
-    /*
-    size_type
-    erase_slot(iterator pos)
-    {
-        //delete element
-        auto s = pos->size();
-        pos->free(alloc_);
-        --numKeys_;
-        numValues_ -= s;
-
-        //shift backwards
-        auto prv = pos;
-        probing_iterator nxt {pos+1, buckets_.begin(), buckets_.end()};
-
-        do {
-//            if(nxt->unused() || nxt->probelen_ == 0) {
-            if(nxt->unused()) {
-                break;
-            }
-            else {
-                std::swap(*prv, *nxt);
-//                --(prv->probelen_);
-            }
-            prv = iterator(nxt);
-        } while(++nxt);
-
-        return s;
-    }
-    */
 
     //---------------------------------------------------------------
     void make_sure_enough_buckets_left(size_type more)
