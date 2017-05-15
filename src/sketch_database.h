@@ -968,9 +968,10 @@ public:
     void print_feature_map(std::ostream& os) const {
         for(const auto& bucket : features_) {
             if(!bucket.empty()) {
-                os << bucket.key() << " -> ";
+                os << std::int_least64_t(bucket.key()) << " -> ";
                 for(target_location p : bucket) {
-                    os << '(' << p.tgt << ',' << p.win << ')';
+                    os << '(' << std::int_least64_t(p.tgt)
+                       << ',' << std::int_least64_t(p.win) << ')';
                 }
                 os << '\n';
             }
@@ -982,7 +983,8 @@ public:
     void print_feature_counts(std::ostream& os) const {
         for(const auto& bucket : features_) {
             if(!bucket.empty()) {
-                os << bucket.key() << " -> " << bucket.size() << '\n';
+                os << std::int_least64_t(bucket.key()) << " -> "
+                   << std::int_least64_t(bucket.size()) << '\n';
             }
         }
     }
@@ -1051,7 +1053,7 @@ make_database(const std::string& filename,
  *
  *****************************************************************************/
 template<class S, class K, class H, class G, class W, class L>
-void print_properties(const sketch_database<S,K,H,G,W,L>& db)
+void print_static_properties(const sketch_database<S,K,H,G,W,L>& db)
 {
     using db_t = sketch_database<S,K,H,G,W,L>;
     using target_id = typename db_t::target_id;
@@ -1083,7 +1085,19 @@ void print_properties(const sketch_database<S,K,H,G,W,L>& db)
         << "bucket size type  " << typeid(bkt_sz_t).name() << " " << (sizeof(bkt_sz_t)*8) << " bits\n"
         << "max. locations    " << std::uint64_t(db.max_locations_per_feature()) << '\n'
         << "location limit    " << std::uint64_t(db.max_supported_locations_per_feature()) << '\n';
+}
 
+
+
+
+/*****************************************************************************
+ *
+ * @brief prints database properties to stdout
+ *
+ *****************************************************************************/
+template<class S, class K, class H, class G, class W, class L>
+void print_content_properties(const sketch_database<S,K,H,G,W,L>& db)
+{
     if(db.target_count() > 0) {
 
         std::uint64_t numRankedTargets = 0;

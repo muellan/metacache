@@ -398,26 +398,26 @@ void prepare_database(database& db, const build_options& opt)
  *****************************************************************************/
 void post_process_features(database& db, const build_options& opt)
 {
-    const bool showInfo = opt.infoLevel != info_level::silent;
+    const bool notSilent = opt.infoLevel != info_level::silent;
 
     if(opt.removeOverpopulatedFeatures) {
         auto old = db.feature_count();
         auto maxlpf = db.max_locations_per_feature() - 1;
         if(maxlpf > 0) { //always keep buckets with size 1
-            if(showInfo) {
+            if(notSilent) {
                 cout << "\nRemoving features with more than "
                      << maxlpf << " locations... " << flush;
             }
             auto rem = db.remove_features_with_more_locations_than(maxlpf);
 
-            if(showInfo) cout << rem << " of " << old << " removed." << endl;
+            if(notSilent) cout << rem << " of " << old << " removed." << endl;
         }
     }
 
     if(opt.removeAmbigFeaturesOnRank != taxon_rank::none &&
         db.non_target_taxon_count() > 1)
     {
-        if(showInfo) {
+        if(notSilent) {
             cout << "\nRemoving ambiguous features on rank "
                  << taxonomy::rank_name(opt.removeAmbigFeaturesOnRank)
                  << "... " << flush;
@@ -427,9 +427,9 @@ void post_process_features(database& db, const build_options& opt)
         auto rem = db.remove_ambiguous_features(opt.removeAmbigFeaturesOnRank,
                                                 opt.maxTaxaPerFeature);
 
-        if(showInfo) {
+        if(notSilent) {
             cout << rem << " of " << old << "." << endl;
-            print_properties(db);
+            print_content_properties(db);
             cout << '\n';
         }
 
@@ -447,14 +447,14 @@ void add_to_database(database& db, const build_options& opt)
 {
     prepare_database(db, opt);
 
-    const bool showInfo = opt.infoLevel != info_level::silent;
-    if(showInfo) print_properties(db);
+    const bool notSilent = opt.infoLevel != info_level::silent;
+    if(notSilent) print_static_properties(db);
 
     timer time;
     time.start();
 
     if(!opt.infiles.empty()) {
-        if(showInfo) cout << "\nProcessing reference sequences." << endl;
+        if(notSilent) cout << "\nProcessing reference sequences." << endl;
         const auto initNumTargets = db.target_count();
 
         auto taxonMap = make_sequence_to_taxon_id_map(
@@ -463,33 +463,36 @@ void add_to_database(database& db, const build_options& opt)
 
         add_targets_to_database(db, opt.infiles, taxonMap, opt.infoLevel);
 
-        if(showInfo) {
+        if(notSilent) {
             clear_current_line();
             cout << "Added "
                  << (db.target_count() - initNumTargets) << " reference sequences "
                  << "in " << time.seconds() << " s" << endl;
         }
+
+        if(opt.infoLevel == info_level::verbose) print_static_properties(db);
+        if(notSilent) print_content_properties(db);
     }
 
     try_to_rank_unranked_targets(db, opt);
 
     post_process_features(db, opt);
 
-    if(showInfo) {
+    if(notSilent) {
         cout << "Writing database to file '" << opt.dbfile << "' ... " << flush;
     }
     try {
         db.write(opt.dbfile);
-        if(showInfo) cout << "done." << endl;
+        if(notSilent) cout << "done." << endl;
     }
     catch(const file_access_error&) {
-        if(showInfo) cout << "FAIL" << endl;
+        if(notSilent) cout << "FAIL" << endl;
         cerr << "Could not write database file!" << endl;
     }
 
     time.stop();
 
-    if(showInfo) {
+    if(notSilent) {
         cout << "Total build time: " << time.seconds() << " s" << endl;
     }
 

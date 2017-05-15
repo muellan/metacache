@@ -50,7 +50,7 @@ make_database(const args_parser& args,
  *****************************************************************************/
 void show_database_config(const args_parser& args)
 {
-    print_properties(make_database(args, database::scope::metadata_only));
+    print_static_properties(make_database(args, database::scope::metadata_only));
     std::cout << std::endl;
 }
 
@@ -62,7 +62,8 @@ void show_database_config(const args_parser& args)
  *****************************************************************************/
 void show_database_statistics(const args_parser& args)
 {
-    print_properties(make_database(args));
+    print_static_properties(make_database(args));
+    print_content_properties(make_database(args));
     std::cout << std::endl;
 }
 
@@ -76,7 +77,8 @@ void show_database_statistics(const args_parser& args)
 void show_feature_map(const args_parser& args)
 {
     auto db = make_database(args);
-    print_properties(db);
+    print_static_properties(db);
+    print_content_properties(db);
     std::cout << "\n===================================================\n";
     db.print_feature_map(std::cout);
     std::cout << "===================================================\n";
@@ -91,7 +93,8 @@ void show_feature_map(const args_parser& args)
 void show_feature_counts(const args_parser& args)
 {
     auto db = make_database(args);
-    print_properties(db);
+    print_static_properties(db);
+    print_content_properties(db);
     std::cout << "\n===================================================\n";
     db.print_feature_counts(std::cout);
     std::cout << "===================================================\n";
@@ -213,7 +216,7 @@ void show_rank_statistics(const args_parser& args)
 void show_basic_exec_info()
 {
     database db;
-    print_properties(db);
+    print_static_properties(db);
     std::cout << std::endl;
 }
 

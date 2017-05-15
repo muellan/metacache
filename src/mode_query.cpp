@@ -1232,7 +1232,8 @@ void main_mode_query(const args_parser& args)
     configure_database_according_to_query_options(db, opt);
 
     if(opt.showDBproperties) {
-        print_properties(db);
+        print_static_properties(db);
+        print_content_properties(db);
         cout << '\n';
     }
 
