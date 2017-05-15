@@ -410,7 +410,10 @@ void post_process_features(database& db, const build_options& opt)
             }
             auto rem = db.remove_features_with_more_locations_than(maxlpf);
 
-            if(notSilent) cout << rem << " of " << old << " removed." << endl;
+            if(notSilent) {
+                cout << rem << " of " << old << " removed." << endl;
+                if(rem != old) print_content_properties(db);
+            }
         }
     }
 
@@ -429,8 +432,7 @@ void post_process_features(database& db, const build_options& opt)
 
         if(notSilent) {
             cout << rem << " of " << old << "." << endl;
-            print_content_properties(db);
-            cout << '\n';
+            if(rem != old) print_content_properties(db);
         }
 
     }

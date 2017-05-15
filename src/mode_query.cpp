@@ -1234,7 +1234,6 @@ void main_mode_query(const args_parser& args)
     if(opt.showDBproperties) {
         print_static_properties(db);
         print_content_properties(db);
-        cout << '\n';
     }
 
     if(!opt.infiles.empty()) {
