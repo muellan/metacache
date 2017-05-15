@@ -468,6 +468,10 @@ public:
         if(nit == taxa_.end()) {
             throw std::runtime_error{"target taxon could not be created"};
         }
+
+        //target id -> taxon lookup table
+        targets_.push_back(newtax);
+
         //sketch sequence -> insert features
         window_id win = 0;
         for_each_window(seq, targetWindowSize_, targetWindowStride_,
@@ -482,9 +486,6 @@ public:
                 }
                 ++win;
             });
-
-        //target id -> taxon lookup table
-        targets_.push_back(newtax);
 
         return true;
     }
