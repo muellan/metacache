@@ -62,8 +62,9 @@ void show_database_config(const args_parser& args)
  *****************************************************************************/
 void show_database_statistics(const args_parser& args)
 {
-    print_static_properties(make_database(args));
-    print_content_properties(make_database(args));
+    auto db = make_database(args);
+    print_static_properties(db);
+    print_content_properties(db);
 }
 
 
