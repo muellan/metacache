@@ -40,7 +40,7 @@
 #include "version.h"
 #include "io_error.h"
 #include "io_options.h"
-#include "stat_moments.h"
+#include "stat_combined.h"
 #include "taxonomy.h"
 #include "hash_multimap.h"
 
@@ -950,9 +950,9 @@ public:
 
 
     //---------------------------------------------------------------
-    skewness_accumulator<double>
+    statistics_accumulator
     location_list_size_statistics() const {
-        auto priSize = skewness_accumulator<double>{};
+        auto priSize = statistics_accumulator{};
 
         for(const auto& bucket : features_) {
             if(!bucket.empty()) {
@@ -1104,7 +1104,9 @@ void print_properties(const sketch_database<S,K,H,G,W,L>& db)
         std::cout
         << "------------------------------------------------\n"
         << "buckets           " << db.bucket_count() << '\n'
-        << "bucket size       " << lss.mean() << " +/- " << lss.stddev()
+        << "bucket size       " << "max: " << lss.max()
+                                << "mean: " << lss.mean()
+                                << " +/- " << lss.stddev()
                                 << " <> " << lss.skewness() << '\n'
         << "features          " << db.feature_count() << '\n'
         << "dead features     " << db.dead_feature_count() << '\n'
