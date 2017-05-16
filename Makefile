@@ -117,7 +117,7 @@ clean :
 
 
 #--------------------------------------------------------------------
-# release
+# release (out-of-place build)
 #--------------------------------------------------------------------
 $(REL_DIR):
 	mkdir $(REL_DIR) 
@@ -140,9 +140,6 @@ $(REL_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)
 $(REL_DIR)/mode_build.o : src/mode_build.cpp $(HEADERS)
 	$(REL_COMPILE)
 	
-$(REL_DIR)/mode_help.o : src/mode_help.cpp src/modes.h
-	$(REL_COMPILE)
-
 $(REL_DIR)/mode_info.o : src/mode_info.cpp $(HEADERS)
 	$(REL_COMPILE)
 
@@ -152,7 +149,13 @@ $(REL_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 $(REL_DIR)/taxonomy_io.o : src/taxonomy_io.cpp $(HEADERS)
 	$(REL_COMPILE)
 
+$(REL_DIR)/mode_help.o : src/mode_help.cpp src/modes.h src/args_handling.h src/filesys_utility.h
+	$(REL_COMPILE)
+
 $(REL_DIR)/sequence_io.o : src/sequence_io.cpp src/sequence_io.h src/io_error.h
+	$(REL_COMPILE)
+
+$(REL_DIR)/args_handling.o : src/args_handling.cpp src/args_handling.h src/args_parser.h src/filesys_utility.h
 	$(REL_COMPILE)
 
 $(REL_DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.h
@@ -161,13 +164,9 @@ $(REL_DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.h
 $(REL_DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.h
 	$(REL_COMPILE)
 
-$(REL_DIR)/args_handling.o : src/args_handling.cpp src/args_handling.h src/args_parser.h src/filesys_utility.h
-	$(REL_COMPILE)
-
-
 
 #--------------------------------------------------------------------
-# debug
+# debug (out-of-place build)
 #--------------------------------------------------------------------
 $(DBG_DIR):
 	mkdir $(DBG_DIR) 
@@ -190,9 +189,6 @@ $(DBG_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)
 $(DBG_DIR)/mode_build.o : src/mode_build.cpp $(HEADERS)
 	$(DBG_COMPILE)
 	
-$(DBG_DIR)/mode_help.o : src/mode_help.cpp src/modes.h
-	$(DBG_COMPILE)
-
 $(DBG_DIR)/mode_info.o : src/mode_info.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
@@ -202,7 +198,13 @@ $(DBG_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 $(DBG_DIR)/taxonomy_io.o : src/taxonomy_io.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
+$(DBG_DIR)/mode_help.o : src/mode_help.cpp src/modes.h src/args_handling.h src/filesys_utility.h
+	$(DBG_COMPILE)
+
 $(DBG_DIR)/sequence_io.o : src/sequence_io.cpp src/sequence_io.h src/io_error.h
+	$(DBG_COMPILE)
+
+$(DBG_DIR)/args_handling.o : src/args_handling.cpp src/args_handling.h src/args_parser.h src/filesys_utility.h
 	$(DBG_COMPILE)
 
 $(DBG_DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.h
@@ -210,10 +212,6 @@ $(DBG_DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.h
 
 $(DBG_DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.h
 	$(DBG_COMPILE)
-
-$(DBG_DIR)/args_handling.o : src/args_handling.cpp src/args_handling.h src/args_parser.h src/filesys_utility.h
-	$(DBG_COMPILE)
-
 
 
 #--------------------------------------------------------------------

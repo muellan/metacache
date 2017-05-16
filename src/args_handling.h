@@ -27,7 +27,6 @@
 #include <vector>
 
 #include "args_parser.h"
-#include "taxonomy.h"
 
 
 namespace mc {

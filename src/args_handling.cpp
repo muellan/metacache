@@ -20,6 +20,7 @@
  *****************************************************************************/
 
 #include <stdexcept>
+#include <algorithm>
 
 #include "filesys_utility.h"
 #include "args_handling.h"
