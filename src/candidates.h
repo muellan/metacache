@@ -227,6 +227,9 @@ private:
                     top_[i] = latest;
                     break;
                 }
+                else if(latest.tax == top_[i].tax) {
+                    break;
+                }
             }
         }
     }
