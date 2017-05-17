@@ -1109,7 +1109,7 @@ private:
     {
         if(matches.empty()) return 0;
 
-        int tgt = -1;
+        target_id tgt = std::numeric_limits<target_id>::max();
         match_count_type hits = 0;
         match_count_type curBest = 0;
         match_count_type overallBest = 0;
