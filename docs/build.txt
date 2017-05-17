@@ -34,6 +34,11 @@ OPTIONS
     -winstride <no>       distance between window start positions
                           default: 113
 
+    -max-window-similarity <ratio>   
+                          window sketches of new targets are only inserted into
+                          the database if they are dissimilar to the already
+                          inserted window sketches, i.e., they score at most
+                          (ratio * sketchsize) many hits
 
 EXAMPLES
     Build database 'mydb' from sequence file 'genomes.fna':

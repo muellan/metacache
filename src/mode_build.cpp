@@ -37,6 +37,7 @@ using std::flush;
 using std::endl;
 
 
+
 /*****************************************************************************
  *
  * @brief database creation parameters
@@ -52,6 +53,8 @@ struct build_options
     float maxLoadFactor = -1;           //< 0 : use database default
     int maxLocationsPerFeature = database::max_supported_locations_per_feature();
     bool removeOverpopulatedFeatures = true;
+
+    float maxWindowSimilarity = 1.0f; //insert everything
 
     taxon_rank removeAmbigFeaturesOnRank = taxon_rank::none;
     int maxTaxaPerFeature = 1;
@@ -112,10 +115,19 @@ get_build_options(const args_parser& args)
                                            "max_ambig_per_feature"},
                                             defaults.maxTaxaPerFeature);
 
+    opt.maxWindowSimilarity = args.get<float>({"max-window-similarity",
+                                               "max_new_window_similarity"},
+                                               defaults.maxWindowSimilarity);
+
+    //interpret numbers > 1 as percentage
+    if(opt.maxWindowSimilarity > 1.0f) opt.maxWindowSimilarity *= 0.01f;
+    if(opt.maxWindowSimilarity < 0.0f) opt.maxWindowSimilarity = 0.0f;
+
     opt.taxonomy = get_taxonomy_options(args);
 
     return opt;
 }
+
 
 
 
@@ -355,6 +367,8 @@ void prepare_database(database& db, const build_options& opt)
         db.max_load_factor(opt.maxLoadFactor);
     }
 
+    db.max_new_window_similarity(opt.maxWindowSimilarity);
+
     if(!opt.taxonomy.path.empty()) {
         db.reset_taxa_above_sequence_level(
             make_taxonomic_hierarchy(opt.taxonomy.nodesFile,
@@ -386,7 +400,6 @@ void prepare_database(database& db, const build_options& opt)
                       << "due to missing taxonomic information.\n";
         }
     }
-    
 }
 
 
@@ -456,7 +469,8 @@ void add_to_database(database& db, const build_options& opt)
     time.start();
 
     if(!opt.infiles.empty()) {
-        if(notSilent) cout << "\nProcessing reference sequences." << endl;
+        if(notSilent) cout << "Processing reference sequences." << endl;
+
         const auto initNumTargets = db.target_count();
 
         auto taxonMap = make_sequence_to_taxon_id_map(
