@@ -850,17 +850,13 @@ public:
 
         //data type info
         {
+            //data type widths
             uint8_t featureSize = 0; read_binary(is, featureSize);
             uint8_t targetSize = 0;  read_binary(is, targetSize);
             uint8_t windowSize = 0;  read_binary(is, windowSize);
             uint8_t bucketSize = 0;  read_binary(is, bucketSize);
-
             uint8_t taxidSize = 0;   read_binary(is, taxidSize);
             uint8_t numTaxRanks = 0; read_binary(is, numTaxRanks);
-
-            //reserved for future use
-            uint64_t dummy = 0;
-            for(int i = 0; i < 7; ++i) read_binary(is, dummy);
 
             if( (sizeof(feature) != featureSize) ||
                 (sizeof(target_id) != targetSize) ||
@@ -946,13 +942,11 @@ public:
         //database version info
         write_binary(os, uint64_t( MC_DB_VERSION ));
 
-        //data type info
+        //data type widths
         write_binary(os, uint8_t(sizeof(feature)));
         write_binary(os, uint8_t(sizeof(target_id)));
         write_binary(os, uint8_t(sizeof(window_id)));
         write_binary(os, uint8_t(sizeof(bucket_size_type)));
-
-        //taxonomy info
         write_binary(os, uint8_t(sizeof(taxon_id)));
         write_binary(os, uint8_t(taxonomy::num_ranks));
 
