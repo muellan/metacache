@@ -456,14 +456,18 @@ lowest_common_taxon(
         std::unordered_map<const taxon*,int> scores;
         scores.rehash(2*cand.size());
 
+        int totalscore = 0;
+        for(int i = 0, n = cand.size(); i < n; ++i) {
+            totalscore += cand[i].hits;
+        }
+        float threshold = totalscore * trustedMajority;
+
         for(auto rank = lowestRank; rank <= highestRank; ++rank) {
             //hash-count taxon id occurrences on rank 'r'
-            int totalscore = 0;
             for(int i = 0, n = cand.size(); i < n; ++i) {
                 //use target id instead of taxon if at sequence level
                 const taxon* tax = db.ancestor(cand[i].tax, rank);
                 auto score = cand[i].hits;
-                totalscore += score;
                 auto it = scores.find(tax);
                 if(it != scores.end()) {
                     it->second += score;
@@ -482,7 +486,7 @@ lowest_common_taxon(
             }
             //if enough candidates (weighted by their hits)
             //agree on a taxon => classify as such
-            if(toptax && topscore >= (totalscore * trustedMajority)) {
+            if(toptax && topscore >= threshold) {
                 return toptax;
             }
             scores.clear();
@@ -509,9 +513,9 @@ classification(const database& db, const query_options& opt,
     if((cand[0].hits + cand[1].hits) < opt.hitsMin) return nullptr;
 
     //either top 2 are the same sequences with at least 'hitsMin' many hits
-    //(checked before) or hit difference between these top 2 is above threshhold
+    //(checked before) or hit difference between these top 2 is above threshold
     if( (cand[0].tax == cand[1].tax)
-        || (cand[0].hits - cand[1].hits) >= opt.hitsMin)
+        || (cand[0].hits - cand[1].hits >= opt.hitsMin) )
     {
         //return top candidate
         return cand[0].tax;
@@ -1158,7 +1162,7 @@ void configure_database_according_to_query_options(
 void configure_query_options_according_to_database(
     query_options& opt, const database& db)
 {
-    //deduce hit threshhold from database?
+    //deduce hit threshold from database?
     if(opt.hitsMin < 1) {
         auto sks = db.target_sketcher().sketch_size();
         if(sks >= 6) {
@@ -1223,8 +1227,6 @@ void run_interactive_query_mode(const database& db, const query_options& initOpt
  *****************************************************************************/
 void main_mode_query(const args_parser& args)
 {
-    cout << "Classifying query sequences." << endl;
-
     auto opt = get_query_options(args);
 
     auto db = make_database<database>(opt.dbfile);
@@ -1237,6 +1239,8 @@ void main_mode_query(const args_parser& args)
     }
 
     if(!opt.infiles.empty()) {
+        cout << "Classifying query sequences." << endl;
+
         configure_query_options_according_to_database(opt, db);
         process_input_files(db, opt);
     }
