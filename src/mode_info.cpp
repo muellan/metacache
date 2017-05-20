@@ -19,6 +19,7 @@
  *
  *****************************************************************************/
 #include <map>
+#include <typeinfo>
 
 #include "args_handling.h"
 #include "sequence_io.h"
@@ -52,6 +53,20 @@ void show_database_config(const args_parser& args)
 {
     print_static_properties(make_database(args, database::scope::metadata_only));
     std::cout << std::endl;
+}
+
+
+
+/*****************************************************************************
+ *
+ *
+ *****************************************************************************/
+void print_query_config()
+{
+    std::cout
+        << "hit classifier       " << typeid(classification_candidates).name() << '\n'
+        << "------------------------------------------------\n"
+        << std::endl;
 }
 
 
@@ -217,6 +232,7 @@ void show_basic_exec_info()
 {
     database db;
     print_static_properties(db);
+    print_query_config();
     std::cout << std::endl;
 }
 
@@ -237,6 +253,7 @@ void main_mode_info(const args_parser& args)
     else if(nargs == 2) {
         try {
             show_database_config(args);
+            print_query_config();
         }
         catch(std::exception& e) {
             std::cout << '\n' << e.what() << "!\n";

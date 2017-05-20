@@ -1238,7 +1238,9 @@ void print_static_properties(const sketch_database<S,K,H,G,W,L>& db)
         << "------------------------------------------------\n"
         << "bucket size type     " << typeid(bkt_sz_t).name() << " " << (sizeof(bkt_sz_t)*8) << " bits\n"
         << "max. locations       " << std::uint64_t(db.max_locations_per_feature()) << '\n'
-        << "location limit       " << std::uint64_t(db.max_supported_locations_per_feature()) << '\n';
+        << "location limit       " << std::uint64_t(db.max_supported_locations_per_feature()) << '\n'
+        << "------------------------------------------------"
+        << std::endl;
 }
 
 
@@ -1260,7 +1262,6 @@ void print_content_properties(const sketch_database<S,K,H,G,W,L>& db)
         }
 
         std::cout
-        << "------------------------------------------------\n"
         << "targets              " << db.target_count() << '\n'
         << "ranked targets       " << numRankedTargets << '\n'
         << "taxa in tree         " << db.non_target_taxon_count() << '\n';
