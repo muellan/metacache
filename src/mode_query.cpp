@@ -115,7 +115,7 @@ struct query_options
     taxon_rank excludedRank = taxon_rank::none;
     //
     std::uint16_t hitsMin  = 0;  //< 1 : deduced from database parameters
-    float hitsDiffFraction = 0.51;
+    float hitsDiffFraction = 0.9;
     //maximum range in sequence that read (pair) is expected to be in
     std::size_t insertSizeMax = 0;
 
