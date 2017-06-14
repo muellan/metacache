@@ -11,7 +11,9 @@ DESCRIPTION
     search at most 10 levels down in the file hierarchy.
 
     If no input sequence filenames or directories are given, MetaCache will
-    run in interactive query mode. 
+    run in interactive query mode. This can be used to load the database into
+    memory only once and then query it multiple times with different
+    query options.
 
 BASIC OPTIONS
     -out <file>        Redirect output to file <file>.
@@ -149,3 +151,10 @@ EXAMPLES
 
     Perform a precision test and show all ranks for each classification result:
         ./metacache query refseq reads.fna -precision -allranks -out results.txt
+
+    Load database in interactive query mode, then query multiple read batches
+        ./metacache query refseq
+        reads1.fa reads2.fa -pairfiles -insertsize 400
+        reads3.fa -pairseq -insertsize 300
+        reads4.fa -lineage
+
