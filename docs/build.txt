@@ -10,7 +10,7 @@ DESCRIPTION
     genomic sequence files instead of single filenames. MetaCache will
     search at most 10 levels down in the file hierarchy.
 
-OPTIONS
+BASIC OPTIONS
     -verbose              show detailed status information during build
 
     -silent               don't show any information during the build
@@ -22,6 +22,7 @@ OPTIONS
                           as alternative source in a post processing step
                           default: 'nucl_(gb|wgs|est|gss).accession2taxid'
 
+SAMPLING OPTIONS
     -kmerlen <no>         number of letters in a k-mer
                           default: 16
 
@@ -34,11 +35,44 @@ OPTIONS
     -winstride <no>       distance between window start positions
                           default: 113
 
+ADVANCED OPTIONS
     -max-window-similarity <ratio>   
-                          window sketches of new targets are only inserted into
-                          the database if they are dissimilar to the already
-                          inserted window sketches, i.e., they score at most
-                          (ratio * sketchsize) many hits
+            Window sketches of new targets are only inserted into the database
+            if they are dissimilar to the already inserted window sketches,
+            i.e., they score at most (ratio * sketchsize) many hits. This
+            will improve the precision to database size ratio but will also
+            lead to significantly longer build times. Good ratio settings
+            are in the range of 0.85 to 0.95.
+            default: off
+
+    -max-locations-per-feature
+            maximum number of target locations to be stored per feature
+            This should not be too high in order to not impact querying speed.
+            Note that an upper hard limit is always imposed by the data type
+            used for the hash table bucket size.
+            
+    -remove-overpopulated-features
+            Removes all features that have reached the maximum allowed amount of 
+            locations per feature. This can improve querying speed and can
+            be used to remove undiscriminative features.
+
+    -remove-ambig-features <rank>
+            Removes all features that have more than "-max-ambig-per-feature" 
+            many targets on the given taxonomic rank. This can decrease the
+            database size significantly at the cost of a small loss in
+            sensitivity. Note that the lower the given taxonomic rank is, the
+            more pronounced the effect will be.
+
+    -max-ambig-per-feature <number>
+            Maximum number of allowed different target taxa per feature 
+            if option "-remove-ambig-features" is used.
+
+    -max-load-fac <factor>        
+            max hash table load factor 
+            This can be used to trade off larger memory consumption for speed 
+            and vice versa. A lower load factor will improve speed, a larger one
+            will improve memory efficiency.
+            default: 0.8
 
 EXAMPLES
     Build database 'mydb' from sequence file 'genomes.fna':

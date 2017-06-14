@@ -4,15 +4,16 @@ SYNOPSIS
     metacache annotate taxid <input_sequence> <mapping files>... OPTIONS
 
 DESCRIPTION
-    Annotate sequences with taxonomic metadata using sequence identifiers.
-    (e.g. accession, accession.version or gi numbers) as keys. 
+    Annotate sequences with taxonomic metadata using identifiers like
+    accession, accession.version or gi numbers in the FASTA/FASTQ 
+    sequence header as keys. 
 
     Note that if you want to use the *.accession2taxid files provided by the
-    NCBI you will need a considerable amount of RAM since these files are
-    several GB in size.
+    NCBI as mapping files you will need a considerable amount of memory 
+    since these files are several gigabytes in size.
 
     You can also provide names of directories that contain
-    sequence id to taxid maping files instead of single filenames.
+    'sequence id to taxid' mapping files instead of single filenames.
     MetaCache will search at most 10 levels down in the file hierarchy.
 
 OPTIONS
@@ -22,6 +23,7 @@ OPTIONS
     -id=acc              use accession ids
        =accver           use accession.version ids
        =gi               usi gi ids
+                         default: "accver"
 
     -field-sep <string>  String that separates header fields.
                          default: space
@@ -31,8 +33,8 @@ OPTIONS
                          default: "|"
 
 EXAMPLES
-    Annotate sequences in file 'simBA5.fna' with their taxonomic ids
-        ./metacache annotate taxid simBA5.fna nucl_wgs.accession2taxid
+    Annotate sequences in file 'artificialReads.fna' with their taxonomic ids
+        ./metacache annotate taxid artificialReads.fna nucl_wgs.accession2taxid
 
     Use all mapping files in directory 'taxmapdir'
-        ./metacache annotate taxid simBA5.fna taxmapdir
+        ./metacache annotate taxid artificialReads.fna taxmapdir
