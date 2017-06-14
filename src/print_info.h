@@ -19,63 +19,44 @@
  *
  *****************************************************************************/
 
-#ifndef MC_ARGS_HANDLING_H_
-#define MC_ARGS_HANDLING_H_
+#ifndef MC_PRINT_INFO_H_
+#define MC_PRINT_INFO_H_
 
-
-#include <string>
-#include <vector>
-
-#include "args_parser.h"
+#include "config.h"
 
 
 namespace mc {
 
 
-
 /*****************************************************************************
  *
- * @brief database configuration parameters
+ * @brief how taxon formatting will be done
  *
  *****************************************************************************/
-struct taxonomy_options
-{
-    std::string path;
-    std::string nodesFile;
-    std::string namesFile;
-    std::string mergeFile;
-    std::vector<std::string> mappingPreFiles;
-    std::vector<std::string> mappingPostFiles;
+enum class taxon_print_mode : unsigned char {
+    name_only = 1, id_only = 2, id_name = 3
 };
 
 
-
-
 /*****************************************************************************
  *
- * @brief extracts database name from command line arguments
+ * @brief print ranked lineage
  *
  *****************************************************************************/
-std::string database_name(const args_parser&);
-
-
-
-/*****************************************************************************
- *
- * @brief extracts input sequence filenames from command line arguments
- *
- *****************************************************************************/
-std::vector<std::string> sequence_filenames(const args_parser&);
+void show_info(std::ostream&, const database&, const taxon&);
 
 
 
 /*****************************************************************************
  *
- * @brief extracts database config parameters from cmd line args
+ * @brief print ranked lineage
  *
  *****************************************************************************/
-taxonomy_options get_taxonomy_options(const args_parser&);
-
+void show_ranks(std::ostream&,
+                const ranked_lineage&,
+                taxon_print_mode = taxon_print_mode::name_only,
+                taxon_rank lowest  = taxon_rank::Sequence,
+                taxon_rank highest = taxon_rank::Domain);
 
 
 } // namespace mc

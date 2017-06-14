@@ -532,7 +532,7 @@ private:
 
 //-------------------------------------------------------------------
 /// @brief convenience alias
-using parallel_function_queue = parallel_task_queue<std::function<void()>>;
+using parallel_queue = parallel_task_queue<std::function<void()>>;
 
 
 

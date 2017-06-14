@@ -174,9 +174,6 @@ class hash_multimap
     using value_alloc  = std::allocator_traits<ValueAllocator>;
     using alloc_config = allocator_config<ValueAllocator>;
 
-    using probelen_t = std::uint8_t;
-
-
 public:
     //---------------------------------------------------------------
     using key_type         = Key;
@@ -213,11 +210,11 @@ public:
 
         bucket_type():
             values_{nullptr}, key_{},
-            size_(0), capacity_(0)//, probelen_(0)
+            size_(0), capacity_(0)
         {}
         bucket_type(key_type&& key):
             values_{nullptr}, key_{std::move(key)},
-            size_(0), capacity_(0)//, probelen_(0)
+            size_(0), capacity_(0)
         {}
 
         bool unused() const noexcept { return !values_; }
@@ -243,8 +240,6 @@ public:
               iterator  end()       noexcept { return values_ + size_; }
         const_iterator  end() const noexcept { return values_ + size_; }
         const_iterator cend() const noexcept { return values_ + size_; }
-
-        probelen_t probe_length() const noexcept { return 0; }
 
     private:
         //-----------------------------------------------------
@@ -366,7 +361,6 @@ public:
         key_type key_;
         size_type size_;
         size_type capacity_;
-//        probelen_t probelen_;
     };
 
 
@@ -706,7 +700,6 @@ public:
             b.values_ = nullptr;
             b.size_ = 0;
             b.capacity_ = 0;
-//            b.probelen_ = 0;
         }
         numKeys_ = 0;
         numValues_ = 0;
@@ -889,6 +882,9 @@ private:
         read_binary(is, nvalues);
 
         if(nkeys > 0) {
+            //if the allocator supports it: reserve one large memory chunk
+            //for all values; individual buckets will then point into this
+            //array; the default chunk_allocator does this
             reserve_values(nvalues);
             reserve_keys(nkeys);
 
@@ -943,8 +939,6 @@ private:
         probing_iterator it {
             buckets_.begin() + (hash_(key) % buckets_.size()),
             buckets_.begin(), buckets_.end()};
-
-        probelen_t probelen = 0;
 
         //find bucket
         do {

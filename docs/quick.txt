@@ -11,7 +11,7 @@ You need to specify one of the following modes:
     info        show database and reference genome properties
     annotate    annotate sequences with taxonomic information 
 
-EXAMPLES
+EXAMPLES:
     Query 'myreads.fna' against pre-built database 'refseq':
         ./metacache query refseq myreads.fna
 

@@ -1,7 +1,12 @@
 Documentation for MetaCache mode "info"
 
 SYNOPSIS
-    metacache info [<database>] [config | target <sequence id>... | lineages | rank <name> | statistics | featuremap]
+    metacache info [<database>]
+    metacache info <database> target [<sequence_id>...] 
+    metacache info <database> lineages 
+    metacache info <database> rank <name>
+    metacache info <database> statistics
+    metacache info <database> (featuremap|featurecounts)
 
 DESCRIPTION
     Display (meta-)information stored in a database.
@@ -17,7 +22,7 @@ SUB-MODES
         list all available meta information for all reference genomes
         in <database>
 
-    metacache info <database> target {sequence id}
+    metacache info <database> target <sequence_id>...
         list all available meta information for a specific reference genome
         in <database>
 
@@ -33,6 +38,9 @@ SUB-MODES
 
     metacache info <database> featuremap
         prints the raw (feature -> target locations) map
+
+    metacache info <database> featurecounts
+        prints (feature -> target count) map
 
 EXAMPLES
     List metadata for all reference genomes in database 'refseq':

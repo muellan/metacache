@@ -29,16 +29,18 @@
 #include "sequence_view.h"
 #include "alignment.h"
 #include "parallel_task_queue.h"
-
-#include "modes_common.h"
+#include "candidates.h"
+#include "print_info.h"
+#include "print_results.h"
 
 
 namespace mc {
 
-/*****************************************************************************
- * @brief type aliases
- *****************************************************************************/
-using parallel_queue = parallel_function_queue;
+using std::string;
+using std::cout;
+using std::cerr;
+using std::endl;
+using std::flush;
 
 
 /*****************************************************************************
@@ -76,6 +78,10 @@ struct query_options
     //-----------------------------------------------------
     //output options & formatting
     //-----------------------------------------------------
+    //prefix for each non-mapping line
+    string comment = "# ";
+    //separates individual mapping fields
+    string outSeparator = "\t|\t";
     //show database properties
     bool showDBproperties = false;
     //make a separate output file for each input file
@@ -95,10 +101,8 @@ struct query_options
     //what to show of a taxon
     taxon_print_mode showTaxaAs = taxon_print_mode::name_only;
     bool showAlignment = false;
-    //prefix for each non-mapping line
-    std::string comment = "# ";
-    //separates individual mapping fields
-    std::string outSeparator = "\t|\t";
+    //show error messages?
+    bool showErrors = true;
 
     //-----------------------------------------------------
     //classification options
@@ -111,10 +115,9 @@ struct query_options
     taxon_rank excludedRank = taxon_rank::none;
     //
     std::uint16_t hitsMin  = 0;  //< 1 : deduced from database parameters
-    float hitsDiff = 0.5;
+    float hitsDiffFraction = 0.9;
     //maximum range in sequence that read (pair) is expected to be in
     std::size_t insertSizeMax = 0;
-    bool weightHitsWithWindows = false;
 
     //-----------------------------------------------------
     //analysis options
@@ -124,7 +127,7 @@ struct query_options
     bool testCoverage = false;
     bool testAlignment = false;
     //additional file with query -> ground truth mapping
-    std::string sequ2taxonPreFile;
+    string sequ2taxonPreFile;
 
     //-----------------------------------------------------
     //query sampling scheme
@@ -137,15 +140,17 @@ struct query_options
     // tuning parameters
     //-----------------------------------------------------
     float maxLoadFactor = -1;        //< 0 : use value from database
-    int maxTargetsPerSketchVal = -1; //< 0 : use value from database
-    int numThreads = 1;
+    int maxLocationsPerFeature = -1; //< 0 : use value from database
+    int numThreads = std::thread::hardware_concurrency();
+    bool removeOverpopulatedFeatures = false;
+
 
     //-----------------------------------------------------
     //filenames
     //-----------------------------------------------------
-    std::string dbfile;
-    std::vector<std::string> infiles;
-    std::string outfile;
+    string dbfile;
+    std::vector<string> infiles;
+    string outfile;
 };
 
 
@@ -157,39 +162,24 @@ struct query_options
  *
  *****************************************************************************/
 query_options
-get_query_options(const args_parser& args)
+get_query_options(const args_parser& args,
+                  const query_options& defaults = query_options{})
 {
-    const query_options defaults;
-
-    query_options param;
+    query_options opt;
 
     //files
-    param.dbfile = database_name(args);
+    opt.dbfile = database_name(args);
+    opt.infiles = sequence_filenames(args);
 
-    param.infiles = sequence_filenames(args);
-    if(param.infiles.empty()) {
-        throw std::runtime_error{"No query sequence filenames provided"};
-    }
-    else {
-        bool anyreadable = false;
-        for(const auto& f : param.infiles) {
-            if(file_readable(f)) { anyreadable = true; break; }
-        }
-        if(!anyreadable) {
-            throw std::runtime_error{
-                        "None of the query sequence files could be opened"};
-        }
-    }
-
-    param.showDBproperties = args.contains("verbose");
+    opt.showDBproperties =  defaults.showDBproperties || args.contains("verbose");
 
     //pairing
     if(args.contains({"paired_files", "paired-files",
                       "pair_files", "pair-files", "pairfiles"}))
     {
-        if(param.infiles.size() > 1) {
-            param.pairing = pairing_mode::files;
-            std::sort(param.infiles.begin(), param.infiles.end());
+        if(opt.infiles.size() > 1) {
+            opt.pairing = pairing_mode::files;
+            std::sort(opt.infiles.begin(), opt.infiles.end());
         }
     }
     else if(args.contains({"paired_sequences", "paired-sequences",
@@ -198,142 +188,136 @@ get_query_options(const args_parser& args)
                            "pair_seq", "pair-seq",
                            "pairsequ", "pairseq", "paired"}) )
     {
-        param.pairing = pairing_mode::sequences;
+        opt.pairing = pairing_mode::sequences;
     }
 
     //analysis options
-    param.testCoverage = args.contains("coverage");
-    param.testPrecision = param.testCoverage || args.contains("precision");
+    opt.testCoverage = defaults.testCoverage || args.contains("coverage");
+
+    opt.testPrecision = defaults.testPrecision || opt.testCoverage ||
+                        args.contains("precision");
+
 
     //classification ranks
-    auto lowestRank = args.get<std::string>("lowest", "");
+    opt.lowestRank  = defaults.lowestRank;
+    auto lowestRank = args.get<string>("lowest", "");
     if(!lowestRank.empty()) {
         auto r = taxonomy::rank_from_name(lowestRank);
-        if(r < taxonomy::rank::root) {
-            param.lowestRank = r;
-        }
+        if(r < taxonomy::rank::root) opt.lowestRank = r;
     }
 
-    auto highestRank = args.get<std::string>("highest", "");
+    opt.highestRank = defaults.highestRank;
+    auto highestRank = args.get<string>("highest", "");
     if(!highestRank.empty()) {
         auto r = taxonomy::rank_from_name(highestRank);
-        if(r < taxon_rank::root) param.highestRank = r;
+        if(r < taxon_rank::root) opt.highestRank = r;
     }
 
-    if(param.lowestRank > param.highestRank)
-        param.lowestRank = param.highestRank;
+    if(opt.lowestRank  > opt.highestRank) opt.lowestRank  = opt.highestRank;
+    if(opt.highestRank < opt.lowestRank ) opt.highestRank = opt.lowestRank;
 
-    if(param.highestRank < param.lowestRank )
-        param.highestRank = param.lowestRank;
-
-    auto excludedRank = args.get<std::string>("exclude", "");
+    opt.excludedRank = defaults.excludedRank;
+    auto excludedRank = args.get<string>("exclude", "");
     if(!excludedRank.empty()) {
         auto r = taxonomy::rank_from_name(excludedRank);
-        if(r < taxon_rank::root) param.excludedRank = r;
+        if(r < taxon_rank::root) opt.excludedRank = r;
     }
 
     //query sketching
-    param.sketchlen = args.get<int>("sketchlen", defaults.sketchlen);
-    param.winlen    = args.get<int>("winlen", defaults.winlen);
-    param.winstride = args.get<int>("winstride",
-                                    param.winlen > 0 ? param.winlen : defaults.winstride);
+    opt.sketchlen = args.get<int>("sketchlen", defaults.sketchlen);
+    opt.winlen    = args.get<int>("winlen", defaults.winlen);
+    opt.winstride = args.get<int>("winstride",
+                                    opt.winlen > 0 ? opt.winlen : defaults.winstride);
 
     //query classification
-    param.hitsMin  = args.get<std::uint16_t>("hitmin", defaults.hitsMin);
-    param.hitsDiff = args.get<float>("hitdiff", defaults.hitsDiff);
-
-    param.weightHitsWithWindows = args.contains("hitweight");
+    opt.hitsMin  = args.get<std::uint16_t>("hitmin", defaults.hitsMin);
+    opt.hitsDiffFraction = args.get<float>("hitdiff", defaults.hitsDiffFraction);
+    //interprest numbers > 1 as percentage
+    if(opt.hitsDiffFraction > 1) opt.hitsDiffFraction *= 0.01;
 
     //alignment
-    param.showAlignment = args.contains("showalign");
+    opt.showAlignment = defaults.testAlignment ||
+                        args.contains({"showalign", "show-align", "show_align"});
 
-    param.testAlignment = param.showAlignment ||
+    opt.testAlignment = opt.showAlignment ||
                           args.contains({"align", "alignment",
                                          "testalign", "test-align"});
 
     //output formatting
-    param.showLineage = args.contains("lineage");
+    opt.showLineage = defaults.showLineage || args.contains("lineage");
 
-    param.outfile = args.get<std::string>("out", "");
+    opt.outfile = args.get<string>("out", defaults.outfile);
 
-    if(param.outfile.empty()) {
-        param.outfile = args.get<std::string>({"splitout","split-out"}, "");
-        param.splitOutput = true;
+    opt.splitOutput = defaults.splitOutput ||
+                      args.contains({"splitout","split-out"});
+
+    if(opt.outfile.empty()) {
+        opt.outfile = args.get<string>({"splitout","split-out"}, "");
     }
-    else {
-        param.splitOutput = args.contains({"splitout","split-out"});
-    }
 
-    param.outSeparator = args.get<std::string>("separator", "\t|\t");
+    opt.outSeparator = args.get<string>("separator", defaults.outSeparator);
 
-    param.showLocations = args.contains("locations");
+    opt.showLocations = defaults.showLocations || args.contains("locations");
 
-    param.showTopHits = args.contains({"tophits", "top-hits"});
-    param.showAllHits = args.contains({"allhits", "all-hits"});
+    opt.showTopHits = defaults.showTopHits ||
+                      args.contains({"tophits", "top-hits"});
+
+    opt.showAllHits = defaults.showAllHits ||
+                      args.contains({"allhits", "all-hits"});
 
     if(args.contains({"taxidsonly","taxids-only","taxids_only",
                       "taxidonly", "taxid-only", "taxid_only"}))
     {
-        param.showTaxaAs = taxon_print_mode::id_only;
+        opt.showTaxaAs = taxon_print_mode::id_only;
     }
     else if(args.contains("taxids") || args.contains("taxid")) {
-        param.showTaxaAs = taxon_print_mode::id_name;
+        opt.showTaxaAs = taxon_print_mode::id_name;
     }
     else {
-        param.showTaxaAs = taxon_print_mode::name_only;
+        opt.showTaxaAs = defaults.showTaxaAs;
     }
 
+    opt.mapViewMode = defaults.mapViewMode;
     if(args.contains({"nomap","no-map","noshowmap","nomapping","nomappings"})) {
-        param.mapViewMode = map_view_mode::none;
+        opt.mapViewMode = map_view_mode::none;
     }
     else if(args.contains({"mapped-only", "mapped_only", "mappedonly"})) {
-        param.mapViewMode = map_view_mode::mapped_only;
+        opt.mapViewMode = map_view_mode::mapped_only;
+    }
+    else if(args.contains({"showallmap","show-all-map","show-all-mappings"})) {
+        opt.mapViewMode = map_view_mode::all;
     }
 
     //showing hits changes the mapping mode!
-    if(param.mapViewMode == map_view_mode::none && param.showTopHits) {
-        param.mapViewMode = map_view_mode::mapped_only;
+    if(opt.mapViewMode == map_view_mode::none && opt.showTopHits) {
+        opt.mapViewMode = map_view_mode::mapped_only;
     }
-    else if(param.showAllHits) param.mapViewMode = map_view_mode::all;
+    else if(opt.showAllHits) opt.mapViewMode = map_view_mode::all;
 
-    param.showGroundTruth = args.contains({"ground-truth", "ground_truth",
-                                           "groundtruth"});
+    opt.showGroundTruth = defaults.showGroundTruth ||
+                          args.contains({"ground-truth", "ground_truth",
+                                         "groundtruth"});
 
-    param.insertSizeMax = args.get<std::size_t>({"insertsize", "insert-size"},
+    opt.insertSizeMax = args.get<std::size_t>({"insertsize", "insert-size"},
                                                 defaults.insertSizeMax);
 
     //database tuning parameters
-    param.maxLoadFactor = args.get<float>({"max-load-fac", "max_load_fac"},
+    opt.maxLoadFactor = args.get<float>({"max-load-fac", "max_load_fac"},
                                           defaults.maxLoadFactor);
 
-    param.maxTargetsPerSketchVal = args.get<int>({"max_locations_per_feature"
-                                                  "max-locations-per-feature"},
-                                                defaults.maxTargetsPerSketchVal);
+    opt.maxLocationsPerFeature = args.get<int>({"max_locations_per_feature",
+                                                "max-locations-per-feature"},
+                                                defaults.maxLocationsPerFeature);
 
-    param.numThreads = args.get<int>("threads",
-                                     std::thread::hardware_concurrency());
+    opt.removeOverpopulatedFeatures = defaults.removeOverpopulatedFeatures ||
+        args.contains({"remove-overpopulated-features",
+                       "remove_overpopulated_features" });
 
-    return param;
-}
+    opt.numThreads = args.get<int>("threads", defaults.numThreads);
 
+    opt.showErrors = defaults.showErrors && !args.contains({"-noerr","-noerrors"});
 
-
-/*****************************************************************************
- *
- * @brief  print target.window hit statistics from database
- *
- *****************************************************************************/
-template<int n>
-void show_candidate_ranges(std::ostream& os,
-    const database& db,
-    const matches_in_contiguous_window_range_top<n,target_id>& cand)
-{
-    const auto w = db.target_window_stride();
-
-    for(int i = 0; i < n; ++i) {
-        os << '[' << (w * cand.window(i).beg)
-           << ',' << (w * cand.window(i).end) << "] ";
-    }
+    return opt;
 }
 
 
@@ -346,25 +330,20 @@ void show_candidate_ranges(std::ostream& os,
 template<class Sequence, class Index>
 inline auto
 make_view_from_window_range(
-    const Sequence& s, const index_range<Index>& winRange, int stride = 1)
+    const Sequence& s, const window_range<Index>& range, int stride = 1)
     -> decltype(make_view(s.begin(),s.end()))
 {
-    auto end = s.begin() + (stride * winRange.end);
+    auto end = s.begin() + (stride * range.end);
     if(end > s.end()) end = s.end();
 
-    return make_view(s.begin() + (stride * winRange.beg), end);
+    return make_view(s.begin() + (stride * range.beg), end);
 }
 
 
 
 /*****************************************************************************
  *
- * @brief aligns one query (pair) against the top 2 candidate windows
  *
- * @param  query1  read
- * @param  query2  paired read
- *
- * @return index of best candidate or -1 if ambiguous or unsatisfactory
  *
  *****************************************************************************/
 template<class Query, class Subject, class AlignmentScheme>
@@ -398,81 +377,121 @@ make_alignment(const Query& query1, const Query& query2,
 
 /*****************************************************************************
  *
- * @pre cand.count() >= 2
+ * @brief returns query taxon (ground truth for precision tests)
  *
  *****************************************************************************/
-template<int maxn>
+const taxon*
+ground_truth(const database& db, const string& header)
+{
+    //try to extract query id and find the corresponding target in database
+    const taxon* tax = nullptr;
+    tax = db.taxon_with_name(extract_ncbi_accession_version_number(header));
+    if(tax) return db.next_ranked_ancestor(tax);
+
+    tax = db.taxon_with_name(extract_ncbi_accession_number(header));
+    if(tax) return db.next_ranked_ancestor(tax);
+
+    //try to extract id from header
+    tax = db.taxon_with_id(extract_taxon_id(header));
+    if(tax) return db.next_ranked_ancestor(tax);
+
+    return nullptr;
+}
+
+
+
+/*****************************************************************************
+ *
+ * @brief removes hits of a specific taxon (on a rank) from database matches;
+ *        can be very slow!
+ *
+ *****************************************************************************/
+void remove_hits_on_rank(const database& db,
+                         const taxon& tax, taxon_rank rank,
+                         matches_per_location& hits)
+{
+    const taxon* excl = db.ancestor(tax,rank);
+
+    auto maskedHits = hits;
+    for(const auto& hit : hits) {
+        auto t = db.ancestor(hit.first.tax, rank);
+        if(t != excl) maskedHits.insert(hit);
+    }
+
+    hits.swap(maskedHits);
+}
+
+
+
+/*****************************************************************************
+ *
+ * @brief lowest common taxon of several classification candidate
+ *        sequences / taxa
+ *
+ * @param trustedMajority  fraction of total feature hits that a
+ *                         candidate (taxon) must have in order to be
+ *                         chosen as classification result
+ *
+ * @param lowestRank       rank to start investigation on
+ * @param highestRank
+ *
+ *****************************************************************************/
 const taxon*
 lowest_common_taxon(
     const database& db,
-    const matches_in_contiguous_window_range_top<maxn,target_id>& cand,
+    const classification_candidates& cand,
     float trustedMajority,
-    taxon_rank lowestRank = taxon_rank::subSpecies,
+    taxon_rank lowestRank = taxon_rank::Sequence,
     taxon_rank highestRank = taxon_rank::Domain)
 {
-    if(maxn < 3 || cand.count() < 3) {
-        auto tax = &db.ranked_lca_of_targets(cand.target_id(0),
-                                             cand.target_id(1));
+    if(cand.size() < 3) {
+        const taxon* tax = db.ranked_lca(cand[0].tax, cand[1].tax);
 
         //classify if rank is below or at the highest rank of interest
-        if(tax->rank <= highestRank) return tax;
+        if(tax && tax->rank() <= highestRank) return tax;
     }
     else {
-        if(lowestRank == taxon_rank::Sequence)
-            lowestRank = taxonomy::next_main_rank(lowestRank);
+        if(lowestRank == taxon_rank::Sequence) ++lowestRank;
 
-//        std::cout << "vote (" << trustedMajority << "): ";
+        std::unordered_map<const taxon*,int> scores;
+        scores.rehash(2*cand.size());
 
-        std::unordered_map<taxon_id,int> scores;
-        scores.rehash(2*cand.count());
+        int totalscore = 0;
+        for(int i = 0, n = cand.size(); i < n; ++i) {
+            totalscore += cand[i].hits;
+        }
+        float threshold = totalscore * trustedMajority;
 
-        for(auto r = lowestRank; r <= highestRank; r = taxonomy::next_main_rank(r)) {
+        for(auto rank = lowestRank; rank <= highestRank; ++rank) {
             //hash-count taxon id occurrences on rank 'r'
-            int totalscore = 0;
-            for(int i = 0, n = cand.count(); i < n; ++i) {
+            for(int i = 0, n = cand.size(); i < n; ++i) {
                 //use target id instead of taxon if at sequence level
-                auto taxid = db.ranks_of_target(cand.target_id(i))[int(r)];
-                auto score = cand.hits(i);
-                totalscore += score;
-                auto it = scores.find(taxid);
+                const taxon* tax = db.ancestor(cand[i].tax, rank);
+                auto score = cand[i].hits;
+                auto it = scores.find(tax);
                 if(it != scores.end()) {
                     it->second += score;
                 } else {
-                    scores.insert(it, {taxid, score});
+                    scores.insert(it, {tax, score});
                 }
             }
-
-//            std::cout << "\n    " << taxonomy::rank_name(r) << " ";
-
-            //determine taxon id with most votes
-            taxon_id toptid = 0;
+            //determine taxon with most votes
+            const taxon* toptax = nullptr;
             int topscore = 0;
             for(const auto& x : scores) {
-
-//                std::cout << x.first << ":" << x.second << ", ";
-
                 if(x.second > topscore) {
-                    toptid = x.first;
+                    toptax   = x.first;
                     topscore = x.second;
                 }
             }
-
             //if enough candidates (weighted by their hits)
             //agree on a taxon => classify as such
-            if(toptid > 0 && topscore >= (totalscore * trustedMajority)) {
-
-//                std::cout << "  => classified " << taxonomy::rank_name(r)
-//                          << " " << toptid << '\n';
-
-                return &db.taxon_with_id(toptid);
+            if(toptax && topscore >= threshold) {
+                return toptax;
             }
-
             scores.clear();
         }
-
-//        std::cout << '\n';
     }
-
     //candidates couldn't agree on a taxon on any relevant taxonomic rank
     return nullptr;
 }
@@ -486,34 +505,24 @@ lowest_common_taxon(
  * @param  query2  paired read
  *
  *****************************************************************************/
-template<int n>
-classification
-sequence_classification(
-    const database& db, const query_options& param,
-    const matches_in_contiguous_window_range_top<n,target_id>& cand)
+const taxon*
+classification(const database& db, const query_options& opt,
+               const classification_candidates& cand)
 {
-    auto wc = param.weightHitsWithWindows
-                ? (cand.covered_windows() > 1) ? cand.covered_windows()-1 : 1
-                : 1;
-
     //sum of top-2 hits < threshold => considered not classifiable
-    if((cand.hits(0) + cand.hits(1)) < wc*param.hitsMin) {
-        return classification{};
-    }
+    if((cand[0].hits + cand[1].hits) < opt.hitsMin) return nullptr;
 
     //either top 2 are the same sequences with at least 'hitsMin' many hits
-    //(checked before) or hit difference between these top 2 is above threshhold
-    if( (cand.target_id(0) == cand.target_id(1))
-        || (cand.hits(0) - cand.hits(1)) >= wc*param.hitsMin)
+    //(checked before) or hit difference between these top 2 is above threshold
+    if( (cand[0].tax == cand[1].tax)
+        || (cand[0].hits - cand[1].hits >= opt.hitsMin) )
     {
         //return top candidate
-        auto tid = cand.target_id(0);
-        return classification{tid, &db.taxon_of_target(tid)};
+        return cand[0].tax;
     }
 
-    return classification{
-        lowest_common_taxon(db, cand, param.hitsDiff,
-                               param.lowestRank, param.highestRank) };
+    return lowest_common_taxon(db, cand, opt.hitsDiffFraction,
+                               opt.lowestRank, opt.highestRank);
 }
 
 
@@ -524,29 +533,17 @@ sequence_classification(
  *
  *****************************************************************************/
 void show_classification(std::ostream& os,
-                         const database& db, const query_options& param,
-                         const classification& cls)
+                         const database& db, const query_options& opt,
+                         const taxon* tax)
 {
-    if(cls.sequence_level()) {
-        auto rmax = param.showLineage ? param.highestRank : param.lowestRank;
-
-        show_ranks_of_target(os, db, cls.target(),
-                             param.showTaxaAs, param.lowestRank, rmax);
-    }
-    else if(cls.has_taxon()) {
-        if(cls.rank() > param.highestRank) {
-            os << "--";
-        }
-        else {
-            auto rmin = param.lowestRank < cls.rank() ? cls.rank() : param.lowestRank;
-            auto rmax = param.showLineage ? param.highestRank : rmin;
-
-            show_ranks(os, db, db.ranks(cls.tax()),
-                       param.showTaxaAs, rmin, rmax);
-        }
+    if(!tax || tax->rank() > opt.highestRank) {
+        os << "--";
     }
     else {
-        os << "--";
+        auto rmin = opt.lowestRank < tax->rank() ? tax->rank() : opt.lowestRank;
+        auto rmax = opt.showLineage ? opt.highestRank : rmin;
+
+        show_ranks(os, db.ranks(tax), opt.showTaxaAs, rmin, rmax);
     }
 }
 
@@ -554,22 +551,87 @@ void show_classification(std::ostream& os,
 
 /*****************************************************************************
  *
- * @brief removes hits of a taxon on a certain rank; can be very slow!
+ * @brief add difference between result and truth to statistics
  *
  *****************************************************************************/
-void remove_hits_on_rank(const database& db,
-                         taxon_rank rank, taxon_id taxid,
-                         match_result& res)
+void update_coverage_statistics(const database& db,
+                                const taxon* result, const taxon* truth,
+                                classification_statistics& stats)
 {
-    auto maskedRes = res;
-    for(const auto& orig : res) {
-        auto r = db.ranks_of_target(orig.first.tgt)[int(rank)];
-        if(r != taxid) {
-            maskedRes.insert(orig);
+    if(!truth) return;
+    //check if taxa are covered in DB
+    for(const taxon* tax : db.ranks(truth)) {
+        if(tax) {
+            auto r = tax->rank();
+            if(db.covers(*tax)) {
+                if(!result || r < result->rank()) { //unclassified on rank
+                    stats.count_coverage_false_neg(r);
+                } else { //classified on rank
+                    stats.count_coverage_true_pos(r);
+                }
+            }
+            else {
+                if(!result || r < result->rank()) { //unclassified on rank
+                    stats.count_coverage_true_neg(r);
+                } else { //classified on rank
+                    stats.count_coverage_false_pos(r);
+                }
+            }
         }
     }
-    using std::swap;
-    swap(maskedRes,res);
+}
+
+
+
+/*****************************************************************************
+ *
+ * @brief compute alignment of top hits and optionally show it
+ *
+ *****************************************************************************/
+void use_alignment(const database& db, const query_options& opt,
+                   const sequence& query1, const sequence& query2,
+                   const classification_candidates& tophits,
+                   classification_statistics& stats,
+                   std::ostream& os)
+{
+    //try to align to top target
+    const taxon* tgtTax = tophits[0].tax;
+    if(tgtTax && tgtTax->rank() == taxon_rank::Sequence) {
+        const auto& src = tgtTax->source();
+        try {
+            //load candidate file and forward to sequence
+            auto reader = make_sequence_reader(src.filename);
+            reader->skip(src.index);
+
+            if(reader->has_next()) {
+                auto tgtSequ = reader->next().data;
+                auto subject = make_view_from_window_range(tgtSequ,
+                                                           tophits[0].pos,
+                                                           db.target_window_stride());
+
+                auto align = make_alignment(query1, query2, subject,
+                                            needleman_wunsch_scheme{});
+
+                stats.register_alignment_score(align.score);
+
+                //print alignment to top candidate
+                if(align.score > 0 && opt.showAlignment) {
+                    const auto w = db.target_window_stride();
+
+                    os << '\n'
+                        << opt.comment << "  score  " << align.score
+                        << "  aligned to "
+                        << src.filename << " #" << src.index
+                        << " in range [" << (w * tophits[0].pos.beg)
+                        << ',' << (w * tophits[0].pos.end) << "]\n"
+                        << opt.comment << "  query  " << align.query << '\n'
+                        << opt.comment << "  target " << align.subject;
+                }
+            }
+        } catch(std::exception& e) {
+            if(opt.showErrors) cerr << e.what() << '\n';
+        }
+    }
 }
 
 
@@ -580,135 +642,100 @@ void remove_hits_on_rank(const database& db,
  *
  *****************************************************************************/
 void process_database_answer(
-     const database& db, const query_options& param,
-     const std::string& header,
+     const database& db, const query_options& opt,
+     const string& header,
      const sequence& query1, const sequence& query2,
-     match_result&& hits, std::ostream& os, classification_statistics& stats)
+     matches_per_location&& hits,
+     classification_statistics& stats, std::ostream& os)
 {
     if(header.empty()) return;
 
     //preparation -------------------------------
-    classification groundTruth;
-    if(param.testPrecision ||
-       (param.mapViewMode != map_view_mode::none && param.showGroundTruth) ||
-       (param.excludedRank != taxon_rank::none) )
+    const taxon* groundTruth = nullptr;
+    if(opt.testPrecision ||
+       (opt.mapViewMode != map_view_mode::none && opt.showGroundTruth) ||
+       (opt.excludedRank != taxon_rank::none) )
     {
         groundTruth = ground_truth(db, header);
     }
     //clade exclusion
-    if(param.excludedRank != taxon_rank::none && groundTruth.has_taxon()) {
-        auto exclTaxid = db.ranks(groundTruth.tax())[int(param.excludedRank)];
-        remove_hits_on_rank(db, param.excludedRank, exclTaxid, hits);
+    if(opt.excludedRank != taxon_rank::none && groundTruth) {
+        remove_hits_on_rank(db, *groundTruth, opt.excludedRank, hits);
     }
 
     //classify ----------------------------------
-    auto numWindows = std::uint_least64_t( 2 + (
-        std::max(query1.size() + query2.size(), param.insertSizeMax) /
+    auto numWindows = window_id( 2 + (
+        std::max(query1.size() + query2.size(), opt.insertSizeMax) /
         db.target_window_stride() ));
 
-    top_matches_in_contiguous_window_range tophits {hits, numWindows};
-    auto cls = sequence_classification(db, param, tophits);
+    classification_candidates tophits {db, hits, numWindows, opt.lowestRank};
+    const taxon* cls = classification(db, opt, tophits );
 
     //evaluate classification -------------------
-    if(param.testPrecision) {
-        auto lowestCorrectRank = lowest_common_rank(db, cls, groundTruth);
+    if(opt.testPrecision) {
+        auto lca = db.ranked_lca(cls, groundTruth);
+        auto lowestCorrectRank = lca ? lca->rank() : taxon_rank::none;
 
-        stats.assign_known_correct(cls.rank(), groundTruth.rank(),
-                                   lowestCorrectRank);
+        stats.assign_known_correct(
+            cls ? cls->rank() : taxon_rank::none,
+            groundTruth ? groundTruth->rank() : taxon_rank::none,
+            lowestCorrectRank);
 
         //check if taxa of assigned target are covered
-        if(param.testCoverage && groundTruth.has_taxon()) {
+        if(opt.testCoverage) {
             update_coverage_statistics(db, cls, groundTruth, stats);
         }
 
     } else {
-        stats.assign(cls.rank());
+        stats.assign(cls ? cls->rank() : taxon_rank::none);
     }
 
     //show mapping ------------------------------
-    bool showMapping = param.mapViewMode == map_view_mode::all ||
-        (param.mapViewMode == map_view_mode::mapped_only && !cls.none());
+    bool showMapping = opt.mapViewMode == map_view_mode::all ||
+        (opt.mapViewMode == map_view_mode::mapped_only && cls);
 
     if(showMapping) {
         //print query header (first contiguous string only)
         auto l = header.find(' ');
-        if(l != std::string::npos) {
+        if(l != string::npos) {
             auto oit = std::ostream_iterator<char>{os, ""};
             std::copy(header.begin(), header.begin() + l, oit);
         }
         else {
             os << header;
         }
-        os << param.outSeparator;
+        os << opt.outSeparator;
 
-        if(param.showGroundTruth) {
-            if(groundTruth.sequence_level()) {
-                show_ranks_of_target(os, db, groundTruth.target(),
-                    param.showTaxaAs, param.lowestRank,
-                    param.showLineage ? param.highestRank : param.lowestRank);
-            }
-            else if(groundTruth.has_taxon()) {
-                show_ranks(os, db, db.ranks(groundTruth.tax()),
-                    param.showTaxaAs, groundTruth.tax().rank,
-                    param.showLineage ? param.highestRank : groundTruth.tax().rank);
-            }
-            else {
+        if(opt.showGroundTruth) {
+            if(groundTruth) {
+                show_ranks(os, db.ranks(groundTruth),
+                    opt.showTaxaAs, groundTruth->rank(),
+                    opt.showLineage ? opt.highestRank : groundTruth->rank());
+            } else {
                 os << "n/a";
             }
-            os << param.outSeparator;
+            os << opt.outSeparator;
         }
 
         //print results
-        if(param.showAllHits) {
-            show_matches(os, db, hits, param.lowestRank);
-            os << param.outSeparator;
+        if(opt.showAllHits) {
+            show_matches(os, db, hits, opt.lowestRank);
+            os << opt.outSeparator;
         }
-        if(param.showTopHits) {
-            show_matches(os, db, tophits, param.lowestRank);
-            os << param.outSeparator;
+        if(opt.showTopHits) {
+            show_matches(os, db, tophits, opt.lowestRank);
+            os << opt.outSeparator;
         }
-        if(param.showLocations) {
+        if(opt.showLocations) {
             show_candidate_ranges(os, db, tophits);
-            os << param.outSeparator;
+            os << opt.outSeparator;
         }
-        show_classification(os, db, param, cls);
+        show_classification(os, db, opt, cls);
     }
 
     //optional alignment ------------------------------
-    if(param.testAlignment && !cls.none()) {
-        //check which of the top sequences has a better alignment
-        const auto& origin = db.origin_of_target(tophits.target_id(0));
-
-        try {
-            //load candidate file and forward to sequence
-            auto reader = make_sequence_reader(origin.filename);
-            for(std::size_t i = 0; i < origin.index; ++i) reader->next();
-            if(reader->has_next()) {
-                auto tgtSequ = reader->next().data;
-                auto subject = make_view_from_window_range(tgtSequ,
-                                    tophits.window(0),
-                                    db.target_window_stride());
-
-                auto align = make_alignment(query1, query2, subject,
-                                            needleman_wunsch_scheme{});
-
-                stats.register_alignment_score(align.score);
-
-                //print alignment to top candidate
-                if(align.score > 0 && param.showAlignment) {
-                    const auto w = db.target_window_stride();
-
-                    os << '\n'
-                       << param.comment << "  score  " << align.score
-                       << "  aligned to "
-                       << origin.filename << " #" << origin.index
-                       << " in range [" << (w * tophits.window(0).beg)
-                       << ',' << (w * tophits.window(0).end) << "]\n"
-                       << param.comment << "  query  " << align.query << '\n'
-                       << param.comment << "  target " << align.subject;
-                }
-            }
-        } catch(std::exception&) { }
+    if(opt.testAlignment && cls) {
+        use_alignment(db, opt, query1, query2, tophits, stats, os);
     }
 
     if(showMapping) os << '\n';
@@ -722,15 +749,13 @@ void process_database_answer(
  *
  *****************************************************************************/
 void classify(parallel_queue& queue,
-    const database& db, const query_options& param,
+    const database& db, const query_options& opt,
     sequence_reader& reader, std::ostream& os, classification_statistics& stats)
 {
     std::mutex mtx;
 
     const auto load = 32 * queue.concurrency();
     const auto batchSize = 4096 * queue.concurrency();
-
-//    std::vector<std::ostringstream> outbufs(load);
 
     while(reader.has_next()) {
         if(queue.unsafe_waiting() < load) {
@@ -742,9 +767,9 @@ void classify(parallel_queue& queue,
                     if(!query.header.empty()) {
                         auto matches = db.matches(query.data);
 
-                        process_database_answer(db, param,
+                        process_database_answer(db, opt,
                             query.header, query.data, sequence{},
-                            std::move(matches), obuf, stats);
+                            std::move(matches), stats, obuf);
                     }
                 }
                 //flush output buffer
@@ -765,7 +790,7 @@ void classify(parallel_queue& queue,
  *
  *****************************************************************************/
 void classify_pairs(parallel_queue& queue,
-                    const database& db, const query_options& param,
+                    const database& db, const query_options& opt,
                     sequence_reader& reader1, sequence_reader& reader2,
                     std::ostream& os, classification_statistics& stats)
 {
@@ -791,9 +816,9 @@ void classify_pairs(parallel_queue& queue,
                         auto matches = db.matches(query1.data);
                         db.accumulate_matches(query2.data, matches);
 
-                        process_database_answer(db, param,
+                        process_database_answer(db, opt,
                             query1.header, query1.data, query2.data,
-                            std::move(matches), obuf, stats);
+                            std::move(matches), stats, obuf);
                     }
                 }
                 //flush output buffer
@@ -814,29 +839,29 @@ void classify_pairs(parallel_queue& queue,
  *
  *****************************************************************************/
 void classify_per_file(parallel_queue& queue,
-                       const database& db, const query_options& param,
-                       const std::vector<std::string>& infilenames,
+                       const database& db, const query_options& opt,
+                       const std::vector<string>& infilenames,
                        std::ostream& os, classification_statistics& stats)
 {
     for(size_t i = 0; i < infilenames.size(); ++i) {
         const auto& fname = infilenames[i];
-        if(param.mapViewMode != map_view_mode::none) {
-            os << param.comment << fname << '\n';
+        if(opt.mapViewMode != map_view_mode::none) {
+            os << opt.comment << fname << '\n';
         }
-        else if(!param.outfile.empty() && infilenames.size() > 1) {
+        else if(!opt.outfile.empty() && infilenames.size() > 1) {
             show_progress_indicator(i / float(infilenames.size()));
         }
         try {
             auto reader = make_sequence_reader(fname);
-            if(param.pairing == pairing_mode::sequences) {
-                classify_pairs(queue, db, param, *reader, *reader, os, stats);
+            if(opt.pairing == pairing_mode::sequences) {
+                classify_pairs(queue, db, opt, *reader, *reader, os, stats);
             } else {
-                classify(queue, db, param, *reader, os, stats);
+                classify(queue, db, opt, *reader, os, stats);
             }
         }
         catch(std::exception& e) {
-            if(param.mapViewMode != map_view_mode::none) {
-                os << "FAIL: " << e.what() << std::endl;
+            if(opt.mapViewMode != map_view_mode::none) {
+                os << "FAIL: " << e.what() << endl;
             }
         }
     }
@@ -850,29 +875,28 @@ void classify_per_file(parallel_queue& queue,
  *
  *****************************************************************************/
 void classify_on_file_pairs(parallel_queue& queue,
-                            const database& db, const query_options& param,
-                            const std::vector<std::string>& infilenames,
+                            const database& db, const query_options& opt,
+                            const std::vector<string>& infilenames,
                             std::ostream& os, classification_statistics& stats)
 {
     //pair up reads from two consecutive files in the list
     for(size_t i = 0; i < infilenames.size(); i += 2) {
         const auto& fname1 = infilenames[i];
         const auto& fname2 = infilenames[i+1];
-        if(param.mapViewMode != map_view_mode::none) {
-            os << param.comment << fname1 << " + " << fname2 << '\n';
+        if(opt.mapViewMode != map_view_mode::none) {
+            os << opt.comment << fname1 << " + " << fname2 << '\n';
         }
-        else if(!param.outfile.empty() && infilenames.size() > 1) {
+        else if(!opt.outfile.empty() && infilenames.size() > 1) {
             show_progress_indicator(i / float(infilenames.size()));
         }
         try {
-            classify_pairs(queue, db, param,
-                           *make_sequence_reader(fname1),
-                           *make_sequence_reader(fname2),
-                           os, stats);
+            auto reader1 = make_sequence_reader(fname1);
+            auto reader2 = make_sequence_reader(fname2);
+            classify_pairs(queue, db, opt, *reader1, *reader2, os, stats);
         }
         catch(std::exception& e) {
-            if(param.mapViewMode != map_view_mode::none) {
-                os << "FAIL: " << e.what() << std::endl;
+            if(opt.mapViewMode != map_view_mode::none) {
+                os << "FAIL: " << e.what() << endl;
             }
         }
     }
@@ -882,26 +906,22 @@ void classify_on_file_pairs(parallel_queue& queue,
 
 /*****************************************************************************
  *
- * @brief prints classification parameters & results
- *        decides how to handle paired sequences
+ * @brief prints classification parameters
  *
  *****************************************************************************/
-void classify_sequences(const database& db, const query_options& param,
-                        const std::vector<std::string>& infilenames,
-                        std::ostream& os)
+void show_classification_parameters(const query_options& opt, std::ostream& os)
 {
-    const auto& comment = param.comment;
-
-    if(param.mapViewMode != map_view_mode::none) {
+    const auto& comment = opt.comment;
+    if(opt.mapViewMode != map_view_mode::none) {
         os << comment << "Reporting per-read mappings (non-mapping lines start with '"
            << comment << "').\n";
 
         os << comment
            << "Output will be constrained to ranks from '"
-           << taxonomy::rank_name(param.lowestRank) << "' to '"
-           << taxonomy::rank_name(param.highestRank) << "'.\n";
+           << taxonomy::rank_name(opt.lowestRank) << "' to '"
+           << taxonomy::rank_name(opt.highestRank) << "'.\n";
 
-        if(param.showLineage) {
+        if(opt.showLineage) {
             os << comment
                << "The complete lineage will be reported "
                << "starting with the lowest match.\n";
@@ -914,51 +934,69 @@ void classify_sequences(const database& db, const query_options& param,
     else {
         os << comment << "Per-Read mappings will not be shown.\n";
     }
-    if(param.excludedRank != taxon_rank::none) {
+    if(opt.excludedRank != taxon_rank::none) {
         os << comment << "Clade Exclusion on Rank: "
-           << taxonomy::rank_name(param.excludedRank);
+           << taxonomy::rank_name(opt.excludedRank);
     }
-    if(param.pairing == pairing_mode::files) {
+    if(opt.pairing == pairing_mode::files) {
         os << comment << "File based paired-end mode:\n"
            << comment << "  Reads from two consecutive files will be interleaved.\n"
-           << comment << "  Max insert size considered " << param.insertSizeMax << ".\n";
+           << comment << "  Max insert size considered " << opt.insertSizeMax << ".\n";
     }
-    else if(param.pairing == pairing_mode::sequences) {
+    else if(opt.pairing == pairing_mode::sequences) {
         os << comment << "Per file paired-end mode:\n"
            << comment << "  Reads from two consecutive sequences in each file will be paired up.\n"
-           << comment << "  Max insert size considered " << param.insertSizeMax << ".\n";
+           << comment << "  Max insert size considered " << opt.insertSizeMax << ".\n";
     }
 
-    if(param.testAlignment) {
+    if(opt.testAlignment) {
         os << comment << "Query sequences will be aligned to best candidate target => SLOW!\n";
     }
 
-    os << comment << "Using " << param.numThreads << " threads\n";
-    if(param.outfile.empty()) os.flush();
+    os << comment << "Using " << opt.numThreads << " threads\n";
 
-    parallel_queue queue(param.numThreads);
+}
+
+
+
+/*****************************************************************************
+ *
+ * @brief prints classification parameters & results
+ *        decides how to handle paired sequences
+ *
+ *****************************************************************************/
+void classify_sequences(const database& db, const query_options& opt,
+                        const std::vector<string>& infilenames,
+                        std::ostream& os)
+{
+    show_classification_parameters(opt, os);
+
+    if(opt.outfile.empty()) os.flush();
+
+    parallel_queue queue(opt.numThreads);
 
     timer time;
     time.start();
 
     classification_statistics stats;
-    if(param.pairing == pairing_mode::files) {
-        classify_on_file_pairs(queue, db, param, infilenames, os, stats);
+    if(opt.pairing == pairing_mode::files) {
+        classify_on_file_pairs(queue, db, opt, infilenames, os, stats);
     }
     else {
-        classify_per_file(queue, db, param, infilenames, os, stats);
+        classify_per_file(queue, db, opt, infilenames, os, stats);
     }
-    if(!param.outfile.empty() || param.mapViewMode == map_view_mode::none) {
+    if(!opt.outfile.empty() || opt.mapViewMode == map_view_mode::none) {
         clear_current_line();
     }
 
     time.stop();
 
     //show results
-    const auto numQueries = (param.pairing == pairing_mode::none)
+    const auto numQueries = (opt.pairing == pairing_mode::none)
                             ? stats.total() : 2 * stats.total();
 
     const auto speed = numQueries / time.minutes();
+    const auto& comment = opt.comment;
     os << comment << "queries: " << numQueries << '\n'
        << comment << "time:    " << time.milliseconds() << " ms\n"
        << comment << "speed:   " << speed << " queries/min\n";
@@ -966,39 +1004,211 @@ void classify_sequences(const database& db, const query_options& param,
     if(stats.total() > 0) {
         show_classification_statistics(os, stats, comment);
     } else {
-        os << comment << "No valid query sequences found." << std::endl;
+        os << comment << "No valid query sequences found." << endl;
     }
 
-    if(param.outfile.empty()) os.flush();
+    if(opt.outfile.empty()) os.flush();
 }
 
 
 
 /*****************************************************************************
  *
- * @brief descides where to put the classification results
+ * @brief runs classification on several input files and writes the results
+ *        to an output file or stdout
  *
  *****************************************************************************/
-void process_input_files(const database& db, const query_options& param,
-                         const std::vector<std::string>& infilenames,
-                         const std::string& outfilename)
+void process_input_files(const database& db, const query_options& opt,
+                         const std::vector<string>& infilenames,
+                         const string& outfilename)
 {
 
     if(outfilename.empty()) {
-        classify_sequences(db, param, infilenames, std::cout);
+        classify_sequences(db, opt, infilenames, cout);
     }
     else {
         std::ofstream os {outfilename, std::ios::out};
 
         if(os.good()) {
-            std::cout << "Output will be redirected to file: "
-                      << outfilename << std::endl;
+            cout << "Output will be redirected to file: " << outfilename << endl;
 
-            classify_sequences(db, param, infilenames, os);
+            classify_sequences(db, opt, infilenames, os);
         }
         else {
             throw file_write_error{
                 "Could not write to output file " + outfilename};
+        }
+    }
+}
+
+
+
+/*****************************************************************************
+ *
+ * @brief runs classification on all input files
+ *
+ *****************************************************************************/
+void process_input_files(const database& db, const query_options& opt)
+{
+    if(opt.infiles.empty()) {
+        cerr << "No input filenames provided!" << endl;
+        return;
+    }
+    else {
+        bool anyreadable = false;
+        for(const auto& f : opt.infiles) {
+            if(file_readable(f)) { anyreadable = true; break; }
+        }
+        if(!anyreadable) {
+            throw std::runtime_error{
+                        "None of the query sequence files could be opened"};
+        }
+    }
+
+    //process files / file pairs separately
+    if(opt.splitOutput) {
+        string outfile;
+        //process each input file pair separately
+        if(opt.pairing == pairing_mode::files && opt.infiles.size() > 1) {
+            for(std::size_t i = 0; i < opt.infiles.size(); i += 2) {
+                const auto& f1 = opt.infiles[i];
+                const auto& f2 = opt.infiles[i+1];
+                if(!opt.outfile.empty()) {
+                    outfile = opt.outfile + "_" + extract_filename(f1)
+                                            + "_" + extract_filename(f2)
+                                            + ".txt";
+                }
+                process_input_files(db, opt,
+                                    std::vector<string>{f1,f2}, outfile);
+            }
+        }
+        //process each input file separately
+        else {
+            for(const auto& f : opt.infiles) {
+                if(!opt.outfile.empty()) {
+                    outfile = opt.outfile + "_" + extract_filename(f) + ".txt";
+                }
+                process_input_files(db, opt,
+                                    std::vector<string>{f}, outfile);
+            }
+        }
+    }
+    //process all input files at once
+    else {
+        process_input_files(db, opt, opt.infiles, opt.outfile);
+    }
+}
+
+
+
+/*****************************************************************************
+ *
+ * @brief modify database content and sketching scheme according to
+ *        command line options
+ *
+ *****************************************************************************/
+void configure_database_according_to_query_options(
+    database& db, const query_options& opt)
+{
+    if(opt.maxLoadFactor > 0) {
+        db.max_load_factor(opt.maxLoadFactor);
+        cout << "max load factor of database hash table set to "
+             << opt.maxLoadFactor << endl;
+    }
+    if(opt.removeOverpopulatedFeatures) {
+        auto old = db.feature_count();
+
+        auto maxlpf = opt.maxLocationsPerFeature - 1;
+        if(maxlpf < 0 || maxlpf >= database::max_supported_locations_per_feature())
+            maxlpf = database::max_supported_locations_per_feature() - 1;
+
+        maxlpf = std::min(maxlpf, db.max_locations_per_feature() - 1);
+        if(maxlpf > 0) { //always keep buckets with size 1
+            cout << "\nRemoving features with more than "
+                 << maxlpf << " locations... " << std::flush;
+
+            auto rem = db.remove_features_with_more_locations_than(maxlpf);
+
+            cout << rem << " of " << old << " removed." << endl;
+        }
+        //in case new max is less than the database setting
+        db.max_locations_per_feature(opt.maxLocationsPerFeature);
+    }
+    else if(opt.maxLocationsPerFeature > 1) {
+        db.max_locations_per_feature(opt.maxLocationsPerFeature);
+        cout << "max locations per feature set to "
+             << opt.maxLocationsPerFeature << endl;
+    }
+
+    //use a different sketching scheme for querying?
+    if(opt.winlen > 0)    db.query_window_size(opt.winlen);
+    if(opt.winstride > 0) db.query_window_stride(opt.winstride);
+
+    if(opt.sketchlen > 0) {
+        auto s = db.query_sketcher();
+        s.sketch_size(opt.sketchlen);
+        db.query_sketcher(std::move(s));
+    }
+}
+
+
+
+/*****************************************************************************
+ *
+ * @brief sets up some query options according to database parameters
+ *        or command line options
+ *
+ *****************************************************************************/
+void configure_query_options_according_to_database(
+    query_options& opt, const database& db)
+{
+    //deduce hit threshold from database?
+    if(opt.hitsMin < 1) {
+        auto sks = db.target_sketcher().sketch_size();
+        if(sks >= 6) {
+            opt.hitsMin = static_cast<int>(sks / 3.0);
+        } else if (sks >= 4) {
+            opt.hitsMin = 2;
+        } else {
+            opt.hitsMin = 1;
+        }
+    }
+}
+
+
+
+/*****************************************************************************
+ *
+ * @brief primitive REPL mode for repeated querying using the same database
+ *
+ *****************************************************************************/
+void run_interactive_query_mode(const database& db, const query_options& initOpt)
+{
+    while(true) {
+        cout << "$> " << std::flush;
+
+        string input;
+        std::getline(std::cin, input);
+        if(input.empty() || input.find(":q") == 0) {
+            cout << "Terminate." << endl;
+            return;
+        }
+        else {
+            //tokenize input into whitespace-separated words and build args list
+            std::vector<string> args {"query", initOpt.dbfile};
+            std::istringstream iss(input);
+            while(iss >> input) { args.push_back(input); }
+
+            //read command line options (use initial ones as defaults)
+            auto opt = get_query_options(args_parser{std::move(args)}, initOpt);
+            configure_query_options_according_to_database(opt, db);
+
+            try {
+                process_input_files(db, opt);
+            }
+            catch(std::exception& e) {
+                if(initOpt.showErrors) cerr << e.what() << endl;
+            }
         }
     }
 }
@@ -1017,78 +1227,34 @@ void process_input_files(const database& db, const query_options& param,
  *****************************************************************************/
 void main_mode_query(const args_parser& args)
 {
-    std::cout << "Classifying query sequences." << std::endl;
+    auto opt = get_query_options(args);
 
-    auto param = get_query_options(args);
+    auto db = make_database<database>(opt.dbfile);
 
-    auto db = make_database<database>(param.dbfile);
+    configure_database_according_to_query_options(db, opt);
 
-    //configure database
-    if(param.maxLoadFactor > 0) {
-        db.max_load_factor(param.maxLoadFactor);
-    }
-    if(param.maxTargetsPerSketchVal > 1) {
-        db.remove_features_with_more_locations_than(param.maxTargetsPerSketchVal);
+    if(opt.showDBproperties) {
+        print_static_properties(db);
+        print_content_properties(db);
     }
 
-    //deduced query parameters
-    if(param.hitsMin < 1) {
-        auto sks = db.target_sketcher().sketch_size();
-        if(sks >= 6) {
-            param.hitsMin = static_cast<int>(sks / 3.0);
-        } else if (sks >= 4) {
-            param.hitsMin = 2;
-        } else {
-            param.hitsMin = 1;
-        }
-    }
+    if(!opt.infiles.empty()) {
+        cout << "Classifying query sequences." << endl;
 
-    //use a different sketching scheme for querying?
-    if(param.winlen > 0)    db.query_window_size(param.winlen);
-    if(param.winstride > 0) db.query_window_stride(param.winstride);
-
-    if(param.sketchlen > 0) {
-        auto s = db.query_sketcher();
-        s.sketch_size(param.sketchlen);
-        db.query_sketcher(std::move(s));
+        configure_query_options_according_to_database(opt, db);
+        process_input_files(db, opt);
     }
-
-    if(param.showDBproperties) {
-        print_properties(db);
-        std::cout << '\n';
-    }
-
-    //process files / file pairs separately
-    if(param.splitOutput) {
-        std::string outfile;
-        //process each input file pair separately
-        if(param.pairing == pairing_mode::files && param.infiles.size() > 1) {
-            for(std::size_t i = 0; i < param.infiles.size(); i += 2) {
-                const auto& f1 = param.infiles[i];
-                const auto& f2 = param.infiles[i+1];
-                if(!param.outfile.empty()) {
-                    outfile = param.outfile + "_" + extract_filename(f1)
-                                            + "_" + extract_filename(f2)
-                                            + ".txt";
-                }
-                process_input_files(db, param,
-                                    std::vector<std::string>{f1,f2}, outfile);
-            }
-        }
-        //process each input file separately
-        else {
-            for(const auto& f : param.infiles) {
-                if(!param.outfile.empty()) {
-                    outfile = param.outfile + "_" + extract_filename(f) + ".txt";
-                }
-                process_input_files(db, param,
-                                    std::vector<std::string>{f}, outfile);
-            }
-        }
-    }
-    //process all input files at once
     else {
-        process_input_files(db, param, param.infiles, param.outfile);
+        cout << "No input files provided.\n"
+            "Running in interactive mode:\n"
+            " - Enter input file name(s) and command line options and press return.\n"
+            " - The initially given command line options will be used as defaults.\n"
+            " - All command line options that would modify the database are ignored.\n"
+            " - Each line will be processed separately.\n"
+            " - Enter an empty line or press Ctrl-D to quit MetaCache.\n"
+            << endl;
+
+        run_interactive_query_mode(db, opt);
     }
 }
 

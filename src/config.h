@@ -31,6 +31,7 @@
 
 #include "sketch_database.h"
 #include "hash_dna.h"
+#include "candidates.h"
 
 
 namespace mc {
@@ -42,8 +43,8 @@ namespace mc {
 #ifdef MC_KMER_TYPE
     using kmer_type = MC_KMER_TYPE ;
 #else
-//    using kmer_type = std::uint32_t;
-    using kmer_type = std::uint64_t;
+    using kmer_type = std::uint32_t;
+//    using kmer_type = std::uint64_t;
 #endif
 
 
@@ -85,15 +86,18 @@ using sequence = std::string;
 
 /**************************************************************************
  * @brief controls how nucleotide sequences are transformed into 'features'
+ *        (called "h_1" in the paper)
  */
 using sketching_hash = same_size_hash<kmer_type>;
 
-using sketcher = single_function_min_hasher<kmer_type,sketching_hash>;
-//using sketcher = fuzzy_single_function_min_hasher<kmer_type>;
+//using sketcher = single_function_min_hasher<kmer_type,sketching_hash>;
+using sketcher = single_function_unique_min_hasher<kmer_type,sketching_hash>;
 
 
 /**************************************************************************
- * @brief hash function for database hash multi-map
+ * @brief hash function for database hash multi-map (called "h_2" in the paper)
+ *        note: std::hash<SomeUnsignedIntegerType>
+ *              is often implemented as the identity function
  */
 using feature_hash = std::hash<typename sketcher::feature_type>;
 //using feature_hash = same_size_hash<typename sketcher::feature_type>;
@@ -106,6 +110,13 @@ using feature_hash = std::hash<typename sketcher::feature_type>;
 using database = sketch_database<sequence,sketcher,feature_hash,
                                  target_id,window_id,loclist_size_t>;
 
+/** @brief pull some types from database into global namespace */
+using taxon                = database::taxon;
+using taxon_rank           = database::taxon_rank;
+using taxon_id             = database::taxon_id;
+using ranked_lineage       = database::ranked_lineage;
+using matches_per_location = database::matches_per_location;
+
 
 /**************************************************************************
  * @brief controls how a classification is derived from a location hit list;
@@ -116,8 +127,8 @@ using database = sketch_database<sequence,sketcher,feature_hash,
     #define MC_VOTE_TOP 2
 #endif
 
-using top_matches_in_contiguous_window_range
-        = matches_in_contiguous_window_range_top< MC_VOTE_TOP ,target_id>;
+using classification_candidates =
+    top_distinct_matches_in_contiguous_window_range<database,MC_VOTE_TOP>;
 
 
 } // namespace mc

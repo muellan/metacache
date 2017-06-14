@@ -39,7 +39,8 @@
 
 #include "version.h"
 #include "io_error.h"
-#include "stat_moments.h"
+#include "io_options.h"
+#include "stat_combined.h"
 #include "taxonomy.h"
 #include "hash_multimap.h"
 
@@ -51,45 +52,45 @@ namespace mc {
  * @brief  maps 'features' (e.g. hash values obtained by min-hashing)
  *         to 'locations' = positions in targets/reference genomes
  *
+ *         not copyable, but movable
+ *
  * @details terminology
  *  target          reference sequence whose sketches are stored in the DB
+ *
+ *  taxon           one node in a taxonomic hierarchy (sequence metadata is
+ *                  also stored in taxa)
+ *
+ *  taxon_id        numeric taxon identifier
+ *  taxon_name      alphanumeric sequence identifier (e.g. an NCBI accession)
  *
  *  query           sequence (usually short reads) that shall be matched against
  *                  the reference targets
  *
- *  target_id       numeric database identifier of reference targets
- *                  in the range [0,n-1] where n is the number of targets in the DB
+ *  window_id       window index (starting with 0) within a target
  *
- *  window_id       window index (starting with 0) within a reference target
+ *  location        (const taxon*, window_id) = "window within a target sequence"
  *
- *  location        (target_id,window_id) = "window within a target"
- *
- *  sequence_id     alphanumeric sequence identifier (e.g. an NCBI accession)
- *
- *  taxon_id        numeric taxon identifier
- *
- *  full_lineage    path from root -> lowest taxon (vector of taxon ids);
+ *  full_lineage    path from root -> lowest taxon (vector of const taxon*);
  *                  may have arbitrary length
  *
- *  ranked_lineage  main rank taxon ids (array of taxon ids);
- *                  has fixed length; each index always refers to same rank
+ *  ranked_lineage  main rank taxon ids (array of const taxon*);
+ *                  has fixed length; each index always refers to the same rank
  *
- * @tparam
- *  SequenceType    type of reference and query sequence, usually std::string
+ * @tparam SequenceType  reference and query sequence type, usually std::string
  *
- *  Sketcher        function object type, that maps reference sequence
- *                  windows (= sequence interval) to
- *                  sketches (= collection of features of the same static type)
+ * @tparam Sketcher      function object type, that maps reference sequence
+ *                       windows (= sequence interval) to
+ *                       sketches (= collection of features of the same type)
  *
- *  FeatureHash     hash function for feature map
- *                  (default: identity for integer features,
- *                   so h(x) = x mod tablesize)
+ * @tparam FeatureHash   hash function for feature map
+ *                       (default: identity for integer features,
+ *                       so h(x) = x mod tablesize)
  *
- *  TargetId        type for target (reference sequence) identification
+ * @tparam TargetId      internal target (reference sequence) identification
+
+ * @tparam WindowId      target window identification
  *
- *  WindowId        type for target window identification
- *
- *  BucketSizeT     type for bucket (location list) size tracking
+ * @tparam BucketSizeT   bucket (location list) size tracking
  *
  *****************************************************************************/
 template<
@@ -111,23 +112,21 @@ public:
     using target_id = TargetId;
     using window_id = WindowId;
     using bucket_size_type = BucketSizeT;
+    using match_count_type = std::uint16_t;
     //-----------------------------------------------------
-    using sequence_id = std::string;
-    //-----------------------------------------------------
-    using taxon_id   = taxonomy::taxon_id;
-    using taxon      = taxonomy::taxon;
-    using taxon_rank = taxonomy::rank;
+    using taxon_id    = taxonomy::taxon_id;
+    using taxon       = taxonomy::taxon;
+    using taxon_rank  = taxonomy::rank;
+    using taxon_name  = taxonomy::taxon_name;
     //-----------------------------------------------------
     using ranked_lineage = taxonomy::ranked_lineage;
     using full_lineage   = taxonomy::full_lineage;
+    using file_source    = taxonomy::file_source;
+    using taxon_iterator = taxonomy::const_iterator;
+    using taxon_range    = taxonomy::const_range;
 
 
     //---------------------------------------------------------------
-    struct sequence_origin {
-        std::string filename;
-        std::uint32_t index = 0;  //if file contains more than one sequence
-    };
-
     enum class scope {
         everything, metadata_only
     };
@@ -143,51 +142,40 @@ public:
 
 
 private:
-    //-----------------------------------------------------
-    /**
-     * @brief target meta-information
-     */
-    class target_property
-    {
-    public:
-        using taxon_id = sketch_database::taxon_id;
+    //use negative numbers for sequence level taxon ids
+    static constexpr taxon_id
+    taxon_id_of_target(target_id id) noexcept { return -id-1; }
 
-        explicit
-        target_property(std::string identifier = "",
-                        taxon_id tax = 0,
-                        sequence_origin origin = sequence_origin{})
-        :
-            id(std::move(identifier)),
-            taxonId(tax),
-            ranks{}, lineage{},
-            origin{std::move(origin)}
+
+    //-----------------------------------------------------
+    /** @brief internal location representation = (target index, window index)
+     *         these are stored in the in-memory database and on disk
+     */
+    struct target_location
+    {
+        constexpr
+        target_location(target_id g = 0, window_id w = 0) noexcept :
+            tgt{g}, win{w}
         {}
 
-        friend void
-        read_binary(std::istream& is, target_property& p) {
-            read_binary(is, p.id);
-            read_binary(is, p.taxonId);
-            read_binary(is, p.ranks);
-            read_binary(is, p.lineage);
-            read_binary(is, p.origin.filename);
-            read_binary(is, p.origin.index);
+        target_id tgt;
+        window_id win;
+
+        friend bool
+        operator < (const target_location& a, const target_location& b) noexcept {
+            if(a.tgt < b.tgt) return true;
+            if(a.tgt > b.tgt) return false;
+            return (a.win < b.win);
         }
 
-        friend void
-        write_binary(std::ostream& os, const target_property& p) {
-            write_binary(os, p.id);
-            write_binary(os, p.taxonId);
-            write_binary(os, p.ranks);
-            write_binary(os, p.lineage);
-            write_binary(os, p.origin.filename);
-            write_binary(os, p.origin.index);
+        friend void read_binary(std::istream& is, target_location& p) {
+            read_binary(is, p.tgt);
+            read_binary(is, p.win);
         }
-
-        std::string id;
-        taxon_id taxonId;
-        ranked_lineage ranks;
-        full_lineage lineage;
-        sequence_origin origin;
+        friend void write_binary(std::ostream& os, const target_location& p) {
+            write_binary(os, p.tgt);
+            write_binary(os, p.win);
+        }
     };
 
 
@@ -196,70 +184,56 @@ public:
     using sketch  = typename sketcher::sketch_type;  //range of features
     using feature = typename sketch::value_type;
 
-    //-----------------------------------------------------
-    ///@brief location = (target index, window index)
-    struct location
-    {
-        constexpr
-        location(target_id g = 0, window_id w = 0) noexcept :
-            tgt{g}, win{w}
-        {}
-
-        target_id tgt;
-        window_id win;
-
-        friend bool
-        operator < (const location& a, const location& b) noexcept {
-            if(a.tgt < b.tgt) return true;
-            if(a.tgt > b.tgt) return false;
-            return (a.win < b.win);
-        }
-
-        friend void read_binary(std::istream& is, location& p) {
-            read_binary(is, p.tgt);
-            read_binary(is, p.win);
-        }
-        friend void write_binary(std::ostream& os, const location& p) {
-            write_binary(os, p.tgt);
-            write_binary(os, p.win);
-        }
-    };
-
 
 private:
     //-----------------------------------------------------
     //"heart of the database": maps features to target locations
-    using feature_store = hash_multimap<feature,location, //key, value
+    using feature_store = hash_multimap<feature,target_location, //key, value
                               feature_hash,               //key hasher
                               std::equal_to<feature>,     //key comparator
-                              chunk_allocator<location>,  //value allocator
+                              chunk_allocator<target_location>,  //value allocator
                               std::allocator<feature>,    //bucket+key allocator
                               bucket_size_type>;          //location list size
 
+
 public:
+    //---------------------------------------------------------------
+    using feature_count_type = typename feature_store::size_type;
+
+
+    //-----------------------------------------------------
+    /** @brief external location represenation
+     *         = (target sequence taxon pointer, window index)
+     *         these are used to return match results
+     */
+    struct location
+    {
+        constexpr
+        location(const taxon* t = nullptr, window_id w = 0) noexcept :
+            tax{t}, win{w}
+        {}
+
+        const taxon* tax;
+        window_id win;
+
+        friend bool
+        operator < (const location& a, const location& b) noexcept {
+            if(a.tax < b.tax) return true;
+            if(a.tax > b.tax) return false;
+            return (a.win < b.win);
+        }
+    };
+
     //-------------------------------------------------------------------
     //map: location (= target window) -> number of featers
-    using match_result = std::map<location,std::uint16_t>;
+    using matches_per_location = std::map<location,match_count_type>;
 
 
     //---------------------------------------------------------------
     explicit
     sketch_database(sketcher targetSketcher = sketcher{}) :
-        targetSketcher_{std::move(targetSketcher)},
-        querySketcher_{targetSketcher_},
-        targetWindowSize_(128),
-        targetWindowStride_(128-15),
-        queryWindowSize_(targetWindowSize_),
-        queryWindowStride_(targetWindowStride_),
-        maxLocsPerFeature_(max_supported_locations_per_feature()),
-        nextTargetId_(0),
-        targets_{},
-        features_{},
-        sid2gid_{},
-        taxa_{}
-    {
-        features_.max_load_factor(0.8);
-    }
+        sketch_database{targetSketcher, targetSketcher}
+    {}
     //-----------------------------------------------------
     explicit
     sketch_database(sketcher targetSketcher, sketcher querySketcher) :
@@ -270,11 +244,12 @@ public:
         queryWindowSize_(targetWindowSize_),
         queryWindowStride_(targetWindowStride_),
         maxLocsPerFeature_(max_supported_locations_per_feature()),
-        nextTargetId_(0),
-        targets_{},
+        maxNewWindowSimilarity_{1.0f},
         features_{},
-        sid2gid_{},
-        taxa_{}
+        targets_{},
+        taxa_{},
+        ranksCache_{taxa_, taxon_rank::Sequence},
+        name2tax{}
     {
         features_.max_load_factor(0.8);
     }
@@ -287,59 +262,78 @@ public:
 
 
     //---------------------------------------------------------------
+    /**
+     * @return const ref to the object that transforms target sequence
+     *         snippets into a collection of features
+     */
     const sketcher&
     target_sketcher() const noexcept {
         return targetSketcher_;
     }
     //-----------------------------------------------------
+    /**
+     * @return const ref to the object that transforms query sequence
+     *         snippets into a collection of features
+     */
     const sketcher&
     query_sketcher() const noexcept {
         return querySketcher_;
     }
     //-----------------------------------------------------
-    void
-    query_sketcher(const sketcher& s) {
+    /**
+     * @brief sets the object that transforms query sequence
+     *        snippets into a collection of features
+     */
+    void query_sketcher(const sketcher& s) {
         querySketcher_ = s;
     }
-    void
-    query_sketcher(sketcher&& s) {
+    void query_sketcher(sketcher&& s) {
         querySketcher_ = std::move(s);
     }
 
 
     //---------------------------------------------------------------
+    /** @brief set size of target windows that are fed to the target sketcher */
     void target_window_size(std::size_t s) {
         targetWindowSize_ = s;
     }
     //-----------------------------------------------------
+    /** @return size of target windows that are fed to the target sketcher */
     size_t target_window_size() const noexcept {
         return targetWindowSize_;
     }
+
     //---------------------------------------------------------------
+    /** @brief set target window stride for target sketching */
     void target_window_stride(std::size_t s) {
         if(s < 1) s = 1;
         targetWindowStride_ = s;
     }
     //-----------------------------------------------------
+    /** @return target window stride for target sketching */
     size_t target_window_stride() const noexcept {
         return targetWindowStride_;
     }
 
 
     //---------------------------------------------------------------
+    /** @brief set size of query windows that are fed to the query sketcher */
     void query_window_size(std::size_t s) {
         queryWindowSize_ = s;
     }
     //-----------------------------------------------------
+    /** @return size of query windows that are fed to the query sketcher */
     size_t query_window_size() const noexcept {
         return queryWindowSize_;
     }
     //---------------------------------------------------------------
+    /** @brief set query window stride for query sketching */
     void query_window_stride(std::size_t s) {
         if(s < 1) s = 1;
         queryWindowStride_ = s;
     }
     //-----------------------------------------------------
+    /** @return query window stride for query sketching */
     size_t query_window_stride() const noexcept {
         return queryWindowStride_;
     }
@@ -371,17 +365,53 @@ public:
     }
 
     //-----------------------------------------------------
-    void remove_features_with_more_locations_than(bucket_size_type n)
+    feature_count_type
+    remove_features_with_more_locations_than(bucket_size_type n)
     {
+        feature_count_type rem = 0;
         for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
-            if(i->size() > n) features_.clear(i);
+            if(i->size() > n) {
+                features_.clear(i);
+                ++rem;
+            }
         }
+        return rem;
     }
 
 
     //---------------------------------------------------------------
-    void remove_ambiguous_features(taxon_rank r, bucket_size_type maxambig)
+    /**
+     * @brief if new targets are added to the database,
+     *        only features of windows with a sketch similarity smaller or equal
+     *        to 'ratio' are added to the database
+     *        default is 1.0 which means that this is turned off
+     */
+    void max_new_window_similarity(float ratio)
     {
+        if(ratio > 1.0f) ratio = 1.0f;
+        if(ratio < 0.0f) ratio = 0.0f;
+        maxNewWindowSimilarity_ = ratio;
+    }
+    //-----------------------------------------------------
+    float max_new_window_similarity() const noexcept
+    {
+        return maxNewWindowSimilarity_;
+    }
+
+
+    //---------------------------------------------------------------
+    /**
+     * @brief  removes features that have more than 'maxambig' different
+     *         taxa on a certain taxonomic rank
+     *         e.g. remove features that are present in more than 4 phyla
+     *
+     * @return number of features (hash table buckets) that were removed
+     */
+    feature_count_type
+    remove_ambiguous_features(taxon_rank r, bucket_size_type maxambig)
+    {
+        feature_count_type rem = 0;
+
         if(taxa_.empty()) {
             throw std::runtime_error{"no taxonomy available!"};
         }
@@ -396,6 +426,7 @@ public:
                         targets.insert(loc.tgt);
                         if(targets.size() > maxambig) {
                             features_.clear(i);
+                            ++rem;
                             break;
                         }
                     }
@@ -405,77 +436,75 @@ public:
         else {
             for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
                 if(!i->empty()) {
-                    std::set<taxon_id> taxa;
+                    std::set<const taxon*> taxa;
                     for(auto loc : *i) {
-                        taxa.insert(targets_[loc.tgt].ranks[int(r)]);
+                        taxa.insert(ranksCache_[*targets_[loc.tgt]][int(r)]);
                         if(taxa.size() > maxambig) {
                             features_.clear(i);
+                            ++rem;
                             break;
                         }
                     }
                 }
             }
         }
+        return rem;
     }
 
 
     //---------------------------------------------------------------
-    bool add_target(const sequence& seq, sequence_id sid,
-                    taxon_id taxid = 0,
-                    const sequence_origin& origin = sequence_origin{})
+    bool add_target(const sequence& seq, taxon_name  sid,
+                    taxon_id parentTaxid = 0,
+                    file_source source = file_source{})
     {
         using std::begin;
         using std::end;
 
         //reached hard limit for number of targets
-        if(nextTargetId_ >= max_target_count()) {
+        if(targets_.size() >= max_target_count()) {
             throw target_limit_exceeded_error{};
         }
-
-        using iter_t = typename sequence::const_iterator;
 
         if(seq.empty()) return false;
 
         //don't allow non-unique sequence ids
-        auto it = sid2gid_.find(sid);
-        if(it != sid2gid_.end()) return false;
+        if(name2tax.find(sid) != name2tax.end()) return false;
 
-        sid2gid_.insert({sid, nextTargetId_});
+        const auto targetCount = target_id(targets_.size());
+        const auto taxid = taxon_id_of_target(targetCount);
 
-        targets_.emplace_back(std::move(sid), taxid, origin);
-        if(taxid > 0 && !taxa_.empty()) {
-            rank_target(nextTargetId_, taxid);
+        //insert sequence metadata as a new taxon
+        if(parentTaxid < 1) parentTaxid = 0;
+        auto nit = taxa_.emplace(
+            taxid, parentTaxid, sid,
+            taxon_rank::Sequence, std::move(source));
+
+        //allows lookup via sequence id (e.g. NCBI accession number)
+        const taxon* newtax = &(*nit);
+        name2tax.insert({std::move(sid), newtax});
+
+        //should never happen
+        if(nit == taxa_.end()) {
+            throw std::runtime_error{"target taxon could not be created"};
         }
 
-        window_id win = 0;
-        for_each_window(seq, targetWindowSize_, targetWindowStride_,
-            [this, &win] (iter_t b, iter_t e) {
-                auto sk = targetSketcher_(b,e);
-                //insert features from sketch into database
-                for(const auto& f : sk) {
-                    auto it = features_.insert(f, location{nextTargetId_, win});
-                    if(it->size() > maxLocsPerFeature_) {
-                        features_.shrink(it, maxLocsPerFeature_);
-                    }
-                }
-                ++win;
-            });
+        //target id -> taxon lookup table
+        targets_.push_back(newtax);
 
-        ++nextTargetId_;
+        //sketch sequence -> insert features
+        if(max_new_window_similarity() < 0.99f) {
+            add_dissimilar_window_sketches(seq, targetCount,
+                                           max_new_window_similarity());
+        } else {
+            add_all_window_sketches(seq, targetCount);
+        }
 
         return true;
     }
 
+
     //---------------------------------------------------------------
-    bool
-    is_valid(target_id tid) const noexcept {
-        return tid < nextTargetId_;
-    }
-    static constexpr target_id
-    invalid_target_id() noexcept {
-        return max_target_count();
-    }
-    std::uint64_t
+    taxon_id
     target_count() const noexcept {
         return targets_.size();
     }
@@ -496,170 +525,202 @@ public:
 
     //---------------------------------------------------------------
     void clear() {
-        targets_.clear();
-        sid2gid_.clear();
+        ranksCache_.clear();
+        name2tax.clear();
         features_.clear();
     }
+
 
     //-----------------------------------------------------
     /**
      * @brief very dangerous! clears feature map without memory deallocation
      */
     void clear_without_deallocation() {
-        targets_.clear();
-        sid2gid_.clear();
+        ranksCache_.clear();
+        name2tax.clear();
         features_.clear_without_deallocation();
     }
 
 
     //---------------------------------------------------------------
-    const sequence_id&
-    sequence_id_of_target(target_id tid) const noexcept {
-        return targets_[tid].id;
-    }
-    //-----------------------------------------------------
-    target_id
-    target_id_of_sequence(const sequence_id& sid) const noexcept {
-        auto it = sid2gid_.find(sid);
-        return (it != sid2gid_.end()) ? it->second : nextTargetId_;
+    static constexpr taxon_id no_taxon_id() noexcept {
+        return taxonomy::none_id();
     }
 
 
     //---------------------------------------------------------------
-    void apply_taxonomy(const taxonomy& tax) {
-        taxa_ = tax;
-        for(auto& g : targets_) update_lineages(g);
+    const taxon*
+    taxon_with_id(taxon_id id) const noexcept {
+        return taxa_[id];
     }
     //-----------------------------------------------------
-    void apply_taxonomy(taxonomy&& tax) {
-        taxa_ = std::move(tax);
-        for(auto& gp : targets_) update_lineages(gp);
+    /**
+     * @brief will only find sequence-level taxon names == sequence id
+     */
+    const taxon*
+    taxon_with_name(const taxon_name & name) const noexcept {
+        if(name.empty()) return nullptr;
+        auto i = name2tax.find(name);
+        if(i == name2tax.end()) return nullptr;
+        return i->second;
+    }
+
+
+    //---------------------------------------------------------------
+    void reset_taxa_above_sequence_level(taxonomy&& tax) {
+        taxa_.erase_above(taxon_rank::Sequence);
+        for(auto& t : tax) {
+            taxa_.insert_or_replace(std::move(t));
+        }
+        //re-initialize ranks cache
+        ranksCache_.update();
     }
 
 
     //---------------------------------------------------------------
     std::uint64_t
-    taxon_count() const noexcept {
-        return taxa_.taxon_count();
+    non_target_taxon_count() const noexcept {
+        return taxa_.size() - targets_.size();
     }
     //-----------------------------------------------------
-    const taxon&
-    taxon_with_id(taxon_id id) const noexcept {
-        return taxa_[id];
+    taxon_range taxa() const {
+        return taxa_.full_range();
+    }
+    taxon_range non_target_taxa() const {
+        return taxa_.subrange_from(1);
+    }
+    //-----------------------------------------------------
+    taxon_range target_taxa() const {
+        return taxa_.subrange_until(0);
     }
 
 
     //---------------------------------------------------------------
-    void rank_target(target_id tid, taxon_id taxid)
-    {
-        targets_[tid].taxonId = taxid;
-        update_lineages(targets_[tid]);
+    void reset_parent(const taxon& tax, taxon_id parentId) {
+        if(taxa_.reset_parent(tax.id(), parentId)) {
+            ranksCache_.update(tax);
+        }
     }
     //-----------------------------------------------------
-    taxon_id
-    taxon_id_of_target(target_id id) const noexcept {
-        return taxa_[targets_[id].taxonId].id;
-    }
-    //-----------------------------------------------------
-    const taxon&
-    taxon_of_target(target_id id) const noexcept {
-        return taxa_[targets_[id].taxonId];
-    }
-
-    //-----------------------------------------------------
-    const sequence_origin&
-    origin_of_target(target_id id) const noexcept {
-        return targets_[id].origin;
+    void reset_parent(const taxon& tax, const taxon& parent) {
+        if(taxa_.reset_parent(tax.id(), parent.id())) {
+            ranksCache_.update(tax);
+        }
     }
 
     //-----------------------------------------------------
     full_lineage
+    lineage(const taxon* tax) const noexcept {
+        return tax ? lineage(*tax) : full_lineage();
+    }
+    full_lineage
     lineage(const taxon& tax) const noexcept {
-        return taxa_.lineage(tax.id);
-    }
-    //-----------------------------------------------------
-    const full_lineage&
-    lineage_of_target(target_id id) const noexcept {
-        return targets_[id].lineage;
-    }
-
-    //-----------------------------------------------------
-    ranked_lineage
-    ranks(const taxon& tax) const noexcept {
-        return taxa_.ranks(tax.id);
+        return taxa_.lineage(tax);
     }
     //-----------------------------------------------------
     const ranked_lineage&
-    ranks_of_target(target_id id) const noexcept {
-        return targets_[id].ranks;
+    ranks(const taxon* tax) const noexcept {
+        return ranksCache_[tax];
+    }
+    const ranked_lineage&
+    ranks(const taxon& tax) const noexcept {
+        return ranksCache_[tax];
     }
 
-    //---------------------------------------------------------------
-    const taxon&
-    lca(const taxon& ta, const taxon& tb) const
-    {
-        return taxa_.lca(ta,tb);
+    //-----------------------------------------------------
+    const taxon*
+    parent(const taxon* tax) const noexcept {
+        return tax ? parent(*tax) : nullptr;
     }
-    //---------------------------------------------------------------
-    const taxon&
-    lca_of_targets(target_id ta, target_id tb) const
-    {
-        return taxa_.lca(lineage_of_target(ta), lineage_of_target(tb));
-    }
-
-    //---------------------------------------------------------------
-    const taxon&
-    ranked_lca(const taxon& ta, const taxon& tb) const
-    {
-        return taxa_.ranked_lca(ta,tb);
-    }
-    //---------------------------------------------------------------
-    const taxon&
-    ranked_lca_of_targets(target_id ta, target_id tb) const
-    {
-        return taxa_.lca(ranks_of_target(ta), ranks_of_target(tb));
-    }
-
-    //---------------------------------------------------------------
-    taxon_rank
-    lowest_rank(const taxon& tax) const {
-        return taxa_.lowest_rank(tax.id);
+    const taxon*
+    parent(const taxon& tax) const noexcept {
+        return taxa_.parent(tax);
     }
     //-----------------------------------------------------
-    taxon_rank
-    lowest_rank_of_taxon(taxon_id id) const {
-        return taxa_.lowest_rank(id);
+    const taxon*
+    ancestor(const taxon* tax, taxon_rank r) const noexcept {
+        return tax ? ancestor(*tax,r) : nullptr;
     }
+    const taxon*
+    ancestor(const taxon& tax, taxon_rank r) const noexcept {
+        return ranksCache_[tax][int(r)];
+    }
+
+    //-----------------------------------------------------
+    const taxon*
+    next_ranked_ancestor(const taxon* tax) const noexcept {
+        return tax ? next_ranked_ancestor(*tax) : nullptr;
+    }
+    const taxon*
+    next_ranked_ancestor(const taxon& tax) const noexcept {
+        if(tax.rank() == taxon_rank::Sequence) {
+            for(const taxon* a : ranksCache_[tax]) {
+                if(a && a->rank() != taxon_rank::none && a->rank() > tax.rank())
+                    return a;
+            }
+            return nullptr;
+        }
+        return taxa_.next_ranked_ancestor(tax);
+    }
+
+    //---------------------------------------------------------------
+    const taxon*
+    lca(const taxon* ta, const taxon* tb) const {
+        return (ta && tb) ? lca(*ta,*tb) : nullptr;
+    }
+    const taxon*
+    lca(const taxon& ta, const taxon& tb) const {
+        return taxa_.lca(ta,tb);
+    }
+
+    //---------------------------------------------------------------
+    const taxon*
+    ranked_lca(const taxon* ta, const taxon* tb) const {
+        return (ta && tb) ? ranked_lca(*ta,*tb) : nullptr;
+    }
+    const taxon*
+    ranked_lca(const taxon& ta, const taxon& tb) const {
+        return ranksCache_.ranked_lca(ta,tb);
+    }
+
 
     //---------------------------------------------------------------
     /**
      * @return number of times a taxon is covered by any target in the DB
      */
-    int covering(const taxon& t) const {
-        return covering_of_taxon(t.id);
+    std::uint_least64_t
+    coverage_of_taxon(const taxon* covered) const {
+        return covered ? coverage_of_taxon(*covered) : 0;
     }
-    int covering_of_taxon(taxon_id id) const {
-        int cover = 0;
+    //-----------------------------------------------------
+    std::uint_least64_t
+    coverage_of_taxon(const taxon& covered) const {
+        auto coverage = std::uint_least64_t(0);
 
-        for(const auto& g : targets_) {
-            for(taxon_id taxid : g.lineage) {
-                if(taxid == id) ++cover;
+        for(const auto& tax : taxa_) {
+            if(tax.rank() == taxon_rank::Sequence) {
+                for(const taxon* t : taxa_.lineage(tax)) {
+                    if(t == &covered) ++coverage;
+                }
             }
         }
-        return cover;
+        return coverage;
     }
 
     //-----------------------------------------------------
     /**
      * @return true, if taxon is covered by any target in the DB
      */
-    bool covers(const taxon& t) const {
-        return covers_taxon(t.id);
+    bool covers(const taxon* covered) const {
+        return covered ? covers(*covered) : false;
     }
-    bool covers_taxon(taxon_id id) const {
-        for(const auto& g : targets_) {
-            for(taxon_id taxid : g.lineage) {
-                if(taxid == id) return true;
+    //-----------------------------------------------------
+    bool covers(const taxon& covered) const {
+        for(const auto& tax : taxa_) {
+            if(tax.rank() == taxon_rank::Sequence) {
+                for(const taxon* t : taxa_.lineage(tax)) {
+                    if(t == &covered) return true;
+                }
             }
         }
         return false;
@@ -671,18 +732,28 @@ public:
     void
     for_each_match(const sequence& query, Consumer&& consume) const
     {
-        using iter_t = typename sequence::const_iterator;
-
         if(query.empty()) return;
 
-        for_each_window(query, queryWindowSize_, queryWindowStride_,
-            [this, &consume] (iter_t b, iter_t e) {
+        using std::begin;
+        using std::end;
+        for_each_match(begin(query), end(query),
+                             std::forward<Consumer>(consume));
+    }
+
+    //-----------------------------------------------------
+    template<class InputIterator, class Consumer>
+    void
+    for_each_match(InputIterator queryBegin, InputIterator queryEnd,
+                   Consumer&& consume) const
+    {
+        for_each_window(queryBegin, queryEnd, queryWindowSize_, queryWindowStride_,
+            [this, &consume] (InputIterator b, InputIterator e) {
                 auto sk = querySketcher_(b,e);
                 for(auto f : sk) {
-                    auto sit = features_.find(f);
-                    if(sit != features_.end()) {
-                        for(const auto& pos : *sit) {
-                            consume(pos);
+                    auto locs = features_.find(f);
+                    if(locs != features_.end()) {
+                        for(const auto& loc : *locs) {
+                            consume(location{targets_[loc.tgt], loc.win});
                         }
                     }
                 }
@@ -691,19 +762,31 @@ public:
 
 
     //---------------------------------------------------------------
-    match_result
+    matches_per_location
     matches(const sequence& query) const
     {
-        auto res = match_result{};
-        accumulate_matches(query, res);
+        auto res = matches_per_location{};
+        using std::begin;
+        using std::end;
+        accumulate_matches(begin(query), end(query), res);
         return res;
     }
     //---------------------------------------------------------------
-    void
-    accumulate_matches(const sequence& query,
-                       match_result& res) const
+    template<class InputIterator>
+    matches_per_location
+    matches(InputIterator first, InputIterator last) const
     {
-        for_each_match(query,
+        auto res = matches_per_location{};
+        accumulate_matches(first, last, res);
+        return res;
+    }
+    //---------------------------------------------------------------
+    template<class InputIterator>
+    void
+    accumulate_matches(InputIterator queryBegin, InputIterator queryEnd,
+                       matches_per_location& res) const
+    {
+        for_each_match(queryBegin, queryEnd,
             [this, &res] (const location& t) {
                 auto it = res.find(t);
                 if(it != res.end()) {
@@ -715,8 +798,18 @@ public:
             });
     }
 
+    //---------------------------------------------------------------
+    void
+    accumulate_matches(const sequence& query,
+                       matches_per_location& res) const
+    {
+        using std::begin;
+        using std::end;
+        accumulate_matches(begin(query), end(query), res);
+    }
 
-    //-------------------------------------------------------------------
+
+    //---------------------------------------------------------------
     void max_load_factor(float lf) {
         features_.max_load_factor(lf);
     }
@@ -726,7 +819,7 @@ public:
     }
 
 
-    //-------------------------------------------------------------------
+    //---------------------------------------------------------------
     /**
      * @brief   read database from binary file
      * @details Note that the map is not just de-serialized but
@@ -757,17 +850,13 @@ public:
 
         //data type info
         {
+            //data type widths
             uint8_t featureSize = 0; read_binary(is, featureSize);
             uint8_t targetSize = 0;  read_binary(is, targetSize);
             uint8_t windowSize = 0;  read_binary(is, windowSize);
             uint8_t bucketSize = 0;  read_binary(is, bucketSize);
-
             uint8_t taxidSize = 0;   read_binary(is, taxidSize);
             uint8_t numTaxRanks = 0; read_binary(is, numTaxRanks);
-
-            //reserved for future use
-            uint64_t dummy = 0;
-            for(int i = 0; i < 8; ++i) read_binary(is, dummy);
 
             if( (sizeof(feature) != featureSize) ||
                 (sizeof(target_id) != targetSize) ||
@@ -801,19 +890,32 @@ public:
         read_binary(is, queryWindowSize_);
         read_binary(is, queryWindowStride_);
 
+        //target insertion parameters
         read_binary(is, maxLocsPerFeature_);
+        read_binary(is, maxNewWindowSimilarity_);
 
         //taxon metadata
         read_binary(is, taxa_);
 
-        read_binary(is, nextTargetId_);
-        read_binary(is, targets_);
-        if(targets_.size() < 1) return;
+        target_id targetCount = 0;
+        read_binary(is, targetCount);
+        if(targetCount < 1) return;
 
-        sid2gid_.clear();
-        for(target_id i = 0; i < target_id(targets_.size()); ++i) {
-            sid2gid_.insert({targets_[i].id, i});
+        //update target id -> target taxon lookup table
+        targets_.reserve(targetCount);
+        for(decltype(targetCount) i = 0 ; i < targetCount; ++i) {
+            targets_.push_back(taxa_[taxon_id_of_target(i)]);
         }
+
+        //sequence id lookup
+        name2tax.clear();
+        for(const auto& t : taxa_) {
+            if(t.rank() == taxon_rank::Sequence)
+                name2tax.insert({t.name(), &t});
+        }
+
+        //ranked linage cache
+        ranksCache_.update();
 
         if(what == scope::metadata_only) return;
 
@@ -840,18 +942,13 @@ public:
         //database version info
         write_binary(os, uint64_t( MC_DB_VERSION ));
 
-        //data type info
+        //data type widths
         write_binary(os, uint8_t(sizeof(feature)));
         write_binary(os, uint8_t(sizeof(target_id)));
         write_binary(os, uint8_t(sizeof(window_id)));
         write_binary(os, uint8_t(sizeof(bucket_size_type)));
-
-        //taxonomy info
         write_binary(os, uint8_t(sizeof(taxon_id)));
         write_binary(os, uint8_t(taxonomy::num_ranks));
-
-        //reserved for future use
-        for(int i = 0; i < 8; ++i) write_binary(os, uint64_t(0));
 
         //sketching parameters
         write_binary(os, targetSketcher_);
@@ -862,14 +959,13 @@ public:
         write_binary(os, queryWindowSize_);
         write_binary(os, queryWindowStride_);
 
+        //target insertion parameters
         write_binary(os, maxLocsPerFeature_);
+        write_binary(os, maxNewWindowSimilarity_);
 
-        //taxon metadata
+        //taxon & target metadata
         write_binary(os, taxa_);
-
-        //target metainformation
-        write_binary(os, nextTargetId_);
-        write_binary(os, targets_);
+        write_binary(os, target_id(targets_.size()));
 
         //hash table
         write_binary(os, features_);
@@ -895,9 +991,9 @@ public:
 
 
     //---------------------------------------------------------------
-    skewness_accumulator<double>
+    statistics_accumulator
     location_list_size_statistics() const {
-        auto priSize = skewness_accumulator<double>{};
+        auto priSize = statistics_accumulator{};
 
         for(const auto& bucket : features_) {
             if(!bucket.empty()) {
@@ -913,9 +1009,10 @@ public:
     void print_feature_map(std::ostream& os) const {
         for(const auto& bucket : features_) {
             if(!bucket.empty()) {
-                os << bucket.key() << " -> ";
-                for(location p : bucket) {
-                    os << '(' << p.tgt << ',' << p.win << ')';
+                os << std::int_least64_t(bucket.key()) << " -> ";
+                for(target_location p : bucket) {
+                    os << '(' << std::int_least64_t(p.tgt)
+                       << ',' << std::int_least64_t(p.win) << ')';
                 }
                 os << '\n';
             }
@@ -923,15 +1020,126 @@ public:
     }
 
 
+    //---------------------------------------------------------------
+    void print_feature_counts(std::ostream& os) const {
+        for(const auto& bucket : features_) {
+            if(!bucket.empty()) {
+                os << std::int_least64_t(bucket.key()) << " -> "
+                   << std::int_least64_t(bucket.size()) << '\n';
+            }
+        }
+    }
+
+
 private:
+    //---------------------------------------------------------------
+    void add_dissimilar_window_sketches(const sequence& seq, target_id tgt,
+                                        float maxSimilarity)
+    {
+        using iter_t = typename sequence::const_iterator;
+
+        window_id win = 0;
+        for_each_window(seq, targetWindowSize_, targetWindowStride_,
+            [&, this] (iter_t b, iter_t e) {
+                auto tgtSketch = targetSketcher_(b,e);
+
+                //query sketch against current database content
+                std::map<target_location,match_count_type> matches;
+                for(auto f : querySketcher_(b,e)) {
+                    auto locs = features_.find(f);
+                    if(locs != features_.end()) {
+                        for(const auto& loc : *locs) {
+                            auto it = matches.find(loc);
+                            if(it != matches.end())
+                                ++(it->second);
+                            else
+                                matches.insert(it, {loc, 1});
+                        }
+                    }
+                }
+                auto sim = max_hits_in_neighboring_windows(matches) /
+                           float(tgtSketch.size());
+
+                if(sim <= maxSimilarity) {
+                    //insert features from sketch into database
+                    for(const auto& f : tgtSketch) {
+                        auto it = features_.insert(f, target_location{tgt, win});
+                        if(it->size() > maxLocsPerFeature_) {
+                            features_.shrink(it, maxLocsPerFeature_);
+                        }
+                    }
+                }
+                ++win;
+            });
+    }
+
 
     //---------------------------------------------------------------
-    void update_lineages(target_property& gp)
+    void add_all_window_sketches(const sequence& seq, target_id tgt)
     {
-        if(gp.taxonId > 0) {
-            gp.lineage = taxa_.lineage(gp.taxonId);
-            gp.ranks = taxa_.ranks(gp.taxonId);
+        using iter_t = typename sequence::const_iterator;
+
+        window_id win = 0;
+        for_each_window(seq, targetWindowSize_, targetWindowStride_,
+            [&, this] (iter_t b, iter_t e) {
+                auto sk = targetSketcher_(b,e);
+                //insert features from sketch into database
+                for(const auto& f : sk) {
+                    auto it = features_.insert(f, target_location{tgt, win});
+                    if(it->size() > maxLocsPerFeature_) {
+                        features_.shrink(it, maxLocsPerFeature_);
+                    }
+                }
+                ++win;
+            });
+    }
+
+    /****************************************************************
+     * @brief
+     */
+    match_count_type
+    max_hits_in_neighboring_windows(
+        const std::map<target_location,match_count_type>& matches)
+    {
+        if(matches.empty()) return 0;
+
+        target_id tgt = std::numeric_limits<target_id>::max();
+        match_count_type hits = 0;
+        match_count_type curBest = 0;
+        match_count_type overallBest = 0;
+
+        //check hits per query sequence
+        auto fst = begin(matches);
+        auto lst = fst;
+        while(lst != end(matches)) {
+            //look for neighboring windows with the highest total hit count
+            //as long as we are in the same target and the windows are in a
+            //contiguous range of at most 3 windows
+            if(lst->first.tgt == tgt) {
+                //add new hits to the right
+                hits += lst->second;
+                //subtract hits to the left that fall out of range
+                while(fst != lst &&
+                     (lst->first.win - fst->first.win) >= 3)
+                {
+                    hits -= fst->second;
+                    //move left side of range
+                    ++fst;
+                }
+                //track best of the local sub-ranges
+                if(hits > curBest) curBest = hits;
+            }
+            else { //end of current target
+                if(curBest > overallBest) overallBest = curBest;
+                //reset to new target
+                hits = lst->second;
+                tgt  = lst->first.tgt;
+                curBest = hits;
+                fst = lst;
+            }
+            ++lst;
         }
+        return (curBest > overallBest) ? curBest : overallBest;
     }
 
 
@@ -943,197 +1151,15 @@ private:
     std::uint64_t queryWindowSize_;
     std::uint64_t queryWindowStride_;
     std::uint64_t maxLocsPerFeature_;
-    target_id nextTargetId_;
-    std::vector<target_property> targets_;
+    float maxNewWindowSimilarity_;
+    target_id targetCount_;
     feature_store features_;
-    std::map<sequence_id,target_id> sid2gid_;
+    std::vector<const taxon*> targets_;
     taxonomy taxa_;
+    ranked_lineages_cache ranksCache_;
+    std::map<taxon_name ,const taxon*> name2tax;
 };
 
-
-
-
-
-
-/*****************************************************************************
- *
- * @brief
- *
- *****************************************************************************/
-template<class ValueT>
-struct index_range
-{
-    using value_type = ValueT;
-
-    constexpr
-    index_range() noexcept :
-        beg(0), end(0)
-    {}
-    constexpr
-    index_range(value_type first, value_type last) noexcept :
-        beg{first}, end{last}
-    {}
-
-    constexpr value_type size()  const noexcept { return beg - end; }
-    constexpr value_type empty() const noexcept { return beg == end; }
-
-    value_type beg;
-    value_type end;
-};
-
-
-
-
-/*****************************************************************************
-*
-* @brief processes a database hit list and
-*        stores the top (in terms of accumulated hits) 'maxNo' contiguous
-*        window ranges
-*
-*****************************************************************************/
-template<int maxNo, class TgtId>
-class matches_in_contiguous_window_range_top
-{
-    static_assert(maxNo > 1, "no must be > 1");
-
-
-public:
-
-    //---------------------------------------------------------------
-    using tid_t = TgtId;
-    using hit_t = std::uint_least64_t;
-    using win_t = std::uint_least64_t;
-    using window_range = index_range<win_t>;
-
-    //---------------------------------------------------------------
-    static constexpr int max_count() noexcept { return maxNo; }
-
-    static constexpr tid_t invalid_tgt() noexcept {
-        return std::numeric_limits<tid_t>::max();
-    }
-
-
-    /****************************************************************
-     * @pre matches must be sorted by target (first) and window (second)
-     */
-    template<class MatchResult>
-    matches_in_contiguous_window_range_top(
-        const MatchResult& matches, win_t numWindows = 3)
-    :
-        tgt_{}, hits_{}, pos_{}, numTgts_(0), coveredWins_{numWindows}
-    {
-        using std::begin;
-        using std::end;
-
-        for(int i = 0; i < maxNo; ++i) {
-            tgt_[i] = invalid_tgt();
-            hits_[i] = 0;
-        }
-
-        tid_t tgt = invalid_tgt();
-        hit_t hits = 0;
-        hit_t maxHits = 0;
-        hit_t win = 0;
-        win_t maxWinBeg = 0;
-        win_t maxWinEnd = 0;
-
-        //check hits per query sequence
-        auto fst = begin(matches);
-        auto lst = fst;
-        while(lst != end(matches)) {
-            //look for neighboring windows with the highest total hit count
-            //as long as we are in the same target and the windows are in a
-            //contiguous range
-            if(lst->first.tgt == tgt) {
-                //add new hits to the right
-                hits += lst->second;
-                //subtract hits to the left that fall out of range
-                while(fst != lst &&
-                     (lst->first.win - fst->first.win) >= numWindows)
-                {
-                    hits -= fst->second;
-                    //move left side of range
-                    ++fst;
-                    win = fst->first.win;
-                }
-                //track best of the local sub-ranges
-                if(hits > maxHits) {
-                    maxHits = hits;
-                    maxWinBeg = win;
-                    maxWinEnd = win + distance(fst,lst);
-                }
-            }
-            else {
-                //reset to new target
-                ++numTgts_;
-                win = lst->first.win;
-                tgt = lst->first.tgt;
-                hits = lst->second;
-                maxHits = hits;
-                maxWinBeg = win;
-                maxWinEnd = win;
-                fst = lst;
-            }
-            //keep track of 'maxNo' largest
-            //TODO binary search for large maxNo?
-            for(int i = 0; i < maxNo; ++i) {
-                if(maxHits >= hits_[i]) {
-                    //shift to the right
-                    for(int j = maxNo-1; j > i; --j) {
-                        hits_[j] = hits_[j-1];
-                        tgt_[j] = tgt_[j-1];
-                        pos_[j] = pos_[j-1];
-                    }
-                    //set hits & associated sequence (position)
-                    hits_[i] = maxHits;
-                    tgt_[i] = tgt;
-                    pos_[i].beg = maxWinBeg;
-                    pos_[i].end = maxWinEnd;
-                    break;
-                }
-            }
-            ++lst;
-        }
-    }
-
-    int count() const noexcept {
-        for(int i = 0; i < maxNo; ++i) {
-            if(hits_[i] < 1) return i;
-        }
-        return maxNo;
-    }
-
-    tid_t target_id(int rank)   const noexcept { return tgt_[rank];  }
-    hit_t hits(int rank) const noexcept { return hits_[rank]; }
-
-    hit_t total_hits() const noexcept {
-        int h = 0;
-        for(int i = 0; i < maxNo; ++i) h += hits_[i];
-        return h;
-    }
-
-    int target_ambiguity() const noexcept {
-        return numTgts_;
-    }
-
-    const window_range&
-    window(int rank) const noexcept { return pos_[rank]; }
-
-    win_t window_length(int rank) const noexcept {
-        return pos_[rank].end - pos_[rank].beg;
-    }
-
-    win_t covered_windows() const noexcept {
-        return coveredWins_;
-    }
-
-private:
-    tid_t tgt_[maxNo];
-    hit_t hits_[maxNo];
-    window_range pos_[maxNo];
-    int numTgts_;
-    win_t coveredWins_;
-};
 
 
 
@@ -1146,15 +1172,20 @@ private:
 template<class Database>
 Database
 make_database(const std::string& filename,
-              typename Database::scope what = Database::scope::everything)
+              typename Database::scope what = Database::scope::everything,
+              info_level info = info_level::moderate)
 {
     Database db;
 
-    std::cout << "Reading database from file '"
-              << filename << "' ... " << std::flush;
+    const bool showInfo = info != info_level::silent;
+
+    if(showInfo) {
+        std::cout << "Reading database from file '"
+                  << filename << "' ... " << std::flush;
+    }
     try {
         db.read(filename, what);
-        std::cout << "done." << std::endl;
+        if(showInfo) std::cout << "done." << std::endl;
 
         return db;
     }
@@ -1166,38 +1197,50 @@ make_database(const std::string& filename,
     return db;
 }
 
-//-------------------------------------------------------------------
-template<class Database>
-Database
-make_database_metadata_only(const std::string& filename)
-{
-    return make_database<Database>(filename, Database::scope::metadata_only);
-}
-
 
 
 
 /*****************************************************************************
  *
- * @brief writes database to file
+ * @brief prints database properties to stdout
  *
  *****************************************************************************/
 template<class S, class K, class H, class G, class W, class L>
-void
-write_database(const sketch_database<S,K,H,G,W,L>& db,
-               const std::string& filename)
+void print_static_properties(const sketch_database<S,K,H,G,W,L>& db)
 {
-    std::cout << "Writing database to file'"
-              << filename << "' ... " << std::flush;
-    try {
-        db.write(filename);
-        std::cout << "done." << std::endl;
+    using db_t = sketch_database<S,K,H,G,W,L>;
+    using target_id = typename db_t::target_id;
+    using window_id = typename db_t::window_id;
+    using feature_t = typename db_t::feature;
+    using bkt_sz_t  = typename db_t::bucket_size_type;
 
-    }
-    catch(const file_access_error&) {
-        std::cerr << "FAIL" << std::endl;
-        throw file_access_error{"Could not write database file '" + filename + "'"};
-    }
+    std::cout
+        << "------------------------------------------------\n"
+        << "MetaCache version    " << MC_VERSION_STRING << " (" << MC_VERSION << ")\n"
+        << "database verion      " << MC_DB_VERSION << '\n'
+        << "------------------------------------------------\n"
+        << "sequence type        " << typeid(typename db_t::sequence).name() << '\n'
+        << "target id type       " << typeid(target_id).name() << " " << (sizeof(target_id)*8) << " bits\n"
+        << "target limit         " << std::uint64_t(db.max_target_count()) << '\n'
+        << "------------------------------------------------\n"
+        << "window id type       " << typeid(window_id).name() << " " << (sizeof(window_id)*8) << " bits\n"
+        << "window limit         " << std::uint64_t(db.max_windows_per_target()) << '\n'
+        << "window length        " << db.target_window_size() << '\n'
+        << "window stride        " << db.target_window_stride() << '\n'
+        << "window similarity <= " << (100 * db.max_new_window_similarity()) << "%\n"
+        << "------------------------------------------------\n"
+        << "sketcher type        " << typeid(typename db_t::sketcher).name() << '\n'
+        << "feature type         " << typeid(feature_t).name() << " " << (sizeof(feature_t)*8) << " bits\n"
+        << "feature hash         " << typeid(typename db_t::feature_hash).name() << '\n'
+        << "kmer size            " << std::uint64_t(db.target_sketcher().kmer_size()) << '\n'
+        << "kmer limit           " << std::uint64_t(db.target_sketcher().max_kmer_size()) << '\n'
+        << "sketch size          " << db.target_sketcher().sketch_size() << '\n'
+        << "------------------------------------------------\n"
+        << "bucket size type     " << typeid(bkt_sz_t).name() << " " << (sizeof(bkt_sz_t)*8) << " bits\n"
+        << "max. locations       " << std::uint64_t(db.max_locations_per_feature()) << '\n'
+        << "location limit       " << std::uint64_t(db.max_supported_locations_per_feature()) << '\n'
+        << "------------------------------------------------"
+        << std::endl;
 }
 
 
@@ -1209,51 +1252,19 @@ write_database(const sketch_database<S,K,H,G,W,L>& db,
  *
  *****************************************************************************/
 template<class S, class K, class H, class G, class W, class L>
-void print_properties(const sketch_database<S,K,H,G,W,L>& db)
+void print_content_properties(const sketch_database<S,K,H,G,W,L>& db)
 {
-    using db_t = sketch_database<S,K,H,G,W,L>;
-    using target_id = typename db_t::target_id;
-    using window_id = typename db_t::window_id;
-    using feature_t = typename db_t::feature;
-    using bkt_sz_t  = typename db_t::bucket_size_type;
-
-    std::cout
-        << "------------------------------------------------\n"
-        << "MetaCache version " << MC_VERSION_STRING << " (" << MC_VERSION << ")\n"
-        << "database verion   " << MC_DB_VERSION << '\n'
-        << "------------------------------------------------\n"
-        << "sequence type     " << typeid(typename db_t::sequence).name() << '\n'
-        << "target id type    " << typeid(target_id).name() << " " << (sizeof(target_id)*8) << " bits\n"
-        << "target limit      " << std::uint64_t(db.max_target_count()) << '\n'
-        << "------------------------------------------------\n"
-        << "window id type    " << typeid(window_id).name() << " " << (sizeof(window_id)*8) << " bits\n"
-        << "window limit      " << std::uint64_t(db.max_windows_per_target()) << '\n'
-        << "window length     " << db.target_window_size() << '\n'
-        << "window stride     " << db.target_window_stride() << '\n'
-        << "------------------------------------------------\n"
-        << "sketcher type     " << typeid(typename db_t::sketcher).name() << '\n'
-        << "feature type      " << typeid(feature_t).name() << " " << (sizeof(feature_t)*8) << " bits\n"
-        << "feature hash      " << typeid(typename db_t::feature_hash).name() << '\n'
-        << "kmer size         " << std::uint64_t(db.target_sketcher().kmer_size()) << '\n'
-        << "kmer limit        " << std::uint64_t(db.target_sketcher().max_kmer_size()) << '\n'
-        << "sketch size       " << db.target_sketcher().sketch_size() << '\n'
-        << "------------------------------------------------\n"
-        << "bucket size type  " << typeid(bkt_sz_t).name() << " " << (sizeof(bkt_sz_t)*8) << " bits\n"
-        << "max. locations    " << std::uint64_t(db.max_locations_per_feature()) << '\n'
-        << "location limit    " << std::uint64_t(db.max_supported_locations_per_feature()) << '\n';
-
     if(db.target_count() > 0) {
 
         std::uint64_t numRankedTargets = 0;
-        for(target_id i = 0; i < db.target_count(); ++i) {
-            if(!db.taxon_of_target(i).none()) ++numRankedTargets;
+        for(const auto& t : db.target_taxa()) {
+            if(t.has_parent()) ++numRankedTargets;
         }
 
         std::cout
-        << "------------------------------------------------\n"
-        << "targets           " << db.target_count() << '\n'
-        << "ranked targets    " << numRankedTargets << '\n'
-        << "taxa in tree      " << db.taxon_count() << '\n';
+        << "targets              " << db.target_count() << '\n'
+        << "ranked targets       " << numRankedTargets << '\n'
+        << "taxa in tree         " << db.non_target_taxon_count() << '\n';
     }
 
     if(db.feature_count() > 0) {
@@ -1261,16 +1272,17 @@ void print_properties(const sketch_database<S,K,H,G,W,L>& db)
 
         std::cout
         << "------------------------------------------------\n"
-        << "buckets           " << db.bucket_count() << '\n'
-        << "bucket size       " << lss.mean() << " +/- " << lss.stddev()
-                                << " <> " << lss.skewness() << '\n'
-        << "features          " << db.feature_count() << '\n'
-        << "dead features     " << db.dead_feature_count() << '\n'
-        << "locations         " << db.location_count() << '\n';
+        << "buckets              " << db.bucket_count() << '\n'
+        << "bucket size          " << "max: " << lss.max()
+                                   << " mean: " << lss.mean()
+                                   << " +/- " << lss.stddev()
+                                   << " <> " << lss.skewness() << '\n'
+        << "features             " << db.feature_count() << '\n'
+        << "dead features        " << db.dead_feature_count() << '\n'
+        << "locations            " << db.location_count() << '\n';
     }
-
     std::cout
-        << "------------------------------------------------";
+        << "------------------------------------------------\n";
 }
 
 

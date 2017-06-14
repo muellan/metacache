@@ -19,63 +19,59 @@
  *
  *****************************************************************************/
 
-#ifndef MC_ARGS_HANDLING_H_
-#define MC_ARGS_HANDLING_H_
+#ifndef MC_PRINT_RESULTS_H_
+#define MC_PRINT_RESULTS_H_
 
-
-#include <string>
-#include <vector>
-
-#include "args_parser.h"
+#include "config.h"
+#include "statistics.h"
 
 
 namespace mc {
 
 
-
 /*****************************************************************************
  *
- * @brief database configuration parameters
+ * @brief  print top classification candidates
  *
  *****************************************************************************/
-struct taxonomy_options
-{
-    std::string path;
-    std::string nodesFile;
-    std::string namesFile;
-    std::string mergeFile;
-    std::vector<std::string> mappingPreFiles;
-    std::vector<std::string> mappingPostFiles;
-};
-
+void show_matches(std::ostream& os,
+                  const database&,
+                  const classification_candidates&,
+                  taxon_rank lowest = taxon_rank::Sequence);
 
 
 
 /*****************************************************************************
  *
- * @brief extracts database name from command line arguments
+ * @brief  print target.window hit matches
  *
  *****************************************************************************/
-std::string database_name(const args_parser&);
+void show_matches(std::ostream&,
+                  const database&,
+                  const matches_per_location&,
+                  taxon_rank lowest = taxon_rank::Sequence);
 
 
 
 /*****************************************************************************
  *
- * @brief extracts input sequence filenames from command line arguments
+ * @brief  print target.window hit statistics from database
  *
  *****************************************************************************/
-std::vector<std::string> sequence_filenames(const args_parser&);
+void show_candidate_ranges(std::ostream&,
+                           const database&,
+                           const classification_candidates&);
 
 
 
 /*****************************************************************************
  *
- * @brief extracts database config parameters from cmd line args
+ * @brief print per-rank classification statistics
  *
  *****************************************************************************/
-taxonomy_options get_taxonomy_options(const args_parser&);
-
+void show_classification_statistics(std::ostream&,
+                              const classification_statistics&,
+                              const std::string& prefix = "");
 
 
 } // namespace mc

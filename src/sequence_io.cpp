@@ -30,6 +30,8 @@
 
 namespace mc {
 
+using std::string;
+
 
 //-------------------------------------------------------------------
 constexpr const char* accession_prefix[]
@@ -37,7 +39,7 @@ constexpr const char* accession_prefix[]
     "NC_", "NG_", "NS_", "NT_", "NW_", "NZ_", "AC_", "GCF_",
     "AE", "AJ", "AL", "AM", "AP", "AY",
     "BA", "BK", "BX",
-    "CP", "CR", "CT", "CU",
+    "CM", "CP", "CR", "CT", "CU",
     "FM", "FN", "FO", "FP", "FQ", "FR",
     "HE", "JH"
 };
@@ -45,35 +47,60 @@ constexpr const char* accession_prefix[]
 
 
 //-------------------------------------------------------------------
-fasta_reader::fasta_reader(std::string filename):
-    file_{},
-    linebuffer_{},
-    valid_{false}
+sequence_reader::sequence
+sequence_reader::next()
 {
-    file_.open(filename.c_str());
+    if(!has_next()) return sequence{};
 
-    if(file_.rdstate() & std::ifstream::failbit) {
-        throw file_access_error{"can't open file " + filename};
-    }
-
-    valid_ = true;
+    std::lock_guard<std::mutex> lock(mutables_);
+    sequence seq;
+    read_next(seq);
+    index_++;
+    return seq;
 }
 
 
 
 //-------------------------------------------------------------------
-sequence_reader::result_type
-fasta_reader::next()
+void sequence_reader::skip(index_type skip)
 {
+    if(skip < 1) return;
+
     std::lock_guard<std::mutex> lock(mutables_);
+    sequence seq;
 
-    result_type res;
-
-    if(!valid_ || !file_.good()) {
-        valid_ = false;
-        return res;
+    for(; skip > 0 && has_next(); --skip) {
+        read_next(seq);
+        index_++;
     }
-    std::string line;
+}
+
+
+
+//-------------------------------------------------------------------
+fasta_reader::fasta_reader(string filename):
+    sequence_reader{},
+    file_{},
+    linebuffer_{}
+{
+    file_.open(filename.c_str());
+
+    if(file_.rdstate() & std::ifstream::failbit) {
+        invalidate();
+        throw file_access_error{"can't open file " + filename};
+    }
+}
+
+
+
+//-------------------------------------------------------------------
+void fasta_reader::read_next(sequence& seq)
+{
+    if(!file_.good()) {
+        invalidate();
+        return;
+    }
+    string line;
 
     if(linebuffer_.empty()) {
         getline(file_, line);
@@ -86,10 +113,10 @@ fasta_reader::next()
 
     if(line[0] != '>') {
         throw io_format_error{"malformed fasta file - expected header char > not found"};
-        valid_ = false;
-        return res;
+        invalidate();
+        return;
     }
-    res.header = line.substr(1);
+    seq.header = line.substr(1);
     
     std::ostringstream seqss;
 
@@ -103,183 +130,184 @@ fasta_reader::next()
             seqss << line;
         }
     }
-    res.data = seqss.str();
+    seq.data = seqss.str();
 
-    if(res.data.empty()) {
-        throw io_format_error{"malformed fasta file - zero-length record: " + res.header};
-        valid_ = false;
-        return res;
+    if(seq.data.empty()) {
+        throw io_format_error{"malformed fasta file - zero-length sequence: " + seq.header};
+        invalidate();
+        return;
     }
-
-    return res;
 }
 
 
 
 
 //-------------------------------------------------------------------
-fastq_reader::fastq_reader(std::string filename):
-    file_{},
-    valid_{false}
+fastq_reader::fastq_reader(string filename):
+    sequence_reader{},
+    file_{}
 {
     file_.open(filename.c_str());
 
     if(file_.rdstate() & std::ifstream::failbit) {
+        invalidate();
         throw file_access_error{"can't open file " + filename};
     }
-
-    valid_ = true;
 }
 
 
 
 //-------------------------------------------------------------------
-sequence_reader::result_type
-fastq_reader::next()
+void fastq_reader::read_next(sequence& seq)
 {
-    std::lock_guard<std::mutex> lock(mutables_);
-
-    result_type res;
-
-    if(!valid_ || !file_.good()) {
-        valid_ = false;
-        return res;
+    if(!file_.good()) {
+        invalidate();
+        return;
     }
 
-    std::string line;
+    string line;
     getline(file_, line);
     if(line.empty()) {
-        valid_ = false;  // Sometimes FASTQ files have empty last lines
-        return res;
+        invalidate();
+        return;
     }
     if(line[0] != '@') {
         if(line[0] != '\r') {
             throw io_format_error{"malformed fastq file - sequence header: "  + line};
         }
-        valid_ = false;
-        return res;
+        invalidate();
+        return;
     }
-    res.header = line.substr(1);
-    getline(file_, res.data);
+    seq.header = line.substr(1);
+    getline(file_, seq.data);
 
     getline(file_, line);
     if(line.empty() || line[0] != '+') {
         if(line[0] != '\r') {
             throw io_format_error{"malformed fastq file - quality header: "  + line};
         }
-        valid_ = false;
-        return res;
+        invalidate();
+        return;
     }
-    getline(file_, res.qualities);
-
-    return res;
+    getline(file_, seq.qualities);
 }
 
 
 
 
 //-------------------------------------------------------------------
-sequence_header_reader::sequence_header_reader(std::string filename):
-    file_{},
-    valid_{false}
+sequence_header_reader::sequence_header_reader(string filename):
+    file_{}
 {
     file_.open(filename.c_str());
 
     if(file_.rdstate() & std::ifstream::failbit) {
+        invalidate();
         throw file_access_error{"can't open file " + filename};
     }
-
-    valid_ = true;
 }
 
 
 
 //-------------------------------------------------------------------
-sequence_reader::result_type
-sequence_header_reader::next()
+void sequence_header_reader::read_next(sequence& seq)
 {
-    std::lock_guard<std::mutex> lock(mutables_);
-
-    result_type res;
-
-    if(!valid_ || !file_.good()) {
-        valid_ = false;
-        return res;
-    }
 
     bool headerFound = false;
     do {
-        std::string line;
+        if(!file_.good()) {
+            invalidate();
+            return;
+        }
+
+        string line;
         getline(file_, line);
-        valid_ = file_.good();
 
         headerFound = line[0] == '>' || line[0] == '@';
         if(headerFound) {
-            res.header = line.substr(1);
+            seq.header = line.substr(1);
         }
-    } while(valid_ && !headerFound);
-
-    return res;
+    } while(!headerFound);
 }
 
 
 
 //-------------------------------------------------------------------
 std::unique_ptr<sequence_reader>
-make_sequence_reader(const std::string& filename)
+make_sequence_reader(const string& filename)
 {
     auto n = filename.size();
-    if(n > 3) {
-        auto ext = filename.substr(n-6,6);
-        if(ext.find(".fq")  != std::string::npos ||
-           ext.find(".fnq")  != std::string::npos ||
-           ext.find(".fastq") != std::string::npos)
-        {
-            return std::unique_ptr<sequence_reader>{new fastq_reader{filename}};
-        }
+    if(filename.find(".fq")    == (n-3) ||
+       filename.find(".fnq")   == (n-4) ||
+       filename.find(".fastq") == (n-6) )
+    {
+        return std::unique_ptr<sequence_reader>{new fastq_reader{filename}};
+    }
+    else if(filename.find(".fa")    == (n-3) ||
+            filename.find(".fna")   == (n-4) ||
+            filename.find(".fasta") == (n-6) )
+    {
+        return std::unique_ptr<sequence_reader>{new fasta_reader{filename}};
     }
 
-    return std::unique_ptr<sequence_reader>{new fasta_reader{filename}};
+    //try to determine file type content
+    std::ifstream is {filename};
+    if(is.good()) {
+        string line;
+        getline(is,line);
+        if(!line.empty()) {
+            if(line[0] == '<') {
+                return std::unique_ptr<sequence_reader>{new fasta_reader{filename}};
+            }
+            else if(line[0] == '@') {
+                return std::unique_ptr<sequence_reader>{new fastq_reader{filename}};
+            }
+        }
+        throw file_read_error{"file format not recognized"};
+    }
+
+    throw file_access_error{"file not accessible"};
+    return nullptr;
 }
 
 
 
 //-------------------------------------------------------------------
-std::string::size_type
-end_of_accession_number(const std::string& text,
-                        std::string::size_type start = 0)
+string::size_type
+end_of_accession_number(const string& text,
+                        string::size_type start = 0)
 {
     if(start >= text.size()) return text.size();
 
     auto k = text.find('|', start);
-    if(k != std::string::npos) return k;
+    if(k != string::npos) return k;
 
     k = text.find(' ', start);
-    if(k != std::string::npos) return k;
+    if(k != string::npos) return k;
 
     k = text.find('-', start);
-    if(k != std::string::npos) return k;
+    if(k != string::npos) return k;
 
     k = text.find('_', start);
-    if(k != std::string::npos) return k;
+    if(k != string::npos) return k;
 
     k = text.find(',', start);
-    if(k != std::string::npos) return k;
+    if(k != string::npos) return k;
 
     return text.size();
 }
 
 
 //-------------------------------------------------------------------
-std::string
-extract_ncbi_accession_version_number(const std::string& prefix,
-                                      const std::string& text)
+string
+extract_ncbi_accession_version_number(const string& prefix,
+                                      const string& text)
 {
     auto i = text.find(prefix);
     if(i < 20) {
         //find separator *after* prefix
         auto s = text.find('.', i+1);
-        if(s == std::string::npos || (s-i) > 20) return "";
+        if(s == string::npos || (s-i) > 20) return "";
         auto k = end_of_accession_number(text,s+1);
         return text.substr(i, k-i);
     }
@@ -287,8 +315,8 @@ extract_ncbi_accession_version_number(const std::string& prefix,
 }
 
 //---------------------------------------------------------
-std::string
-extract_ncbi_accession_version_number(const std::string& text)
+string
+extract_ncbi_accession_version_number(const string& text)
 {
     //try to find any known prefix + separator
     for(auto prefix : accession_prefix) {
@@ -308,12 +336,12 @@ extract_ncbi_accession_version_number(const std::string& text)
 
 
 //-------------------------------------------------------------------
-std::string
-extract_ncbi_accession_number(const std::string& prefix,
-                              const std::string& text)
+string
+extract_ncbi_accession_number(const string& prefix,
+                              const string& text)
 {
     auto i = text.find(prefix);
-    if(i != std::string::npos) {
+    if(i != string::npos) {
         auto j = i + prefix.size();
         auto k = end_of_accession_number(text,j);
         return text.substr(i, k-i);
@@ -322,8 +350,8 @@ extract_ncbi_accession_number(const std::string& prefix,
 }
 
 //---------------------------------------------------------
-std::string
-extract_ncbi_accession_number(const std::string& text)
+string
+extract_ncbi_accession_number(const string& text)
 {
 
     for(auto prefix : accession_prefix) {
@@ -337,18 +365,18 @@ extract_ncbi_accession_number(const std::string& text)
 
 
 //-------------------------------------------------------------------
-std::string
-extract_genbank_identifier(const std::string& text)
+string
+extract_genbank_identifier(const string& text)
 {
     auto i = text.find("gi|");
-    if(i != std::string::npos) {
+    if(i != string::npos) {
         //skip prefix
         i += 3;
         //find end of number
         auto j = text.find('|', i);
-        if(j == std::string::npos) {
+        if(j == string::npos) {
             j = text.find(' ', i);
-            if(j == std::string::npos) j = text.size();
+            if(j == string::npos) j = text.size();
         }
         return text.substr(i, j-i);
     }
@@ -358,8 +386,8 @@ extract_genbank_identifier(const std::string& text)
 
 
 //-------------------------------------------------------------------
-std::string
-extract_accession_string(const std::string& text)
+string
+extract_accession_string(const string& text)
 {
     auto s = extract_ncbi_accession_version_number(text);
     if(!s.empty()) return s;
@@ -375,18 +403,18 @@ extract_accession_string(const std::string& text)
 
 
 //-------------------------------------------------------------------
-std::uint64_t
-extract_taxon_id(const std::string& text)
+std::int_least64_t
+extract_taxon_id(const string& text)
 {
     auto i = text.find("taxid");
-    if(i != std::string::npos) {
+    if(i != string::npos) {
         //skip "taxid" + separator char
         i += 6;
         //find end of number
         auto j = text.find('|', i);
-        if(j == std::string::npos) {
+        if(j == string::npos) {
             j = text.find(' ', i);
-            if(j == std::string::npos) j = text.size();
+            if(j == string::npos) j = text.size();
         }
 
         try {
