@@ -23,19 +23,23 @@ HEADERS = \
           src/args_handling.h \
           src/args_parser.h \
           src/bitmanip.h \
+          src/candidates.h \
           src/chunk_allocator.h \
           src/cmdline_utility.h \
           src/config.h \
           src/dna_encoding.h \
           src/filesys_utility.h \
           src/hash_dna.h \
+          src/hash_family.h \
           src/hash_int.h \
           src/hash_multimap.h \
           src/io_error.h \
           src/io_serialize.h \
+          src/io_options.h \
           src/modes.h \
-          src/modes_common.h \
           src/parallel_task_queue.h \
+          src/print_info.h \
+          src/print_results.h \
           src/sequence_io.h \
           src/sequence_view.h \
           src/sketch_database.h \
@@ -43,6 +47,7 @@ HEADERS = \
           src/stat_moments.h \
           src/statistics.h \
           src/taxonomy.h \
+          src/taxonomy_io.h \
           src/timer.h \
           src/version.h
 
@@ -51,15 +56,18 @@ SOURCES = \
           src/cmdline_utility.cpp \
           src/filesys_utility.cpp \
           src/main.cpp \
+          src/mode_annotate.cpp \
           src/mode_build.cpp \
           src/mode_help.cpp \
           src/mode_info.cpp \
           src/mode_query.cpp \
-          src/modes_common.cpp \
-          src/sequence_io.cpp
-          
+          src/print_info.cpp \
+          src/print_results.cpp \
+          src/sequence_io.cpp \
+          src/taxonomy_io.cpp
+
 TEST_HEADERS = \
-          
+
 TEST_SOURCES = \
           test\tests.cpp \
           test/hash_multimap_test.cpp
@@ -109,7 +117,7 @@ clean :
 
 
 #--------------------------------------------------------------------
-# release
+# release (out-of-place build)
 #--------------------------------------------------------------------
 $(REL_DIR):
 	mkdir $(REL_DIR) 
@@ -119,23 +127,35 @@ $(REL_ARTIFACT): $(REL_OBJS)
 
 $(REL_DIR)/main.o : src/main.cpp src/modes.h 
 	$(REL_COMPILE)
+
+$(REL_DIR)/print_info.o : src/print_info.cpp $(HEADERS)
+	$(REL_COMPILE)
+
+$(REL_DIR)/print_results.o : src/print_results.cpp $(HEADERS)
+	$(REL_COMPILE)
+	
+$(REL_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)
+	$(REL_COMPILE)
 	
 $(REL_DIR)/mode_build.o : src/mode_build.cpp $(HEADERS)
 	$(REL_COMPILE)
 	
-$(REL_DIR)/mode_help.o : src/mode_help.cpp src/modes.h
-	$(REL_COMPILE)
-
 $(REL_DIR)/mode_info.o : src/mode_info.cpp $(HEADERS)
 	$(REL_COMPILE)
 
 $(REL_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 	$(REL_COMPILE)
 
-$(REL_DIR)/modes_common.o : src/modes_common.cpp $(HEADERS)
+$(REL_DIR)/taxonomy_io.o : src/taxonomy_io.cpp $(HEADERS)
+	$(REL_COMPILE)
+
+$(REL_DIR)/mode_help.o : src/mode_help.cpp src/modes.h src/args_handling.h src/filesys_utility.h
 	$(REL_COMPILE)
 
 $(REL_DIR)/sequence_io.o : src/sequence_io.cpp src/sequence_io.h src/io_error.h
+	$(REL_COMPILE)
+
+$(REL_DIR)/args_handling.o : src/args_handling.cpp src/args_handling.h src/args_parser.h src/filesys_utility.h
 	$(REL_COMPILE)
 
 $(REL_DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.h
@@ -144,13 +164,9 @@ $(REL_DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.h
 $(REL_DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.h
 	$(REL_COMPILE)
 
-$(REL_DIR)/args_handling.o : src/args_handling.cpp src/args_handling.h src/args_parser.h src/filesys_utility.h
-	$(REL_COMPILE)
-
-
 
 #--------------------------------------------------------------------
-# debug
+# debug (out-of-place build)
 #--------------------------------------------------------------------
 $(DBG_DIR):
 	mkdir $(DBG_DIR) 
@@ -160,23 +176,35 @@ $(DBG_ARTIFACT): $(DBG_OBJS)
 
 $(DBG_DIR)/main.o : src/main.cpp src/modes.h 
 	$(DBG_COMPILE)
+
+$(DBG_DIR)/print_info.o : src/print_info.cpp $(HEADERS)
+	$(DBG_COMPILE)
+
+$(DBG_DIR)/print_results.o : src/print_results.cpp $(HEADERS)
+	$(DBG_COMPILE)
+	
+$(DBG_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)
+	$(DBG_COMPILE)
 	
 $(DBG_DIR)/mode_build.o : src/mode_build.cpp $(HEADERS)
 	$(DBG_COMPILE)
 	
-$(DBG_DIR)/mode_help.o : src/mode_help.cpp src/modes.h
-	$(DBG_COMPILE)
-
 $(DBG_DIR)/mode_info.o : src/mode_info.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
 $(DBG_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
-$(DBG_DIR)/modes_common.o : src/modes_common.cpp $(HEADERS)
+$(DBG_DIR)/taxonomy_io.o : src/taxonomy_io.cpp $(HEADERS)
 	$(DBG_COMPILE)
-	
+
+$(DBG_DIR)/mode_help.o : src/mode_help.cpp src/modes.h src/args_handling.h src/filesys_utility.h
+	$(DBG_COMPILE)
+
 $(DBG_DIR)/sequence_io.o : src/sequence_io.cpp src/sequence_io.h src/io_error.h
+	$(DBG_COMPILE)
+
+$(DBG_DIR)/args_handling.o : src/args_handling.cpp src/args_handling.h src/args_parser.h src/filesys_utility.h
 	$(DBG_COMPILE)
 
 $(DBG_DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.h
@@ -184,10 +212,6 @@ $(DBG_DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.h
 
 $(DBG_DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.h
 	$(DBG_COMPILE)
-
-$(DBG_DIR)/args_handling.o : src/args_handling.cpp src/args_handling.h src/args_parser.h src/filesys_utility.h
-	$(DBG_COMPILE)
-	
 
 
 #--------------------------------------------------------------------
