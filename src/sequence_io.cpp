@@ -318,9 +318,12 @@ extract_ncbi_accession_version_number(const string& prefix,
 
 //---------------------------------------------------------
 string
-extract_ncbi_accession_version_number(const string& text)
+extract_ncbi_accession_version_number(string text)
 {
-    if(text.size() < 3) return "";
+    if(text.empty()) return "";
+
+    //remove leading dots
+    while(!text.empty() && text[0] == '.') text.erase(0);
 
     //try to find any known prefix + separator
     for(auto prefix : accession_prefix) {
@@ -329,11 +332,8 @@ extract_ncbi_accession_version_number(const string& text)
     }
 
     //try to find version speparator
-    //skip leading dots as in e.g., "../path/to/GCF12321.1"
-    auto s = text.find('.',2);
-    if(s < 20) {
-        return text.substr(0, end_of_accession_number(text,s+1));
-    }
+    auto s = text.find('.');
+    if(s < 20) return text.substr(0, end_of_accession_number(text,s+1));
 
     return "";
 }

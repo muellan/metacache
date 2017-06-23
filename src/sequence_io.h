@@ -197,7 +197,7 @@ std::string extract_ncbi_accession_number(const std::string&);
  *
  *****************************************************************************/
 std::string extract_ncbi_accession_version_number(const std::string& prefix, const std::string&);
-std::string extract_ncbi_accession_version_number(const std::string&);
+std::string extract_ncbi_accession_version_number(std::string);
 
 
 
