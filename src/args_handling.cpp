@@ -113,7 +113,7 @@ get_taxonomy_options(const args_parser& args)
         if(f.find(".accession2taxid") != std::string::npos) {
             if(std::find(opt.mappingPostFiles.begin(),
                          opt.mappingPostFiles.end(), f)
-               != opt.mappingPostFiles.end())
+               == opt.mappingPostFiles.end())
             {
                 opt.mappingPostFiles.push_back(f);
             }

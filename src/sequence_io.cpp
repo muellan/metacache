@@ -303,6 +303,8 @@ string
 extract_ncbi_accession_version_number(const string& prefix,
                                       const string& text)
 {
+    if(text.empty()) return "";
+
     auto i = text.find(prefix);
     if(i < 20) {
         //find separator *after* prefix
@@ -316,8 +318,13 @@ extract_ncbi_accession_version_number(const string& prefix,
 
 //---------------------------------------------------------
 string
-extract_ncbi_accession_version_number(const string& text)
+extract_ncbi_accession_version_number(string text)
 {
+    if(text.empty()) return "";
+
+    //remove leading dots
+    while(!text.empty() && text[0] == '.') text.erase(0);
+
     //try to find any known prefix + separator
     for(auto prefix : accession_prefix) {
         auto num = extract_ncbi_accession_version_number(prefix, text);
@@ -326,9 +333,7 @@ extract_ncbi_accession_version_number(const string& text)
 
     //try to find version speparator
     auto s = text.find('.');
-    if(s < 20) {
-        return text.substr(0, end_of_accession_number(text,s+1));
-    }
+    if(s < 20) return text.substr(0, end_of_accession_number(text,s+1));
 
     return "";
 }
@@ -340,6 +345,8 @@ string
 extract_ncbi_accession_number(const string& prefix,
                               const string& text)
 {
+    if(text.empty()) return "";
+
     auto i = text.find(prefix);
     if(i != string::npos) {
         auto j = i + prefix.size();
@@ -353,6 +360,7 @@ extract_ncbi_accession_number(const string& prefix,
 string
 extract_ncbi_accession_number(const string& text)
 {
+    if(text.empty()) return "";
 
     for(auto prefix : accession_prefix) {
         auto num = extract_ncbi_accession_number(prefix, text);
@@ -368,6 +376,8 @@ extract_ncbi_accession_number(const string& text)
 string
 extract_genbank_identifier(const string& text)
 {
+    if(text.empty()) return "";
+
     auto i = text.find("gi|");
     if(i != string::npos) {
         //skip prefix
@@ -389,6 +399,8 @@ extract_genbank_identifier(const string& text)
 string
 extract_accession_string(const string& text)
 {
+    if(text.empty()) return "";
+
     auto s = extract_ncbi_accession_version_number(text);
     if(!s.empty()) return s;
 
@@ -406,6 +418,8 @@ extract_accession_string(const string& text)
 std::int_least64_t
 extract_taxon_id(const string& text)
 {
+    if(text.empty()) return 0;
+
     auto i = text.find("taxid");
     if(i != string::npos) {
         //skip "taxid" + separator char
