@@ -305,8 +305,8 @@ get_query_options(const args_parser& args,
     opt.insertSizeMax = args.get<std::size_t>({"insertsize", "insert-size"},
                                                 defaults.insertSizeMax);
 
-    opt.queryLimit = args.get<std::uint_least64_t>(
-        {"-max-queries-per-file", "query-limit"}, defaults.queryLimit);
+    opt.queryLimit = args.get<std::uint_least64_t>({"query-limit"},
+                                                   defaults.queryLimit);
 
     //database tuning parameters
     opt.maxLoadFactor = args.get<float>({"max-load-fac", "max_load_fac"},
@@ -771,7 +771,10 @@ void classify(parallel_queue& queue,
             queue.enqueue([&]{
                 std::ostringstream obuf;
 
-                for(std::size_t i = 0; i < batchSize; ++i) {
+                for(std::size_t i = 0;
+                    i < batchSize && queryLimit > 0 && reader.has_next();
+                    ++i, --queryLimit)
+                {
                     auto query = reader.next();
                     if(!query.header.empty()) {
                         auto matches = db.matches(query.data);
@@ -785,7 +788,6 @@ void classify(parallel_queue& queue,
                 std::lock_guard<std::mutex> lock(mtx);
                 os << obuf.str();
             }); //enqueue
-            --queryLimit;
         }
     }
     //wait for all enqueued tasks to finish
@@ -817,8 +819,11 @@ void classify_pairs(parallel_queue& queue,
             queue.enqueue([&]{
                 std::ostringstream obuf;
 
-                for(std::size_t i = 0; i < batchSize; ++i) {
+                for(std::size_t i = 0; i < batchSize && queryLimit > 0;
+                    ++i, --queryLimit)
+                {
                     std::unique_lock<std::mutex> lock1(mtx1);
+                    if(!reader1.has_next() || !reader2.has_next()) break;
                     //make sure that both queries are read in sequence
                     auto query1 = reader1.next();
                     auto query2 = reader2.next();
@@ -837,7 +842,6 @@ void classify_pairs(parallel_queue& queue,
                 std::lock_guard<std::mutex> lock(mtx2);
                 os << obuf.str();
             }); //enqueue
-            --queryLimit;
         }
     }
     //wait for all enqueued tasks to finish
