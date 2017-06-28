@@ -764,7 +764,7 @@ void classify(parallel_queue& queue,
     const auto load = 32 * queue.concurrency();
     const auto batchSize = 4096 * queue.concurrency();
 
-    auto queryLimit = opt.queryLimit;
+    std::atomic<std::uint64_t> queryLimit(opt.queryLimit);
 
     while(reader.has_next() && queryLimit > 0) {
         if(queue.unsafe_waiting() < load) {
@@ -812,7 +812,7 @@ void classify_pairs(parallel_queue& queue,
     std::mutex mtx1;
     std::mutex mtx2;
 
-    auto queryLimit = opt.queryLimit;
+    std::atomic<std::uint64_t> queryLimit(opt.queryLimit);
 
     while(reader1.has_next() && reader2.has_next() && queryLimit > 0) {
         if(queue.unsafe_waiting() < load) {
