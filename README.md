@@ -141,7 +141,7 @@ Metacache has different modes, one of them is the 'query' mode. Once a database 
   ```
   ./metacache query refseq my_reads1.fa my_reads2.fa -pairfiles -out results.txt
   ```
-* paired-end reads in one file:
+* paired-end reads in one file (a1,a2,b1,b2,...):
   ```
   ./metacache query refseq my_paired_reads.fa -pairseq -out results.txt
   ```
@@ -159,7 +159,7 @@ or jump directly to specific topics with
 ...
 ```
 
-MetaCache  Copyright (C) 2016  André Müller
+MetaCache  Copyright (C) 2016-2017  André Müller
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain
 conditions. See the file 'LICENSE' for details.
