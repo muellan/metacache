@@ -20,6 +20,7 @@
  *****************************************************************************/
 
 #include <functional>
+#include <limits>
 
 #include "args_handling.h"
 #include "timer.h"
@@ -118,6 +119,9 @@ struct query_options
     float hitsDiffFraction = 0.9;
     //maximum range in sequence that read (pair) is expected to be in
     std::size_t insertSizeMax = 0;
+    //limit number of reads per file (for quick tests)
+    std::uint_least64_t queryLimit =
+        std::numeric_limits<std::uint_least64_t>::max();
 
     //-----------------------------------------------------
     //analysis options
@@ -300,6 +304,9 @@ get_query_options(const args_parser& args,
 
     opt.insertSizeMax = args.get<std::size_t>({"insertsize", "insert-size"},
                                                 defaults.insertSizeMax);
+
+    opt.queryLimit = args.get<std::uint_least64_t>(
+        {"-max-queries-per-file", "query-limit"}, defaults.queryLimit);
 
     //database tuning parameters
     opt.maxLoadFactor = args.get<float>({"max-load-fac", "max_load_fac"},
@@ -757,7 +764,9 @@ void classify(parallel_queue& queue,
     const auto load = 32 * queue.concurrency();
     const auto batchSize = 4096 * queue.concurrency();
 
-    while(reader.has_next()) {
+    auto queryLimit = opt.queryLimit;
+
+    while(reader.has_next() && queryLimit > 0) {
         if(queue.unsafe_waiting() < load) {
             queue.enqueue([&]{
                 std::ostringstream obuf;
@@ -776,6 +785,7 @@ void classify(parallel_queue& queue,
                 std::lock_guard<std::mutex> lock(mtx);
                 os << obuf.str();
             }); //enqueue
+            --queryLimit;
         }
     }
     //wait for all enqueued tasks to finish
@@ -800,7 +810,9 @@ void classify_pairs(parallel_queue& queue,
     std::mutex mtx1;
     std::mutex mtx2;
 
-    while(reader1.has_next() && reader2.has_next()) {
+    auto queryLimit = opt.queryLimit;
+
+    while(reader1.has_next() && reader2.has_next() && queryLimit > 0) {
         if(queue.unsafe_waiting() < load) {
             queue.enqueue([&]{
                 std::ostringstream obuf;
@@ -825,6 +837,7 @@ void classify_pairs(parallel_queue& queue,
                 std::lock_guard<std::mutex> lock(mtx2);
                 os << obuf.str();
             }); //enqueue
+            --queryLimit;
         }
     }
     //wait for all enqueued tasks to finish
