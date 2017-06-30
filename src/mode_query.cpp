@@ -143,7 +143,6 @@ struct query_options
     //-----------------------------------------------------
     // tuning parameters
     //-----------------------------------------------------
-    float maxLoadFactor = -1;        //< 0 : use value from database
     int maxLocationsPerFeature = -1; //< 0 : use value from database
     int numThreads = std::thread::hardware_concurrency();
     bool removeOverpopulatedFeatures = false;
@@ -309,9 +308,6 @@ get_query_options(const args_parser& args,
                                                    defaults.queryLimit);
 
     //database tuning parameters
-    opt.maxLoadFactor = args.get<float>({"max-load-fac", "max_load_fac"},
-                                          defaults.maxLoadFactor);
-
     opt.maxLocationsPerFeature = args.get<int>({"max_locations_per_feature",
                                                 "max-locations-per-feature"},
                                                 defaults.maxLocationsPerFeature);
@@ -1129,11 +1125,6 @@ void process_input_files(const database& db, const query_options& opt)
 void configure_database_according_to_query_options(
     database& db, const query_options& opt)
 {
-    if(opt.maxLoadFactor > 0) {
-        db.max_load_factor(opt.maxLoadFactor);
-        cout << "max load factor of database hash table set to "
-             << opt.maxLoadFactor << endl;
-    }
     if(opt.removeOverpopulatedFeatures) {
         auto old = db.feature_count();
 
