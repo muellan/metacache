@@ -421,8 +421,10 @@ void remove_hits_on_rank(const database& db,
 
     matches_per_location maskedHits;
     for(const auto& hit : hits) {
-        auto t = db.ancestor(hit.first.tax, rank);
-        if(t != excl) maskedHits.insert(hit);
+        auto t = db.ancestor(hit.loc.tax, rank);
+        if(t != excl) {
+            maskedHits.push_back(hit);
+        }
     }
 
     hits.swap(maskedHits);

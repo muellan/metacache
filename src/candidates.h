@@ -136,17 +136,17 @@ public:
             //look for neighboring windows with the highest total hit count
             //as long as we are in the same target and the windows are in a
             //contiguous range
-            if(lst->first.tax == curBest.tax) {
+            if(lst->loc.tax == curBest.tax) {
                 //add new hits to the right
-                hits += lst->second;
+                hits += lst->hits;
                 //subtract hits to the left that fall out of range
                 while(fst != lst &&
-                     (lst->first.win - fst->first.win) >= numWindows)
+                     (lst->loc.win - fst->loc.win) >= numWindows)
                 {
-                    hits -= fst->second;
+                    hits -= fst->hits;
                     //move left side of range
                     ++fst;
-                    win = fst->first.win;
+                    win = fst->loc.win;
                 }
                 //track best of the local sub-ranges
                 if(hits > curBest.hits) {
@@ -158,9 +158,9 @@ public:
             else { //end of current target
                 update_with(curBest, db, mergeOn);
                 //reset to new target
-                win  = lst->first.win;
-                hits = lst->second;
-                curBest.tax  = lst->first.tax;
+                win  = lst->loc.win;
+                hits = lst->hits;
+                curBest.tax  = lst->loc.tax;
                 curBest.hits = hits;
                 curBest.pos.beg = win;
                 curBest.pos.end = win;

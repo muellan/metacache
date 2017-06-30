@@ -217,6 +217,11 @@ public:
         window_id win;
 
         friend bool
+        operator == (const location& a, const location& b) noexcept {
+            return (a.tax == b.tax) && (a.win == b.win);
+        }
+
+        friend bool
         operator < (const location& a, const location& b) noexcept {
             if(a.tax < b.tax) return true;
             if(a.tax > b.tax) return false;
@@ -225,8 +230,23 @@ public:
     };
 
     //-------------------------------------------------------------------
-    //map: location (= target window) -> number of featers
-    using matches_per_location = std::map<location,match_count_type>;
+    struct location_matches {
+        location_matches() = default;
+        constexpr
+        location_matches(location l, match_count_type c) noexcept :
+            loc{l}, hits{c}
+        {}
+
+        location loc;
+        match_count_type hits = 0;
+
+        friend bool
+        operator < (const location_matches& a, const location_matches& b) noexcept {
+            return (a.loc < b.loc);
+        }
+    };
+    //location (= target window) -> number of featers
+    using matches_per_location = std::vector<location_matches>;
 
 
     //---------------------------------------------------------------
@@ -787,13 +807,17 @@ public:
                        matches_per_location& res) const
     {
         for_each_match(queryBegin, queryEnd,
-            [this, &res] (const location& t) {
-                auto it = res.find(t);
-                if(it != res.end()) {
-                    ++(it->second);
+            [this, &res] (const location& loc) {
+                auto it = std::lower_bound(begin(res), end(res), loc,
+                    [](const location_matches& lc, const location& l) {
+                        return lc.loc < l;
+                    });
+
+                if(it != end(res) && it->loc == loc) {
+                    ++(it->hits);
                 }
                 else {
-                    res.insert(it, {t, 1});
+                    res.insert(it, {loc, match_count_type(1)});
                 }
             });
     }

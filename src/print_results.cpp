@@ -62,19 +62,19 @@ void show_matches(std::ostream& os,
 
     if(lowest == taxon_rank::Sequence) {
         for(const auto& r : matches) {
-            const taxon* tax = r.first.tax;
+            const taxon* tax = r.loc.tax;
             if(tax) os << tax->name()
-                       << '/' << int(r.first.win)
-                       << ':' << int(r.second) << ',';
+                       << '/' << int(r.loc.win)
+                       << ':' << int(r.hits) << ',';
         }
     }
     else {
         for(const auto& r : matches) {
-            const taxon* tax = db.ancestor(r.first.tax, lowest);
+            const taxon* tax = db.ancestor(r.loc.tax, lowest);
             if(tax) {
-                os << tax->name() << ':' << int(r.second) << ',';
+                os << tax->name() << ':' << int(r.hits) << ',';
             } else {
-                os << r.first.tax->name() << ':' << int(r.second) << ',';
+                os << r.loc.tax->name() << ':' << int(r.hits) << ',';
             }
         }
     }
