@@ -20,8 +20,16 @@
 # This script will download complete bacterial and virus genomes from
 # the NCBI RefSeq project and build a classification database.
 
-set -u
-set -e
+set -u  # Protect against uninitialized vars.
+set -e  # Stop on error
+
+
+MODE=standard
+
+if [ $# -lt 1 ]; then
+  echo "Building database for NCBI RefSeq complete bacterial and virus genomes."
+  echo "    General script usage: $0 (big|standard|small)"
+fi
 
 
 # download-ncbi-genomes <sublibrary> <target folder>
@@ -29,8 +37,20 @@ set -e
 ./download-ncbi-genomes refseq/viral genomes
 ./download-ncbi-genomes refseq/archaea genomes
 
+
 # download-ncbi-taxonomy <target folder>
 ./download-ncbi-taxonomy genomes/taxonomy
 
-./metacache build refseq genomes/refseq -taxonomy genomes/taxonomy -kmerlen 16 -winlen 128 -sketchlen 16
+
+case "$MODE" in
+"big")
+    ./metacache build refseq_big genomes/refseq -taxonomy genomes/taxonomy -kmerlen 16 -winlen 128 -sketchlen 32
+    ;;
+"standard")
+    ./metacache build refseq genomes/refseq -taxonomy genomes/taxonomy -kmerlen 16 -winlen 128 -sketchlen 16
+    ;;
+"small")
+    ./metacache build refseq_small genomes/refseq -taxonomy genomes/taxonomy -kmerlen 16 -winlen 256 -sketchlen 16
+    ;;
+esac
 

@@ -1,0 +1,33 @@
+#!/bin/bash
+
+if [ $# -lt 1 ]; then
+  echo "usage: $0 <database filename>"
+  exit
+fi
+
+DB=$1
+
+
+if [ -e $DB ]; then
+  echo "collecting statistics for database $DB"
+
+  ./metacache info $DB statistics | tail -n+2 > ${DB}_statistics.txt
+
+  ./metacache info $DB lineages | tail -n+2 > ${DB}_lineages.txt
+
+  RANKSTAT=${DB}_ranks.txt
+  rm -f $RANKSTAT
+
+  for r in subspecies species genus family order class phylum kingdom domain; do
+    RESFILE=${DB}_rank_${r}.txt
+
+    ./metacache info $DB rank ${r}  | tail -n+3 > $RESFILE
+
+    no=$(cat $RESFILE | head -n 1 | grep -e -- | sed 's/--\s*//g' )
+    nr=$(cat $RESFILE | wc -l)
+    nr=$(( $nr - 1))
+
+    echo "$r: $nr    none: $no" >> $RANKSTAT
+  done
+
+fi
