@@ -12,6 +12,8 @@
 *.json
 *.fa
 *.fna
+*.fq
+*.fnq
 *.out
 *.o
 *.zip

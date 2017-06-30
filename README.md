@@ -1,14 +1,13 @@
 # MetaCache
 
-MetaCache is a taxnomomic classification system for metagenomic read mapping.
+MetaCache is a taxnomomic classification system intended for metagenomic read mapping.
 
 
-## Quick Installation & Usage
+## Super Quick Installation & Usage
 This will download MetaCache, compile it, download the complete bacterial, viral and archaea genomes from the latest NCBI RefSeq release (this can take some time) and build a classification database from them:
 
 ```
 git clone https://github.com/muellan/metacache.git 
-cd metacache
 make
 ./metacache-build-refseq
 ```
@@ -17,8 +16,8 @@ Once the default database is built you can classify reads:
   ```
   ./metacache query refseq myReads.fa -out results.txt
   ./metacache query refseq anyFolderWithFastaOrFastqFiles -out results.txt
-  ./metacache query refseq myReads1.fa myReads2.fa -pairfiles -out results.txt
-  ./metacache query refseq myPairedReads.fa -pairseq -out results.txt
+  ./metacache query refseq -pair_files myReads1.fa myReads2.fa -out results.txt
+  ./metacache query refseq -pair_sequences myPairedReads.fa -out results.txt
   ```
 
 
@@ -27,18 +26,14 @@ Once the default database is built you can classify reads:
 #### Requirements
 MetaCache itself should compile on any platform for which a C++11 conforming compiler is available.
 
-The helper scripts (for downloading genomes, taxonomy etc.) however require the Bash shell to run. So on Windows you need a working bash executable as well as some common GNU utilities like "awk" and "wget". There is for example "Git Bash" which comes with git for Windows or the 'Windows Subsystem for Linux'.
+The helper scripts (for downloading genomes, taxonomy etc.) however require the Bash shell to run. So on Windows you need a working bash executable as well as some common GNU utilities like "awk" and "wget". There is for example "Git Bash" which comes with git for Windows.
 
 There are no dependencies on third party libraries.
 MetaCache was successfully tested on the following platforms (all 64 bit + 64 bit compilers):
-- Ubuntu 14.04 with g++ 4.9, g++ 5.2 or g++ 5.4
-- Ubuntu 16.04 with g++ 4.9, g++ 5.3 or g++ 5.4
-- Windows 10.1511 64bit with MinGW-w64 g++ 5.1 and MinGW-w64 g++ 5.3
-- Windows 10.1607 64bit with MinGW-w64 g++ 5.3
-- Windows 10.1607 64bit running Ubuntu 14.04 inside WSL and g++ 5.4.1 
-- Windows 10.1703 64bit running Ubuntu 14.04 inside WSL and g++ 5.4.1 
-
-In order to be able to build the default database with default settings your system should have around 32GB of RAM (note that the NCBI RefSeq will still be growing in the near future).
+- Ubuntu 14.04 with g++ 4.9 and g++ 5.2
+- Ubuntu 16.04 with g++ 4.9 and g++ 5.3
+- Windows 10.1511 with MinGW-w64 g++ 5.1 and MinGW-w64 g++ 5.3
+- Windows 10.1607 with MinGW-w64 g++ 5.3
 
 
 #### Get The Latest Sources
@@ -47,7 +42,7 @@ Visit MetaCache's github [repository].
 
 #### Compile
 Run 'make' in the directory containing the Makefile. 
-This will compile MetaCache with the default data type settings which support databases with up to 65,535 reference sequences (targets) and k-mer sizes up to 16. This offers a good database space efficiency and is currently sufficient for the complete bacterial, viral and archaea genomes from the NCBI RefSeq.
+This will compile MetaCache with the default data type settings which support databases with up to 65,535 reference sequences (targets) and k-mer sizes up to 16. This offers a good database space efficiency and is enough for the complete bacterial, viral and archaea genomes from the NCBI RefSeq.
 
 Using the following compilation options you can compile MetaCache with support for more reference sequences and greater k-mer lengths.
 
@@ -76,7 +71,7 @@ Using the following compilation options you can compile MetaCache with support f
   ```
 
 * support for targets up to a length of 65,535 windows (needs less memory)
-  with default settings (window length, k-mer size) no sequence length must exceed 7.4 million nucleotides
+  with default settings (window length, k-mer size) no sequence length must exceed 7.4 million nocleotides
   ```
   make MACROS="-DMC_WINDOW_ID_TYPE=uint16_t"
   ```
@@ -106,7 +101,12 @@ You can of course combine these options (don't forget the surrounding quotes):
 #### Build a Reference Database
 
 ##### Building the Default RefSeq Database
-Use the ```metacache-build-refseq``` script to build a MetaCache database based on complete bacterial, viral and archaea genomes from the latest NCBI RefSeq release. Note that the genomes will be downloaded first, which can take some time. 
+Use the ```metacache-build-refseq``` script to build a MetaCache database based on complete bacterial, viral and archaea genomes from the latest NCBI RefSeq release. Note that the genomes will be downloaded first, which can take some time. Currently you can choose between three default settings: standard, big and small.
+```
+./metacache-build-refseq standard
+./metacache-build-refseq big
+./metacache-build-refseq small
+```
 
 ##### Custom Builds
 Metacache has different modes. The 'build' mode is used for creating databases. See its documentation for more information:
@@ -135,11 +135,11 @@ Metacache has different modes, one of them is the 'query' mode. Once a database 
   ```
 * paired-end reads in separate files:
   ```
-  ./metacache query refseq my_reads1.fa my_reads2.fa -pairfiles -out results.txt
+  ./metacache query refseq -pair_files my_reads1.fa my_reads2.fa -out results.txt
   ```
-* paired-end reads in one file (a1,a2,b1,b2,...):
+* paired-end reads in one file:
   ```
-  ./metacache query refseq my_paired_reads.fa -pairseq -out results.txt
+  ./metacache query refseq -pair_sequences my_paired_reads.fa -out results.txt
   ```
 
 #### View Documentation
@@ -155,7 +155,7 @@ or jump directly to specific topics with
 ...
 ```
 
-MetaCache  Copyright (C) 2016-2017  André Müller
+MetaCache  Copyright (C) 2016  André Müller
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain
 conditions. See the file 'LICENSE' for details.
