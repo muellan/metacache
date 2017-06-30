@@ -134,12 +134,6 @@ ADVANCED OPTIONS
                        This will decrease querying speed!
                        default: off
 
-    -max-load-fac      max hash table load factor This can be used to trade
-                       off larger memory consumption for speed and vice versa.
-                       A lower load factor will improve speed, a larger one
-                        will improve memory efficiency. 
-                        default: 0.8
-
 EXAMPLES
     Query all sequences in 'myreads.fna' against pre-built database 'refseq':
         ./metacache query refseq myreads.fna -out results.txt
