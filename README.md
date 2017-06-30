@@ -22,10 +22,6 @@ Once the default database is built you can classify reads:
   ```
 
 
-## Pre-built Databases
-Coming soon...
-
-
 ## Detailed Installation Instructions
 
 #### Requirements

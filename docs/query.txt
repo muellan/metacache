@@ -89,6 +89,10 @@ ADVANCED OPTIONS
 
     -threads <no>      use <no> many parallel threads
                        default: guess optimum for hardware
+    
+    -query-limit <no>  Classify at max. <no> reads per file.
+                       This can be used for quick tests.
+                       default: off
 
     -winlen <no>       number of letters in each sampling window
                        default: same as for reference genomes in database
