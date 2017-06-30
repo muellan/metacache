@@ -135,6 +135,66 @@ private:
 
 
 
+/*****************************************************************************
+ *
+ * @brief  iterator adapter for quadratic probing within a given iterator range
+ *
+ * @tparam RAIterator :  random access iterator
+ *
+ *****************************************************************************/
+template<class RAIterator>
+class quadratic_probing_iterator
+{
+public:
+    explicit
+    quadratic_probing_iterator(RAIterator pos, RAIterator beg, RAIterator end):
+       hop_(1), pos_(pos), fst_(pos), beg_(beg), end_(end)
+    {}
+
+    auto operator -> () const
+        -> decltype(std::declval<RAIterator>().operator->())
+    {
+        return pos_.operator->();
+    }
+
+    auto operator * () const
+        -> decltype(*std::declval<RAIterator>())
+    {
+        return *pos_;
+    }
+
+    quadratic_probing_iterator& operator ++ () noexcept {
+        pos_ += hop_;
+        if(pos_ >= end_) {
+            hop_ = 1;
+            if(beg_ == end_) {
+                pos_ = end_;
+                return *this;
+            }
+            pos_ = beg_;
+            end_ = fst_;
+            beg_ = fst_;
+        }
+        ++hop_;
+        return *this;
+    }
+
+    explicit operator bool() const noexcept {
+        return (pos_ < end_);
+    }
+    explicit operator RAIterator () const {
+        return pos_;
+    }
+
+private:
+    std::size_t hop_;
+    RAIterator pos_;
+    RAIterator fst_;
+    RAIterator beg_;
+    RAIterator end_;
+};
+
+
 
 
 /*****************************************************************************
@@ -388,7 +448,7 @@ public:
 
 private:
     //-----------------------------------------------------
-    using probing_iterator = linear_probing_iterator<iterator>;
+    using probing_iterator = quadratic_probing_iterator<iterator>;
 
 
 public:
