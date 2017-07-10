@@ -160,4 +160,4 @@ This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain
 conditions. See the file 'LICENSE' for details.
 
-[repository]: https://github.com/muellan/metacacherepository]: https://github.com/muellan/metacache
+[repository]: https://github.com/muellan/metacache
