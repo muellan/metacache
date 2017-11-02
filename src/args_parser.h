@@ -465,7 +465,7 @@ public:
     {
         T res = notProvidedValue;
         for(const auto& arg : args) {
-            res = get<T>(arg, res);
+            res = get<T>(arg, res, defaultValue);
         }
         return res;
     }

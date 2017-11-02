@@ -43,6 +43,7 @@
 #include "stat_combined.h"
 #include "taxonomy.h"
 #include "hash_multimap.h"
+#include "dna_encoding.h"
 
 
 namespace mc {
