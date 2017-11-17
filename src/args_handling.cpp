@@ -56,7 +56,7 @@ sequence_filenames(const args_parser& args)
     auto n = args.non_prefixed_count();
 
     auto files = std::vector<std::string>{};
-    files.reserve(n-2);
+    files.reserve(n-1);
     for(std::size_t i = 2; i < n; ++i) {
         if(!args.is_preceded_by_prefixed_arg(i) && //no option
            !args.is_preceded_by_prefixed_arg(i-1)) //no option value

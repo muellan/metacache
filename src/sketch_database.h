@@ -1200,6 +1200,8 @@ make_database(const std::string& filename,
               typename Database::scope what = Database::scope::everything,
               info_level info = info_level::moderate)
 {
+    if(filename.empty()) throw file_access_error{"No database name given"};
+
     Database db;
 
     const bool showInfo = info != info_level::silent;

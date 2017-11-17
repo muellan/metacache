@@ -18,4 +18,6 @@
 *.o
 *.zip
 metacache
+metacache_debug
 metacache.exe
+metacache_debug.exe
