@@ -1205,12 +1205,12 @@ make_database(const std::string& filename,
     const bool showInfo = info != info_level::silent;
 
     if(showInfo) {
-        std::cout << "Reading database from file '"
+        std::cerr << "Reading database from file '"
                   << filename << "' ... " << std::flush;
     }
     try {
         db.read(filename, what);
-        if(showInfo) std::cout << "done." << std::endl;
+        if(showInfo) std::cerr << "done." << std::endl;
 
         return db;
     }

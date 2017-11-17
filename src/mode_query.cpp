@@ -1249,7 +1249,7 @@ void main_mode_query(const args_parser& args)
     }
 
     if(!opt.infiles.empty()) {
-        cout << "Classifying query sequences." << endl;
+        cerr << "Classifying query sequences." << endl;
 
         configure_query_options_according_to_database(opt, db);
         process_input_files(db, opt);
