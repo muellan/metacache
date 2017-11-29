@@ -21,13 +21,14 @@
 
 #include <iostream>
 #include <fstream>
+#include <stdexcept>
 
 #include "args_handling.h"
 #include "modes.h"
 #include "dna_encoding.h"
 
 #include "timer.h"
-
+ 
 
 /*****************************************************************************
  *
