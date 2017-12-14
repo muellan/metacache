@@ -1203,6 +1203,10 @@ void run_interactive_query_mode(const database& db, const query_options& initOpt
             cout << "Terminate." << endl;
             return;
         }
+        else if(input.find("#") == 0)
+        {
+            //comment line, do nothing
+        }
         else {
             //tokenize input into whitespace-separated words and build args list
             std::vector<string> args {"query", initOpt.dbfile};
@@ -1261,6 +1265,7 @@ void main_mode_query(const args_parser& args)
             " - The initially given command line options will be used as defaults.\n"
             " - All command line options that would modify the database are ignored.\n"
             " - Each line will be processed separately.\n"
+            " - Lines starting with '#' will be ignored.\n"
             " - Enter an empty line or press Ctrl-D to quit MetaCache.\n"
             << endl;
 
