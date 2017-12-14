@@ -288,13 +288,7 @@ void add_targets_to_database(database& db,
 
                     //make sure sequence id is not empty,
                     //use entire header if neccessary
-                    if(seqId.empty()) {
-                        if(!fileId.empty()) {
-                            seqId = fileId;
-                        } else {
-                            seqId = sequ.header;
-                        }
-                    }
+                    if(seqId.empty()) seqId = sequ.header;
 
                     //targets need to have a sequence id
                     //look up taxon id
