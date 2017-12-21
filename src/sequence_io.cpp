@@ -256,7 +256,7 @@ make_sequence_reader(const string& filename)
         string line;
         getline(is,line);
         if(!line.empty()) {
-            if(line[0] == '<') {
+            if(line[0] == '>') {
                 return std::unique_ptr<sequence_reader>{new fasta_reader{filename}};
             }
             else if(line[0] == '@') {
