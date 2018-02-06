@@ -277,9 +277,6 @@ public:
         name2tax{}
     {
         features_.max_load_factor(0.8);
-
-        std::cout << "sizeof(target_location) = "
-                  << sizeof(target_location) << std::endl;
     }
 
     sketch_database(const sketch_database&) = delete;
