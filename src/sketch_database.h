@@ -152,6 +152,8 @@ private:
     /** @brief internal location representation = (target index, window index)
      *         these are stored in the in-memory database and on disk
      */
+    #pragma pack(push, 1)
+    //avoid padding bits
     struct target_location
     {
         constexpr
@@ -178,6 +180,8 @@ private:
             write_binary(os, p.win);
         }
     };
+    //avoid padding bits
+    #pragma pack(pop)
 
 
 public:
@@ -273,6 +277,9 @@ public:
         name2tax{}
     {
         features_.max_load_factor(0.8);
+
+        std::cout << "sizeof(target_location) = "
+                  << sizeof(target_location) << std::endl;
     }
 
     sketch_database(const sketch_database&) = delete;
