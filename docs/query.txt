@@ -61,7 +61,7 @@ OUTPUT FORMATTING OPTIONS
                        default: off
 
     -taxids            Print taxon ids in addition to taxon names.
-                       default: on
+                       default: off
 
     -taxids-only       Print taxon ids instead of taxon names.
                        default: off
