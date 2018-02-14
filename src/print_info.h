@@ -34,13 +34,13 @@ namespace mc {
  *
  *****************************************************************************/
 enum class taxon_print_mode : unsigned char {
-    name_only = 1, id_only = 2, id_name = 3
+    rank_id, rank_name, rank_name_id
 };
 
 
 /*****************************************************************************
  *
- * @brief print ranked lineage
+ * @brief print database information
  *
  *****************************************************************************/
 void show_info(std::ostream&, const database&, const taxon&);
@@ -54,9 +54,10 @@ void show_info(std::ostream&, const database&, const taxon&);
  *****************************************************************************/
 void show_ranks(std::ostream&,
                 const ranked_lineage&,
-                taxon_print_mode = taxon_print_mode::name_only,
+                taxon_print_mode = taxon_print_mode::rank_name,
                 taxon_rank lowest  = taxon_rank::Sequence,
-                taxon_rank highest = taxon_rank::Domain);
+                taxon_rank highest = taxon_rank::Domain,
+                const std::string& columnSeparator = "");
 
 
 } // namespace mc

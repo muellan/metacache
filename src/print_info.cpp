@@ -46,64 +46,122 @@ void show_info(std::ostream& os, const database& db, const taxon& tax)
 
 
 //-------------------------------------------------------------------
+void show_taxon(std::ostream& os,
+                taxon_print_mode mode,
+                const taxon* tax,
+                const std::string& separator)
+{
+    if(!tax) return;
+    if(separator.empty()) {
+        switch(mode) {
+            default:
+            case taxon_print_mode::rank_name:
+                os << taxonomy::rank_name(tax->rank()) << ':' << tax->name();
+                break;
+            case taxon_print_mode::rank_id:
+                os << taxonomy::rank_name(tax->rank()) << ':' << tax->id();
+                break;
+            case taxon_print_mode::rank_name_id:
+                os << taxonomy::rank_name(tax->rank()) << ':' << tax->name()
+                   << '(' << tax->id() << ')';
+                break;
+        }
+    } else {
+        switch(mode) {
+            default:
+            case taxon_print_mode::rank_name:
+                os << taxonomy::rank_name(tax->rank()) << separator << tax->name();
+                break;
+            case taxon_print_mode::rank_id:
+                os << taxonomy::rank_name(tax->rank()) << separator << tax->id();
+                break;
+            case taxon_print_mode::rank_name_id:
+                os << taxonomy::rank_name(tax->rank())
+                   << separator << tax->name() << separator << tax->id();
+                break;
+        }
+    }
+}
+
+
+
+//-------------------------------------------------------------------
+void show_no_taxon(std::ostream& os,
+                   taxon_print_mode mode,
+                   taxon_rank rank,
+                   const std::string& separator)
+{
+    if(separator.empty()) {
+        switch(mode) {
+            default:
+            case taxon_print_mode::rank_name:
+                os << taxonomy::rank_name(rank) << ":n/a";
+                break;
+            case taxon_print_mode::rank_id:
+                os << taxonomy::rank_name(rank)
+                << '(' << taxonomy::none_id() << ')';
+                break;
+            case taxon_print_mode::rank_name_id:
+                os << taxonomy::rank_name(rank) << ":n/a("
+                << taxonomy::none_id() << ')';
+                break;
+        }
+    } else {
+        switch(mode) {
+            default:
+            case taxon_print_mode::rank_name:
+                os << taxonomy::rank_name(rank) << separator << "n/a";
+                break;
+            case taxon_print_mode::rank_id:
+                os << taxonomy::rank_name(rank) << separator
+                << taxonomy::none_id();
+                break;
+            case taxon_print_mode::rank_name_id:
+                os << taxonomy::rank_name(rank) << separator << "n/a"
+                << separator << taxonomy::none_id();
+                break;
+        }
+    }
+}
+
+
+
+//-------------------------------------------------------------------
 void show_ranks(
     std::ostream& os,
     const ranked_lineage& lineage,
-    taxon_print_mode mode, taxon_rank lowest, taxon_rank highest)
+    taxon_print_mode mode, taxon_rank lowest, taxon_rank highest,
+    const std::string& separator)
 {
     if(lowest == taxon_rank::none) return;
     if(highest == taxon_rank::none) highest = taxon_rank::root;
 
     //one rank only
     if(lowest == highest) {
-        const taxon* tax = lineage[int(lowest)];
-        if(tax) {
-            os << taxonomy::rank_name(lowest) << ':';
-            if(mode != taxon_print_mode::id_only) {
-                if(tax) {
-                    os << tax->name();
-                    if(mode != taxon_print_mode::name_only)
-                        os << "(" << tax->id() << ")";
-                } else {
-                    os << "n/a";
-                    if(mode != taxon_print_mode::name_only)
-                        os << "(" << taxonomy::none_id() << ")";
-                }
-            } else {
-                os << (tax ? tax->id() : taxonomy::none_id());
-            }
-        }
+        show_taxon(os, mode, lineage[int(lowest)], separator);
     }
     //range of ranks
     else {
         for(auto r = lowest; r <= highest; ++r) {
             const taxon* tax = lineage[int(r)];
+
             if(tax) {
-                if(tax->rank() >= lowest && tax->rank() <= highest) {
-                    os << tax->rank_name() << ':';
-                    if(mode != taxon_print_mode::id_only) {
-                        os << tax->name();
-                        if(mode != taxon_print_mode::name_only) {
-                            os << "(" << tax->id() << ")";
-                        }
-                    } else {
-                        os << tax->id();
-                    }
-                }
-                if(r < highest) os << ',';
+                show_taxon(os, mode, lineage[int(r)], separator);
             }
-            else if(r == lowest) {
-                os << taxonomy::rank_name(lowest) << ':';
-                if(mode != taxon_print_mode::id_only) {
-                    os << "n/a";
-                    if(mode != taxon_print_mode::name_only)
-                        os << "(" << taxonomy::none_id() << ")";
+            else {
+                show_no_taxon(os, mode, lowest, separator);
+            }
+            if(r < highest) {
+                if(separator.empty()) {
+                    os << ',';
                 } else {
-                    os << taxonomy::none_id();
+                    os << separator;
                 }
             }
+
         }
     }
+
 }
 
 

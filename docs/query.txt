@@ -61,9 +61,13 @@ OUTPUT FORMATTING OPTIONS
                        default: off
 
     -taxids            Print taxon ids in addition to taxon names.
-                       default: off
+                       default: on
 
     -taxids-only       Print taxon ids instead of taxon names.
+                       default: off
+
+    -separate-cols     Prints *all* mapping information (rank, taxon name, taxon ids)
+                       in separate columns (see option "-separator").
                        default: off
 
     -separator <text>  string that separates output fields (sequence name, 

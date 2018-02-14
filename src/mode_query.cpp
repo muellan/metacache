@@ -100,7 +100,8 @@ struct query_options
     //show all ranks that a sequence could be classified on
     bool showLineage = false;
     //what to show of a taxon
-    taxon_print_mode showTaxaAs = taxon_print_mode::name_only;
+    taxon_print_mode showTaxaAs = taxon_print_mode::rank_name;
+    bool separateTaxaInfo = false;
     bool showAlignment = false;
     //show error messages?
     bool showErrors = true;
@@ -268,13 +269,17 @@ get_query_options(const args_parser& args,
     opt.showAllHits = defaults.showAllHits ||
                       args.contains({"allhits", "all-hits"});
 
+
+    opt.separateTaxaInfo = args.contains({"separate-cols",
+                                          "separatecols", "separate_cols"});
+
     if(args.contains({"taxidsonly","taxids-only","taxids_only",
                       "taxidonly", "taxid-only", "taxid_only"}))
     {
-        opt.showTaxaAs = taxon_print_mode::id_only;
+        opt.showTaxaAs = taxon_print_mode::rank_id;
     }
-    else if(args.contains("taxids") || args.contains("taxid")) {
-        opt.showTaxaAs = taxon_print_mode::id_name;
+    else if(args.contains({"taxids", "taxid"})) {
+        opt.showTaxaAs = taxon_print_mode::rank_name_id;
     }
     else {
         opt.showTaxaAs = defaults.showTaxaAs;
@@ -542,13 +547,39 @@ void show_classification(std::ostream& os,
                          const taxon* tax)
 {
     if(!tax || tax->rank() > opt.highestRank) {
-        os << "--";
+        if(opt.separateTaxaInfo) {
+            auto rmax = opt.showLineage ? opt.highestRank : opt.lowestRank;
+            for(auto r = opt.lowestRank; r <= rmax; ++r) {
+                switch(opt.showTaxaAs) {
+                    default:
+                    case taxon_print_mode::rank_name:
+                        os << "--" << opt.outSeparator << "--";
+                        break;
+                    case taxon_print_mode::rank_id:
+                        os << "--" << opt.outSeparator << taxonomy::none_id();
+                        break;
+                    case taxon_print_mode::rank_name_id:
+                        os << "--" << opt.outSeparator << "--"
+                           << opt.outSeparator << taxonomy::none_id();
+                        break;
+                }
+                if(r < rmax) os << opt.outSeparator;
+            }
+        }
+        else {
+            os << "--";
+        }
     }
     else {
         auto rmin = opt.lowestRank < tax->rank() ? tax->rank() : opt.lowestRank;
         auto rmax = opt.showLineage ? opt.highestRank : rmin;
 
-        show_ranks(os, db.ranks(tax), opt.showTaxaAs, rmin, rmax);
+        if(opt.separateTaxaInfo) {
+            show_ranks(os, db.ranks(tax), opt.showTaxaAs, rmin, rmax, opt.outSeparator);
+        }
+        else {
+            show_ranks(os, db.ranks(tax), opt.showTaxaAs, rmin, rmax, "");
+        }
     }
 }
 
@@ -715,7 +746,8 @@ void process_database_answer(
             if(groundTruth) {
                 show_ranks(os, db.ranks(groundTruth),
                     opt.showTaxaAs, groundTruth->rank(),
-                    opt.showLineage ? opt.highestRank : groundTruth->rank());
+                    opt.showLineage ? opt.highestRank : groundTruth->rank(),
+                    opt.outSeparator);
             } else {
                 os << "n/a";
             }
