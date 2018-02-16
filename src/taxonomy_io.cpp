@@ -19,7 +19,6 @@
  *
  *****************************************************************************/
 
-#include <map>
 #include <fstream>
 #include <limits>
 #include <sstream>

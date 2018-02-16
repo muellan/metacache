@@ -23,6 +23,10 @@
 #define MC_TAXONOMY_TOOLS_H_
 
 
+#include <vector>
+#include <map>
+#include <string>
+
 #include "taxonomy.h"
 #include "io_options.h"
 
