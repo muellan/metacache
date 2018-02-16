@@ -126,7 +126,6 @@ public:
         using std::end;
 
         candidate curBest;
-        window_id win = 0;
         hit_count hits = 0;
 
         //check hits per query sequence
@@ -146,25 +145,23 @@ public:
                     hits -= fst->hits;
                     //move left side of range
                     ++fst;
-                    win = fst->loc.win;
                 }
                 //track best of the local sub-ranges
                 if(hits > curBest.hits) {
                     curBest.hits = hits;
-                    curBest.pos.beg = win;
-                    curBest.pos.end = win + distance(fst,lst);
+                    curBest.pos.beg = fst->loc.win;
+                    curBest.pos.end = lst->loc.win;
                 }
             }
             else { //end of current target
                 update_with(curBest, db, mergeOn);
                 //reset to new target
-                win  = lst->loc.win;
-                hits = lst->hits;
-                curBest.tax  = lst->loc.tax;
-                curBest.hits = hits;
-                curBest.pos.beg = win;
-                curBest.pos.end = win;
                 fst = lst;
+                hits = fst->hits;
+                curBest.tax  = fst->loc.tax;
+                curBest.hits = hits;
+                curBest.pos.beg = fst->loc.win;
+                curBest.pos.end = fst->loc.win;
             }
 
             ++lst;

@@ -91,7 +91,7 @@ void show_candidate_ranges(std::ostream& os,
 
     for(int i = 0; i < cand.size(); ++i) {
         os << '[' << (w * cand[i].pos.beg)
-           << ',' << (w * cand[i].pos.end) << "] ";
+           << ',' << (w * cand[i].pos.end + db.target_window_size()) << "] ";
     }
 }
 

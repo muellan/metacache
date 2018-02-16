@@ -338,10 +338,10 @@ get_query_options(const args_parser& args,
 template<class Sequence, class Index>
 inline auto
 make_view_from_window_range(
-    const Sequence& s, const window_range<Index>& range, int stride = 1)
+    const Sequence& s, const window_range<Index>& range, int size, int stride)
     -> decltype(make_view(s.begin(),s.end()))
 {
-    auto end = s.begin() + (stride * range.end);
+    auto end = s.begin() + (stride * range.end) + size;
     if(end > s.end()) end = s.end();
 
     return make_view(s.begin() + (stride * range.beg), end);
@@ -643,6 +643,7 @@ void use_alignment(const database& db, const query_options& opt,
                 auto tgtSequ = reader->next().data;
                 auto subject = make_view_from_window_range(tgtSequ,
                                                            tophits[0].pos,
+                                                           db.target_window_size(),
                                                            db.target_window_stride());
 
                 auto align = make_alignment(query1, query2, subject,
