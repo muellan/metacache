@@ -24,6 +24,7 @@
 #include "args_handling.h"
 #include "sequence_io.h"
 #include "print_info.h"
+#include "typename.h"
 
 
 namespace mc {
@@ -64,7 +65,7 @@ void show_database_config(const args_parser& args)
 void print_query_config()
 {
     std::cout
-        << "hit classifier       " << typeid(classification_candidates).name() << '\n'
+        << "hit classifier       " << type_name<classification_candidates>() << '\n'
         << "------------------------------------------------\n"
         << std::endl;
 }

@@ -35,7 +35,6 @@
 #include <string>
 #include <limits>
 #include <memory>
-#include <typeinfo>
 
 #include "version.h"
 #include "io_error.h"
@@ -44,6 +43,7 @@
 #include "taxonomy.h"
 #include "hash_multimap.h"
 #include "dna_encoding.h"
+#include "typename.h"
 
 
 namespace mc {
@@ -1250,24 +1250,24 @@ void print_static_properties(const sketch_database<S,K,H,G,W,L>& db)
         << "MetaCache version    " << MC_VERSION_STRING << " (" << MC_VERSION << ")\n"
         << "database verion      " << MC_DB_VERSION << '\n'
         << "------------------------------------------------\n"
-        << "sequence type        " << typeid(typename db_t::sequence).name() << '\n'
-        << "target id type       " << typeid(target_id).name() << " " << (sizeof(target_id)*8) << " bits\n"
+        << "sequence type        " << type_name<typename db_t::sequence>() << '\n'
+        << "target id type       " << type_name<target_id>() << " " << (sizeof(target_id)*8) << " bits\n"
         << "target limit         " << std::uint64_t(db.max_target_count()) << '\n'
         << "------------------------------------------------\n"
-        << "window id type       " << typeid(window_id).name() << " " << (sizeof(window_id)*8) << " bits\n"
+        << "window id type       " << type_name<window_id>() << " " << (sizeof(window_id)*8) << " bits\n"
         << "window limit         " << std::uint64_t(db.max_windows_per_target()) << '\n'
         << "window length        " << db.target_window_size() << '\n'
         << "window stride        " << db.target_window_stride() << '\n'
         << "window similarity <= " << (100 * db.max_new_window_similarity()) << "%\n"
         << "------------------------------------------------\n"
-        << "sketcher type        " << typeid(typename db_t::sketcher).name() << '\n'
-        << "feature type         " << typeid(feature_t).name() << " " << (sizeof(feature_t)*8) << " bits\n"
-        << "feature hash         " << typeid(typename db_t::feature_hash).name() << '\n'
+        << "sketcher type        " << type_name<typename db_t::sketcher>() << '\n'
+        << "feature type         " << type_name<feature_t>() << " " << (sizeof(feature_t)*8) << " bits\n"
+        << "feature hash         " << type_name<typename db_t::feature_hash>() << '\n'
         << "kmer size            " << std::uint64_t(db.target_sketcher().kmer_size()) << '\n'
         << "kmer limit           " << std::uint64_t(db.target_sketcher().max_kmer_size()) << '\n'
         << "sketch size          " << db.target_sketcher().sketch_size() << '\n'
         << "------------------------------------------------\n"
-        << "bucket size type     " << typeid(bkt_sz_t).name() << " " << (sizeof(bkt_sz_t)*8) << " bits\n"
+        << "bucket size type     " << type_name<bkt_sz_t>() << " " << (sizeof(bkt_sz_t)*8) << " bits\n"
         << "max. locations       " << std::uint64_t(db.max_locations_per_feature()) << '\n'
         << "location limit       " << std::uint64_t(db.max_supported_locations_per_feature()) << '\n'
         << "------------------------------------------------"
