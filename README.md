@@ -32,11 +32,13 @@ The helper scripts (for downloading genomes, taxonomy etc.) however require the 
 There are no dependencies on third party libraries.
 MetaCache was successfully tested on the following platforms (all 64 bit + 64 bit compilers):
 - Ubuntu 14.04 with g++ 4.9, g++ 5.2 or g++ 5.4
-- Ubuntu 16.04 with g++ 4.9, g++ 5.3 or g++ 5.4
+- Ubuntu 16.04 with g++ 4.9, g++ 5.3, g++ 5.4, g++ 7.2
 - Windows 10.1511 64bit with MinGW-w64 g++ 5.1 and MinGW-w64 g++ 5.3
 - Windows 10.1607 64bit with MinGW-w64 g++ 5.3
+- Windows 10.1709 64bit with MinGW-w64 g++ 7.2
 - Windows 10.1607 64bit running Ubuntu 14.04 inside WSL and g++ 5.4.1 
 - Windows 10.1703 64bit running Ubuntu 14.04 inside WSL and g++ 5.4.1 
+- Windows 10.1709 64bit running Ubuntu 16.04 inside WSL and g++ 7.2
 
 In order to be able to build the default database with default settings your system should have around 32GB of RAM (note that the NCBI RefSeq will still be growing in the near future).
 
