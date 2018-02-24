@@ -403,6 +403,10 @@ ground_truth(const database& db, const string& header)
     tax = db.taxon_with_id(extract_taxon_id(header));
     if(tax) return db.next_ranked_ancestor(tax);
 
+    //try to find entire header as sequence identifier
+    tax = db.taxon_with_name(header);
+    if(tax) return db.next_ranked_ancestor(tax);
+
     return nullptr;
 }
 
