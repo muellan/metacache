@@ -23,7 +23,7 @@
 #define MC_PRINT_RESULTS_H_
 
 #include "config.h"
-#include "statistics.h"
+#include "classification_statistics.h"
 
 
 namespace mc {

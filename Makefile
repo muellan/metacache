@@ -25,6 +25,8 @@ HEADERS = \
           src/bitmanip.h \
           src/candidates.h \
           src/chunk_allocator.h \
+          src/classification.h \
+          src/classification_statistics.h \
           src/cmdline_utility.h \
           src/config.h \
           src/dna_encoding.h \
@@ -45,14 +47,16 @@ HEADERS = \
           src/sketch_database.h \
           src/stat_confusion.h \
           src/stat_moments.h \
-          src/statistics.h \
           src/taxonomy.h \
           src/taxonomy_io.h \
           src/timer.h \
+          src/query_options.h \
+          src/querying.h \
           src/version.h
 
 SOURCES = \
           src/args_handling.cpp \
+          src/classification.cpp \
           src/cmdline_utility.cpp \
           src/filesys_utility.cpp \
           src/main.cpp \
@@ -133,6 +137,9 @@ $(REL_DIR)/print_info.o : src/print_info.cpp $(HEADERS)
 
 $(REL_DIR)/print_results.o : src/print_results.cpp $(HEADERS)
 	$(REL_COMPILE)
+
+$(REL_DIR)/classification.o : src/classification.cpp $(HEADERS)
+	$(REL_COMPILE)
 	
 $(REL_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)
 	$(REL_COMPILE)
@@ -181,6 +188,9 @@ $(DBG_DIR)/print_info.o : src/print_info.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
 $(DBG_DIR)/print_results.o : src/print_results.cpp $(HEADERS)
+	$(DBG_COMPILE)
+
+$(DBG_DIR)/classification.o : src/classification.cpp $(HEADERS)
 	$(DBG_COMPILE)
 	
 $(DBG_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)

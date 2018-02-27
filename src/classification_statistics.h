@@ -19,8 +19,8 @@
  *
  *****************************************************************************/
 
-#ifndef MC_STATISTICS_H_
-#define MC_STATISTICS_H_
+#ifndef MC_CLASSIFICATION_STATISTICS_H_
+#define MC_CLASSIFICATION_STATISTICS_H_
 
 #include <atomic>
 #include <mutex>
