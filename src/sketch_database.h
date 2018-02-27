@@ -498,31 +498,31 @@ public:
         const auto targetCount = target_id(targets_.size());
         const auto taxid = taxon_id_of_target(targetCount);
 
+        //sketch sequence -> insert features
+        if(max_new_window_similarity() < 0.99f) {
+            source.windows = add_dissimilar_window_sketches(seq,
+                                 targetCount, max_new_window_similarity());
+        } else {
+            source.windows = add_all_window_sketches(seq, targetCount);
+        }
+
         //insert sequence metadata as a new taxon
         if(parentTaxid < 1) parentTaxid = 0;
         auto nit = taxa_.emplace(
             taxid, parentTaxid, sid,
             taxon_rank::Sequence, std::move(source));
 
-        //allows lookup via sequence id (e.g. NCBI accession number)
-        const taxon* newtax = &(*nit);
-        name2tax.insert({std::move(sid), newtax});
-
         //should never happen
         if(nit == taxa_.end()) {
             throw std::runtime_error{"target taxon could not be created"};
         }
 
+        //allows lookup via sequence id (e.g. NCBI accession number)
+        const taxon* newtax = &(*nit);
+        name2tax.insert({std::move(sid), newtax});
+
         //target id -> taxon lookup table
         targets_.push_back(newtax);
-
-        //sketch sequence -> insert features
-        if(max_new_window_similarity() < 0.99f) {
-            add_dissimilar_window_sketches(seq, targetCount,
-                                           max_new_window_similarity());
-        } else {
-            add_all_window_sketches(seq, targetCount);
-        }
 
         return true;
     }
@@ -1062,8 +1062,8 @@ public:
 
 private:
     //---------------------------------------------------------------
-    void add_dissimilar_window_sketches(const sequence& seq, target_id tgt,
-                                        float maxSimilarity)
+    window_id add_dissimilar_window_sketches(const sequence& seq, target_id tgt,
+                                             float maxSimilarity)
     {
         using iter_t = typename sequence::const_iterator;
 
@@ -1100,11 +1100,12 @@ private:
                 }
                 ++win;
             });
+        return win;
     }
 
 
     //---------------------------------------------------------------
-    void add_all_window_sketches(const sequence& seq, target_id tgt)
+    window_id add_all_window_sketches(const sequence& seq, target_id tgt)
     {
         using iter_t = typename sequence::const_iterator;
 
@@ -1121,6 +1122,7 @@ private:
                 }
                 ++win;
             });
+        return win;
     }
 
     /****************************************************************

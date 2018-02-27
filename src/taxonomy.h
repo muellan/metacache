@@ -248,12 +248,19 @@ public:
 
         //-----------------------------------------------------
         struct file_source {
+            using index_t   = std::uint_least64_t;
+            using window_id = std::uint_least64_t;
+
             explicit
-            file_source(std::string filename = "", std::uint_least64_t index = 0):
-                filename{std::move(filename)}, index{index}
+            file_source(std::string filename = "", index_t index = 0,
+                        window_id numWindows = 0)
+            :
+                filename{std::move(filename)}, windows{numWindows}, index{index}
             {}
+
             std::string filename;
-            std::uint_least64_t index;
+            window_id windows;
+            index_t index;
         };
 
         //default: empty taxon
@@ -302,6 +309,7 @@ public:
             read_binary(is, t.name_);
             read_binary(is, t.source_.filename);
             read_binary(is, t.source_.index);
+            read_binary(is, t.source_.windows);
         }
 
         //-----------------------------------------------------
@@ -313,6 +321,7 @@ public:
             write_binary(os, t.name_);
             write_binary(os, t.source_.filename);
             write_binary(os, t.source_.index);
+            write_binary(os, t.source_.windows);
         }
 
         //-----------------------------------------------------
@@ -326,11 +335,6 @@ public:
 
 
 private:
-//    struct taxon_hasher {
-//        std::size_t operator () (const taxon& tax) const noexcept {
-//            return tax.id();
-//        }
-//    };
     using taxon_store = std::set<taxon>;
 
 public:

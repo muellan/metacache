@@ -31,7 +31,8 @@ void show_info(std::ostream& os, const database& db, const taxon& tax)
 {
     os  << "Target " << tax.name() << "):\n"
         << "    source:     "
-        << tax.source().filename << " / " << tax.source().index;
+        << tax.source().filename << " / " << tax.source().index
+        << "\n    length:     " << tax.source().windows << " windows";
 
     for(const taxon* t : db.ranks(tax)) {
         if(t) {
