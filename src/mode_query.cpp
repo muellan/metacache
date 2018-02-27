@@ -146,6 +146,7 @@ struct query_options
     //-----------------------------------------------------
     int maxLocationsPerFeature = -1; //< 0 : use value from database
     int numThreads = std::thread::hardware_concurrency();
+    int batchSize = 0; // automatic
     bool removeOverpopulatedFeatures = false;
 
 
@@ -322,6 +323,7 @@ get_query_options(const args_parser& args,
                        "remove_overpopulated_features" });
 
     opt.numThreads = args.get<int>("threads", defaults.numThreads);
+    opt.batchSize = args.get<int>("batch-size", defaults.batchSize);
 
     opt.showErrors = defaults.showErrors && !args.contains({"-noerr","-noerrors"});
 
@@ -794,11 +796,10 @@ void classify(parallel_queue& queue,
     const database& db, const query_options& opt,
     sequence_reader& reader, std::ostream& os, classification_statistics& stats)
 {
-    std::mutex mtx;
-
     const auto load = 32 * queue.concurrency();
-    const auto batchSize = 4096 * queue.concurrency();
-
+    const auto batchSize = opt.batchSize > 0 ? opt.batchSize
+                                             : 4096 * queue.concurrency();
+    std::mutex mtx;
     std::atomic<std::uint64_t> queryLimit(opt.queryLimit);
 
     while(reader.has_next() && queryLimit > 0) {
@@ -842,11 +843,10 @@ void classify_pairs(parallel_queue& queue,
                     std::ostream& os, classification_statistics& stats)
 {
     const auto load = 32 * queue.concurrency();
-    const auto batchSize = 4096 * queue.concurrency();
-
+    const auto batchSize = opt.batchSize > 0 ? opt.batchSize
+                                             : 4096 * queue.concurrency();
     std::mutex mtx1;
     std::mutex mtx2;
-
     std::atomic<std::uint64_t> queryLimit(opt.queryLimit);
 
     while(reader1.has_next() && reader2.has_next() && queryLimit > 0) {

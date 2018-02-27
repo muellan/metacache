@@ -92,7 +92,11 @@ OUTPUT FORMATTING OPTIONS
 ADVANCED OPTIONS 
 
     -threads <no>      use <no> many parallel threads
-                       default: guess optimum for hardware
+                       default: automatic
+
+    -batch-size <no>   process <no> many reads per thread;
+                       This can be used for performance tuning.
+                       default: automatic 
     
     -query-limit <no>  Classify at max. <no> reads per file.
                        This can be used for quick tests.
