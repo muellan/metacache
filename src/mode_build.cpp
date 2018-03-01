@@ -157,7 +157,7 @@ void rank_targets_with_mapping_file(database& db,
          << "' (" << std::max(std::streamoff(1),
                               fsize/(1024*1024)) << " MB)" << endl;
 
-    if(showProgress) show_progress_indicator(0);
+    if(showProgress) show_progress_indicator(cout, 0);
 
     string acc;
     string accver;
@@ -191,13 +191,13 @@ void rank_targets_with_mapping_file(database& db,
         if(showProgress) {
             auto pos = is.tellg();
             if(pos >= nextStat) {
-                show_progress_indicator(pos / float(fsize));
+                show_progress_indicator(cout, pos / float(fsize));
                 nextStat = pos + nextStatStep;
             }
         }
     }
 
-    if(showProgress) clear_current_line();
+    if(showProgress) clear_current_line(cout);
 }
 
 
@@ -274,7 +274,7 @@ void add_targets_to_database(database& db,
         if(infoLvl == info_level::verbose) {
             cout << "  " << filename << " ... " << flush;
         } else if(infoLvl != info_level::silent) {
-            show_progress_indicator(i/float(n));
+            show_progress_indicator(cout, i/float(n));
         }
 
         try {
@@ -474,7 +474,7 @@ void add_to_database(database& db, const build_options& opt)
         add_targets_to_database(db, opt.infiles, taxonMap, opt.infoLevel);
 
         if(notSilent) {
-            clear_current_line();
+            clear_current_line(cout);
             cout << "Added "
                  << (db.target_count() - initNumTargets) << " reference sequences "
                  << "in " << time.seconds() << " s" << endl;

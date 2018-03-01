@@ -192,7 +192,7 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
         auto nextStat = nextStatStep;
         bool showProgress = showInfo && fsize > 100000000;
         if(showProgress) {
-            show_progress_indicator(0);
+            show_progress_indicator(cout, 0);
         }
 
         //read first line(s) and determine the columns which hold
@@ -262,12 +262,12 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
                 if(showProgress) {
                     auto pos = is.tellg();
                     if(pos >= nextStat) {
-                        show_progress_indicator(pos / float(fsize));
+                        show_progress_indicator(cout, pos / float(fsize));
                         nextStat = pos + nextStatStep;
                     }
                 }
             }
-            if(showProgress) clear_current_line();
+            if(showProgress) clear_current_line(cout);
         }
     }
 }

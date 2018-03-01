@@ -209,7 +209,7 @@ lowest_common_taxon(
  *
  *****************************************************************************/
 const taxon*
-classification(const database& db, const query_options& opt,
+classification(const database& db, const classification_options& opt,
                const classification_candidates& cand)
 {
     //sum of top-2 hits < threshold => considered not classifiable
@@ -236,27 +236,29 @@ classification(const database& db, const query_options& opt,
  *
  *****************************************************************************/
 void show_classification(std::ostream& os,
-                         const database& db, const query_options& opt,
+                         const classification_output_options& out,
+                         const classification_options& cls,
+                         const database& db,
                          const taxon* tax)
 {
-    if(!tax || tax->rank() > opt.highestRank) {
-        if(opt.separateTaxaInfo) {
-            auto rmax = opt.showLineage ? opt.highestRank : opt.lowestRank;
-            for(auto r = opt.lowestRank; r <= rmax; ++r) {
-                switch(opt.showTaxaAs) {
+    if(!tax || tax->rank() > cls.highestRank) {
+        if(out.separateTaxaInfo) {
+            auto rmax = out.showLineage ? cls.highestRank : cls.lowestRank;
+            for(auto r = cls.lowestRank; r <= rmax; ++r) {
+                switch(out.showTaxaAs) {
                     default:
                     case taxon_print_mode::rank_name:
-                        os << "--" << opt.outSeparator << "--";
+                        os << "--" << out.separator << "--";
                         break;
                     case taxon_print_mode::rank_id:
-                        os << "--" << opt.outSeparator << taxonomy::none_id();
+                        os << "--" << out.separator << taxonomy::none_id();
                         break;
                     case taxon_print_mode::rank_name_id:
-                        os << "--" << opt.outSeparator << "--"
-                           << opt.outSeparator << taxonomy::none_id();
+                        os << "--" << out.separator << "--"
+                           << out.separator << taxonomy::none_id();
                         break;
                 }
-                if(r < rmax) os << opt.outSeparator;
+                if(r < rmax) os << out.separator;
             }
         }
         else {
@@ -264,14 +266,14 @@ void show_classification(std::ostream& os,
         }
     }
     else {
-        auto rmin = opt.lowestRank < tax->rank() ? tax->rank() : opt.lowestRank;
-        auto rmax = opt.showLineage ? opt.highestRank : rmin;
+        auto rmin = cls.lowestRank < tax->rank() ? tax->rank() : cls.lowestRank;
+        auto rmax = out.showLineage ? cls.highestRank : rmin;
 
-        if(opt.separateTaxaInfo) {
-            show_ranks(os, db.ranks(tax), opt.showTaxaAs, rmin, rmax, opt.outSeparator);
+        if(out.separateTaxaInfo) {
+            show_ranks(os, db.ranks(tax), out.showTaxaAs, rmin, rmax, out.separator);
         }
         else {
-            show_ranks(os, db.ranks(tax), opt.showTaxaAs, rmin, rmax, "");
+            show_ranks(os, db.ranks(tax), out.showTaxaAs, rmin, rmax, "");
         }
     }
 }
@@ -317,7 +319,8 @@ void update_coverage_statistics(const database& db,
  * @brief compute alignment of top hits and optionally show it
  *
  *****************************************************************************/
-void use_alignment(const database& db, const query_options& opt,
+void use_alignment(const database& db,
+                   const classification_output_options& opt,
                    const sequence& query1, const sequence& query2,
                    const classification_candidates& tophits,
                    classification_statistics& stats,
@@ -372,9 +375,9 @@ void use_alignment(const database& db, const query_options& opt,
  *
  *****************************************************************************/
 void process_database_answer(
-     const database& db, const query_options& opt,
-     const string& header,
-     const sequence& query1, const sequence& query2,
+     const database& db,
+     const query_options& opt,
+     const string& header, const sequence& query1, const sequence& query2,
      matches_per_location&& hits,
      classification_statistics& stats, std::ostream& os)
 {
@@ -382,27 +385,27 @@ void process_database_answer(
 
     //preparation -------------------------------
     const taxon* groundTruth = nullptr;
-    if(opt.testPrecision ||
-       (opt.mapViewMode != map_view_mode::none && opt.showGroundTruth) ||
-       (opt.excludedRank != taxon_rank::none) )
+    if(opt.test.precision ||
+       (opt.output.mapViewMode != map_view_mode::none && opt.test.showGroundTruth) ||
+       (opt.test.excludedRank != taxon_rank::none) )
     {
         groundTruth = ground_truth(db, header);
     }
     //clade exclusion
-    if(opt.excludedRank != taxon_rank::none && groundTruth) {
-        remove_hits_on_rank(db, *groundTruth, opt.excludedRank, hits);
+    if(opt.test.excludedRank != taxon_rank::none && groundTruth) {
+        remove_hits_on_rank(db, *groundTruth, opt.test.excludedRank, hits);
     }
 
     //classify ----------------------------------
     auto numWindows = window_id( 2 + (
-        std::max(query1.size() + query2.size(), opt.insertSizeMax) /
+        std::max(query1.size() + query2.size(), opt.classify.insertSizeMax) /
         db.target_window_stride() ));
 
-    classification_candidates tophits {db, hits, numWindows, opt.lowestRank};
-    const taxon* cls = classification(db, opt, tophits );
+    classification_candidates tophits {db, hits, numWindows, opt.classify.lowestRank};
+    const taxon* cls = classification(db, opt.classify, tophits);
 
     //evaluate classification -------------------
-    if(opt.testPrecision) {
+    if(opt.test.precision) {
         auto lca = db.ranked_lca(cls, groundTruth);
         auto lowestCorrectRank = lca ? lca->rank() : taxon_rank::none;
 
@@ -412,7 +415,7 @@ void process_database_answer(
             lowestCorrectRank);
 
         //check if taxa of assigned target are covered
-        if(opt.testCoverage) {
+        if(opt.test.taxonCoverage) {
             update_coverage_statistics(db, cls, groundTruth, stats);
         }
 
@@ -421,8 +424,8 @@ void process_database_answer(
     }
 
     //show mapping ------------------------------
-    bool showMapping = opt.mapViewMode == map_view_mode::all ||
-        (opt.mapViewMode == map_view_mode::mapped_only && cls);
+    bool showMapping = opt.output.mapViewMode == map_view_mode::all ||
+        (opt.output.mapViewMode == map_view_mode::mapped_only && cls);
 
     if(showMapping) {
         //print query header (first contiguous string only)
@@ -434,39 +437,39 @@ void process_database_answer(
         else {
             os << header;
         }
-        os << opt.outSeparator;
+        os << opt.output.separator;
 
-        if(opt.showGroundTruth) {
+        if(opt.test.showGroundTruth) {
             if(groundTruth) {
                 show_ranks(os, db.ranks(groundTruth),
-                    opt.showTaxaAs, groundTruth->rank(),
-                    opt.showLineage ? opt.highestRank : groundTruth->rank(),
-                    opt.outSeparator);
+                    opt.output.showTaxaAs, groundTruth->rank(),
+                    opt.output.showLineage ? opt.classify.highestRank : groundTruth->rank(),
+                    opt.output.separator);
             } else {
                 os << "n/a";
             }
-            os << opt.outSeparator;
+            os << opt.output.separator;
         }
 
         //print results
-        if(opt.showAllHits) {
-            show_matches(os, db, hits, opt.lowestRank);
-            os << opt.outSeparator;
+        if(opt.output.showAllHits) {
+            show_matches(os, db, hits, opt.classify.lowestRank);
+            os << opt.output.separator;
         }
-        if(opt.showTopHits) {
-            show_matches(os, db, tophits, opt.lowestRank);
-            os << opt.outSeparator;
+        if(opt.output.showTopHits) {
+            show_matches(os, db, tophits, opt.classify.lowestRank);
+            os << opt.output.separator;
         }
-        if(opt.showLocations) {
+        if(opt.output.showLocations) {
             show_candidate_ranges(os, db, tophits);
-            os << opt.outSeparator;
+            os << opt.output.separator;
         }
-        show_classification(os, db, opt, cls);
+        show_classification(os, opt.output, opt.classify, db, cls);
     }
 
     //optional alignment ------------------------------
-    if(opt.testAlignment && cls) {
-        use_alignment(db, opt, query1, query2, tophits, stats, os);
+    if(opt.test.alignmentScores && cls) {
+        use_alignment(db, opt.output, query1, query2, tophits, stats, os);
     }
 
     if(showMapping) os << '\n';

@@ -13,44 +13,48 @@
 namespace mc {
 
 
+
 /*****************************************************************************
  *
- * @brief query db with batches of reads from one sequence source
+ * @brief queries database with batches of reads from one sequence source
+ *        produces one match list per sequence
  *
- * @tparam ResultProcessor  function/function object taking query results
+ * @tparam BufferSource  returns a per-batch buffer object
+ *
+ * @tparam BufferUpdate  takes database matches of one query and a buffer
+ *                       must be thread-safe (only const operations on DB!)
+ *
+ * @tparam BufferSink    recieves buffer after batch is finished
  *
  *****************************************************************************/
-template<class ResultProcessor>
-void batched_query(
-    parallel_queue& queue,
-    const database& db, const query_options& opt,
-    sequence_reader& reader, std::ostream& os,
-    ResultProcessor&& process)
+template<class BufferSource, class BufferUpdate, class BufferSink>
+void query_batched(
+    parallel_queue& queue, sequence_reader& reader,
+    const database& db, const query_processing_options& opt,
+    BufferSource&& getBuffer, BufferUpdate&& update, BufferSink&& finalize)
 {
     const auto load = 32 * queue.concurrency();
-    const auto batchSize = opt.batchSize > 0 ? opt.batchSize
-                                             : 4096 * queue.concurrency();
+
     std::mutex mtx;
     std::atomic<std::uint64_t> queryLimit(opt.queryLimit);
 
     while(reader.has_next() && queryLimit > 0) {
         if(queue.unsafe_waiting() < load) {
-            queue.enqueue([&]{
-                std::ostringstream obuf;
+            queue.enqueue([&] {
+                auto buffer = getBuffer();
 
                 for(std::size_t i = 0;
-                    i < batchSize && queryLimit > 0 && reader.has_next();
+                    i < opt.batchSize && queryLimit > 0 && reader.has_next();
                     ++i, --queryLimit)
                 {
                     auto query = reader.next();
                     if(!query.header.empty()) {
-                        process(query.header, query.data, sequence{},
-                                db.matches(query.data), obuf);
+                        update(buffer, db.matches(query.data),
+                               query.header, query.data, sequence{});
                     }
                 }
-                //flush output buffer
                 std::lock_guard<std::mutex> lock(mtx);
-                os << obuf.str();
+                finalize(std::move(buffer));
             }); //enqueue
         }
     }
@@ -62,23 +66,25 @@ void batched_query(
 
 /*****************************************************************************
  *
- * @brief query db with batches of reads from two sequence sources
+ * @brief queries database with batches of reads from two sequence sources
+ *        produces one merged match list per sequence pair
  *
- * @tparam ResultProcessor  function/function object taking query results
+ * @tparam BufferSource  returns a per-batch buffer object
+ *
+ * @tparam BufferUpdate  takes database matches of one query and a buffer
+ *                       must be thread-safe (only const operations on DB!)
+ *
+ * @tparam BufferSink    recieves buffer after batch is finished
  *
  *****************************************************************************/
-template<class ResultProcessor>
-void batched_pair_query(
-    parallel_queue& queue,
-    const database& db, const query_options& opt,
-    sequence_reader& reader1, sequence_reader& reader2,
-    std::ostream& os,
-    ResultProcessor&& process)
-
+template<class BufferSource, class BufferUpdate, class BufferSink>
+void query_batched_merged_pairs(
+    parallel_queue& queue, sequence_reader& reader1, sequence_reader& reader2,
+    const database& db, const query_processing_options& opt,
+    BufferSource&& getBuffer, BufferUpdate&& update, BufferSink&& finalize)
 {
     const auto load = 32 * queue.concurrency();
-    const auto batchSize = opt.batchSize > 0 ? opt.batchSize
-                                             : 4096 * queue.concurrency();
+
     std::mutex mtx1;
     std::mutex mtx2;
     std::atomic<std::uint64_t> queryLimit(opt.queryLimit);
@@ -86,9 +92,9 @@ void batched_pair_query(
     while(reader1.has_next() && reader2.has_next() && queryLimit > 0) {
         if(queue.unsafe_waiting() < load) {
             queue.enqueue([&]{
-                std::ostringstream obuf;
+                auto buffer = getBuffer();
 
-                for(std::size_t i = 0; i < batchSize && queryLimit > 0;
+                for(std::size_t i = 0; i < opt.batchSize && queryLimit > 0;
                     ++i, --queryLimit)
                 {
                     //make sure that both queries are read in sequence
@@ -100,15 +106,15 @@ void batched_pair_query(
 
                     if(!query1.header.empty()) {
                         auto matches = db.matches(query1.data);
+                        //merge matches with hits of second sequence
                         db.accumulate_matches(query2.data, matches);
 
-                        process(query1.header, query1.data, query2.data,
-                                std::move(matches), obuf);
+                        update(buffer, std::move(matches),
+                               query1.header, query1.data, query2.data);
                     }
                 }
-                //flush output buffer
                 std::lock_guard<std::mutex> lock(mtx2);
-                os << obuf.str();
+                finalize(std::move(buffer));
             }); //enqueue
         }
     }
@@ -120,38 +126,51 @@ void batched_pair_query(
 
 /*****************************************************************************
  *
- * @brief classify sequences per input file
+ * @brief queries database with sequences per input file
+ *        produces one match list per sequence or sequence pair
  *
- * @tparam ResultProcessor  function/function object taking query results
+ * @tparam BufferSource  returns a per-batch buffer object
+ *
+ * @tparam BufferUpdate  takes database matches of one query and a buffer
+ *                       must be thread-safe (only const operations on DB!)
+ *
+ * @tparam BufferSink    recieves buffer after batch is finished
  *
  *****************************************************************************/
-template<class ResultProcessor>
+template<
+    class BufferSource, class BufferUpdate, class BufferSink,
+    class StatusCallback
+>
 void query_per_file(
     parallel_queue& queue,
-    const database& db, const query_options& opt,
     const std::vector<std::string>& infilenames,
-    std::ostream& os, ResultProcessor&& process)
+    const database& db,
+    const query_processing_options& opt,
+    BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
+    StatusCallback&& displayStatus)
 {
     for(size_t i = 0; i < infilenames.size(); ++i) {
         const auto& fname = infilenames[i];
-        if(opt.mapViewMode != map_view_mode::none) {
-            os << opt.comment << fname << '\n';
-        }
-        else if(!opt.outfile.empty() && infilenames.size() > 1) {
-            show_progress_indicator(i / float(infilenames.size()));
-        }
+
+        const auto progress = infilenames.size() > 1 ? i / float(infilenames.size()) : -1;
+        displayStatus(fname, progress);
+
         try {
             auto reader = make_sequence_reader(fname);
             if(opt.pairing == pairing_mode::sequences) {
-                batched_pair_query(queue, db, opt, *reader, *reader, os, process);
+                query_batched_merged_pairs(queue, *reader, *reader, db, opt,
+                                           std::forward<BufferSource>(bufsrc),
+                                           std::forward<BufferUpdate>(bufupdate),
+                                           std::forward<BufferSink>(bufsink));
             } else {
-                batched_query(queue, db, opt, *reader, os, process);
+                query_batched(queue, *reader, db, opt,
+                              std::forward<BufferSource>(bufsrc),
+                              std::forward<BufferUpdate>(bufupdate),
+                              std::forward<BufferSink>(bufsink));
             }
         }
         catch(std::exception& e) {
-            if(opt.mapViewMode != map_view_mode::none) {
-                os << "FAIL: " << e.what() << std::endl;
-            }
+            displayStatus(std::string("FAIL: ") + e.what(), progress);
         }
     }
 }
@@ -160,38 +179,92 @@ void query_per_file(
 
 /*****************************************************************************
  *
- * @brief classifies paired-end sequences in pairs of files
+ * @brief queries database with paired-end sequences in pairs of files
+ *        produces one merged match list per sequence pair
  *
- * @tparam ResultProcessor  function/function object taking query results
+ * @tparam BufferSource  returns a per-batch buffer object
+ *
+ * @tparam BufferUpdate  takes database matches of one query and a buffer
+ *                       must be thread-safe (only const operations on DB!)
+ *
+ * @tparam BufferSink    recieves buffer after batch is finished
  *
  *****************************************************************************/
-template<class ResultProcessor>
+template<
+    class BufferSource, class BufferUpdate, class BufferSink,
+    class StatusCallback
+>
 void query_with_file_pairs(
     parallel_queue& queue,
-    const database& db, const query_options& opt,
     const std::vector<std::string>& infilenames,
-    std::ostream& os, ResultProcessor&& process)
+    const database& db,
+    const query_processing_options& opt,
+    BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
+    StatusCallback&& displayStatus)
 {
-    //pair up reads from two consecutive files in the list
     for(size_t i = 0; i < infilenames.size(); i += 2) {
+        //pair up reads from two consecutive files in the list
         const auto& fname1 = infilenames[i];
         const auto& fname2 = infilenames[i+1];
-        if(opt.mapViewMode != map_view_mode::none) {
-            os << opt.comment << fname1 << " + " << fname2 << '\n';
-        }
-        else if(!opt.outfile.empty() && infilenames.size() > 1) {
-            show_progress_indicator(i / float(infilenames.size()));
-        }
+
+        const auto progress = infilenames.size() > 1 ? i / float(infilenames.size()) : -1;
+        displayStatus(fname1 + " + " + fname2, progress);
+
         try {
             auto reader1 = make_sequence_reader(fname1);
             auto reader2 = make_sequence_reader(fname2);
-            batched_pair_query(queue, db, opt, *reader1, *reader2, os, process);
+
+            query_batched_merged_pairs(queue, *reader1, *reader2, db, opt,
+                                       std::forward<BufferSource>(bufsrc),
+                                       std::forward<BufferUpdate>(bufupdate),
+                                       std::forward<BufferSink>(bufsink));
         }
         catch(std::exception& e) {
-            if(opt.mapViewMode != map_view_mode::none) {
-                os << "FAIL: " << e.what() << std::endl;
-            }
+            displayStatus(std::string("FAIL: ") + e.what(), progress);
         }
+    }
+}
+
+
+
+/*****************************************************************************
+ *
+ * @brief queries database
+ *
+ * @tparam BufferSource  returns a per-batch buffer object
+ *
+ * @tparam BufferUpdate  takes database matches of one query and a buffer
+ *                       must be thread-safe (only const operations on DB!)
+ *
+ * @tparam BufferSink    recieves buffer after batch is finished
+ *
+ *****************************************************************************/
+template<
+    class BufferSource, class BufferUpdate, class BufferSink,
+    class StatusCallback
+>
+void query_database(
+    const std::vector<std::string>& infilenames,
+    const database& db,
+    const query_processing_options& opt,
+    BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
+    StatusCallback&& displayStatus)
+{
+    parallel_queue queue(opt.numThreads);
+
+    if(opt.pairing == pairing_mode::files) {
+        query_with_file_pairs(queue, infilenames, db, opt,
+                                     std::forward<BufferSource>(bufsrc),
+                                     std::forward<BufferUpdate>(bufupdate),
+                                     std::forward<BufferSink>(bufsink),
+                                     std::forward<StatusCallback>(displayStatus));
+    }
+    else {
+        query_per_file(queue, infilenames, db, opt,
+                       std::forward<BufferSource>(bufsrc),
+                       std::forward<BufferUpdate>(bufupdate),
+                       std::forward<BufferSink>(bufsink),
+                       std::forward<StatusCallback>(displayStatus));
     }
 }
 

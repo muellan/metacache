@@ -28,24 +28,24 @@ namespace mc {
 
 
 //-------------------------------------------------------------------
-void show_progress_indicator(float done, int totalLength)
+void show_progress_indicator(std::ostream& os, float done, int totalLength)
 {
     auto m = int((totalLength - 7) * done);
-    std::cout << "\r[";
-    for(int j = 0; j < m; ++j) std::cout << '=';
-    std::cout << ">";
+    os << "\r[";
+    for(int j = 0; j < m; ++j) os << '=';
+    os << ">";
     m = totalLength - 7 - m;
-    for(int j = 0; j < m; ++j) std::cout << ' ';
-    std::cout << "] " << int(100 * done) << "%" << std::flush;
+    for(int j = 0; j < m; ++j) os << ' ';
+    os << "] " << int(100 * done) << "%" << std::flush;
 }
 
 
 //-------------------------------------------------------------------
-void clear_current_line(int length)
+void clear_current_line(std::ostream& os, int length)
 {
-    std::cout << '\r';
-    for(; length > 0; --length) std::cout << ' ';
-    std::cout << '\r';
+    os << '\r';
+    for(; length > 0; --length) os << ' ';
+    os << '\r' << std::flush;
 }
 
 

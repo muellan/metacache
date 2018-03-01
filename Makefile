@@ -67,6 +67,7 @@ SOURCES = \
           src/mode_query.cpp \
           src/print_info.cpp \
           src/print_results.cpp \
+          src/query_options.cpp \
           src/sequence_io.cpp \
           src/taxonomy_io.cpp
 
@@ -140,6 +141,9 @@ $(REL_DIR)/print_results.o : src/print_results.cpp $(HEADERS)
 
 $(REL_DIR)/classification.o : src/classification.cpp $(HEADERS)
 	$(REL_COMPILE)
+
+$(REL_DIR)/query_options.o : src/query_options.cpp $(HEADERS)
+	$(REL_COMPILE)
 	
 $(REL_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)
 	$(REL_COMPILE)
@@ -191,6 +195,9 @@ $(DBG_DIR)/print_results.o : src/print_results.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
 $(DBG_DIR)/classification.o : src/classification.cpp $(HEADERS)
+	$(DBG_COMPILE)
+	
+$(DBG_DIR)/query_options.o : src/query_options.cpp $(HEADERS)
 	$(DBG_COMPILE)
 	
 $(DBG_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)

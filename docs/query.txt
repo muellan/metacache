@@ -89,6 +89,11 @@ OUTPUT FORMATTING OPTIONS
     -allhits           Print all feature hits in database.
                        default: off
 
+    -hits-per-target   shows a list of all hits for each target
+                       If this condensed list is all you need, you should
+                       deactive the per-read mapping output with "-nomap".
+                       default:off
+
 ADVANCED OPTIONS 
 
     -threads <no>      use <no> many parallel threads

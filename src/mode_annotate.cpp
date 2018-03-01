@@ -33,6 +33,10 @@
 
 namespace mc {
 
+using std::cout;
+using std::cerr;
+
+
 /*****************************************************************************
  *
  *
@@ -174,18 +178,18 @@ void read_mappings_from_file(sequence_id_type idtype,
     std::ifstream is {file};
 
     if(!is.good()) {
-        std::cerr << "File '" << file << "' could not be read." << std::endl;
+        cerr << "File '" << file << "' could not be read." << std::endl;
         return;
     }
 
-    std::cout << "Processing mappings in file '" << file << "'" << std::endl;
+    cout << "Processing mappings in file '" << file << "'" << std::endl;
 
     const auto fsize = file_size(file);
     auto nextStatStep = fsize / 1000;
     auto nextStat = nextStatStep;
     bool showProgress = fsize > 100000000;
 
-    if(showProgress) show_progress_indicator(0);
+    if(showProgress) show_progress_indicator(cout, 0);
 
     std::string acc;
     std::string acc_ver;
@@ -208,13 +212,13 @@ void read_mappings_from_file(sequence_id_type idtype,
         if(showProgress) {
             auto pos = is.tellg();
             if(pos >= nextStat) {
-                show_progress_indicator(pos / float(fsize));
+                show_progress_indicator(cout, pos / float(fsize));
                 nextStat = pos + nextStatStep;
             }
         }
     }
 
-    if(showProgress) clear_current_line();
+    if(showProgress) clear_current_line(cout);
 }
 
 
@@ -311,7 +315,7 @@ void annotate_with_taxid(const annotation_options& opt)
 
     std::ifstream is {opt.infile};
     if(!is.good()) {
-        std::cerr << "Input file " << opt.infile << " could not be opened."
+        cerr << "Input file " << opt.infile << " could not be opened."
                   << std::endl;
     }
 
@@ -322,19 +326,19 @@ void annotate_with_taxid(const annotation_options& opt)
     }
 
     if(opt.outfile.empty()) {
-        annotate_with_taxid(opt, map, is, std::cout);
+        annotate_with_taxid(opt, map, is, cout);
     }
     else {
         std::ofstream os {opt.outfile};
         if(os.good()) {
-            std::cout << "Mapping ... " << std::flush;
+            cout << "Mapping ... " << std::flush;
             annotate_with_taxid(opt, map, is, os);
-            std::cout << "complete." << std::endl;
+            cout << "complete." << std::endl;
         }
         else {
-            std::cerr << "Output file " << opt.outfile
-                      << " could not be opened."
-                      << std::endl;
+            cerr << "Output file " << opt.outfile
+                 << " could not be opened."
+                 << std::endl;
         }
     }
 
@@ -354,15 +358,14 @@ void main_mode_annotate(const args_parser& args)
 
         switch(opt.mode) {
             case annotation_mode::taxid: {
-                std::cout
-                    << "Annotating sequences in '"
-                    << opt.infile << "' with taxonomic ids.\n"
-                    << "Output will be written to ";
+                cout << "Annotating sequences in '"
+                     << opt.infile << "' with taxonomic ids.\n"
+                     << "Output will be written to ";
 
                 if(!opt.outfile.empty()) {
-                    std::cout << "'" << opt.outfile << "'" << std::endl;
+                    cout << "'" << opt.outfile << "'" << std::endl;
                 } else {
-                    std::cout << "'stdout'" << std::endl;
+                    cout << "'stdout'" << std::endl;
                 }
                 annotate_with_taxid(opt);
                 break;
@@ -372,7 +375,7 @@ void main_mode_annotate(const args_parser& args)
         }
     }
     catch(std::exception& e) {
-        std::cout << e.what() << "\n\n";
+        cout << e.what() << "\n\n";
         show_help_for_topic("annotate");
     }
 }

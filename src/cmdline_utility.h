@@ -22,6 +22,8 @@
 #ifndef MC_CMDLINE_TOOLS_H_
 #define MC_CMDLINE_TOOLS_H_
 
+#include <iosfwd>
+
 
 namespace mc {
 
@@ -31,9 +33,9 @@ namespace mc {
  * @brief prints a progress indicator like this:  [====>   ] 50%
  *
  *****************************************************************************/
-void show_progress_indicator(float done, int totalLength = 80);
+void show_progress_indicator(std::ostream&, float done, int totalLength = 80);
 
-void clear_current_line(int length = 80);
+void clear_current_line(std::ostream&, int length = 80);
 
 
 
