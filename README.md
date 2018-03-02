@@ -167,6 +167,9 @@ The following table shows some of the possible mapping layouts with their associ
 | ```read_id \| rank \| taxon_name \| taxon_id``` | ```-taxids -separate-cols```             |
 
 
+Note that the default lowest taxon rank is "sequence". Sequence-level taxon ids have negative numbers in order to not interfere with NCBI taxon ids. Each target sequence (reference genome) is added as its own taxon below the lowest known NCBI taxon for that sequence. If you do not want to classify at sequence-level, you can set a higher rank as lowest classification rank with the ```-lowest``` command line option: ```-lowest species``` or ```-lowest subspecies``` or ```-lowest genus```, etc.
+
+
 #### View Documentation
 The operating manual consists of several text files (one for each mode) located in the 'docs' directory.
 Once MetaCache is installed you can also view the documentation with 
