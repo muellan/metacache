@@ -58,7 +58,7 @@ struct classification_results
  *        according to the query options
  *
  *****************************************************************************/
-void map_reads_to_targets(
+void map_queries_to_targets(
     const std::vector<std::string>& inputFilenames,
     const database&, const query_options&,
     classification_results&);

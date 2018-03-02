@@ -62,14 +62,15 @@ enum class map_view_mode : unsigned char {
  *****************************************************************************/
 struct database_query_options
 {
+    // database tuning options
+    bool removeOverpopulatedFeatures = false;
+    int maxLocationsPerFeature = -1; //< 0 : use value from database
+    float maxLoadFactor = -1;        //< 0 : use database default
+
     // query sketching options
     int sketchlen = -1;  //< 0 : use value from database
     int winlen    = -1;  //< 0 : use value from database
     int winstride = -1;  //< 0 : use value from database
-
-    // database tuning options
-    int maxLocationsPerFeature = -1; //< 0 : use value from database
-    bool removeOverpopulatedFeatures = false;
 };
 
 
@@ -193,8 +194,8 @@ struct query_options
     std::string outfile;
     //show database properties
     bool showDBproperties = false;
-    bool showClassificationParams = true;
-    bool showResults = true;
+    bool showQueryParams = true;
+    bool showSummary = true;
 };
 
 

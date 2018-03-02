@@ -44,19 +44,23 @@ get_database_query_options(const args_parser& args,
 {
     database_query_options opt;
 
-    opt.maxLocationsPerFeature = args.get<int>({"max_locations_per_feature",
-                                                "max-locations-per-feature"},
+    opt.maxLocationsPerFeature = args.get<int>({"max-locations-per-feature",
+                                                "max_locations_per_feature"},
                                                 defaults.maxLocationsPerFeature);
 
     opt.removeOverpopulatedFeatures = defaults.removeOverpopulatedFeatures ||
-        args.contains({"remove-overpopulated-features",
-                       "remove_overpopulated_features" });
+        args.contains({"remove_overpopulated_features" ,
+                       "remove-overpopulated-features"});
 
     //query sketching
     opt.sketchlen = args.get<int>("sketchlen", defaults.sketchlen);
     opt.winlen    = args.get<int>("winlen", defaults.winlen);
     opt.winstride = args.get<int>("winstride",
                                   opt.winlen > 0 ? opt.winlen : defaults.winstride);
+
+    opt.maxLoadFactor = args.get<float>({"max-load-fac", "max_load_fac",
+                                         "maxloadfac"},
+                                        defaults.maxLoadFactor);
 
     return opt;
 }
@@ -260,9 +264,8 @@ get_classification_output_options(const args_parser& args,
     }
     else if(opt.showAllHits) opt.mapViewMode = map_view_mode::all;
 
-
     opt.showHitsPerTargetList = defaults.showHitsPerTargetList ||
-                                args.contains("hits-per-target");
+        args.contains({"hits-per-target", "hitspertarget", "hits_per_target"});
 
     opt.showErrors = defaults.showErrors && !args.contains({"-noerr","-noerrors"});
 
@@ -299,10 +302,11 @@ get_query_options(const args_parser& args,
 
     opt.showDBproperties = defaults.showDBproperties || args.contains("verbose");
 
-    opt.showClassificationParams =
-        (defaults.showClassificationParams || args.contains("verbose"));
+    opt.showQueryParams =
+        (defaults.showQueryParams || args.contains("verbose"));
 
-    opt.showResults = (defaults.showResults || args.contains("verbose"));
+    opt.showSummary = (defaults.showSummary || args.contains("verbose")) &&
+                      !(args.contains({"no-summary", "nosummary", "no_summary"}));
 
     return opt;
 }

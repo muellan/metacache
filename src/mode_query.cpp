@@ -47,7 +47,7 @@ using std::flush;
  * @brief prints classification parameters
  *
  *****************************************************************************/
-void show_classification_parameters(const query_options& opt, std::ostream& os)
+void show_query_parameters(const query_options& opt, std::ostream& os)
 {
     const auto& comment = opt.output.comment;
     if(opt.output.mapViewMode != map_view_mode::none) {
@@ -109,8 +109,8 @@ void process_input_files(const vector<string>& infiles,
                          const database& db, const query_options& opt,
                          std::ostream& output, std::ostream& status)
 {
-    if(opt.showClassificationParams) {
-        show_classification_parameters(opt, output);
+    if(opt.showQueryParams) {
+        show_query_parameters(opt, output);
     }
     output.flush();
     status.flush();
@@ -120,7 +120,7 @@ void process_input_files(const vector<string>& infiles,
     timer time;
     time.start();
 
-    map_reads_to_targets(infiles, db, opt, results);
+    map_queries_to_targets(infiles, db, opt, results);
 
     time.stop();
 
@@ -128,7 +128,7 @@ void process_input_files(const vector<string>& infiles,
     status.flush();
 
     //show results
-    if(opt.showResults) {
+    if(opt.showSummary) {
         const auto& statistics = results.statistics;
         const auto numQueries = (opt.process.pairing == pairing_mode::none)
                                 ? statistics.total() : 2 * statistics.total();
@@ -244,52 +244,6 @@ void process_input_files(const vector<string>& infiles,
 
 /*****************************************************************************
  *
- * @brief modify database content and sketching scheme according to
- *        command line options
- *
- *****************************************************************************/
-void configure_database(database& db, const database_query_options& opt)
-{
-    if(opt.removeOverpopulatedFeatures) {
-        auto old = db.feature_count();
-
-        auto maxlpf = opt.maxLocationsPerFeature - 1;
-        if(maxlpf < 0 || maxlpf >= database::max_supported_locations_per_feature())
-            maxlpf = database::max_supported_locations_per_feature() - 1;
-
-        maxlpf = std::min(maxlpf, db.max_locations_per_feature() - 1);
-        if(maxlpf > 0) { //always keep buckets with size 1
-            cout << "\nRemoving features with more than "
-                 << maxlpf << " locations... " << std::flush;
-
-            auto rem = db.remove_features_with_more_locations_than(maxlpf);
-
-            cout << rem << " of " << old << " removed." << endl;
-        }
-        //in case new max is less than the database setting
-        db.max_locations_per_feature(opt.maxLocationsPerFeature);
-    }
-    else if(opt.maxLocationsPerFeature > 1) {
-        db.max_locations_per_feature(opt.maxLocationsPerFeature);
-        cout << "max locations per feature set to "
-             << opt.maxLocationsPerFeature << endl;
-    }
-
-    //use a different sketching scheme for querying?
-    if(opt.winlen > 0)    db.query_window_size(opt.winlen);
-    if(opt.winstride > 0) db.query_window_stride(opt.winstride);
-
-    if(opt.sketchlen > 0) {
-        auto s = db.query_sketcher();
-        s.sketch_size(opt.sketchlen);
-        db.query_sketcher(std::move(s));
-    }
-}
-
-
-
-/*****************************************************************************
- *
  * @brief sets up some query options according to database parameters
  *        or command line options
  *
@@ -317,7 +271,7 @@ void adapt_options_to_database(classification_options& opt, const database& db)
  *
  *****************************************************************************/
 void run_interactive_query_mode(const vector<string>& initInfiles,
-                                const string& dbfile,
+                                const string& dbname,
                                 const database& db,
                                 const query_options& initOpt)
 {
@@ -336,7 +290,7 @@ void run_interactive_query_mode(const vector<string>& initInfiles,
         }
         else {
             //tokenize input into whitespace-separated words and build args list
-            vector<string> arglist {"query", dbfile};
+            vector<string> arglist {"query", dbname};
             std::istringstream iss(input);
             while(iss >> input) { arglist.push_back(input); }
             args_parser args{std::move(arglist)};
@@ -368,6 +322,74 @@ void run_interactive_query_mode(const vector<string>& initInfiles,
 
 /*****************************************************************************
  *
+ * @brief read database and modify db content and sketching scheme according to
+ *        command line options
+ *
+ *****************************************************************************/
+database
+read_database(const string& filename, const database_query_options& opt)
+{
+    database db;
+
+    if(opt.maxLoadFactor > 0.4 && opt.maxLoadFactor < 0.99) {
+        db.max_load_factor(opt.maxLoadFactor);
+        cerr << "Using custom hash table load factor of "
+             << opt.maxLoadFactor << endl;
+    }
+
+    cerr << "Reading database from file '" << filename << "' ... " << flush;
+
+    try {
+        db.read(filename);
+        cerr << "done." << endl;
+    }
+    catch(const file_access_error& e) {
+        cerr << "FAIL" << endl;
+        throw file_access_error{"Could not read database file '" + filename + "'"};
+    }
+
+    if(opt.removeOverpopulatedFeatures) {
+        auto old = db.feature_count();
+
+        auto maxlpf = opt.maxLocationsPerFeature - 1;
+        if(maxlpf < 0 || maxlpf >= database::max_supported_locations_per_feature())
+            maxlpf = database::max_supported_locations_per_feature() - 1;
+
+        maxlpf = std::min(maxlpf, db.max_locations_per_feature() - 1);
+        if(maxlpf > 0) { //always keep buckets with size 1
+            cerr << "\nRemoving features with more than "
+                 << maxlpf << " locations... " << std::flush;
+
+            auto rem = db.remove_features_with_more_locations_than(maxlpf);
+
+            cerr << rem << " of " << old << " removed." << endl;
+        }
+        //in case new max is less than the database setting
+        db.max_locations_per_feature(opt.maxLocationsPerFeature);
+    }
+    else if(opt.maxLocationsPerFeature > 1) {
+        db.max_locations_per_feature(opt.maxLocationsPerFeature);
+        cerr << "max locations per feature set to "
+             << opt.maxLocationsPerFeature << endl;
+    }
+
+    //use a different sketching scheme for querying?
+    if(opt.winlen > 0)    db.query_window_size(opt.winlen);
+    if(opt.winstride > 0) db.query_window_stride(opt.winstride);
+
+    if(opt.sketchlen > 0) {
+        auto s = db.query_sketcher();
+        s.sketch_size(opt.sketchlen);
+        db.query_sketcher(std::move(s));
+    }
+
+    return db;
+}
+
+
+
+/*****************************************************************************
+ *
  * @brief    run query reads against pre-built database
  *           entry point for query mode
  *
@@ -385,9 +407,10 @@ void main_mode_query(const args_parser& args)
         std::sort(infiles.begin(), infiles.end());
     }
 
-    auto dbfile = database_name(args);
-    auto db = make_database<database>(dbfile);
-    configure_database(db, get_database_query_options(args));
+    auto dbname = database_name(args);
+    if(dbname.empty()) throw file_access_error{"No database name given"};
+
+    auto db = read_database(dbname, get_database_query_options(args));
 
     if(opt.showDBproperties) {
         print_static_properties(db);
@@ -411,7 +434,7 @@ void main_mode_query(const args_parser& args)
             " - Enter an empty line or press Ctrl-D to quit MetaCache.\n"
             << endl;
 
-        run_interactive_query_mode(infiles, dbfile, db, opt);
+        run_interactive_query_mode(infiles, dbname, db, opt);
     }
 }
 

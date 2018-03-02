@@ -512,13 +512,14 @@ void process_database_answer(
 
 /*************************************************************************//**
  *
- * @brief default classification scheme:
+ * @brief default classification scheme & output
  *        try to map each read to a taxon with the lowest possible rank
  *
  *****************************************************************************/
-void map_reads_to_targets(const vector<string>& infiles,
-                          const database& db, const query_options& opt,
-                          classification_results& results)
+void map_queries_to_targets_default(
+    const vector<string>& infiles,
+    const database& db, const query_options& opt,
+    classification_results& results)
 {
     //per thread batch object storing / processing query results
     using buffer_t = std::ostringstream;
@@ -552,5 +553,44 @@ void map_reads_to_targets(const vector<string>& infiles,
     );
 }
 
+
+
+
+/*************************************************************************//**
+ *
+ * @brief default classification scheme with
+ *        additional target->hits list generation and output
+ *        try to map each read to a taxon with the lowest possible rank
+ *
+ *****************************************************************************/
+void map_queries_to_targets_and_vice_versa(
+    const vector<string>&,
+    const database&, const query_options&,
+    classification_results&)
+{
+    throw std::runtime_error{"target->hits list generation not supported yet"};
+}
+
+
+
+
+/*************************************************************************//**
+ *
+ * @brief default classification scheme & output
+ *        try to map each read to a taxon with the lowest possible rank
+ *
+ *****************************************************************************/
+void map_queries_to_targets(const vector<string>& infiles,
+                          const database& db, const query_options& opt,
+                          classification_results& results)
+{
+    if(opt.output.showHitsPerTargetList) {
+        map_queries_to_targets_and_vice_versa(infiles, db, opt, results);
+    }
+    //default (and the only functionality available prior to version 0.20)
+    else {
+        map_queries_to_targets_default(infiles, db, opt, results);
+    }
+}
 
 } // namespace mc

@@ -847,6 +847,10 @@ public:
     float max_load_factor() const noexcept {
         return features_.max_load_factor();
     }
+    //-----------------------------------------------------
+    static constexpr float default_max_load_factor() noexcept {
+        return 0.8f;
+    }
 
 
     //---------------------------------------------------------------
@@ -1220,8 +1224,6 @@ make_database(const std::string& filename,
     try {
         db.read(filename, what);
         if(showInfo) std::cerr << "done." << std::endl;
-
-        return db;
     }
     catch(const file_access_error& e) {
         std::cerr << "FAIL" << std::endl;
@@ -1230,7 +1232,6 @@ make_database(const std::string& filename,
 
     return db;
 }
-
 
 
 

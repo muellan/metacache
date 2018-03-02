@@ -96,8 +96,9 @@ get_build_options(const args_parser& args)
     opt.winlen    = args.get<int>({"winlen"}, defaults.winlen);
     opt.winstride = args.get<int>({"winstride"}, opt.winlen - opt.kmerlen + 1);
 
-    opt.maxLoadFactor = args.get<float>({"max-load-fac", "max_load_fac"},
-                                          defaults.maxLoadFactor);
+    opt.maxLoadFactor = args.get<float>({"max-load-fac", "max_load_fac",
+                                         "maxloadfac"},
+                                        defaults.maxLoadFactor);
 
     opt.maxLocationsPerFeature = args.get<int>({"max-locations-per-feature",
                                                 "max_locations_per_feature" },
@@ -357,8 +358,10 @@ void prepare_database(database& db, const build_options& opt)
         db.max_locations_per_feature(opt.maxLocationsPerFeature);
     }
 
-    if(opt.maxLoadFactor > 0) {
+    if(opt.maxLoadFactor > 0.4 && opt.maxLoadFactor < 0.99) {
         db.max_load_factor(opt.maxLoadFactor);
+        cerr << "Using custom hash table load factor of "
+             << opt.maxLoadFactor << endl;
     }
 
     db.max_new_window_similarity(opt.maxWindowSimilarity);
