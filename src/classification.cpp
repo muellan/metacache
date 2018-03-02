@@ -1,4 +1,6 @@
 
+#include <sstream>
+
 #include "dna_encoding.h"
 #include "print_info.h"
 #include "print_results.h"
@@ -7,12 +9,14 @@
 #include "alignment.h"
 #include "candidates.h"
 #include "query_options.h"
+#include "querying.h"
 
 #include "classification.h"
 
 
 namespace mc {
 
+using std::vector;
 using std::string;
 using std::cout;
 using std::cerr;
@@ -473,6 +477,51 @@ void process_database_answer(
     }
 
     if(showMapping) os << '\n';
+}
+
+
+
+
+/*************************************************************************//**
+ *
+ * @brief default classification scheme:
+ *        try to map each read to a taxon with the lowest possible rank
+ *
+ *****************************************************************************/
+void map_reads_to_targets(const vector<string>& infiles,
+                          const database& db, const query_options& opt,
+                          classification_results& results)
+{
+    //per thread batch object storing / processing query results
+    using buffer_t = std::ostringstream;
+
+    //run (parallel) database queries according to processing options
+    query_database(infiles, db, opt.process,
+        //buffer source: return inital state for per-thread buffer
+        [] { return buffer_t{}; },
+        //buffer update: classify and write classification result to buffer
+        [&] (
+            buffer_t& buf, matches_per_location&& matches,
+            const string& header,
+            const sequence& seq1, const sequence& seq2)
+        {
+            process_database_answer(db, opt, header, seq1, seq2,
+                                    std::move(matches), results.statistics, buf);
+        },
+        //buffer sink: write buffer to output stream when batch is finished
+        [&] (const buffer_t& buf) {
+            results.out << buf.str();
+        },
+        //display status messages
+        [&] (const std::string& msg, float progress) {
+            if(opt.output.mapViewMode != map_view_mode::none) {
+                results.out << opt.output.comment << msg << '\n';
+            }
+            if(progress >= 0.0f) {
+                show_progress_indicator(results.status, progress);
+            }
+        }
+    );
 }
 
 

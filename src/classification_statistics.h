@@ -50,13 +50,20 @@ public:
     //---------------------------------------------------------------
     classification_statistics() noexcept :
         assigned_{}, known_{}, correct_{}, wrong_{}, coverage_{},
-        mtx_{}, alignmentScore_{}
+        alignmentScore_{}, mtx_{}
     {
         for(auto& x : assigned_) x = 0;
         for(auto& x : known_)    x = 0;
         for(auto& x : correct_)  x = 0;
         for(auto& x : wrong_)    x = 0;
     }
+
+    classification_statistics(const classification_statistics&) = delete;
+    classification_statistics(classification_statistics&&) = delete;
+
+    classification_statistics& operator = (const classification_statistics&) = delete;
+    classification_statistics& operator = (classification_statistics&&) = delete;
+
 
     //---------------------------------------------------------------
     /**
@@ -243,8 +250,8 @@ private:
     std::atomic<count_t> correct_[taxonomy::num_ranks+1];
     std::atomic<count_t> wrong_[taxonomy::num_ranks+1];
     confusion_statistics coverage_[taxonomy::num_ranks+1];
-    std::mutex mtx_;
     alignment_statistics alignmentScore_;
+    std::mutex mtx_;
 };
 
 

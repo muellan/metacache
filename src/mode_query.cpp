@@ -23,10 +23,10 @@
 #include <limits>
 
 #include "args_handling.h"
-#include "timer.h"
+#include "cmdline_utility.h"
 #include "filesys_utility.h"
 #include "query_options.h"
-#include "querying.h"
+#include "timer.h"
 #include "classification.h"
 #include "print_results.h"
 
@@ -79,14 +79,14 @@ void show_classification_parameters(const query_options& opt, std::ostream& os)
 
     if(opt.process.pairing == pairing_mode::files) {
         os << comment << "File based paired-end mode:\n"
-           << comment << "  Reads from two consecutive files will be interleaved.\n";
+           << comment << "  Reads from two consecutive files will be interleaved.\n"
+           << comment << "  Max insert size considered " << opt.classify.insertSizeMax << ".\n";
     }
     else if(opt.process.pairing == pairing_mode::sequences) {
         os << comment << "Per file paired-end mode:\n"
-           << comment << "  Reads from two consecutive sequences in each file will be paired up.\n";
+           << comment << "  Reads from two consecutive sequences in each file will be paired up.\n"
+           << comment << "  Max insert size considered " << opt.classify.insertSizeMax << ".\n";
     }
-
-    os << comment << "  Max insert size considered " << opt.classify.insertSizeMax << ".\n";
 
     if(opt.test.alignmentScores) {
         os << comment << "Query sequences will be aligned to best candidate target => SLOW!\n";
@@ -99,12 +99,14 @@ void show_classification_parameters(const query_options& opt, std::ostream& os)
 
 /*************************************************************************//**
  *
- * @brief
+ * @brief runs classification on input files;
+ *        writes results to an output stream
+ *        and status messages to a status output stream
  *
  *****************************************************************************/
-void run_classification(const vector<string>& infiles,
-                        const database& db, const query_options& opt,
-                        std::ostream& output, std::ostream& status)
+void process_input_files(const vector<string>& infiles,
+                         const database& db, const query_options& opt,
+                         std::ostream& output, std::ostream& status)
 {
     if(opt.showClassificationParams) {
         show_classification_parameters(opt, output);
@@ -112,42 +114,12 @@ void run_classification(const vector<string>& infiles,
     output.flush();
     status.flush();
 
+    classification_results results{output, status};
+
     timer time;
     time.start();
 
-
-    classification_statistics statistics;
-    //per thread batch object storing / processing query results
-    using buffer_t = std::ostringstream;
-    const auto bufferSource = [] { return buffer_t{}; };
-
-    //classify and write classification result to buffer
-    const auto bufferUpdate = [&] (
-            buffer_t& buf, matches_per_location&& matches,
-            const string& header,
-            const sequence& seq1, const sequence& seq2)
-        {
-            process_database_answer(db, opt, header, seq1, seq2,
-                                    std::move(matches), statistics, buf);
-        };
-
-    //write results to output stream when batch is finished
-    const auto bufferSink = [&] (const buffer_t& buf) {
-        output << buf.str();
-    };
-
-    const auto displayStatus = [&] (const std::string& msg, float progress) {
-        if(opt.output.mapViewMode != map_view_mode::none) {
-            output << opt.output.comment << msg << '\n';
-        }
-        if(progress >= 0.0f) {
-            show_progress_indicator(status, progress);
-        }
-    };
-
-    query_database(infiles, db, opt.process,
-                   bufferSource, bufferUpdate, bufferSink,
-                   displayStatus);
+    map_reads_to_targets(infiles, db, opt, results);
 
     time.stop();
 
@@ -156,6 +128,7 @@ void run_classification(const vector<string>& infiles,
 
     //show results
     if(opt.showResults) {
+        const auto& statistics = results.statistics;
         const auto numQueries = (opt.process.pairing == pairing_mode::none)
                                 ? statistics.total() : 2 * statistics.total();
 
@@ -179,8 +152,8 @@ void run_classification(const vector<string>& infiles,
 
 /*****************************************************************************
  *
- * @brief runs classification on input files and writes the results
- *        to an output file or stdout
+ * @brief runs classification on input files;
+ *        determines result and status target streams
  *
  *****************************************************************************/
 void process_input_files(const vector<string>& infiles,
@@ -188,7 +161,7 @@ void process_input_files(const vector<string>& infiles,
                          const string& outfilename)
 {
     if(outfilename.empty()) {
-        run_classification(infiles, db, opt, cout, cerr);
+        process_input_files(infiles, db, opt, cout, cerr);
     }
     else {
         std::ofstream os {outfilename, std::ios::out};
@@ -196,7 +169,7 @@ void process_input_files(const vector<string>& infiles,
         if(os.good()) {
             cout << "Output will be redirected to file: " << outfilename << endl;
 
-            run_classification(infiles, db, opt, os, cout);
+            process_input_files(infiles, db, opt, os, cout);
         }
         else {
             throw file_write_error{
@@ -210,7 +183,7 @@ void process_input_files(const vector<string>& infiles,
 /*****************************************************************************
  *
  * @brief runs classification on input files;
- *        handle output split
+ *        handles output file split
  *
  *****************************************************************************/
 void process_input_files(const vector<string>& infiles,
