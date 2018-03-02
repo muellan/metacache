@@ -3,6 +3,7 @@
  * MetaCache - Meta-Genomic Classification Tool
  *
  * Copyright (C) 2016-2018 André Müller (muellan@uni-mainz.de)
+ *                       & Robin Kobus (rkobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -96,17 +97,14 @@ class top_distinct_matches_in_contiguous_window_range
 public:
     //---------------------------------------------------------------
     using matches_per_location = typename Database::matches_per_location;
-    using target_id    = typename Database::target_id;
-    using window_id    = typename Database::window_id;
-    using taxon        = typename Database::taxon;
-    using taxon_rank   = typename Database::taxon_rank;
-    using candidate    = match_candidate<Database>;
-    using window_range = typename candidate::window_range;
-    using hit_count    = typename candidate::count_type;
-
-
-    //---------------------------------------------------------------
-    static constexpr int max_count() noexcept { return maxNo; }
+    using target_id      = typename Database::target_id;
+    using window_id      = typename Database::window_id;
+    using taxon          = typename Database::taxon;
+    using taxon_rank     = typename Database::taxon_rank;
+    using candidate      = match_candidate<Database>;
+    using window_range   = typename candidate::window_range;
+    using hit_count      = typename candidate::count_type;
+    using const_iterator = const candidate*;
 
 
     /****************************************************************
@@ -168,6 +166,17 @@ public:
         }
         update_with(curBest, db, mergeOn);
     }
+
+    //---------------------------------------------------------------
+    const_iterator begin() const noexcept {
+        using std::begin;
+        return begin(top_);
+    }
+    const_iterator end() const noexcept {
+        return begin() + size();
+    }
+
+    bool empty() const noexcept { return !top_[0].tax; }
 
     int size() const noexcept {
         for(int i = 0; i < maxNo; ++i) if(!top_[i].tax) return i;
