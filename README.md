@@ -144,6 +144,29 @@ Metacache has different modes, one of them is the 'query' mode. Once a database 
   ./metacache query refseq my_paired_reads.fa -pairseq -out results.txt
   ```
 
+#### Output Format
+
+MetaCache's default read mapping output format is: 
+```read_id | taxon_rank:taxon_name```
+
+This will not be changed in the future to avoid breaking anyone'spipelines. Command line options won't change in the near future for the same reason. 
+
+The following table shows some of the possible mapping layouts with their associated command line arguments:
+
+| mapping layout                                  | command line arguments                   |
+| ----------------------------------------------- | ---------------------------------------- |
+| ```read_id \| taxon_id```                       | ```-taxids-only -omit-ranks```           |
+| ```read_id \| taxon_name```                     | ```-omit-ranks```                        |
+| ```read_id \| taxon_name(taxon_id)```           | ```-taxids -omit-ranks```                |
+| ```read_id \| taxon_name \| taxon_id```         | ```-taxids -omit-ranks -separate-cols``` |
+| ```read_id \| rank:taxon_id```                  | ```-taxids-only```                       |
+| ```read_id \| rank:taxon_name```                |                                          |
+| ```read_id \| rank:taxon_name(taxon_id)```      | ```-taxids```                            |
+| ```read_id \| rank \| taxon_id```               | ```-taxids-only -separate-cols```        |
+| ```read_id \| rank \| taxon_name```             | ```-separate-cols```                     |
+| ```read_id \| rank \| taxon_name \| taxon_id``` | ```-taxids -separate-cols```             |
+
+
 #### View Documentation
 The operating manual consists of several text files (one for each mode) located in the 'docs' directory.
 Once MetaCache is installed you can also view the documentation with 
@@ -157,7 +180,7 @@ or jump directly to specific topics with
 ...
 ```
 
-MetaCache  Copyright (C) 2016-2017  André Müller
+MetaCache Copyright (C) 2016-2018 [André Müller](https://github.com/muellan) & [Robin Kobus](https://github.com/Funatiq)
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain
 conditions. See the file 'LICENSE' for details.

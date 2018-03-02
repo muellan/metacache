@@ -55,10 +55,10 @@ OUTPUT FORMATTING OPTIONS
 
     -nomap             Don't report classification for each individual query
                        sequence; show summaries only (useful for quick tests).
-                       default: off
+                       default: off (= print per-read mappings)
 
     -mapped-only       Don't list unclassified queries.
-                       default: off
+                       default: off (= print all mappings)
 
     -taxids            Print taxon ids in addition to taxon names.
                        default: off
@@ -66,16 +66,19 @@ OUTPUT FORMATTING OPTIONS
     -taxids-only       Print taxon ids instead of taxon names.
                        default: off
 
+    -omit-ranks        Don't print taxon ranks.
+                       default: off (= do print taxon ranks)
+
     -separate-cols     Prints *all* mapping information (rank, taxon name, taxon ids)
                        in separate columns (see option "-separator").
-                       default: off
+                       default: off (= print rank:taxon_name in one column)
 
     -separator <text>  string that separates output fields (sequence name, 
                        classification result, etc.)
                        default: "\t|\t"
 
     -locations         Show locations in candidate reference genomes.
-                       default: off
+                       default: off 
 
     -lineage           Report complete lineage for per-read classification
                        starting with the lowest rank found or allowed and
@@ -168,4 +171,29 @@ EXAMPLES
         reads1.fa reads2.fa -pairfiles -insertsize 400
         reads3.fa -pairseq -insertsize 300
         reads4.fa -lineage
+
+OUTPUT FORMAT
+    MetaCache's default read mapping output format is: 
+    read_id | rank:taxon_name
+
+    This will not be changed in the future to avoid breaking anyone's
+    pipelines. Command line options won't change in the near future for the
+    same reason. The following table shows some of the possible mapping
+    layouts with their associated command line arguments:
+
+    read mapping layout                      command line arguments           
+    ---------------------------------------  ---------------------------------
+    read_id | taxon_id                       -taxids-only -omit-ranks         
+    read_id | taxon_name                     -omit-ranks                      
+    read_id | taxon_name(taxon_id)           -taxids -omit-ranks              
+    read_id | taxon_name | taxon_id          -taxids -omit-ranks -separate-cols
+    read_id | rank:taxon_id                  -taxids-only                     
+    read_id | rank:taxon_name                                                    
+    read_id | rank:taxon_name(taxon_id)      -taxids                          
+    read_id | rank | taxon_id                -taxids-only -separate-cols      
+    read_id | rank | taxon_name              -separate-cols                   
+    read_id | rank | taxon_name | taxon_id   -taxids -separate-cols           
+
+    Note that the separator "<tab>|<tab>" can be changed to something else with
+    the command line option "-separator <text>".
 

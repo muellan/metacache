@@ -19,7 +19,7 @@ TEST_LDFLAGS = -pthread -s
 
 #--------------------------------------------------------------------
 HEADERS = \
-		  src/alignment.h \
+          src/alignment.h \
           src/args_handling.h \
           src/args_parser.h \
           src/bitmanip.h \

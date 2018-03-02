@@ -1,3 +1,23 @@
+/*****************************************************************************
+ *
+ * MetaCache - Meta-Genomic Classification Tool
+ *
+ * Copyright (C) 2016-2018 André Müller (muellan@uni-mainz.de)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *****************************************************************************/
 
 #include "args_handling.h"
 #include "query_options.h"
@@ -199,19 +219,25 @@ get_classification_output_options(const args_parser& args,
                       args.contains({"allhits", "all-hits"});
 
 
-    opt.separateTaxaInfo = args.contains({"separate-cols",
-                                          "separatecols", "separate_cols"});
+    opt.separateTaxaInfo = args.contains(
+        {"separate-cols", "separatecols", "separate_cols",
+         "separate-columns", "separatecolumns", "separate_columns"});
+
+    bool showRanks = !args.contains({"omit-ranks", "omitranks", "omit_ranks"});
 
     if(args.contains({"taxidsonly","taxids-only","taxids_only",
                       "taxidonly", "taxid-only", "taxid_only"}))
     {
-        opt.showTaxaAs = taxon_print_mode::rank_id;
+        opt.showTaxaAs = showRanks ? taxon_print_mode::rank_id
+                                   : taxon_print_mode::id;
     }
     else if(args.contains({"taxids", "taxid"})) {
-        opt.showTaxaAs = taxon_print_mode::rank_name_id;
+        opt.showTaxaAs = showRanks ? taxon_print_mode::rank_name_id
+                                   : taxon_print_mode::name_id;
     }
     else {
-        opt.showTaxaAs = defaults.showTaxaAs;
+        opt.showTaxaAs = showRanks ? taxon_print_mode::rank_name
+                                   : taxon_print_mode::name;
     }
 
     opt.showAlignment = test.makeAlignments;

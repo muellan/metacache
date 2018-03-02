@@ -3,6 +3,7 @@
  * MetaCache - Meta-Genomic Classification Tool
  *
  * Copyright (C) 2016-2018 André Müller (muellan@uni-mainz.de)
+ *                       & Robin Kobus (rkobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -57,28 +58,44 @@ void show_taxon(std::ostream& os,
         switch(mode) {
             default:
             case taxon_print_mode::rank_name:
-                os << taxonomy::rank_name(tax->rank()) << ':' << tax->name();
+                os << taxonomy::rank_name(tax->rank()) << ':';
+                [[fallthrough]] // fall through
+            case taxon_print_mode::name:
+                os << tax->name();
                 break;
             case taxon_print_mode::rank_id:
-                os << taxonomy::rank_name(tax->rank()) << ':' << tax->id();
+                os << taxonomy::rank_name(tax->rank()) << ':';
+                [[fallthrough]] // fall through
+            case taxon_print_mode::id:
+                os << tax->id();
                 break;
             case taxon_print_mode::rank_name_id:
-                os << taxonomy::rank_name(tax->rank()) << ':' << tax->name()
-                   << '(' << tax->id() << ')';
+                os << taxonomy::rank_name(tax->rank()) << ':';
+                [[fallthrough]] // fall through
+            case taxon_print_mode::name_id:
+                os << tax->name() << '(' << tax->id() << ')';
                 break;
         }
     } else {
         switch(mode) {
             default:
             case taxon_print_mode::rank_name:
-                os << taxonomy::rank_name(tax->rank()) << separator << tax->name();
+                os << taxonomy::rank_name(tax->rank()) << separator;
+                [[fallthrough]] // fall through
+            case taxon_print_mode::name:
+                os << tax->name();
                 break;
             case taxon_print_mode::rank_id:
-                os << taxonomy::rank_name(tax->rank()) << separator << tax->id();
+                os << taxonomy::rank_name(tax->rank()) << separator;
+                [[fallthrough]] // fall through
+            case taxon_print_mode::id:
+                os << tax->id();
                 break;
             case taxon_print_mode::rank_name_id:
-                os << taxonomy::rank_name(tax->rank())
-                   << separator << tax->name() << separator << tax->id();
+                os << taxonomy::rank_name(tax->rank()) << separator;
+                [[fallthrough]] // fall through
+            case taxon_print_mode::name_id:
+                os << tax->name() << separator << tax->id();
                 break;
         }
     }
@@ -96,30 +113,44 @@ void show_no_taxon(std::ostream& os,
         switch(mode) {
             default:
             case taxon_print_mode::rank_name:
-                os << taxonomy::rank_name(rank) << ":n/a";
+                os << taxonomy::rank_name(rank) << ':';
+                [[fallthrough]] // fall through
+            case taxon_print_mode::name:
+                os << "n/a";
                 break;
             case taxon_print_mode::rank_id:
-                os << taxonomy::rank_name(rank)
-                << '(' << taxonomy::none_id() << ')';
+                os << taxonomy::rank_name(rank) << ':';
+                [[fallthrough]] // fall through
+            case taxon_print_mode::id:
+                os << taxonomy::none_id();
                 break;
             case taxon_print_mode::rank_name_id:
-                os << taxonomy::rank_name(rank) << ":n/a("
-                << taxonomy::none_id() << ')';
+                os << taxonomy::rank_name(rank) << ':';
+                [[fallthrough]] // fall through
+            case taxon_print_mode::name_id:
+                os << "n/a(" << taxonomy::none_id() << ')';
                 break;
         }
     } else {
         switch(mode) {
             default:
             case taxon_print_mode::rank_name:
-                os << taxonomy::rank_name(rank) << separator << "n/a";
+                os << taxonomy::rank_name(rank) << separator;
+                [[fallthrough]] // fall through
+            case taxon_print_mode::name:
+                os << "n/a";
                 break;
             case taxon_print_mode::rank_id:
-                os << taxonomy::rank_name(rank) << separator
-                << taxonomy::none_id();
+                os << taxonomy::rank_name(rank) << separator;
+                [[fallthrough]] // fall through
+            case taxon_print_mode::id:
+                os << taxonomy::none_id();
                 break;
             case taxon_print_mode::rank_name_id:
-                os << taxonomy::rank_name(rank) << separator << "n/a"
-                << separator << taxonomy::none_id();
+                os << taxonomy::rank_name(rank) << separator;
+                [[fallthrough]] // fall through
+            case taxon_print_mode::name_id:
+                os << "n/a" << separator << taxonomy::none_id();
                 break;
         }
     }

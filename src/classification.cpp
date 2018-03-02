@@ -272,14 +272,22 @@ void show_classification(std::ostream& os,
                 switch(out.showTaxaAs) {
                     default:
                     case taxon_print_mode::rank_name:
-                        os << "--" << out.separator << "--";
+                        os << "--" << out.separator;
+                        [[fallthrough]] // fall through
+                    case taxon_print_mode::name:
+                        os << "--";
                         break;
                     case taxon_print_mode::rank_id:
-                        os << "--" << out.separator << taxonomy::none_id();
+                        os << "--" << out.separator;
+                        [[fallthrough]] // fall through
+                    case taxon_print_mode::id:
+                        os << taxonomy::none_id();
                         break;
                     case taxon_print_mode::rank_name_id:
-                        os << "--" << out.separator << "--"
-                           << out.separator << taxonomy::none_id();
+                        os << "--" << out.separator;
+                        [[fallthrough]] // fall through
+                    case taxon_print_mode::name_id:
+                        os << "--" << out.separator << taxonomy::none_id();
                         break;
                 }
                 if(r < rmax) os << out.separator;

@@ -3,6 +3,7 @@
  * MetaCache - Meta-Genomic Classification Tool
  *
  * Copyright (C) 2016-2018 André Müller (muellan@uni-mainz.de)
+ *                       & Robin Kobus (rkobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,7 +35,8 @@ namespace mc {
  *
  *****************************************************************************/
 enum class taxon_print_mode : unsigned char {
-    rank_id, rank_name, rank_name_id
+    rank_id, rank_name, rank_name_id,
+    id, name, name_id
 };
 
 
