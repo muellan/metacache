@@ -25,10 +25,12 @@
 #include <thread>
 
 #include "taxonomy.h"
-#include "print_info.h"
 
 
 namespace mc {
+
+
+using taxon_rank = taxonomy::rank;
 
 
 /*****************************************************************************
@@ -53,6 +55,18 @@ enum class align_mode : unsigned char {
 enum class map_view_mode : unsigned char {
     none, mapped_only, all
 };
+
+
+/*****************************************************************************
+ *
+ * @brief how taxon formatting will be done
+ *
+ *****************************************************************************/
+enum class taxon_print_mode : unsigned char {
+    rank_id, rank_name, rank_name_id,
+    id, name, name_id
+};
+
 
 
 /*************************************************************************//**
@@ -101,9 +115,7 @@ struct query_processing_options
  *****************************************************************************/
 struct classification_options
 {
-    using taxon_rank = taxonomy::rank;
-
-    //ranks/taxa to classify on and to show
+    //ranks/taxa to classify on
     taxon_rank lowestRank  = taxon_rank::Sequence;
     taxon_rank highestRank = taxon_rank::Domain;
 
@@ -120,21 +132,16 @@ struct classification_options
  * @brief ground truth based testing
  *
  *****************************************************************************/
-struct classification_testing_options
+struct evaluation_options
 {
     //test precision (ground truth must be available)
     bool precision = false;
     bool taxonCoverage = false;
     //ground truth rank to exclude (for clade exclusion test)
-    taxon_rank excludedRank = taxon_rank::none;
+    taxon_rank excludeRank = taxon_rank::none;
 
     //show known taxon (or complete lineage if 'showLineage' on)
-    bool showGroundTruth = false;
-
-    //make statistics of semi-global alignment scores of queries against
-    //target candidate(s)
-    bool alignmentScores = false;
-    bool makeAlignments = false;
+    bool determineGroundTruth = false;
 };
 
 
@@ -146,9 +153,12 @@ struct classification_testing_options
  *****************************************************************************/
 struct classification_output_options
 {
+    using taxon_rank = taxonomy::rank;
+
     //how to show classification (read mappings), if 'none', only summary will be shown
     map_view_mode mapViewMode = map_view_mode::all;
 
+    bool showQueryIds = false;
     //show top candidate sequences and their associated k-mer hash hit count
     bool showTopHits = false;
     //show all k-mer-hash hits in database for each given read
@@ -160,12 +170,19 @@ struct classification_output_options
     //what to show of a taxon
     taxon_print_mode showTaxaAs = taxon_print_mode::rank_name;
     bool separateTaxaInfo = false;
-    //show alignment if available
+    //show ground thruth if available
+    bool showGroundTruth = false;
+    //make statistics of semi-global alignment scores of queries against
+    //target candidate(s)
     bool showAlignment = false;
     //show list of target -> hit mappings
     bool showHitsPerTargetList = false;
     //show error messages?
     bool showErrors = true;
+
+    //ranks/taxa to show
+    taxon_rank lowestRank  = taxon_rank::Sequence;
+    taxon_rank highestRank = taxon_rank::Domain;
 
     //show top candidate sequences and their associated k-mer hash hit count
     //prefix for each non-mapping line
@@ -185,7 +202,7 @@ struct query_options
 {
     query_processing_options process;
     classification_options classify;
-    classification_testing_options test;
+    evaluation_options evaluate;
     classification_output_options output;
 
     //make a separate output file for each input file

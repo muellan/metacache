@@ -161,20 +161,13 @@ get_classification_options(const args_parser& args,
  * @brief command line args -> classification testing options
  *
  *****************************************************************************/
-classification_testing_options
-get_classification_testing_options(const args_parser& args,
-                                   const classification_testing_options& defaults)
+evaluation_options
+get_evaluation_options(const args_parser& args,
+                       const evaluation_options& defaults)
 {
-    classification_testing_options opt;
+    evaluation_options opt;
 
-    //alignment
-    opt.makeAlignments = defaults.makeAlignments ||
-                        args.contains({"showalign", "show-align", "show_align"});
-
-    opt.alignmentScores = opt.makeAlignments || args.contains({"align", "alignment"});
-
-
-    opt.showGroundTruth = defaults.showGroundTruth ||
+    opt.determineGroundTruth = defaults.determineGroundTruth ||
                           args.contains({"ground-truth", "ground_truth",
                                          "groundtruth"});
 
@@ -183,11 +176,11 @@ get_classification_testing_options(const args_parser& args,
 
     opt.precision = defaults.precision || opt.taxonCoverage || args.contains("precision");
 
-    opt.excludedRank = defaults.excludedRank;
+    opt.excludeRank = defaults.excludeRank;
     auto excludedRank = args.get<string>("exclude", "");
     if(!excludedRank.empty()) {
         auto r = taxonomy::rank_from_name(excludedRank);
-        if(r < taxon_rank::root) opt.excludedRank = r;
+        if(r < taxon_rank::root) opt.excludeRank = r;
     }
 
     return opt;
@@ -202,7 +195,8 @@ get_classification_testing_options(const args_parser& args,
  *****************************************************************************/
 classification_output_options
 get_classification_output_options(const args_parser& args,
-                                  const classification_testing_options& test,
+                                  const classification_options& classify,
+                                  const evaluation_options& evaluate,
                                   const classification_output_options& defaults)
 {
     classification_output_options opt;
@@ -244,9 +238,6 @@ get_classification_output_options(const args_parser& args,
                                    : taxon_print_mode::name;
     }
 
-    opt.showAlignment = test.makeAlignments;
-
-
     opt.mapViewMode = defaults.mapViewMode;
     if(args.contains({"nomap","no-map","noshowmap","nomapping","nomappings"})) {
         opt.mapViewMode = map_view_mode::none;
@@ -265,9 +256,22 @@ get_classification_output_options(const args_parser& args,
     else if(opt.showAllHits) opt.mapViewMode = map_view_mode::all;
 
     opt.showHitsPerTargetList = defaults.showHitsPerTargetList ||
-        args.contains({"hits-per-target", "hitspertarget", "hits_per_target"});
+        args.contains({"hits-per-genome", "hitspergenome", "hits_per_genome"});
 
     opt.showErrors = defaults.showErrors && !args.contains({"-noerr","-noerrors"});
+
+    opt.showGroundTruth = evaluate.determineGroundTruth;
+
+    opt.showAlignment = defaults.showAlignment ||
+        args.contains({"align", "alignment", "showalignment",
+                       "showalign", "show-align", "show_align"});
+
+    opt.lowestRank  = classify.lowestRank;
+    opt.highestRank = classify.highestRank;
+
+    opt.showQueryIds = args.contains({"queryids", "query-ids", "query_ids",
+                                      "queryid", "query-id", "query_id"}) ||
+                       opt.showHitsPerTargetList;
 
     return opt;
 }
@@ -288,8 +292,12 @@ get_query_options(const args_parser& args,
 
     opt.process  = get_query_processing_options(args, infiles, defaults.process);
     opt.classify = get_classification_options(args, defaults.classify);
-    opt.test     = get_classification_testing_options(args, defaults.test);
-    opt.output   = get_classification_output_options(args, opt.test, defaults.output);
+    opt.evaluate = get_evaluation_options(args, defaults.evaluate);
+
+    opt.output   = get_classification_output_options(args,
+                                                     opt.classify,
+                                                     opt.evaluate,
+                                                     defaults.output);
 
     opt.splitFiles = defaults.splitFiles ||
                      args.contains({"splitout","split-out"});

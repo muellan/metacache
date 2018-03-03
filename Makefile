@@ -36,12 +36,14 @@ HEADERS = \
           src/hash_int.h \
           src/hash_multimap.h \
           src/io_error.h \
-          src/io_serialize.h \
           src/io_options.h \
+          src/io_serialize.h \
+          src/matches_per_target.h \
           src/modes.h \
           src/parallel_task_queue.h \
-          src/print_info.h \
-          src/print_results.h \
+          src/printing.h \
+          src/query_options.h \
+          src/querying.h \
           src/sequence_io.h \
           src/sequence_view.h \
           src/sketch_database.h \
@@ -50,8 +52,6 @@ HEADERS = \
           src/taxonomy.h \
           src/taxonomy_io.h \
           src/timer.h \
-          src/query_options.h \
-          src/querying.h \
           src/version.h
 
 SOURCES = \
@@ -65,8 +65,7 @@ SOURCES = \
           src/mode_help.cpp \
           src/mode_info.cpp \
           src/mode_query.cpp \
-          src/print_info.cpp \
-          src/print_results.cpp \
+          src/printing.cpp \
           src/query_options.cpp \
           src/sequence_io.cpp \
           src/taxonomy_io.cpp
@@ -133,10 +132,7 @@ $(REL_ARTIFACT): $(REL_OBJS)
 $(REL_DIR)/main.o : src/main.cpp src/modes.h 
 	$(REL_COMPILE)
 
-$(REL_DIR)/print_info.o : src/print_info.cpp $(HEADERS)
-	$(REL_COMPILE)
-
-$(REL_DIR)/print_results.o : src/print_results.cpp $(HEADERS)
+$(REL_DIR)/printing.o : src/printing.cpp $(HEADERS)
 	$(REL_COMPILE)
 
 $(REL_DIR)/classification.o : src/classification.cpp $(HEADERS)
@@ -188,10 +184,7 @@ $(DBG_ARTIFACT): $(DBG_OBJS)
 $(DBG_DIR)/main.o : src/main.cpp src/modes.h 
 	$(DBG_COMPILE)
 
-$(DBG_DIR)/print_info.o : src/print_info.cpp $(HEADERS)
-	$(DBG_COMPILE)
-
-$(DBG_DIR)/print_results.o : src/print_results.cpp $(HEADERS)
+$(DBG_DIR)/printing.o : src/printing.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
 $(DBG_DIR)/classification.o : src/classification.cpp $(HEADERS)

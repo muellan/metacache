@@ -3,7 +3,7 @@
  * MetaCache - Meta-Genomic Classification Tool
  *
  * Copyright (C) 2016-2018 André Müller (muellan@uni-mainz.de)
- *                       & Robin Kobus (rkobus@uni-mainz.de)
+ *                       & Robin Kobus  (rkobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@
 #include "query_options.h"
 #include "timer.h"
 #include "classification.h"
-#include "print_results.h"
+#include "printing.h"
 
 
 namespace mc {
@@ -73,9 +73,9 @@ void show_query_parameters(const query_options& opt, std::ostream& os)
         os << comment << "Per-Read mappings will not be shown.\n";
     }
 
-    if(opt.test.excludedRank != taxon_rank::none) {
+    if(opt.evaluate.excludeRank != taxon_rank::none) {
         os << comment << "Clade Exclusion on Rank: "
-           << taxonomy::rank_name(opt.test.excludedRank);
+           << taxonomy::rank_name(opt.evaluate.excludeRank);
     }
 
     if(opt.process.pairing == pairing_mode::files) {
@@ -89,7 +89,7 @@ void show_query_parameters(const query_options& opt, std::ostream& os)
            << comment << "  Max insert size considered " << opt.classify.insertSizeMax << ".\n";
     }
 
-    if(opt.test.alignmentScores) {
+    if(opt.output.showAlignment) {
         os << comment << "Query sequences will be aligned to best candidate target => SLOW!\n";
     }
 
@@ -140,7 +140,7 @@ void process_input_files(const vector<string>& infiles,
                << comment << "speed:   " << speed << " queries/min\n";
 
         if(statistics.total() > 0) {
-            show_classification_statistics(output, statistics, comment);
+            show_taxon_statistics(output, statistics, comment);
         } else {
             output << comment << "No valid query sequences found." << endl;
         }

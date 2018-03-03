@@ -3,6 +3,7 @@
  * MetaCache - Meta-Genomic Classification Tool
  *
  * Copyright (C) 2016-2018 André Müller (muellan@uni-mainz.de)
+ *                       & Robin Kobus  (rkobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +25,8 @@
 
 #include "config.h"
 #include "classification_statistics.h"
+#include "matches_per_target.h"
+#include "query_options.h"
 
 
 namespace mc {
@@ -31,19 +34,37 @@ namespace mc {
 
 /*****************************************************************************
  *
- * @brief  print top classification candidates
+ * @brief print database information
  *
  *****************************************************************************/
-void show_matches(std::ostream& os,
+void show_target_info(std::ostream&, const database&, const taxon&);
+
+
+/*****************************************************************************
+ *
+ * @brief prints taxon information according to output options
+ *
+ *****************************************************************************/
+void show_taxon(std::ostream&,
+                         const database&,
+                         const classification_output_options&,
+                         const taxon* classified);
+
+
+/*****************************************************************************
+ *
+ * @brief prints top classification candidates
+ *
+ *****************************************************************************/
+void show_matches(std::ostream&,
                   const database&,
                   const classification_candidates&,
                   taxon_rank lowest = taxon_rank::Sequence);
 
 
-
 /*****************************************************************************
  *
- * @brief  print target.window hit matches
+ * @brief prints target.window hit matches
  *
  *****************************************************************************/
 void show_matches(std::ostream&,
@@ -52,10 +73,9 @@ void show_matches(std::ostream&,
                   taxon_rank lowest = taxon_rank::Sequence);
 
 
-
 /*****************************************************************************
  *
- * @brief  print target.window hit statistics from database
+ * @brief prints target.window hit statistics from database
  *
  *****************************************************************************/
 void show_candidate_ranges(std::ostream&,
@@ -63,15 +83,24 @@ void show_candidate_ranges(std::ostream&,
                            const classification_candidates&);
 
 
+/*************************************************************************//**
+ *
+ * @brief prints a list of all match locations for each classification target
+ *
+ *****************************************************************************/
+void show_matches_per_targets(std::ostream& os,
+                              const matches_per_target&,
+                              const classification_output_options&);
+
 
 /*****************************************************************************
  *
- * @brief print per-rank classification statistics
+ * @brief prints per-rank classification statistics
  *
  *****************************************************************************/
-void show_classification_statistics(std::ostream&,
-                              const classification_statistics&,
-                              const std::string& prefix = "");
+void show_taxon_statistics(std::ostream&,
+                                    const classification_statistics&,
+                                    const std::string& prefix = "");
 
 
 } // namespace mc

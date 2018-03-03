@@ -93,7 +93,7 @@ public:
  *
  *
  *****************************************************************************/
-class needleman_wunsch_scheme
+class default_alignment_scheme
 {
 public:
     //---------------------------------------------------------------
@@ -159,79 +159,6 @@ public:
             case predecessor::none:
                 return result_t{value_t('_'), value_t('_')};
         }
-    }
-
-    template<class Value>
-    static constexpr score_type
-    score(const Value& vquery, const Value& vsubject) noexcept {
-        return (vquery == vsubject) ? max_score() : -1;
-    }
-
-    static constexpr score_type
-    max_score() noexcept {
-        return 2;
-    }
-
-    static constexpr score_type
-    gap() noexcept {
-        return -1;
-    }
-};
-
-
-
-/*****************************************************************************
- *
- *
- *
- *****************************************************************************/
-class smith_waterman_scheme
-{
-public:
-    //---------------------------------------------------------------
-    using score_type  = std::int32_t;
-    using relax_type  = relaxation_result<score_type>;
-    using predecessor = relax_type::predecessor;
-
-    //---------------------------------------------------------------
-    template<class Value>
-    static
-    relax_type
-    relax(score_type diag, score_type above, score_type left,
-          const Value& vquery, const Value& vsubject) noexcept
-    {
-        relax_type result;
-
-        result.score = diag + score(vquery, vsubject);
-        result.predc = predecessor::diag;
-
-        const auto weightAbove = above + gap();
-        if(weightAbove > result.score) {
-            result.score = weightAbove;
-            result.predc = predecessor::above;
-        }
-
-        const auto weightLeft = left + gap();
-        if(weightLeft > result.score) {
-            result.score = weightLeft;
-            result.predc = predecessor::left;
-        }
-
-        if(result.score < 0) result.score = 0;
-        return result;
-    }
-
-    //---------------------------------------------------------------
-    template<class Index, class QuerySequence, class SubjectSequence>
-    static
-    std::tuple<typename QuerySequence::value_type,
-               typename SubjectSequence::value_type>
-    encode(Index& bsf_q, Index& bsfS,
-           predecessor predc,
-           const QuerySequence& query,
-           const SubjectSequence& subject) noexcept
-    {
-        needleman_wunsch_scheme::encode(bsf_q, bsfS, predc, query, subject);
     }
 
     template<class Value>

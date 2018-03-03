@@ -23,7 +23,7 @@
 
 #include "args_handling.h"
 #include "sequence_io.h"
-#include "print_info.h"
+#include "printing.h"
 #include "typename.h"
 
 
@@ -136,7 +136,7 @@ void show_info(const args_parser& args)
         for(const auto& sid : sids) {
             const taxon* tax = db.taxon_with_name(sid);
             if(tax) {
-                show_info(std::cout, db, *tax);
+                show_target_info(std::cout, db, *tax);
             }
             else {
                 std::cout << "Target (reference sequence) " << sid
@@ -147,7 +147,7 @@ void show_info(const args_parser& args)
     else {
         std::cout << "Targets (reference sequences) in database:\n";
         for(const auto& tax : db.target_taxa()) {
-            show_info(std::cout, db, tax);
+            show_target_info(std::cout, db, tax);
         }
     }
 }

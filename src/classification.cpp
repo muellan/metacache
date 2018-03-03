@@ -22,14 +22,14 @@
 #include <sstream>
 
 #include "dna_encoding.h"
-#include "print_info.h"
-#include "print_results.h"
+#include "printing.h"
 #include "sequence_io.h"
 #include "sequence_view.h"
 #include "alignment.h"
 #include "candidates.h"
 #include "query_options.h"
 #include "querying.h"
+#include "matches_per_target.h"
 
 #include "classification.h"
 
@@ -68,27 +68,28 @@ make_view_from_window_range(
  * @brief performs a semi-global alignment
  *
  *****************************************************************************/
-template<class Query, class Subject, class AlignmentScheme>
-alignment<typename AlignmentScheme::score_type,typename Query::value_type>
-make_alignment(const Query& query1, const Query& query2,
-               const Subject& subject,
-               const AlignmentScheme& scheme)
+template<class Subject>
+alignment<default_alignment_scheme::score_type,typename sequence::value_type>
+make_semi_global_alignment(const sequence_query& query,
+                           const Subject& subject)
 {
     std::size_t score  = 0;
     std::size_t scorer = 0;
 
+    const auto scheme = default_alignment_scheme{};
+
     //compute alignment
-    auto align = align_semi_global(query1, subject, scheme);
+    auto align = align_semi_global(query.seq1, subject, scheme);
     score = align.score;
     //reverse complement
-    auto query1r = make_reverse_complement(query1);
+    auto query1r = make_reverse_complement(query.seq1);
     auto alignr = align_semi_global(query1r, subject, scheme);
     scorer = alignr.score;
 
     //align paired read as well
-    if(!query2.empty()) {
-        score += align_semi_global_score(query2, subject, scheme);
-        auto query2r = make_reverse_complement(query2);
+    if(!query.seq2.empty()) {
+        score += align_semi_global_score(query.seq2, subject, scheme);
+        auto query2r = make_reverse_complement(query.seq2);
         scorer += align_semi_global_score(query2r, subject, scheme);
     }
 
@@ -152,6 +153,31 @@ void remove_hits_on_rank(const database& db,
 
 /*****************************************************************************
  *
+ * @brief
+ *
+ *****************************************************************************/
+void prepare_evaluation(const database& db,
+                        const evaluation_options& opt,
+                        sequence_query& query,
+                        matches_per_location& allhits)
+{
+    if(opt.precision ||
+       (opt.determineGroundTruth) ||
+       (opt.excludeRank != taxon_rank::none) )
+    {
+        query.groundTruth = ground_truth(db, query.header);
+    }
+
+    //clade exclusion
+    if(opt.excludeRank != taxon_rank::none && query.groundTruth) {
+        remove_hits_on_rank(db, *query.groundTruth, opt.excludeRank, allhits);
+    }
+}
+
+
+
+/*****************************************************************************
+ *
  * @brief lowest common taxon of several classification candidate
  *        sequences / taxa
  *
@@ -171,7 +197,11 @@ lowest_common_taxon(
     taxon_rank lowestRank = taxon_rank::Sequence,
     taxon_rank highestRank = taxon_rank::Domain)
 {
-    if(cand.size() < 3) {
+    if(!cand[0].tax) return nullptr;
+    if(cand.size() < 2) {
+        if(cand[0].tax->rank() <= highestRank) return cand[0].tax;
+    }
+    else if(cand.size() < 3) {
         const taxon* tax = db.ranked_lca(cand[0].tax, cand[1].tax);
 
         //classify if rank is below or at the highest rank of interest
@@ -225,16 +255,31 @@ lowest_common_taxon(
 
 
 
+/*************************************************************************//**
+ *
+ * @brief
+ *
+ *****************************************************************************/
+struct classification
+{
+    classification(classification_candidates cand):
+        candidates{std::move(cand)}, best{nullptr}
+    {}
+
+    classification_candidates candidates;
+    const taxon* best;
+};
+
+
+
 /*****************************************************************************
  *
- * @brief  analyze hit statistics from database
- * @param  query1  read
- * @param  query2  paired read
+ * @brief  classify using top candidates
  *
  *****************************************************************************/
 const taxon*
-classification(const database& db, const classification_options& opt,
-               const classification_candidates& cand)
+classify(const database& db, const classification_options& opt,
+         const classification_candidates& cand)
 {
     //sum of top-2 hits < threshold => considered not classifiable
     if((cand[0].hits + cand[1].hits) < opt.hitsMin) return nullptr;
@@ -254,60 +299,27 @@ classification(const database& db, const classification_options& opt,
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
- * @brief prints a classification to stream 'os'
+ * @brief
  *
  *****************************************************************************/
-void show_classification(std::ostream& os,
-                         const classification_output_options& out,
-                         const classification_options& cls,
-                         const database& db,
-                         const taxon* tax)
+classification
+classify(const database& db,
+         const classification_options& opt,
+         const sequence_query& query,
+         const matches_per_location& allhits)
 {
-    if(!tax || tax->rank() > cls.highestRank) {
-        if(out.separateTaxaInfo) {
-            auto rmax = out.showLineage ? cls.highestRank : cls.lowestRank;
-            for(auto r = cls.lowestRank; r <= rmax; ++r) {
-                switch(out.showTaxaAs) {
-                    default:
-                    case taxon_print_mode::rank_name:
-                        os << "--" << out.separator;
-                        [[fallthrough]] // fall through
-                    case taxon_print_mode::name:
-                        os << "--";
-                        break;
-                    case taxon_print_mode::rank_id:
-                        os << "--" << out.separator;
-                        [[fallthrough]] // fall through
-                    case taxon_print_mode::id:
-                        os << taxonomy::none_id();
-                        break;
-                    case taxon_print_mode::rank_name_id:
-                        os << "--" << out.separator;
-                        [[fallthrough]] // fall through
-                    case taxon_print_mode::name_id:
-                        os << "--" << out.separator << taxonomy::none_id();
-                        break;
-                }
-                if(r < rmax) os << out.separator;
-            }
-        }
-        else {
-            os << "--";
-        }
-    }
-    else {
-        auto rmin = cls.lowestRank < tax->rank() ? tax->rank() : cls.lowestRank;
-        auto rmax = out.showLineage ? cls.highestRank : rmin;
+    auto numWindows = window_id( 2 + (
+        std::max(query.seq1.size() + query.seq2.size(), opt.insertSizeMax) /
+        db.target_window_stride() ));
 
-        if(out.separateTaxaInfo) {
-            show_ranks(os, db.ranks(tax), out.showTaxaAs, rmin, rmax, out.separator);
-        }
-        else {
-            show_ranks(os, db.ranks(tax), out.showTaxaAs, rmin, rmax, "");
-        }
-    }
+    classification cls {
+        classification_candidates{db, allhits, numWindows, opt.lowestRank} };
+
+    cls.best = classify(db, opt, cls.candidates);
+
+    return cls;
 }
 
 
@@ -318,23 +330,24 @@ void show_classification(std::ostream& os,
  *
  *****************************************************************************/
 void update_coverage_statistics(const database& db,
-                                const taxon* result, const taxon* truth,
+                                const sequence_query& query,
+                                const classification& cls,
                                 classification_statistics& stats)
 {
-    if(!truth) return;
+    if(!query.groundTruth) return;
     //check if taxa are covered in DB
-    for(const taxon* tax : db.ranks(truth)) {
+    for(const taxon* tax : db.ranks(query.groundTruth)) {
         if(tax) {
             auto r = tax->rank();
             if(db.covers(*tax)) {
-                if(!result || r < result->rank()) { //unclassified on rank
+                if(!cls.best || r < cls.best->rank()) { //unclassified on rank
                     stats.count_coverage_false_neg(r);
                 } else { //classified on rank
                     stats.count_coverage_true_pos(r);
                 }
             }
             else {
-                if(!result || r < result->rank()) { //unclassified on rank
+                if(!cls.best || r < cls.best->rank()) { //unclassified on rank
                     stats.count_coverage_true_neg(r);
                 } else { //classified on rank
                     stats.count_coverage_false_pos(r);
@@ -346,17 +359,49 @@ void update_coverage_statistics(const database& db,
 
 
 
+/*************************************************************************//**
+ *
+ * @brief evaluate classification of one query
+ *
+ *****************************************************************************/
+void evaluate_classification(
+    const database& db,
+    const evaluation_options& opt,
+    const sequence_query& query,
+    const classification& cls,
+    classification_statistics& statistics)
+{
+    if(opt.precision) {
+        auto lca = db.ranked_lca(cls.best, query.groundTruth);
+        auto lowestCorrectRank = lca ? lca->rank() : taxon_rank::none;
+
+        statistics.assign_known_correct(
+            cls.best ? cls.best->rank() : taxon_rank::none,
+            query.groundTruth ? query.groundTruth->rank() : taxon_rank::none,
+            lowestCorrectRank);
+
+        //check if taxa of assigned target are covered
+        if(opt.taxonCoverage) {
+            update_coverage_statistics(db, query, cls, statistics);
+        }
+
+    } else {
+        statistics.assign(cls.best ? cls.best->rank() : taxon_rank::none);
+    }
+}
+
+
+
 /*****************************************************************************
  *
  * @brief compute alignment of top hits and optionally show it
  *
  *****************************************************************************/
-void use_alignment(const database& db,
-                   const classification_output_options& opt,
-                   const sequence& query1, const sequence& query2,
-                   const classification_candidates& tophits,
-                   classification_statistics& stats,
-                   std::ostream& os)
+void show_alignment(std::ostream& os,
+                    const database& db,
+                    const classification_output_options& opt,
+                    const sequence_query& query,
+                    const classification_candidates& tophits)
 {
     //try to align to top target
     const taxon* tgtTax = tophits[0].tax;
@@ -369,31 +414,26 @@ void use_alignment(const database& db,
 
             if(reader->has_next()) {
                 auto tgtSequ = reader->next().data;
-                auto subject = make_view_from_window_range(tgtSequ,
-                                                           tophits[0].pos,
-                                                           db.target_window_size(),
-                                                           db.target_window_stride());
+                auto subject = make_view_from_window_range(
+                               tgtSequ, tophits[0].pos,
+                               db.target_window_size(),
+                               db.target_window_stride());
 
-                auto align = make_alignment(query1, query2, subject,
-                                            needleman_wunsch_scheme{});
-
-                stats.register_alignment_score(align.score);
+                auto align = make_semi_global_alignment(query, subject);
 
                 //print alignment to top candidate
-                if(align.score > 0 && opt.showAlignment) {
-                    const auto w = db.target_window_stride();
-
-                    os << '\n'
-                        << opt.comment << "  score  " << align.score
-                        << "  aligned to "
-                        << src.filename << " #" << src.index
-                        << " in range [" << (w * tophits[0].pos.beg)
-                        << ',' << (w * tophits[0].pos.end) << "]\n"
-                        << opt.comment << "  query  " << align.query << '\n'
-                        << opt.comment << "  target " << align.subject;
-                }
+                const auto w = db.target_window_stride();
+                os  << '\n'
+                    << opt.comment << "  score  " << align.score
+                    << "  aligned to "
+                    << src.filename << " #" << src.index
+                    << " in range [" << (w * tophits[0].pos.beg)
+                    << ',' << (w * tophits[0].pos.end + w) << "]\n"
+                    << opt.comment << "  query  " << align.query << '\n'
+                    << opt.comment << "  target " << align.subject;
             }
-        } catch(std::exception& e) {
+        }
+        catch(std::exception& e) {
             if(opt.showErrors) cerr << e.what() << '\n';
         }
     }
@@ -401,112 +441,67 @@ void use_alignment(const database& db,
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
- * @brief process database hit results: classify & print mapping
+ * @brief shows one query mapping line
+ *        [query id], query_header, classification [, [top|all]hits list]
  *
  *****************************************************************************/
-void process_database_answer(
-     const database& db,
-     const query_options& opt,
-     const string& header, const sequence& query1, const sequence& query2,
-     matches_per_location&& hits,
-     classification_statistics& stats, std::ostream& os)
+void show_query_mapping(
+    std::ostream& os,
+    const database& db,
+    const classification_output_options& opt,
+    const sequence_query& query,
+    const classification& cls,
+    const matches_per_location& allhits)
 {
-    if(header.empty()) return;
-
-    //preparation -------------------------------
-    const taxon* groundTruth = nullptr;
-    if(opt.test.precision ||
-       (opt.output.mapViewMode != map_view_mode::none && opt.test.showGroundTruth) ||
-       (opt.test.excludedRank != taxon_rank::none) )
+    if(opt.mapViewMode == map_view_mode::none ||
+        (opt.mapViewMode == map_view_mode::mapped_only && !cls.best))
     {
-        groundTruth = ground_truth(db, header);
-    }
-    //clade exclusion
-    if(opt.test.excludedRank != taxon_rank::none && groundTruth) {
-        remove_hits_on_rank(db, *groundTruth, opt.test.excludedRank, hits);
+        return;
     }
 
-    //classify ----------------------------------
-    auto numWindows = window_id( 2 + (
-        std::max(query1.size() + query2.size(), opt.classify.insertSizeMax) /
-        db.target_window_stride() ));
-
-    classification_candidates tophits {db, hits, numWindows, opt.classify.lowestRank};
-    const taxon* cls = classification(db, opt.classify, tophits);
-
-    //evaluate classification -------------------
-    if(opt.test.precision) {
-        auto lca = db.ranked_lca(cls, groundTruth);
-        auto lowestCorrectRank = lca ? lca->rank() : taxon_rank::none;
-
-        stats.assign_known_correct(
-            cls ? cls->rank() : taxon_rank::none,
-            groundTruth ? groundTruth->rank() : taxon_rank::none,
-            lowestCorrectRank);
-
-        //check if taxa of assigned target are covered
-        if(opt.test.taxonCoverage) {
-            update_coverage_statistics(db, cls, groundTruth, stats);
-        }
-
-    } else {
-        stats.assign(cls ? cls->rank() : taxon_rank::none);
+    if(opt.showQueryIds) {
+        os << query.id << opt.separator;
     }
 
-    //show mapping ------------------------------
-    bool showMapping = opt.output.mapViewMode == map_view_mode::all ||
-        (opt.output.mapViewMode == map_view_mode::mapped_only && cls);
+    //print query header (first contiguous string only)
+    auto l = query.header.find(' ');
+    if(l != string::npos) {
+        auto oit = std::ostream_iterator<char>{os, ""};
+        std::copy(query.header.begin(), query.header.begin() + l, oit);
+    }
+    else {
+        os << query.header;
+    }
+    os << opt.separator;
 
-    if(showMapping) {
-        //print query header (first contiguous string only)
-        auto l = header.find(' ');
-        if(l != string::npos) {
-            auto oit = std::ostream_iterator<char>{os, ""};
-            std::copy(header.begin(), header.begin() + l, oit);
-        }
-        else {
-            os << header;
-        }
-        os << opt.output.separator;
-
-        if(opt.test.showGroundTruth) {
-            if(groundTruth) {
-                show_ranks(os, db.ranks(groundTruth),
-                    opt.output.showTaxaAs, groundTruth->rank(),
-                    opt.output.showLineage ? opt.classify.highestRank : groundTruth->rank(),
-                    opt.output.separator);
-            } else {
-                os << "n/a";
-            }
-            os << opt.output.separator;
-        }
-
-        //print results
-        if(opt.output.showAllHits) {
-            show_matches(os, db, hits, opt.classify.lowestRank);
-            os << opt.output.separator;
-        }
-        if(opt.output.showTopHits) {
-            show_matches(os, db, tophits, opt.classify.lowestRank);
-            os << opt.output.separator;
-        }
-        if(opt.output.showLocations) {
-            show_candidate_ranges(os, db, tophits);
-            os << opt.output.separator;
-        }
-        show_classification(os, opt.output, opt.classify, db, cls);
+    if(opt.showGroundTruth) {
+        show_taxon(os, db, opt, query.groundTruth);
+        os << opt.separator;
     }
 
-    //optional alignment ------------------------------
-    if(opt.test.alignmentScores && cls) {
-        use_alignment(db, opt.output, query1, query2, tophits, stats, os);
+    if(opt.showAllHits) {
+        show_matches(os, db, allhits, opt.lowestRank);
+        os << opt.separator;
+    }
+    if(opt.showTopHits) {
+        show_matches(os, db, cls.candidates, opt.lowestRank);
+        os << opt.separator;
+    }
+    if(opt.showLocations) {
+        show_candidate_ranges(os, db, cls.candidates);
+        os << opt.separator;
     }
 
-    if(showMapping) os << '\n';
+    show_taxon(os, db, opt, cls.best);
+
+    if(opt.showAlignment && cls.best) {
+        show_alignment(os, db, opt, query, cls.candidates);
+    }
+
+    os << '\n';
 }
-
 
 
 
@@ -521,40 +516,60 @@ void map_queries_to_targets_default(
     const database& db, const query_options& opt,
     classification_results& results)
 {
-    //per thread batch object storing / processing query results
-    using buffer_t = std::ostringstream;
+    using obuf_t = std::ostringstream;
+
+    const auto makeBatchBuffer = [] { return obuf_t(); };
+
+
+    const auto processQuery = [&] (
+        obuf_t& buf, sequence_query&& query, matches_per_location&& allhits)
+    {
+        if(query.empty()) return;
+
+        prepare_evaluation(db, opt.evaluate, query, allhits);
+
+        auto cls = classify(db, opt.classify, query, allhits);
+
+        evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
+
+        show_query_mapping(buf, db, opt.output, query, cls, allhits);
+    };
+
+
+    const auto finalizeBatch = [&] (const obuf_t& buf) {
+        //write buffer to output stream when batch is finished
+        results.out << buf.str();
+    };
+
+
+    const auto showStatus = [&] (const std::string& msg, float progress) {
+        if(opt.output.mapViewMode != map_view_mode::none) {
+            results.out << opt.output.comment << msg << '\n';
+        }
+        if(progress >= 0.0f) {
+            show_progress_indicator(results.status, progress);
+        }
+    };
+
 
     //run (parallel) database queries according to processing options
     query_database(infiles, db, opt.process,
-        //buffer source: return inital state for per-thread buffer
-        [] { return buffer_t{}; },
-        //buffer update: classify and write classification result to buffer
-        [&] (
-            buffer_t& buf, matches_per_location&& matches,
-            const string& header,
-            const sequence& seq1, const sequence& seq2)
-        {
-            process_database_answer(db, opt, header, seq1, seq2,
-                                    std::move(matches), results.statistics, buf);
-        },
-        //buffer sink: write buffer to output stream when batch is finished
-        [&] (const buffer_t& buf) {
-            results.out << buf.str();
-        },
-        //display status messages
-        [&] (const std::string& msg, float progress) {
-            if(opt.output.mapViewMode != map_view_mode::none) {
-                results.out << opt.output.comment << msg << '\n';
-            }
-            if(progress >= 0.0f) {
-                show_progress_indicator(results.status, progress);
-            }
-        }
-    );
+                   makeBatchBuffer, processQuery, finalizeBatch,
+                   showStatus);
 }
 
 
 
+/*************************************************************************//**
+ *
+ * @brief per-batch buffer for output and (target -> hits) lists
+ *
+ *****************************************************************************/
+struct mappings_buffer
+{
+    std::ostringstream out;
+    matches_per_target hitsPerTarget;
+};
 
 /*************************************************************************//**
  *
@@ -564,13 +579,63 @@ void map_queries_to_targets_default(
  *
  *****************************************************************************/
 void map_queries_to_targets_and_vice_versa(
-    const vector<string>&,
-    const database&, const query_options&,
-    classification_results&)
+    const vector<string>& infiles,
+    const database& db, const query_options& opt,
+    classification_results& results)
 {
-    throw std::runtime_error{"target->hits list generation not supported yet"};
-}
+    //global target -> query_id/win:hits... list
+    matches_per_target tgtMatches;
 
+    //batch buffer (each batch might be processed by a different thread)
+    const auto makeBatchBuffer = [] { return mappings_buffer(); };
+
+
+    const auto processQuery = [&] (mappings_buffer& buf,
+        sequence_query&& query, matches_per_location&& allhits)
+    {
+        if(query.empty()) return;
+
+        prepare_evaluation(db, opt.evaluate, query, allhits);
+
+        auto cls = classify(db, opt.classify, query, allhits);
+
+        buf.hitsPerTarget.insert(query.id, allhits, cls.candidates);
+
+        evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
+
+        show_query_mapping(buf.out, db, opt.output, query, cls, allhits);
+    };
+
+
+    const auto finalizeBatch = [&] (mappings_buffer&& buf) {
+        //merge batch (target->hits) lists into global one
+        tgtMatches.merge(std::move(buf.hitsPerTarget));
+        //write output buffer to output stream when batch is finished
+        results.out << buf.out.str();
+    };
+
+
+    const auto showStatus = [&] (const std::string& msg, float progress) {
+        if(opt.output.mapViewMode != map_view_mode::none) {
+            results.out << opt.output.comment << msg << '\n';
+        }
+        if(progress >= 0.0f) {
+            show_progress_indicator(results.status, progress);
+        }
+    };
+
+
+    //run (parallel) database queries according to processing options
+    query_database(infiles, db, opt.process,
+                   makeBatchBuffer, processQuery, finalizeBatch,
+                   showStatus);
+
+    results.out << opt.output.comment
+        << "------------------------------------------------------------\n";
+
+    tgtMatches.sort_match_lists();
+    show_matches_per_targets(results.out, tgtMatches, opt.output);
+}
 
 
 
@@ -581,8 +646,8 @@ void map_queries_to_targets_and_vice_versa(
  *
  *****************************************************************************/
 void map_queries_to_targets(const vector<string>& infiles,
-                          const database& db, const query_options& opt,
-                          classification_results& results)
+                            const database& db, const query_options& opt,
+                            classification_results& results)
 {
     if(opt.output.showHitsPerTargetList) {
         map_queries_to_targets_and_vice_versa(infiles, db, opt, results);

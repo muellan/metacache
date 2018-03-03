@@ -26,7 +26,6 @@
 #include <mutex>
 
 #include "taxonomy.h"
-#include "stat_moments.h"
 #include "stat_confusion.h"
 
 
@@ -44,13 +43,11 @@ public:
     //---------------------------------------------------------------
     using rank = taxonomy::rank;
     using count_t = std::uint_least64_t;
-    using alignment_statistics = skewness_accumulator<double>;
 
 
     //---------------------------------------------------------------
     classification_statistics() noexcept :
-        assigned_{}, known_{}, correct_{}, wrong_{}, coverage_{},
-        alignmentScore_{}, mtx_{}
+        assigned_{}, known_{}, correct_{}, wrong_{}, coverage_{}, mtx_{}
     {
         for(auto& x : assigned_) x = 0;
         for(auto& x : known_)    x = 0;
@@ -120,22 +117,6 @@ public:
                 }
             }
         }
-    }
-
-
-    //---------------------------------------------------------------
-    /**
-     * @brief concurrency-sage, but might be slow due to locking
-     */
-    void register_alignment_score(double score)
-    {
-        std::lock_guard<std::mutex> lock(mtx_);
-        alignmentScore_ += score;
-    }
-
-    const alignment_statistics&
-    alignment_scores() const noexcept {
-        return alignmentScore_;
     }
 
 
@@ -250,7 +231,6 @@ private:
     std::atomic<count_t> correct_[taxonomy::num_ranks+1];
     std::atomic<count_t> wrong_[taxonomy::num_ranks+1];
     confusion_statistics coverage_[taxonomy::num_ranks+1];
-    alignment_statistics alignmentScore_;
     std::mutex mtx_;
 };
 

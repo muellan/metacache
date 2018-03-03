@@ -370,14 +370,6 @@ public:
         hasWaiting_.store(true);
     }
     //-----------------------------------------------------
-    void
-    enqueue(std::initializer_list<task_type> il)
-    {
-        std::lock_guard<std::mutex> lock(mutables_);
-        waiting_.insert(waiting_.end(), il);
-        hasWaiting_.store(true);
-    }
-    //-----------------------------------------------------
     template<class... Args>
     void
     enqueue_emplace(Args&&... args)
