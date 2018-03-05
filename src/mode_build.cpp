@@ -482,7 +482,6 @@ void add_to_database(database& db, const build_options& opt)
                  << (db.target_count() - initNumTargets) << " reference sequences "
                  << "in " << time.seconds() << " s" << endl;
 
-            if(opt.infoLevel == info_level::verbose) print_static_properties(db);
             print_content_properties(db);
         }
     }

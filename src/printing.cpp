@@ -342,12 +342,14 @@ void show_matches_per_targets(std::ostream& os,
                               const matches_per_target& tgtMatches,
                               const classification_output_options& out)
 {
-    os  << out.comment << " genome " << out.separator
+    os  << out.comment
+        << " genome " << out.separator
+        << " windows_in_genome " << out.separator
         << "queryid/window:hits/window:hits/...,queryid/...\n";
 
     for(const auto& mapping : tgtMatches) {
         show_taxon(os, mapping.first, out.showTaxaAs);
-        os << out.separator;
+        os << out.separator << mapping.first->source().windows << out.separator;
 
         bool first = true;
         for(const auto& candidate : mapping.second) {
