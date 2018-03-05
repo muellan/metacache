@@ -125,8 +125,11 @@ public:
                 matches_per_window mpw;
                 mpw.reserve(cand.pos.end - cand.pos.beg + 1);
 
-                while(it->loc.win <= cand.pos.end && it->loc.tax == cand.tax) {
+                while(it != matches.end() && it->loc.win <= cand.pos.end &&
+                    it->loc.tax == cand.tax)
+                {
                     mpw.emplace_back(it->loc.win, it->hits);
+                    ++it;
                 }
                 // insert into map
                 hitsPerTarget_[cand.tax].emplace_back(qid, std::move(mpw));

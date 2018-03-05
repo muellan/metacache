@@ -358,6 +358,7 @@ void show_matches_per_targets(std::ostream& os,
                 os << '/' << match.win << ':' << match.hits;
             }
         }
+        os << '\n';
     }
 }
 
