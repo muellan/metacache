@@ -40,10 +40,10 @@ namespace mc {
 struct classification_results
 {
     explicit
-    classification_results(std::ostream& outTarget = std::cout,
+    classification_results(std::ostream& outputTarget = std::cout,
                            std::ostream& statusTarget = std::cerr)
     :
-        out(outTarget), status(statusTarget)
+        out(outputTarget), status(statusTarget)
     {}
 
     std::ostream& out;

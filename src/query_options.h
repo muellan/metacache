@@ -189,6 +189,9 @@ struct classification_output_options
     std::string comment = "# ";
     //separates individual mapping fields
     std::string separator = "\t|\t";
+
+    //separate file for target -> hit mappings
+    std::string hitsPerTargetOutfile;
 };
 
 

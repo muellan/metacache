@@ -630,11 +630,31 @@ void map_queries_to_targets_and_vice_versa(
                    makeBatchBuffer, processQuery, finalizeBatch,
                    showStatus);
 
-    results.out << opt.output.comment
-        << "------------------------------------------------------------\n";
+    if(tgtMatches.empty()) return;
+
+    std::ostream* tgtMatchesOut = &std::cout;
+    std::ofstream tgtMatchesFile;
+    if(!opt.output.hitsPerTargetOutfile.empty()) {
+        tgtMatchesFile.open(opt.output.hitsPerTargetOutfile);
+        if(tgtMatchesFile.good()) {
+            results.out << opt.output.comment
+                << " (genome -> matches) list will be written to "
+                << opt.output.hitsPerTargetOutfile << '\n';
+            tgtMatchesOut = &tgtMatchesFile;
+        }
+    }
+
+    if(opt.output.mapViewMode != map_view_mode::none && !tgtMatchesFile->good()) {
+        results.out << opt.output.comment
+            << "------------------------------------------------------------\n";
+    }
+
+    *tgtMatchesOut  << opt.output.comment
+        << " note: window start position within genome = window_index * window_stride(="
+        << db.query_window_stride() << ")\n";
 
     tgtMatches.sort_match_lists();
-    show_matches_per_targets(results.out, tgtMatches, opt.output);
+    show_matches_per_targets(*tgtMatchesOut, tgtMatches, opt.output);
 }
 
 

@@ -101,8 +101,10 @@ ADVANCED ANALYSIS OPTIONS
                        default: off
 
     -hits-per-genome   Shows a list of all hits for each reference genome.
-                       If this condensed list is all you need, you should
+        [<filename>]   If this condensed list is all you need, you should
                        deactive the per-read mapping output with "-nomap".
+                       If a valied filename is given after '-hits-per-genome',
+                       the list will be written to a separate file.
                        This will activate "-queryids" and set the lowest 
                        classification rank to "sequence".
                        default:off

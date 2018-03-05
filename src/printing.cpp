@@ -345,7 +345,7 @@ void show_matches_per_targets(std::ostream& os,
     os  << out.comment
         << " genome " << out.separator
         << " windows_in_genome " << out.separator
-        << "queryid/window:hits/window:hits/...,queryid/...\n";
+        << "queryid/window_index:hits/window_index:hits/...,queryid/...\n";
 
     for(const auto& mapping : tgtMatches) {
         show_taxon(os, mapping.first, out.showTaxaAs);

@@ -258,6 +258,9 @@ get_classification_output_options(const args_parser& args,
     opt.showHitsPerTargetList = defaults.showHitsPerTargetList ||
         args.contains({"hits-per-genome", "hitspergenome", "hits_per_genome"});
 
+    opt.hitsPerTargetOutfile =
+        args.get<string>({"hits-per-genome", "hitspergenome", "hits_per_genome"}, "");
+
     opt.showErrors = defaults.showErrors && !args.contains({"-noerr","-noerrors"});
 
     opt.showGroundTruth = evaluate.determineGroundTruth;

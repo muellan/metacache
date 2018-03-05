@@ -91,6 +91,10 @@ public:
 
 
     //-------------------------------------------------------------------
+    bool empty() const noexcept {
+        return hitsPerTarget_.empty();
+    }
+
     std::size_t size() const noexcept {
         return hitsPerTarget_.size();
     }

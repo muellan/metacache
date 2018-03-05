@@ -93,6 +93,10 @@ void show_query_parameters(const query_options& opt, std::ostream& os)
         os << comment << "Query sequences will be aligned to best candidate target => SLOW!\n";
     }
 
+    if(opt.output.showHitsPerTargetList) {
+        os << comment << "Hits per genome list will be generated after the read mapping  complete.";
+    }
+
     os << comment << "Using " << opt.process.numThreads << " threads\n";
 }
 
