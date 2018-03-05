@@ -48,12 +48,14 @@ function download_specific_lib {
         #only complete genomes
         awk -F "\t" '$12=="Complete Genome" && $11=="latest"{print $20}' assembly_summary.txt > ftpdirpaths1
         touch ftpdirpaths2
+        touch ftpdirpaths3
       fi
       if [ $FILTER -ge 1 ]; then
         awk -F "\t" '$12=="Contig" && $11=="latest"{print $20}' assembly_summary.txt > ftpdirpaths2
+        awk -F "\t" '$12=="Draft" && $11=="latest"{print $20}' assembly_summary.txt > ftpdirpaths3
       fi
 
-      cat ftpdirpaths1 ftpdirpaths2 > ftpdirpaths
+      cat ftpdirpaths1 ftpdirpaths2 ftpdirpaths3 > ftpdirpaths
       awk 'BEGIN{FS=OFS="/";filesuffix="genomic.fna.gz"}{ftpdir=$0;asm=$10;file=asm"_"filesuffix;print ftpdir,file}' ftpdirpaths > ftpfilepaths
       # wget -nc -i ftpfilepaths
       cat ftpfilepaths | xargs -P ${PARALLEL} -n 1 wget -c -nv
