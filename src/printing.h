@@ -89,6 +89,7 @@ void show_candidate_ranges(std::ostream&,
  *
  *****************************************************************************/
 void show_matches_per_targets(std::ostream& os,
+                              const database&,
                               const matches_per_target&,
                               const classification_output_options&);
 

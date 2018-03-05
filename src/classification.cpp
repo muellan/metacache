@@ -654,7 +654,7 @@ void map_queries_to_targets_and_vice_versa(
         << db.query_window_stride() << ")\n";
 
     tgtMatches.sort_match_lists();
-    show_matches_per_targets(*tgtMatchesOut, tgtMatches, opt.output);
+    show_matches_per_targets(*tgtMatchesOut, db, tgtMatches, opt.output);
 }
 
 

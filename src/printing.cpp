@@ -339,6 +339,7 @@ void show_candidate_ranges(std::ostream& os,
 
 //-------------------------------------------------------------------
 void show_matches_per_targets(std::ostream& os,
+                              const database& db,
                               const matches_per_target& tgtMatches,
                               const classification_output_options& out)
 {
@@ -348,7 +349,7 @@ void show_matches_per_targets(std::ostream& os,
         << "queryid/window_index:hits/window_index:hits/...,queryid/...\n";
 
     for(const auto& mapping : tgtMatches) {
-        show_taxon(os, mapping.first, out.showTaxaAs);
+        show_taxon(os, db, out, mapping.first);
         os << out.separator << mapping.first->source().windows << out.separator;
 
         bool first = true;
