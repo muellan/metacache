@@ -644,7 +644,7 @@ void map_queries_to_targets_and_vice_versa(
         }
     }
 
-    if(opt.output.mapViewMode != map_view_mode::none && !tgtMatchesFile->good()) {
+    if(opt.output.mapViewMode != map_view_mode::none && !tgtMatchesFile.good()) {
         results.out << opt.output.comment
             << "------------------------------------------------------------\n";
     }
