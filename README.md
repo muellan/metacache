@@ -25,9 +25,9 @@ Once the default database is built you can classify reads:
 ## Detailed Installation Instructions
 
 #### Requirements
-MetaCache itself should compile on any platform for which a C++11 conforming compiler is available.
+MetaCache itself should compile on any platform for which a C++11 conforming compiler is available. The Makefile is written with g++ or clang++ in mind, but could probably be adapted to MSVC or other compilers.
 
-The helper scripts (for downloading genomes, taxonomy etc.) however require the Bash shell to run. So on Windows you need a working bash executable as well as some common GNU utilities like "awk" and "wget". There is for example "Git Bash" which comes with git for Windows or the 'Windows Subsystem for Linux'.
+The helper scripts (for downloading genomes, taxonomy etc.) require the Bash shell to run. That means you need a working bash executable as well as some common GNU utilities like "awk" and "wget". On Windows you should use the 'Windows Subsystem for Linux' (which gives you an Ubuntu user mode talking to the Windows Kernel).
 
 There are no dependencies on third party libraries.
 MetaCache was successfully tested on the following platforms (all 64 bit + 64 bit compilers):
@@ -40,7 +40,7 @@ MetaCache was successfully tested on the following platforms (all 64 bit + 64 bi
 - Windows 10.1703 64bit running Ubuntu 14.04 inside WSL and g++ 5.4.1 
 - Windows 10.1709 64bit running Ubuntu 16.04 inside WSL and g++ 7.2
 
-In order to be able to build the default database with default settings your system should have around 32GB of RAM (note that the NCBI RefSeq will still be growing in the near future).
+In order to be able to build the default database (based on NCBI RefSeq Release 86 as of 2018-03-05) with default settings your system should have around 48GB of RAM (note that the NCBI RefSeq will still be growing in the near future).
 
 
 #### Get The Latest Sources
