@@ -149,7 +149,7 @@ Metacache has different modes, one of them is the 'query' mode. Once a database 
 MetaCache's default read mapping output format is: 
 ```read_header | taxon_rank:taxon_name```
 
-This will not be changed in the future to avoid breaking anyone'spipelines. Command line options won't change in the near future for the same reason. 
+This will not be changed in the future to avoid breaking anyone's pipelines. Command line options won't change in the near future for the same reason. 
 
 The following tables show some of the possible mapping layouts with their associated command line arguments.
 
