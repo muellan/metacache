@@ -49,10 +49,10 @@ using std::flush;
  * @brief makes non-owning view to (sub)sequence
  *
  *****************************************************************************/
-template<class Sequence, class Index>
+template<class Sequence>
 inline auto
-make_view_from_window_range(
-    const Sequence& s, const window_range<Index>& range, int size, int stride)
+make_view_from_window_range(const Sequence& s, const window_range& range,
+                            int size, int stride)
     -> decltype(make_view(s.begin(),s.end()))
 {
     auto end = s.begin() + (stride * range.end) + size;
@@ -633,7 +633,10 @@ void map_queries_to_targets_and_vice_versa(
 
         auto cls = classify(db, opt.classify, query, allhits);
 
-        buf.hitsPerTarget.insert(query.id, allhits, cls.candidates);
+        //insert all candidates with at least 'hitsMin' hits into
+        //target -> match list
+        buf.hitsPerTarget.insert(query.id, allhits, cls.candidates,
+                                 opt.classify.hitsMin);
 
         evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
 

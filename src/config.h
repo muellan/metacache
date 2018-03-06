@@ -32,7 +32,6 @@
 
 #include "sketch_database.h"
 #include "hash_dna.h"
-#include "candidates.h"
 
 
 namespace mc {
@@ -129,8 +128,12 @@ using matches_per_location = database::matches_per_location;
     #define MC_VOTE_TOP 2
 #endif
 
+//forward declaration breaks include cycle "config.h" <-> "candidates.h"
+template<int>
+class top_distinct_matches_in_contiguous_window_range;
+
 using classification_candidates =
-    top_distinct_matches_in_contiguous_window_range<database,MC_VOTE_TOP>;
+    top_distinct_matches_in_contiguous_window_range< MC_VOTE_TOP >;
 
 
 } // namespace mc

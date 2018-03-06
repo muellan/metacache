@@ -29,7 +29,7 @@
 #include <algorithm> // move, sort, lower_bound
 #include <iterator>  // make_move_iterator
 
-#include "config.h"
+#include "candidates.h"
 
 
 namespace mc {
@@ -110,7 +110,8 @@ public:
     //---------------------------------------------------------------
     void insert(query_id qid,
                 const matches_per_location& matches,
-                const classification_candidates& candidates)
+                const classification_candidates& candidates,
+                match_count_type minHitsPerCandidate = 0)
     {
         for(const auto& cand : candidates) {
             // TODO at the moment only sequence-level candidates will
@@ -118,7 +119,9 @@ public:
             // sequence-level taxa, whereas candidates can also contain
             // taxa of higher levels if the "-lowest" command line option
             // is set to a rank higher than "sequence"
-            if(cand.tax && cand.tax->rank() == taxon_rank::Sequence) {
+            if(cand.tax && cand.tax->rank() == taxon_rank::Sequence &&
+                cand.hits >= minHitsPerCandidate)
+            {
                 // find candidate in matches
                 location_matches lm({cand.tax, cand.pos.beg},0);
                 auto it = std::lower_bound(matches.begin(), matches.end(), lm);

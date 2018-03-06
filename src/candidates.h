@@ -27,6 +27,8 @@
 #include <cstdint>
 #include <limits>
 
+#include "config.h"
+
 
 namespace mc {
 
@@ -36,10 +38,9 @@ namespace mc {
  * @brief
  *
  *****************************************************************************/
-template<class WindowId>
 struct window_range
 {
-    using value_type = WindowId;
+    using value_type = database::window_id;
 
     constexpr
     window_range() noexcept = default;
@@ -63,16 +64,15 @@ struct window_range
  * @brief
  *
  *****************************************************************************/
-template<class Database>
 struct match_candidate
 {
-    using taxon        = typename Database::taxon;
-    using window_id    = typename Database::window_id;
+    using taxon        = database::taxon;
+    using window_id    = database::window_id;
+    using window_range = mc::window_range;
     using count_type   = std::uint_least64_t;
-    using window_range = mc::window_range<window_id>;
 
-
-    match_candidate() = default;
+    constexpr
+    match_candidate() noexcept = default;
 
     const taxon* tax = nullptr;
     count_type   hits = 0;
@@ -88,7 +88,7 @@ struct match_candidate
 *        window ranges of *distinct* targets
 *
 *****************************************************************************/
-template<class Database, int maxNo>
+template<int maxNo>
 class top_distinct_matches_in_contiguous_window_range
 {
     static_assert(maxNo > 1, "no must be > 1");
@@ -96,22 +96,21 @@ class top_distinct_matches_in_contiguous_window_range
 
 public:
     //---------------------------------------------------------------
-    using matches_per_location = typename Database::matches_per_location;
-    using target_id      = typename Database::target_id;
-    using window_id      = typename Database::window_id;
-    using taxon          = typename Database::taxon;
-    using taxon_rank     = typename Database::taxon_rank;
-    using candidate      = match_candidate<Database>;
-    using window_range   = typename candidate::window_range;
-    using hit_count      = typename candidate::count_type;
-    using const_iterator = const candidate*;
+    using matches_per_location = database::matches_per_location;
+    using target_id      = database::target_id;
+    using window_id      = database::window_id;
+    using taxon          = database::taxon;
+    using taxon_rank     = database::taxon_rank;
+    using window_range   = match_candidate::window_range;
+    using hit_count      = match_candidate::count_type;
+    using const_iterator = const match_candidate*;
 
 
     /****************************************************************
      * @pre matches must be sorted by taxon (first) and window (second)
      */
     top_distinct_matches_in_contiguous_window_range(
-        const Database& db,
+        const database& db,
         const matches_per_location& matches,
         //max. allowed number of windows in a contiguous range
         window_id numWindows = 3,
@@ -123,7 +122,7 @@ public:
         using std::begin;
         using std::end;
 
-        candidate curBest;
+        match_candidate curBest;
         hit_count hits = 0;
 
         //check hits per query sequence
@@ -183,7 +182,8 @@ public:
         return maxNo;
     }
 
-    const candidate& operator [] (int rank) const noexcept {
+    const match_candidate&
+    operator [] (int rank) const noexcept {
         return top_[rank];
     }
 
@@ -196,8 +196,8 @@ public:
 private:
     //---------------------------------------------------------------
     /** @brief keeps track of 'maxNo' taxa with largest hits */
-    void update_with(candidate latest,
-                     const Database& db, taxon_rank mergeOn)
+    void update_with(match_candidate latest,
+                     const database& db, taxon_rank mergeOn)
     {
         if(!latest.tax) return;
 
@@ -242,7 +242,7 @@ private:
 
 
     //---------------------------------------------------------------
-    candidate top_[maxNo];
+    match_candidate top_[maxNo];
 };
 
 
