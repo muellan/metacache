@@ -19,15 +19,15 @@ SUB-MODES
         show basic database configuration & properties of <database>
 
     metacache info <database> target 
-        list all available meta information for all reference genomes
+        list all available meta information for all reference sequences
         in <database>
 
     metacache info <database> target <sequence_id>...
-        list all available meta information for a specific reference genome
+        list all available meta information for a specific reference sequence
         in <database>
 
     metacache info <database> lineages
-        print a table with ranked lineages for all reference genomes
+        print a table with ranked lineages for all reference sequences
         in <database>
 
     metacache info <database> rank <rankname>
@@ -43,10 +43,10 @@ SUB-MODES
         prints (feature -> target count) map
 
 EXAMPLES
-    List metadata for all reference genomes in database 'refseq':
+    List metadata for all reference sequences in database 'refseq':
         metacache info refseq.db
 
-    List metadata for the genome with id NC_12345.6 in database 'refseq':
+    List metadata for the sequence with id NC_12345.6 in database 'refseq':
         metacache info refseq.db sequ NC_12345.6
 
     List distribution of the number of sequences on rank 'domain':

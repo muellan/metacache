@@ -26,6 +26,7 @@
 #include <string>
 
 #include "classification_statistics.h"
+#include "timer.h"
 #include "config.h"
 
 
@@ -40,14 +41,25 @@ namespace mc {
 struct classification_results
 {
     explicit
-    classification_results(std::ostream& outputTarget = std::cout,
+    classification_results(std::ostream& mapOutputTgt = std::cout,
+                           std::ostream& auxOutputTgt = std::cout,
                            std::ostream& statusTarget = std::cerr)
     :
-        out(outputTarget), status(statusTarget)
+        mapout(mapOutputTgt),
+        auxout(auxOutputTgt),
+        status(statusTarget)
     {}
 
-    std::ostream& out;
+    void flush_all_streams() {
+        mapout.flush();
+        auxout.flush();
+        status.flush();
+    }
+
+    std::ostream& mapout;
+    std::ostream& auxout;
     std::ostream& status;
+    timer time;
     classification_statistics statistics;
 };
 

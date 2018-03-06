@@ -48,55 +48,88 @@ void show_target_info(std::ostream& os, const database& db, const taxon& tax)
 
 
 //-------------------------------------------------------------------
+void show_query_parameters(std::ostream& os, const query_options& opt)
+{
+    const auto& comment = opt.output.format.comment;
+    if(opt.output.mapViewMode != map_view_mode::none) {
+        os << comment << "Reporting per-read mappings (non-mapping lines start with '"
+           << comment << "').\n";
+
+        os << comment
+           << "Output will be constrained to ranks from '"
+           << taxonomy::rank_name(opt.classify.lowestRank) << "' to '"
+           << taxonomy::rank_name(opt.classify.highestRank) << "'.\n";
+
+        if(opt.output.showLineage) {
+            os << comment
+               << "The complete lineage will be reported "
+               << "starting with the lowest match.\n";
+        }
+        else {
+            os << comment
+               << "Only the lowest matching rank will be reported.\n";
+        }
+    }
+    else {
+        os << comment << "Per-Read mappings will not be shown.\n";
+    }
+
+    if(opt.evaluate.excludeRank != taxon_rank::none) {
+        os << comment << "Clade Exclusion on Rank: "
+           << taxonomy::rank_name(opt.evaluate.excludeRank);
+    }
+
+    if(opt.process.pairing == pairing_mode::files) {
+        os << comment << "File based paired-end mode:\n"
+           << comment << "  Reads from two consecutive files will be interleaved.\n"
+           << comment << "  Max insert size considered " << opt.classify.insertSizeMax << ".\n";
+    }
+    else if(opt.process.pairing == pairing_mode::sequences) {
+        os << comment << "Per file paired-end mode:\n"
+           << comment << "  Reads from two consecutive sequences in each file will be paired up.\n"
+           << comment << "  Max insert size considered " << opt.classify.insertSizeMax << ".\n";
+    }
+
+    if(opt.output.showAlignment) {
+        os << comment << "Query sequences will be aligned to best candidate target => SLOW!\n";
+    }
+
+    if(opt.output.showHitsPerTargetList) {
+        os << comment << "A list of hits per reference sequence "
+           << "will be generated after the read mapping.\n";
+    }
+
+    os << comment << "Using " << opt.process.numThreads << " threads\n";
+}
+
+
+
+//-------------------------------------------------------------------
 void show_taxon(std::ostream& os,
                 const taxon* tax, taxon_print_mode mode,
-                const std::string& separator = "")
+                const formatting_strings& fmt)
 {
     if(!tax) return;
-    if(separator.empty()) {
-        switch(mode) {
-            default:
-            case taxon_print_mode::rank_name:
-                os << taxonomy::rank_name(tax->rank()) << ':';
-                [[fallthrough]] // fall through
-            case taxon_print_mode::name:
-                os << tax->name();
-                break;
-            case taxon_print_mode::rank_id:
-                os << taxonomy::rank_name(tax->rank()) << ':';
-                [[fallthrough]] // fall through
-            case taxon_print_mode::id:
-                os << tax->id();
-                break;
-            case taxon_print_mode::rank_name_id:
-                os << taxonomy::rank_name(tax->rank()) << ':';
-                [[fallthrough]] // fall through
-            case taxon_print_mode::name_id:
-                os << tax->name() << '(' << tax->id() << ')';
-                break;
-        }
-    } else {
-        switch(mode) {
-            default:
-            case taxon_print_mode::rank_name:
-                os << taxonomy::rank_name(tax->rank()) << separator;
-                [[fallthrough]] // fall through
-            case taxon_print_mode::name:
-                os << tax->name();
-                break;
-            case taxon_print_mode::rank_id:
-                os << taxonomy::rank_name(tax->rank()) << separator;
-                [[fallthrough]] // fall through
-            case taxon_print_mode::id:
-                os << tax->id();
-                break;
-            case taxon_print_mode::rank_name_id:
-                os << taxonomy::rank_name(tax->rank()) << separator;
-                [[fallthrough]] // fall through
-            case taxon_print_mode::name_id:
-                os << tax->name() << separator << tax->id();
-                break;
-        }
+    switch(mode) {
+        default:
+        case taxon_print_mode::rank_name:
+            os << taxonomy::rank_name(tax->rank()) << fmt.rankSuffix;
+            [[fallthrough]] // fall through
+        case taxon_print_mode::name:
+            os << tax->name();
+            break;
+        case taxon_print_mode::rank_id:
+            os << taxonomy::rank_name(tax->rank()) << fmt.rankSuffix;
+            [[fallthrough]] // fall through
+        case taxon_print_mode::id:
+            os << tax->id();
+            break;
+        case taxon_print_mode::rank_name_id:
+            os << taxonomy::rank_name(tax->rank()) << fmt.rankSuffix;
+            [[fallthrough]] // fall through
+        case taxon_print_mode::name_id:
+            os << tax->name() << fmt.taxidPrefix << tax->id() << fmt.taxidSuffix;
+            break;
     }
 }
 
@@ -106,89 +139,53 @@ void show_taxon(std::ostream& os,
 void show_no_taxon(std::ostream& os,
                    taxon_print_mode mode,
                    taxon_rank rank,
-                   const std::string& separator)
+                   const formatting_strings& fmt)
 {
-    if(separator.empty()) {
-        switch(mode) {
-            default:
-            case taxon_print_mode::rank_name:
-                os << taxonomy::rank_name(rank) << ':';
-                [[fallthrough]] // fall through
-            case taxon_print_mode::name:
-                os << "--";
-                break;
-            case taxon_print_mode::rank_id:
-                os << taxonomy::rank_name(rank) << ':';
-                [[fallthrough]] // fall through
-            case taxon_print_mode::id:
-                os << taxonomy::none_id();
-                break;
-            case taxon_print_mode::rank_name_id:
-                os << taxonomy::rank_name(rank) << ':';
-                [[fallthrough]] // fall through
-            case taxon_print_mode::name_id:
-                os << "--(" << taxonomy::none_id() << ')';
-                break;
-        }
-    } else {
-        switch(mode) {
-            default:
-            case taxon_print_mode::rank_name:
-                os << taxonomy::rank_name(rank) << separator;
-                [[fallthrough]] // fall through
-            case taxon_print_mode::name:
-                os << "--";
-                break;
-            case taxon_print_mode::rank_id:
-                os << taxonomy::rank_name(rank) << separator;
-                [[fallthrough]] // fall through
-            case taxon_print_mode::id:
-                os << taxonomy::none_id();
-                break;
-            case taxon_print_mode::rank_name_id:
-                os << taxonomy::rank_name(rank) << separator;
-                [[fallthrough]] // fall through
-            case taxon_print_mode::name_id:
-                os << "--" << separator << taxonomy::none_id();
-                break;
-        }
+    switch(mode) {
+        default:
+        case taxon_print_mode::rank_name:
+            os << taxonomy::rank_name(rank) << fmt.rankSuffix;
+            [[fallthrough]] // fall through
+        case taxon_print_mode::name:
+            os << fmt.none;
+            break;
+        case taxon_print_mode::rank_id:
+            os << taxonomy::rank_name(rank) << fmt.rankSuffix;
+            [[fallthrough]] // fall through
+        case taxon_print_mode::id:
+            os << taxonomy::none_id();
+            break;
+        case taxon_print_mode::rank_name_id:
+            os << taxonomy::rank_name(rank) << fmt.rankSuffix;
+            [[fallthrough]] // fall through
+        case taxon_print_mode::name_id:
+            os << fmt.none << fmt.taxidPrefix << taxonomy::none_id()
+               << fmt.taxidSuffix;
+            break;
     }
 }
 
 
 
 //-------------------------------------------------------------------
-void show_lineage(
-    std::ostream& os,
-    const ranked_lineage& lineage,
-    taxon_print_mode mode, taxon_rank lowest, taxon_rank highest,
-    const std::string& separator)
+void show_lineage(std::ostream& os,
+                  const ranked_lineage& lineage,
+                  taxon_print_mode mode, taxon_rank lowest, taxon_rank highest,
+                  const formatting_strings& fmt)
 {
     if(lowest == taxon_rank::none) return;
     if(highest == taxon_rank::none) highest = taxon_rank::root;
 
-    //one rank only
-    if(lowest == highest) {
-        show_taxon(os, lineage[int(lowest)], mode, separator);
-    }
-    //range of ranks
-    else {
-        for(auto r = lowest; r <= highest; ++r) {
-            const taxon* tax = lineage[int(r)];
-            if(tax) {
-                show_taxon(os, tax, mode, separator);
-            }
-            else {
-                show_no_taxon(os, mode, lowest, separator);
-            }
-            if(r < highest) {
-                if(separator.empty()) {
-                    os << ',';
-                } else {
-                    os << separator;
-                }
-            }
-
+    for(auto r = lowest; r <= highest; ++r) {
+        const taxon* tax = lineage[int(r)];
+        if(tax) {
+            show_taxon(os, tax, mode, fmt);
+        }
+        else {
+            show_no_taxon(os, mode, r, fmt);
+        }
+        if(r < highest) {
+            os << fmt.taxSeparator;
         }
     }
 
@@ -198,32 +195,77 @@ void show_lineage(
 void show_blank_lineage(std::ostream& os,
                         taxon_print_mode mode,
                         taxon_rank lowest, taxon_rank highest,
-                        const std::string& separator)
+                        const formatting_strings& fmt)
 {
     for(auto r = lowest; r <= highest; ++r) {
         switch(mode) {
             default:
             case taxon_print_mode::rank_name:
-                os << "--" << separator;
+                os << fmt.none << fmt.rankSuffix;
                 [[fallthrough]] // fall through
             case taxon_print_mode::name:
-                os << "--";
+                os << fmt.none;
                 break;
             case taxon_print_mode::rank_id:
-                os << "--" << separator;
+                os << fmt.none << fmt.rankSuffix;
                 [[fallthrough]] // fall through
             case taxon_print_mode::id:
                 os << taxonomy::none_id();
                 break;
             case taxon_print_mode::rank_name_id:
-                os << "--" << separator;
+                os << fmt.none << fmt.rankSuffix;
                 [[fallthrough]] // fall through
             case taxon_print_mode::name_id:
-                os << "--" << separator << taxonomy::none_id();
+                os << fmt.none
+                   << fmt.taxidPrefix << taxonomy::none_id()
+                   << fmt.taxidSuffix;
                 break;
         }
-        if(r < highest) os << separator;
+        if(r < highest) os << fmt.taxSeparator;
     }
+}
+
+
+
+//-------------------------------------------------------------------
+void show_taxon_header(std::ostream& os,
+                       const classification_output_options& opt,
+                       const std::string& prefix)
+{
+
+    const auto rmax = opt.showLineage ? opt.highestRank : opt.lowestRank;
+
+    for(auto r = opt.lowestRank; r <= rmax; ++r) {
+        switch(opt.showTaxaAs) {
+            default:
+            case taxon_print_mode::rank_name:
+                os << prefix << taxonomy::rank_name(r)
+                   << opt.format.rankSuffix;
+                [[fallthrough]] // fall through
+            case taxon_print_mode::name:
+                os << prefix << "taxname";
+                break;
+            case taxon_print_mode::rank_id:
+                os << prefix << taxonomy::rank_name(r)
+                   << opt.format.rankSuffix;
+                [[fallthrough]] // fall through
+            case taxon_print_mode::id:
+                os << prefix << "taxid";
+                break;
+            case taxon_print_mode::rank_name_id:
+                os << prefix << taxonomy::rank_name(r)
+                   << opt.format.rankSuffix;
+                [[fallthrough]] // fall through
+            case taxon_print_mode::name_id:
+                os << prefix << "taxname"
+                   << opt.format.taxidPrefix
+                   << prefix << "taxid"
+                   << opt.format.taxidSuffix;
+                break;
+        }
+        if(r < rmax) os << opt.format.taxSeparator;
+    }
+
 }
 
 
@@ -231,34 +273,26 @@ void show_blank_lineage(std::ostream& os,
 //-------------------------------------------------------------------
 void show_taxon(std::ostream& os,
                 const database& db,
-                const classification_output_options& out,
+                const classification_output_options& opt,
                 const taxon* tax)
 {
-    if(!tax || tax->rank() > out.highestRank) {
-        if(out.separateTaxaInfo) {
-            const auto rmax = out.showLineage ? out.highestRank : out.lowestRank;
-
-            show_blank_lineage(os, out.showTaxaAs,
-                               out.lowestRank, rmax, out.separator);
-        }
-        else {
-            os << "--";
+    if(!tax || tax->rank() > opt.highestRank) {
+        if(opt.collapseUnclassified) {
+            if(opt.showTaxaAs == taxon_print_mode::id) {
+                os << taxonomy::none_id();
+            } else {
+                os << opt.format.none;
+            }
+        } else {
+            const auto rmax = opt.showLineage ? opt.highestRank : opt.lowestRank;
+            show_blank_lineage(os, opt.showTaxaAs, opt.lowestRank, rmax, opt.format);
         }
     }
     else {
-        const auto rmin = out.lowestRank < tax->rank()
-                          ? tax->rank() : out.lowestRank;
+        const auto rmin = opt.lowestRank < tax->rank() ? tax->rank() : opt.lowestRank;
+        const auto rmax = opt.showLineage ? opt.highestRank : rmin;
 
-        const auto rmax = out.showLineage ? out.highestRank : rmin;
-
-        if(out.separateTaxaInfo) {
-            show_lineage(os, db.ranks(tax), out.showTaxaAs,
-                         rmin, rmax, out.separator);
-        }
-        else {
-            show_lineage(os, db.ranks(tax), out.showTaxaAs,
-                         rmin, rmax, "");
-        }
+        show_lineage(os, db.ranks(tax), opt.showTaxaAs, rmin, rmax, opt.format);
     }
 }
 
@@ -341,16 +375,17 @@ void show_candidate_ranges(std::ostream& os,
 void show_matches_per_targets(std::ostream& os,
                               const database& db,
                               const matches_per_target& tgtMatches,
-                              const classification_output_options& out)
+                              const classification_output_options& opt)
 {
-    os  << out.comment
-        << " genome " << out.separator
-        << " windows_in_genome " << out.separator
+    os << opt.format.comment << "TABLE_LAYOUT: "
+        << " sequence " << opt.format.column
+        << " windows_in_sequence " << opt.format.column
         << "queryid/window_index:hits/window_index:hits/...,queryid/...\n";
 
     for(const auto& mapping : tgtMatches) {
-        show_taxon(os, db, out, mapping.first);
-        os << out.separator << mapping.first->source().windows << out.separator;
+        show_taxon(os, db, opt, mapping.first);
+        os << opt.format.column << mapping.first->source().windows
+           << opt.format.column;
 
         bool first = true;
         for(const auto& candidate : mapping.second) {
@@ -369,8 +404,8 @@ void show_matches_per_targets(std::ostream& os,
 
 //-------------------------------------------------------------------
 void show_taxon_statistics(std::ostream& os,
-                                    const classification_statistics& stats,
-                                    const std::string& prefix)
+                           const classification_statistics& stats,
+                           const std::string& prefix)
 {
     constexpr taxon_rank ranks[] {
           taxon_rank::Sequence,

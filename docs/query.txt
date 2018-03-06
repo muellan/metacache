@@ -80,10 +80,11 @@ OUTPUT FORMATTING OPTIONS
     -queryids          Show a unique id for each query.
                        Note that in paired-end mode a query is a pair of two 
                        read sequences. This option will always be activated if 
-                       "-hits-per-genome" is given.
+                       "-hits-per-seq" is given.
                        default: off
 
-    -locations         Show locations in classification candidate reference genomes.
+    -locations         Show locations in classification candidate reference 
+                       sequences.
                        default: off 
 
     -lineage           Report complete lineage for per-read classification
@@ -100,10 +101,10 @@ ADVANCED ANALYSIS OPTIONS
     -allhits           For each query, print all feature hits in database.
                        default: off
 
-    -hits-per-genome   Shows a list of all hits for each reference genome.
-        [<filename>]   If this condensed list is all you need, you should
+    -hits-per-seq      Shows a list of all hits for each reference sequence.
+     [<filename>]      If this condensed list is all you need, you should
                        deactive the per-read mapping output with "-nomap".
-                       If a valied filename is given after '-hits-per-genome',
+                       If a valid filename is given after '-hits-per-seq',
                        the list will be written to a separate file.
                        This will activate "-queryids" and set the lowest 
                        classification rank to "sequence".
@@ -123,10 +124,10 @@ ADVANCED OPTIONS
                        default: off
 
     -winlen <no>       number of letters in each sampling window
-                       default: same as for reference genomes in database
+                       default: same as for reference sequences in database
 
     -winstride <no>    distance between window starting positions
-                       default: same as for reference genomes in database
+                       default: same as for reference sequences in database
 
     -sketchlen <no>    number of features per window
                        default: same as in database
@@ -152,7 +153,7 @@ ADVANCED OPTIONS
                        default: off
 
     -align             Show semi-global alignment for best candidate target.
-                       Reference genome sequence files must be available.
+                       Original files of reference sequences must be available.
                        This will decrease querying speed!
                        default: off
     
@@ -212,7 +213,7 @@ OUTPUT FORMAT
 
     Note that the default lowest taxon rank is "sequence". Sequence-level taxon
     ids have negative numbers in order to not interfere with NCBI taxon ids.
-    Each target sequence (reference genome) is added as its own taxon below the
+    Each reference sequence is added as its own taxon below the
     lowest known NCBI taxon for that sequence. If you do not want to classify
     at sequence-level, you can set a higher rank as lowest classification rank
     with the "-lowest" command line option: "-lowest species" or

@@ -201,9 +201,23 @@ get_classification_output_options(const args_parser& args,
 {
     classification_output_options opt;
 
-    opt.separator = args.get<string>("separator", defaults.separator);
+    //output tokens
+    opt.format.comment = args.get<string>("comment", defaults.format.comment);
 
-    opt.comment = args.get<string>("comment", defaults.comment);
+    opt.format.column = args.get<string>("separator", defaults.format.column);
+
+    bool separateTaxInfo = args.contains(
+        {"separate-cols", "separatecols", "separate_cols",
+         "separate-columns", "separatecolumns", "separate_columns"});
+
+    if(separateTaxInfo) {
+        opt.collapseUnclassified = false;
+        opt.format.taxSeparator = opt.format.column;
+        opt.format.rankSuffix   = opt.format.column;
+        opt.format.taxidPrefix  = opt.format.column;
+        opt.format.taxidSuffix  = "";
+    }
+
 
     //output formatting
     opt.showLineage = defaults.showLineage || args.contains("lineage");
@@ -215,11 +229,6 @@ get_classification_output_options(const args_parser& args,
 
     opt.showAllHits = defaults.showAllHits ||
                       args.contains({"allhits", "all-hits"});
-
-
-    opt.separateTaxaInfo = args.contains(
-        {"separate-cols", "separatecols", "separate_cols",
-         "separate-columns", "separatecolumns", "separate_columns"});
 
     bool showRanks = !args.contains({"omit-ranks", "omitranks", "omit_ranks"});
 
@@ -256,10 +265,8 @@ get_classification_output_options(const args_parser& args,
     else if(opt.showAllHits) opt.mapViewMode = map_view_mode::all;
 
     opt.showHitsPerTargetList = defaults.showHitsPerTargetList ||
-        args.contains({"hits-per-genome", "hitspergenome", "hits_per_genome"});
-
-    opt.hitsPerTargetOutfile =
-        args.get<string>({"hits-per-genome", "hitspergenome", "hits_per_genome"}, "");
+        args.contains({"hits-per-seq", "hitsperseq", "hits_per_seq",
+                       "hits-per-sequence", "hitspersequence", "hits_per_sequence"});
 
     opt.showErrors = defaults.showErrors && !args.contains({"-noerr","-noerrors"});
 
@@ -311,10 +318,16 @@ get_query_options(const args_parser& args,
         opt.outfile = args.get<string>({"splitout","split-out"}, "");
     }
 
+    opt.auxfile = args.get<string>({"hits-per-seq", "hitsperseq", "hits_per_seq",
+                       "hits-per-sequence", "hitspersequence", "hits_per_sequence"}, "");
+
+    if(opt.auxfile == opt.outfile) opt.auxfile.clear();
+
     opt.showDBproperties = defaults.showDBproperties || args.contains("verbose");
 
-    opt.showQueryParams =
-        (defaults.showQueryParams || args.contains("verbose"));
+    opt.showQueryParams = (defaults.showQueryParams || args.contains("verbose"))
+                        && !args.contains({"no-query-params", "noqueryparams",
+                                                          "no_query_params"});
 
     opt.showSummary = (defaults.showSummary || args.contains("verbose")) &&
                       !(args.contains({"no-summary", "nosummary", "no_summary"}));

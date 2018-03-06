@@ -1,13 +1,13 @@
 Documentation for MetaCache mode "modify"
 
 SYNOPSIS
-    metacache modify <database name> <reference genome>... OPTIONS
+    metacache modify <database name> <reference sequence>... OPTIONS
 
 DESCRIPTION
-    Add reference genomes and/or taxonomic information to an existing database.
+    Add reference sequence and/or taxonomic information to an existing database.
 
     You can also provide names of directories that contain
-    genomic sequence files instead of single filenames. MetaCache will
+    sequence files instead of single filenames. MetaCache will
     search at most 10 levels down in the file hierarchy.
 
 OPTIONS

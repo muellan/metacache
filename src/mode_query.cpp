@@ -27,7 +27,6 @@
 #include "cmdline_utility.h"
 #include "filesys_utility.h"
 #include "query_options.h"
-#include "timer.h"
 #include "classification.h"
 #include "printing.h"
 
@@ -42,145 +41,95 @@ using std::endl;
 using std::flush;
 
 
-/*****************************************************************************
- *
- * @brief prints classification parameters
- *
- *****************************************************************************/
-void show_query_parameters(const query_options& opt, std::ostream& os)
-{
-    const auto& comment = opt.output.comment;
-    if(opt.output.mapViewMode != map_view_mode::none) {
-        os << comment << "Reporting per-read mappings (non-mapping lines start with '"
-           << comment << "').\n";
-
-        os << comment
-           << "Output will be constrained to ranks from '"
-           << taxonomy::rank_name(opt.classify.lowestRank) << "' to '"
-           << taxonomy::rank_name(opt.classify.highestRank) << "'.\n";
-
-        if(opt.output.showLineage) {
-            os << comment
-               << "The complete lineage will be reported "
-               << "starting with the lowest match.\n";
-        }
-        else {
-            os << comment
-               << "Only the lowest matching rank will be reported.\n";
-        }
-    }
-    else {
-        os << comment << "Per-Read mappings will not be shown.\n";
-    }
-
-    if(opt.evaluate.excludeRank != taxon_rank::none) {
-        os << comment << "Clade Exclusion on Rank: "
-           << taxonomy::rank_name(opt.evaluate.excludeRank);
-    }
-
-    if(opt.process.pairing == pairing_mode::files) {
-        os << comment << "File based paired-end mode:\n"
-           << comment << "  Reads from two consecutive files will be interleaved.\n"
-           << comment << "  Max insert size considered " << opt.classify.insertSizeMax << ".\n";
-    }
-    else if(opt.process.pairing == pairing_mode::sequences) {
-        os << comment << "Per file paired-end mode:\n"
-           << comment << "  Reads from two consecutive sequences in each file will be paired up.\n"
-           << comment << "  Max insert size considered " << opt.classify.insertSizeMax << ".\n";
-    }
-
-    if(opt.output.showAlignment) {
-        os << comment << "Query sequences will be aligned to best candidate target => SLOW!\n";
-    }
-
-    if(opt.output.showHitsPerTargetList) {
-        os << comment << "Hits per genome list will be generated after the read mapping  complete.";
-    }
-
-    os << comment << "Using " << opt.process.numThreads << " threads\n";
-}
-
-
 
 /*************************************************************************//**
  *
- * @brief runs classification on input files;
- *        writes results to an output stream
- *        and status messages to a status output stream
+ * @brief runs classification on input files
  *
  *****************************************************************************/
-void process_input_files(const vector<string>& infiles,
-                         const database& db, const query_options& opt,
-                         std::ostream& output, std::ostream& status)
+void show_summary(const query_options& opt,
+                  const classification_results& results)
 {
-    if(opt.showQueryParams) {
-        show_query_parameters(opt, output);
+    const auto& statistics = results.statistics;
+    const auto numQueries = (opt.process.pairing == pairing_mode::none)
+                            ? statistics.total() : 2 * statistics.total();
+
+    const auto speed = numQueries / results.time.minutes();
+    const auto& comment = opt.output.format.comment;
+    results.mapout
+        << comment << "queries: " << numQueries << '\n'
+        << comment << "time:    " << results.time.milliseconds() << " ms\n"
+        << comment << "speed:   " << speed << " queries/min\n";
+
+    if(statistics.total() > 0) {
+        show_taxon_statistics(results.mapout, statistics, comment);
+    } else {
+        results.status << comment << "No valid query sequences found." << endl;
     }
-    output.flush();
-    status.flush();
-
-    classification_results results{output, status};
-
-    timer time;
-    time.start();
-
-    map_queries_to_targets(infiles, db, opt, results);
-
-    time.stop();
-
-    clear_current_line(status);
-    status.flush();
-
-    //show results
-    if(opt.showSummary) {
-        const auto& statistics = results.statistics;
-        const auto numQueries = (opt.process.pairing == pairing_mode::none)
-                                ? statistics.total() : 2 * statistics.total();
-
-        const auto speed = numQueries / time.minutes();
-        const auto& comment = opt.output.comment;
-        output << comment << "queries: " << numQueries << '\n'
-               << comment << "time:    " << time.milliseconds() << " ms\n"
-               << comment << "speed:   " << speed << " queries/min\n";
-
-        if(statistics.total() > 0) {
-            show_taxon_statistics(output, statistics, comment);
-        } else {
-            output << comment << "No valid query sequences found." << endl;
-        }
-    }
-
-    output.flush();
 }
 
 
 
 /*****************************************************************************
  *
- * @brief runs classification on input files;
- *        determines result and status target streams
+ * @brief runs classification on input files; sets output target streams
  *
  *****************************************************************************/
 void process_input_files(const vector<string>& infiles,
                          const database& db, const query_options& opt,
-                         const string& outfilename)
+                         const string& mapFilename,
+                         const string& auxFilename)
 {
-    if(outfilename.empty()) {
-        process_input_files(infiles, db, opt, cout, cerr);
-    }
-    else {
-        std::ofstream os {outfilename, std::ios::out};
+    std::ostream* mapout = &cout;
+    std::ostream* auxout = &cout;
+    std::ostream* status = &cerr;
 
-        if(os.good()) {
-            cout << "Output will be redirected to file: " << outfilename << endl;
+    std::ofstream mapFile;
+    if(!mapFilename.empty()) {
+        mapFile.open(mapFilename, std::ios::out);
 
-            process_input_files(infiles, db, opt, os, cout);
+        if(mapFile.good()) {
+            cout << "Mappings will be written to file: " << mapFilename << endl;
+            mapout = &mapFile;
+            //default: auxiliary output same as mappings output
+            auxout = mapout;
         }
         else {
-            throw file_write_error{
-                "Could not write to output file " + outfilename};
+            throw file_write_error{"Could not write to file " + mapFilename};
         }
     }
+
+    std::ofstream auxFile;
+    if(!auxFilename.empty()) {
+        auxFile.open(auxFilename, std::ios::out);
+
+        if(auxFile.good()) {
+            cout << "Other output will be written to file: " << auxFilename << endl;
+            auxout = &auxFile;
+        }
+        else {
+            throw file_write_error{"Could not write to file " + auxFilename};
+        }
+    }
+
+    classification_results results {*mapout,*auxout,*status};
+
+    if(opt.showQueryParams) {
+        show_query_parameters(results.mapout, opt);
+    }
+
+    results.flush_all_streams();
+
+    results.time.start();
+    map_queries_to_targets(infiles, db, opt, results);
+    results.time.stop();
+
+    clear_current_line(results.status);
+    results.status.flush();
+
+    if(opt.showSummary) show_summary(opt, results);
+
+    results.flush_all_streams();
 }
 
 
@@ -212,35 +161,46 @@ void process_input_files(const vector<string>& infiles,
 
     //process files / file pairs separately
     if(opt.splitFiles) {
-        string outfile;
+        string mapfile;
+        string auxfile;
         //process each input file pair separately
         if(opt.process.pairing == pairing_mode::files && infiles.size() > 1) {
             for(std::size_t i = 0; i < infiles.size(); i += 2) {
                 const auto& f1 = infiles[i];
                 const auto& f2 = infiles[i+1];
                 if(!opt.outfile.empty()) {
-                    outfile = opt.outfile
+                    mapfile = opt.outfile
                             + "_" + extract_filename(f1)
                             + "_" + extract_filename(f2)
                             + ".txt";
                 }
-                process_input_files(vector<string>{f1,f2}, db, opt, outfile);
+                if(!opt.auxfile.empty() && opt.auxfile != opt.outfile) {
+                    auxfile = opt.auxfile
+                            + "_" + extract_filename(f1)
+                            + "_" + extract_filename(f2)
+                            + ".txt";
+                }
+                process_input_files(vector<string>{f1,f2}, db, opt, mapfile, auxfile);
             }
         }
         //process each input file separately
         else {
             for(const auto& f : infiles) {
                 if(!opt.outfile.empty()) {
-                    outfile = opt.outfile + "_"
+                    mapfile = opt.outfile + "_"
                             + extract_filename(f) + ".txt";
                 }
-                process_input_files(vector<string>{f}, db, opt, outfile);
+                if(!opt.auxfile.empty() && opt.auxfile != opt.outfile) {
+                    auxfile = opt.auxfile + "_"
+                            + extract_filename(f) + ".txt";
+                }
+                process_input_files(vector<string>{f}, db, opt, mapfile, auxfile);
             }
         }
     }
     //process all input files at once
     else {
-        process_input_files(infiles, db, opt, opt.outfile);
+        process_input_files(infiles, db, opt, opt.outfile, opt.auxfile);
     }
 }
 

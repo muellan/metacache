@@ -1,10 +1,10 @@
 Documentation for MetaCache mode "build"
 
 SYNOPSIS
-    metacache build <database name> <reference genome> OPTIONS
+    metacache build <database name> <reference sequence> OPTIONS
 
 DESCRIPTION
-    Create a new database of reference genomes.
+    Create a new database of reference sequences (usually genomic sequences).
 
     You can also provide names of directories that contain
     genomic sequence files instead of single filenames. MetaCache will

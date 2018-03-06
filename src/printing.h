@@ -42,6 +42,14 @@ void show_target_info(std::ostream&, const database&, const taxon&);
 
 /*****************************************************************************
  *
+ * @brief prints classification parameters
+ *
+ *****************************************************************************/
+void show_query_parameters(std::ostream&, const query_options&);
+
+
+/*****************************************************************************
+ *
  * @brief prints taxon information according to output options
  *
  *****************************************************************************/
@@ -49,6 +57,16 @@ void show_taxon(std::ostream&,
                          const database&,
                          const classification_output_options&,
                          const taxon* classified);
+
+
+/*****************************************************************************
+ *
+ * @brief prints header for taxon information
+ *
+ *****************************************************************************/
+void show_taxon_header(std::ostream&,
+                       const classification_output_options&,
+                       const std::string& prefix = "");
 
 
 /*****************************************************************************

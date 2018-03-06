@@ -148,6 +148,32 @@ struct evaluation_options
 
 /*************************************************************************//**
  *
+ * @brief   tokens that separate mapping output fields
+ *
+ * @details Note that the choice of separators, prefixes and suffixes
+ *          reflects the output format of the first public MetaCache
+ *          version.
+ *
+ *****************************************************************************/
+struct formatting_strings {
+    //prefix for each non-mapping line
+    std::string comment = "# ";
+    std::string none = "--";
+    //column separator
+    std::string column = "\t|\t";
+    //taxon separator (in lineage output)
+    std::string taxSeparator = ",";
+    //separates rank and taxon name or rank and taxid
+    std::string rankSuffix = ":";
+    //if both taxid AND taxon name are to be printed,
+    //taxids will be enclosed by these:
+    std::string taxidPrefix = "(";
+    std::string taxidSuffix = ")";
+};
+
+
+/*************************************************************************//**
+ *
  * @brief classification output options
  *
  *****************************************************************************/
@@ -167,9 +193,9 @@ struct classification_output_options
     bool showLocations = false;
     //show all ranks that a sequence could be classified on
     bool showLineage = false;
+    bool collapseUnclassified = true;
     //what to show of a taxon
     taxon_print_mode showTaxaAs = taxon_print_mode::rank_name;
-    bool separateTaxaInfo = false;
     //show ground thruth if available
     bool showGroundTruth = false;
     //make statistics of semi-global alignment scores of queries against
@@ -184,14 +210,7 @@ struct classification_output_options
     taxon_rank lowestRank  = taxon_rank::Sequence;
     taxon_rank highestRank = taxon_rank::Domain;
 
-    //show top candidate sequences and their associated k-mer hash hit count
-    //prefix for each non-mapping line
-    std::string comment = "# ";
-    //separates individual mapping fields
-    std::string separator = "\t|\t";
-
-    //separate file for target -> hit mappings
-    std::string hitsPerTargetOutfile;
+    formatting_strings format;
 };
 
 
@@ -210,8 +229,10 @@ struct query_options
 
     //make a separate output file for each input file
     bool splitFiles = false;
-    //output filename
+    //output filename for mappings
     std::string outfile;
+    //output filename for additional analyses
+    std::string auxfile;
     //show database properties
     bool showDBproperties = false;
     bool showQueryParams = true;

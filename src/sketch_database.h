@@ -52,7 +52,7 @@ namespace mc {
 /*****************************************************************************
  *
  * @brief  maps 'features' (e.g. hash values obtained by min-hashing)
- *         to 'locations' = positions in targets/reference genomes
+ *         to 'locations' = positions in targets/reference sequences
  *
  *         not copyable, but movable
  *

@@ -50,7 +50,7 @@ namespace mc {
 
 
 /********************************************************************
- * @brief limits number of targets (reference genomes) per database
+ * @brief limits number of targets (reference sequences) per database
  */
 #ifdef MC_TARGET_ID_TYPE
     using target_id = MC_TARGET_ID_TYPE ;
@@ -60,7 +60,7 @@ namespace mc {
 
 
 /********************************************************************
- * @brief limits max. number of windows per target (reference genome)
+ * @brief limits max. number of windows per target (reference sequence)
  */
 #ifdef MC_WINDOW_ID_TYPE
     using window_id = MC_WINDOW_ID_TYPE ;
@@ -107,7 +107,7 @@ using feature_hash = std::hash<typename sketcher::feature_type>;
 
 /**************************************************************************
  * @brief stores a multimap that maps features to locations
- *        within targets (= reference genomes)
+ *        within targets (= reference sequences)
  */
 using database = sketch_database<sequence,sketcher,feature_hash,
                                  target_id,window_id,loclist_size_t>;

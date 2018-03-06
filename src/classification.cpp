@@ -424,19 +424,53 @@ void show_alignment(std::ostream& os,
                 //print alignment to top candidate
                 const auto w = db.target_window_stride();
                 os  << '\n'
-                    << opt.comment << "  score  " << align.score
+                    << opt.format.comment << "  score  " << align.score
                     << "  aligned to "
                     << src.filename << " #" << src.index
                     << " in range [" << (w * tophits[0].pos.beg)
                     << ',' << (w * tophits[0].pos.end + w) << "]\n"
-                    << opt.comment << "  query  " << align.query << '\n'
-                    << opt.comment << "  target " << align.subject;
+                    << opt.format.comment << "  query  " << align.query << '\n'
+                    << opt.format.comment << "  target " << align.subject;
             }
         }
         catch(std::exception& e) {
             if(opt.showErrors) cerr << e.what() << '\n';
         }
     }
+}
+
+
+
+/*************************************************************************//**
+ *
+ * @brief
+ *
+ *****************************************************************************/
+void show_query_mapping_header(std::ostream& os,
+                               const classification_output_options& opt)
+{
+    if(opt.mapViewMode == map_view_mode::none) return;
+
+    const auto& colsep = opt.format.column;
+
+    os << opt.format.comment << "TABLE_LAYOUT: ";
+
+    if(opt.showQueryIds) os << "query_id" << colsep;
+
+    os << "query_header" << colsep;
+
+    if(opt.showGroundTruth) {
+        show_taxon_header(os, opt, "truth_");
+        os << colsep;
+    }
+
+    if(opt.showAllHits) os << "all_hits" << colsep;
+    if(opt.showTopHits) os << "top_hits" << colsep;
+    if(opt.showLocations) os << "candidate_locations" << colsep;
+
+    show_taxon_header(os, opt);
+
+    os << '\n';
 }
 
 
@@ -461,9 +495,9 @@ void show_query_mapping(
         return;
     }
 
-    if(opt.showQueryIds) {
-        os << query.id << opt.separator;
-    }
+    const auto& colsep = opt.format.column;
+
+    if(opt.showQueryIds) os << query.id << colsep;
 
     //print query header (first contiguous string only)
     auto l = query.header.find(' ');
@@ -474,24 +508,24 @@ void show_query_mapping(
     else {
         os << query.header;
     }
-    os << opt.separator;
+    os << colsep;
 
     if(opt.showGroundTruth) {
         show_taxon(os, db, opt, query.groundTruth);
-        os << opt.separator;
+        os << colsep;
     }
 
     if(opt.showAllHits) {
         show_matches(os, db, allhits, opt.lowestRank);
-        os << opt.separator;
+        os << colsep;
     }
     if(opt.showTopHits) {
         show_matches(os, db, cls.candidates, opt.lowestRank);
-        os << opt.separator;
+        os << colsep;
     }
     if(opt.showLocations) {
         show_candidate_ranges(os, db, cls.candidates);
-        os << opt.separator;
+        os << colsep;
     }
 
     show_taxon(os, db, opt, cls.best);
@@ -538,13 +572,13 @@ void map_queries_to_targets_default(
 
     const auto finalizeBatch = [&] (const obuf_t& buf) {
         //write buffer to output stream when batch is finished
-        results.out << buf.str();
+        results.mapout << buf.str();
     };
 
 
     const auto showStatus = [&] (const std::string& msg, float progress) {
         if(opt.output.mapViewMode != map_view_mode::none) {
-            results.out << opt.output.comment << msg << '\n';
+            results.mapout << opt.output.format.comment << msg << '\n';
         }
         if(progress >= 0.0f) {
             show_progress_indicator(results.status, progress);
@@ -611,13 +645,13 @@ void map_queries_to_targets_and_vice_versa(
         //merge batch (target->hits) lists into global one
         tgtMatches.merge(std::move(buf.hitsPerTarget));
         //write output buffer to output stream when batch is finished
-        results.out << buf.out.str();
+        results.mapout << buf.out.str();
     };
 
 
     const auto showStatus = [&] (const std::string& msg, float progress) {
         if(opt.output.mapViewMode != map_view_mode::none) {
-            results.out << opt.output.comment << msg << '\n';
+            results.mapout << opt.output.format.comment << msg << '\n';
         }
         if(progress >= 0.0f) {
             show_progress_indicator(results.status, progress);
@@ -632,29 +666,15 @@ void map_queries_to_targets_and_vice_versa(
 
     if(tgtMatches.empty()) return;
 
-    std::ostream* tgtMatchesOut = &std::cout;
-    std::ofstream tgtMatchesFile;
-    if(!opt.output.hitsPerTargetOutfile.empty()) {
-        tgtMatchesFile.open(opt.output.hitsPerTargetOutfile);
-        if(tgtMatchesFile.good()) {
-            results.out << opt.output.comment
-                << " (genome -> matches) list will be written to "
-                << opt.output.hitsPerTargetOutfile << '\n';
-            tgtMatchesOut = &tgtMatchesFile;
-        }
-    }
-
-    if(opt.output.mapViewMode != map_view_mode::none && !tgtMatchesFile.good()) {
-        results.out << opt.output.comment
-            << "------------------------------------------------------------\n";
-    }
-
-    *tgtMatchesOut  << opt.output.comment
-        << " note: window start position within genome = window_index * window_stride(="
+    results.auxout
+        << opt.output.format.comment
+        << "--- list of hits for each reference sequence ---\n"
+        << opt.output.format.comment
+        << "window start position within sequence = window_index * window_stride(="
         << db.query_window_stride() << ")\n";
 
     tgtMatches.sort_match_lists();
-    show_matches_per_targets(*tgtMatchesOut, db, tgtMatches, opt.output);
+    show_matches_per_targets(results.auxout, db, tgtMatches, opt.output);
 }
 
 
@@ -669,6 +689,10 @@ void map_queries_to_targets(const vector<string>& infiles,
                             const database& db, const query_options& opt,
                             classification_results& results)
 {
+    if(opt.output.mapViewMode != map_view_mode::none) {
+        show_query_mapping_header(results.mapout, opt.output);
+    }
+
     if(opt.output.showHitsPerTargetList) {
         map_queries_to_targets_and_vice_versa(infiles, db, opt, results);
     }
