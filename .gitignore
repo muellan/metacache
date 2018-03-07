@@ -4,6 +4,7 @@
 /seafile
 /test
 /.settings
+/dev/html
 .project
 .cproject
 *.exe
