@@ -17,7 +17,6 @@
 # You should have received a copy of the GNU General Public License
 # along with MetaCache.  If not, see <http://www.gnu.org/licenses/>.
 
-
 set -u  # Protect against uninitialized vars.
 set -e  # Stop on error
 
@@ -46,16 +45,13 @@ function download_specific_lib {
 
       if [ $FILTER -ge 0 ]; then
         #only complete genomes
-        awk -F "\t" '$12=="Complete Genome" && $11=="latest"{print $20}' assembly_summary.txt > ftpdirpaths1
-        touch ftpdirpaths2
-        touch ftpdirpaths3
+        awk -F "\t" '$12=="Complete Genome" && $11=="latest"{print $20}' assembly_summary.txt > ftpdirpaths
       fi
       if [ $FILTER -ge 1 ]; then
-        awk -F "\t" '$12=="Contig" && $11=="latest"{print $20}' assembly_summary.txt > ftpdirpaths2
-        awk -F "\t" '$12=="Draft" && $11=="latest"{print $20}' assembly_summary.txt > ftpdirpaths3
+        awk -F "\t" '$11=="latest"{print $20}' assembly_summary.txt > ftpdirpaths
       fi
 
-      cat ftpdirpaths1 ftpdirpaths2 ftpdirpaths3 > ftpdirpaths
+      cat ftpdirpaths > ftpdirpaths
       awk 'BEGIN{FS=OFS="/";filesuffix="genomic.fna.gz"}{ftpdir=$0;asm=$10;file=asm"_"filesuffix;print ftpdir,file}' ftpdirpaths > ftpfilepaths
       # wget -nc -i ftpfilepaths
       cat ftpfilepaths | xargs -P ${PARALLEL} -n 1 wget -c -nv
@@ -82,13 +78,13 @@ function download_specific_lib {
 
 
 if [ $# -lt 2 ]; then
-  echo "Usage: $0 (refseq|genbank)/<sublibrary> <target directory> [contigs]"
+  echo "Usage: $0 (refseq|genbank)/<sublibrary> <target directory> [all]"
   echo "    Example 1: $0 refseq/bacteria directory1"
   echo ""
   echo "    Example 2: $0 genbank/bacteria directory2"
   echo ""
-  echo "    Example 3: Bacteria from RefSeq: full genomes and all contigs:"
-  echo "               $0 refseq/bacteria directory1 contigs"
+  echo "    Example 3: All bacterial sequences from RefSeq:"
+  echo "               $0 refseq/bacteria directory1 all"
   exit
 fi
 
@@ -96,7 +92,7 @@ DATABASE=$1
 TARGETDIR=$2
 FILTER=0
 if [ $# -gt 2 ]; then
-  if [ "$3" == "contigs" ]; then
+  if [ "$3" == "contigs" -o "$3" == "all" ]; then
     echo "PLEASE NOTE: Make sure you have MetaCache compiled with support for more than 65536 reference genomes!"
     FILTER=1
   else
