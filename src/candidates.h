@@ -324,14 +324,16 @@ public:
             }
 
             if(cand.tax->rank() == taxon_rank::Sequence) {
-                if(top_.size() < rules.maxCandidates) {
-                    auto i = std::lower_bound(top_.begin(), top_.end(), cand.hits,
-                        [&] (const match_candidate& c, hit_count h) {
-                            return c.hits < h;
-                        });
-
+                auto i = std::lower_bound(top_.begin(), top_.end(), cand.hits,
+                    [&] (const match_candidate& c, hit_count h) {
+                        return c.hits < h;
+                    });
+                if(i != top_.end() || top_.size() < rules.maxCandidates) {
                     top_.insert(i, cand);
+                    if(top_.size() > rules.maxCandidates)
+                        top_.resize(rules.maxCandidates);
                 }
+
             }
             //above sequence level, taxa can occur more than once
             else {
@@ -343,15 +345,22 @@ public:
                 if(i != top_.end()) {
                     //taxon already in list, update, if more hists
                     if(cand.hits > i->hits) *i = cand;
+                    std::sort(top_.begin(), i,
+                        [] (const match_candidate& a, const match_candidate& b) {
+                            return a.hits < b.hits;
+                        });
                 }
                 //taxon not in list yet
-                else if(top_.size() < rules.maxCandidates) {
+                else  {
                     auto j = std::lower_bound(top_.begin(), top_.end(), cand.hits,
                         [&] (const match_candidate& c, hit_count h) {
                             return c.hits < h;
                         });
-
-                    top_.insert(j, cand);
+                    if(j != top_.end() || top_.size() < rules.maxCandidates) {
+                        top_.insert(j, cand);
+                        if(top_.size() > rules.maxCandidates)
+                            top_.resize(rules.maxCandidates);
+                    }
                 }
 
             }
