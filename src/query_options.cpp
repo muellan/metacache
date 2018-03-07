@@ -151,6 +151,15 @@ get_classification_options(const args_parser& args,
     //interprest numbers > 1 as percentage
     if(opt.hitsDiffFraction > 1) opt.hitsDiffFraction *= 0.01;
 
+    opt.maxNumCandidatesPerQuery = args.get<int>({
+        "max-cand", "maxcand", "max_cand",
+        "max-candidates", "maxcandidates", "max_candidates" },
+        defaults.maxNumCandidatesPerQuery);
+
+    if(opt.maxNumCandidatesPerQuery < 1) {
+        opt.maxNumCandidatesPerQuery = std::numeric_limits<std::size_t>::max();
+    }
+
     return opt;
 }
 

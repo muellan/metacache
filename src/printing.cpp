@@ -55,11 +55,6 @@ void show_query_parameters(std::ostream& os, const query_options& opt)
         os << comment << "Reporting per-read mappings (non-mapping lines start with '"
            << comment << "').\n";
 
-        os << comment
-           << "Output will be constrained to ranks from '"
-           << taxonomy::rank_name(opt.classify.lowestRank) << "' to '"
-           << taxonomy::rank_name(opt.classify.highestRank) << "'.\n";
-
         if(opt.output.showLineage) {
             os << comment
                << "The complete lineage will be reported "
@@ -73,6 +68,20 @@ void show_query_parameters(std::ostream& os, const query_options& opt)
     else {
         os << comment << "Per-Read mappings will not be shown.\n";
     }
+
+    os << comment
+       << "Classification will be constrained to ranks from '"
+       << taxonomy::rank_name(opt.classify.lowestRank) << "' to '"
+       << taxonomy::rank_name(opt.classify.highestRank) << "'.\n";
+
+    os << comment
+       << "Classification hit threshold is "
+       << opt.classify.hitsMin << " per query\n";
+
+    os << comment
+       << "At maximum "
+       << opt.classify.maxNumCandidatesPerQuery
+       << " classification candidates will be considered per query.\n";
 
     if(opt.evaluate.excludeRank != taxon_rank::none) {
         os << comment << "Clade Exclusion on Rank: "
@@ -304,14 +313,16 @@ void show_matches(std::ostream& os,
                   const classification_candidates& cand,
                   taxon_rank lowest)
 {
+    using size_t = classification_candidates::size_type;
+
     if(lowest == taxon_rank::Sequence) {
-        for(int i = 0; i < cand.size() && cand[i].hits > 0; ++i) {
+        for(size_t i = 0; i < cand.size() && cand[i].hits > 0; ++i) {
             if(i > 0) os << ',';
             if(cand[i].tax) os << cand[i].tax->name() << ':' << cand[i].hits;
         }
     }
     else {
-        for(int i = 0; i < cand.size() && cand[i].hits > 0; ++i) {
+        for(size_t i = 0; i < cand.size() && cand[i].hits > 0; ++i) {
             if(i > 0) os << ',';
             const taxon* tax = db.ancestor(cand[i].tax,lowest);
             if(tax) {
@@ -363,9 +374,9 @@ void show_candidate_ranges(std::ostream& os,
 {
     const auto w = db.target_window_stride();
 
-    for(int i = 0; i < cand.size(); ++i) {
-        os << '[' << (w * cand[i].pos.beg)
-           << ',' << (w * cand[i].pos.end + db.target_window_size()) << "] ";
+    for(const auto& c : cand) {
+        os << '[' << (w * c.pos.beg)
+           << ',' << (w * c.pos.end + db.target_window_size()) << "] ";
     }
 }
 

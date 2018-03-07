@@ -51,6 +51,11 @@ BASIC OPTIONS
                        Higher values will increase precision at the expense of
                        lower sensitivity.
 
+    -max-cand <no>     maximum number of reference taxon candidates to 
+                       consider for each query; A large value can significantly 
+                       decrease the querying speed!
+                       default: 2
+
 OUTPUT FORMATTING OPTIONS
 
     -nomap             Don't report classification for each individual query

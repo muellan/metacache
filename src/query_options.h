@@ -123,6 +123,8 @@ struct classification_options
     float hitsDiffFraction = 0.9;
     //maximum range in sequence that read (pair) is expected to be in
     std::size_t insertSizeMax = 0;
+
+    std::size_t maxNumCandidatesPerQuery = 2;
 };
 
 

@@ -214,10 +214,11 @@ lowest_common_ancestor(const database& db,
     //2 < cand.size() <= lca_upper_candidate_limit
     if(lowestRank == taxon_rank::Sequence) ++lowestRank;
 
-    std::unordered_map<const taxon*,int> scores;
+    using score_t = match_candidate::count_type;
+    std::unordered_map<const taxon*,score_t> scores;
     scores.rehash(2 * cand.size());
 
-    int totalscore = 0;
+    score_t totalscore = 0;
     for(const auto& c : cand) { totalscore += c.hits; }
     float threshold = totalscore * trustedMajority;
 
@@ -235,7 +236,7 @@ lowest_common_ancestor(const database& db,
         }
         //determine taxon with most votes
         const taxon* toptax = nullptr;
-        int topscore = 0;
+        score_t topscore = 0;
         for(const auto& x : scores) {
             if(x.second > topscore) {
                 toptax   = x.first;
@@ -317,12 +318,16 @@ classify(const database& db,
          const sequence_query& query,
          const matches_per_location& allhits)
 {
-    auto numWindows = window_id( 2 + (
+    candidate_generation_rules rules;
+
+    rules.maxWindowsInRange = window_id( 2 + (
         std::max(query.seq1.size() + query.seq2.size(), opt.insertSizeMax) /
         db.target_window_stride() ));
 
-    classification cls {
-        classification_candidates{db, allhits, numWindows, opt.lowestRank} };
+    rules.mergeBelow    = opt.lowestRank;
+    rules.maxCandidates = opt.maxNumCandidatesPerQuery;
+
+    classification cls { classification_candidates{db, allhits, rules} };
 
     cls.best = classify(db, opt, cls.candidates);
 

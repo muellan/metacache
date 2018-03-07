@@ -120,26 +120,21 @@ using matches_per_location = database::matches_per_location;
 
 
 /**************************************************************************
- * @brief forward declarations (break cycle "config.h" <-> "candidates.h")
- */
-template<int>
-class top_distinct_matches_in_contiguous_window_range;
-
-class all_distinct_matches_in_contiguous_window_range;
-
-
-/**************************************************************************
  * @brief controls how a classification is derived from a location hit list;
  *        default is a top 2 voting scheme;
- *        will use majority voting scheme if MC_VOTE_TOP > 2
+ *        forward declarations (break cycle "config.h" <-> "candidates.h")
  */
-#ifndef MC_VOTE_TOP
-    #define MC_VOTE_TOP 2
-#endif
+template<std::size_t>
+class top_distinct_matches_in_contiguous_window_ranges;
+
+class distinct_matches_in_contiguous_window_ranges;
+class best_distinct_matches_in_contiguous_window_ranges;
+
 
 using classification_candidates =
-    top_distinct_matches_in_contiguous_window_range< MC_VOTE_TOP >;
-//    all_distinct_matches_in_contiguous_window_range;
+    top_distinct_matches_in_contiguous_window_ranges<2>;
+//    best_distinct_matches_in_contiguous_window_ranges;
+//    distinct_matches_in_contiguous_window_ranges;
 
 
 } // namespace mc
