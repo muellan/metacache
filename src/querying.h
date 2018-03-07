@@ -1,4 +1,4 @@
-/*****************************************************************************
+/******************************************************************************
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
@@ -61,7 +61,7 @@ struct sequence_query
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief queries database with batches of reads from one sequence source
  *        produces one match list per sequence
@@ -115,7 +115,7 @@ void query_batched(
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief queries database with batches of reads from two sequence sources
  *        produces one merged match list per sequence pair
@@ -180,7 +180,7 @@ void query_batched_merged_pairs(
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief queries database with sequences per input file
  *        produces one match list per sequence or sequence pair
@@ -233,7 +233,7 @@ void query_per_file(
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief queries database with paired-end sequences in pairs of files
  *        produces one merged match list per sequence pair
@@ -283,7 +283,7 @@ void query_with_file_pairs(
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief queries database
  *

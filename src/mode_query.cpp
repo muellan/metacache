@@ -1,4 +1,4 @@
-/*****************************************************************************
+/******************************************************************************
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
@@ -70,7 +70,7 @@ void show_summary(const query_options& opt,
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief runs classification on input files; sets output target streams
  *
@@ -134,7 +134,7 @@ void process_input_files(const vector<string>& infiles,
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief runs classification on input files;
  *        handles output file split
@@ -206,7 +206,7 @@ void process_input_files(const vector<string>& infiles,
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief sets up some query options according to database parameters
  *        or command line options
@@ -229,7 +229,7 @@ void adapt_options_to_database(classification_options& opt, const database& db)
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief primitive REPL mode for repeated querying using the same database
  *
@@ -284,7 +284,7 @@ void run_interactive_query_mode(const vector<string>& initInfiles,
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief read database and modify db content and sketching scheme according to
  *        command line options
@@ -352,7 +352,7 @@ read_database(const string& filename, const database_query_options& opt)
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief    run query reads against pre-built database
  *           entry point for query mode

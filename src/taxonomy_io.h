@@ -1,4 +1,4 @@
-/*****************************************************************************
+/******************************************************************************
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
@@ -34,7 +34,7 @@
 namespace mc {
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief reads taxonomic tree + names from NCBI's taxnonomy files
  *
@@ -47,7 +47,7 @@ make_taxonomic_hierarchy(const std::string& taxNodesFile,
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief Reads a text file that maps sequences (ids or filenames) to taxon ids.
  *     Originally intended for use with the NCBI RefSeq "assembly_summary.txt"
@@ -66,7 +66,7 @@ void read_sequence_to_taxon_id_mapping(
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief reads file -> taxon id mappings files from the same directories
  *        as the input files

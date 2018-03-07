@@ -1,4 +1,4 @@
-/*****************************************************************************
+/******************************************************************************
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
@@ -32,7 +32,7 @@
 namespace mc {
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief print database information
  *
@@ -40,7 +40,7 @@ namespace mc {
 void show_target_info(std::ostream&, const database&, const taxon&);
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief prints classification parameters
  *
@@ -48,7 +48,7 @@ void show_target_info(std::ostream&, const database&, const taxon&);
 void show_query_parameters(std::ostream&, const query_options&);
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief prints taxon information according to output options
  *
@@ -59,7 +59,7 @@ void show_taxon(std::ostream&,
                          const taxon* classified);
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief prints header for taxon information
  *
@@ -69,7 +69,7 @@ void show_taxon_header(std::ostream&,
                        const std::string& prefix = "");
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief prints top classification candidates
  *
@@ -80,7 +80,7 @@ void show_matches(std::ostream&,
                   taxon_rank lowest = taxon_rank::Sequence);
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief prints target.window hit matches
  *
@@ -91,7 +91,7 @@ void show_matches(std::ostream&,
                   taxon_rank lowest = taxon_rank::Sequence);
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief prints target.window hit statistics from database
  *
@@ -112,7 +112,7 @@ void show_matches_per_targets(std::ostream& os,
                               const classification_output_options&);
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief prints per-rank classification statistics
  *

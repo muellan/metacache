@@ -1,4 +1,4 @@
-/*****************************************************************************
+/******************************************************************************
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
@@ -35,7 +35,7 @@ using numk_t = std::uint8_t;
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  *
  *
@@ -93,7 +93,7 @@ using dna_2bit_encoding_t = typename detail::dna_2bit_encoding<k>::type;
 
 namespace { //internal linkage
 
-/*****************************************************************************
+/*************************************************************************//**
  * @param  k : length to consider (in 2-bit letters, so #bits = 2*k)
  * @return reverse complement of kmer
  * original code from Kraken source
@@ -180,7 +180,7 @@ T1 make_reverse_complement(T1,T2) = delete;
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  * @param  k : length to consider (in 2-bit letters!, so #bits = 2*k)
  * @return lexicographically smallest of k-mer and reverse complement of k-mer
  *****************************************************************************/
@@ -211,7 +211,7 @@ make_canonical(UInt s) noexcept
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  * @brief canonical kmer comparator
  *****************************************************************************/
 struct canonical_less
@@ -235,7 +235,7 @@ private:
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  * @return number of kmers in a squence
  *****************************************************************************/
 inline constexpr size_t
@@ -246,7 +246,7 @@ num_kmers(size_t k, size_t sequenceLen)
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  * @brief loops through all subranges of [first,last) of lenght 'len' with a
  *        stride of 'stride'
  *
@@ -290,7 +290,7 @@ for_each_window(RAInputRange range,
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  * @brief loops through all 2-bit encoded k-mers in a sequence of characters
  *
  * @tparam UInt    result type, must be an unsigned integer type
@@ -349,7 +349,7 @@ for_each_kmer_2bit(numk_t k,
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  * @brief loops through all 2-bit encoded k-mers in a sequence of characters
  *
  * @tparam UInt    result type, must be an unsigned integer type
@@ -370,7 +370,7 @@ for_each_kmer_2bit(const numk_t k, InputRange input, Consumer&& consume)
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  * @brief loops through all non-ambiguous 2-bit encoded k-mers in a
  *        sequence of characters
  *
@@ -406,7 +406,7 @@ for_each_unambiguous_kmer_2bit(
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  * @brief loops through all 2-bit encoded k-mers in a sequence of characters
  *        kmers are canonical = min(kmer, reverse_complement(kmer))
  *
@@ -443,7 +443,7 @@ for_each_canonical_kmer_2bit(const numk_t k, InputRange input,
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  * @brief loops through all non-ambiguous 2-bit encoded k-mers in a
  *        sequence of characters
  *        kmers are canonical = min(kmer, reverse_complement(kmer))
@@ -479,7 +479,7 @@ for_each_unambiguous_canonical_kmer_2bit(
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  * @brief generates letter-statistics for all kmers in a sequence
  *
  * @tparam UInt    result type, must be an unsigned integer type
@@ -517,7 +517,7 @@ for_each_1mer_stat_of_kmer_2bit(numk_t k,
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  * @brief generates 2-mer statistics for all k-mers in a sequence
  *
  * @tparam UInt    result type, must be an unsigned integer type
@@ -566,7 +566,7 @@ for_each_2mer_stat_of_kmer_2bit(numk_t k,
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @return cardinality of k-mer intersection set of 'seq1' and 'seq2'
  *

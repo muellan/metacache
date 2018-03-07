@@ -1,4 +1,4 @@
-/*****************************************************************************
+/******************************************************************************
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
@@ -38,7 +38,7 @@ using std::endl;
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief database creation parameters
  *
@@ -69,7 +69,7 @@ struct build_options
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief command line args -> database creation parameters
  *
@@ -132,7 +132,7 @@ get_build_options(const args_parser& args)
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief Alternative way of providing taxonomic mappings.
  *        The input file must be a text file with each line in the format:
@@ -203,7 +203,7 @@ void rank_targets_with_mapping_file(database& db,
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @return target taxa that have no parent taxon assigned
  *
@@ -222,7 +222,7 @@ unranked_targets(const database& db)
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief try to assign parent taxa to target taxa using mapping files
  *
@@ -257,7 +257,7 @@ void try_to_rank_unranked_targets(database& db, const build_options& opt)
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief adds reference sequences to database
  *
@@ -347,7 +347,7 @@ void add_targets_to_database(database& db,
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief prepares datbase for build
  *
@@ -401,7 +401,7 @@ void prepare_database(database& db, const build_options& opt)
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief database features post-processing
  *
@@ -450,7 +450,7 @@ void post_process_features(database& db, const build_options& opt)
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief prepares datbase for build, adds targets and writes database to disk
  *
@@ -514,7 +514,7 @@ void add_to_database(database& db, const build_options& opt)
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief adds reference sequences to an existing database
  *
@@ -542,7 +542,7 @@ void main_mode_build_modify(const args_parser& args)
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief builds a database from reference input sequences
  *

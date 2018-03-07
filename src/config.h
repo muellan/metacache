@@ -1,4 +1,4 @@
-/*****************************************************************************
+/******************************************************************************
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
@@ -20,9 +20,10 @@
  *
  *****************************************************************************/
 
-/*****************************************************************************
+/*************************************************************************//**
  *
- * @file contains important type aliases
+ * @file contains all important type aliases
+ *       controlling database space consumption and basic sketching scheme
  *
  *****************************************************************************/
 
@@ -44,7 +45,6 @@ namespace mc {
     using kmer_type = MC_KMER_TYPE ;
 #else
     using kmer_type = std::uint32_t;
-//    using kmer_type = std::uint64_t;
 #endif
 
 
@@ -98,7 +98,7 @@ using sketcher = single_function_unique_min_hasher<kmer_type,sketching_hash>;
 /**************************************************************************
  * @brief hash function for database hash multi-map (called "h_2" in the paper)
  *        note: std::hash<SomeUnsignedIntegerType>
- *              is often implemented as the identity function
+ *              is mostly implemented as the identity function
  */
 using feature_hash = std::hash<typename sketcher::feature_type>;
 //using feature_hash = same_size_hash<typename sketcher::feature_type>;

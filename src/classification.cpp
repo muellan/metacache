@@ -1,4 +1,4 @@
-/*****************************************************************************
+/******************************************************************************
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
@@ -44,7 +44,7 @@ using std::endl;
 using std::flush;
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief makes non-owning view to (sub)sequence
  *
@@ -63,7 +63,7 @@ make_view_from_window_range(const Sequence& s, const window_range& range,
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief performs a semi-global alignment
  *
@@ -97,7 +97,7 @@ make_semi_global_alignment(const sequence_query& query,
 }
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief returns query taxon (ground truth for precision tests)
  *
@@ -126,7 +126,7 @@ ground_truth(const database& db, const string& header)
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief removes hits of a specific taxon (on a rank) from database matches;
  *        can be very slow!
@@ -151,9 +151,10 @@ void remove_hits_on_rank(const database& db,
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
- * @brief
+ * @brief prepares ground truth based evaluation;
+ *        might remove hits from 'allhits' if clade exclusion is turned on
  *
  *****************************************************************************/
 void prepare_evaluation(const database& db,
@@ -176,26 +177,24 @@ void prepare_evaluation(const database& db,
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
- * @brief lowest common taxon of several classification candidate
- *        sequences / taxa
+ * @brief lowest common ancestral taxon of several candidate taxa
  *
  * @param trustedMajority  fraction of total feature hits that a
  *                         candidate (taxon) must have in order to be
  *                         chosen as classification result
  *
- * @param lowestRank       rank to start investigation on
- * @param highestRank
+ * @param lowestRank       lowest rank for classification
+ * @param highestRank      highest rank for classification
  *
  *****************************************************************************/
 const taxon*
-lowest_common_taxon(
-    const database& db,
-    const classification_candidates& cand,
-    float trustedMajority,
-    taxon_rank lowestRank = taxon_rank::Sequence,
-    taxon_rank highestRank = taxon_rank::Domain)
+lowest_common_ancestor(const database& db,
+                       const classification_candidates& cand,
+                       float trustedMajority,
+                       taxon_rank lowestRank = taxon_rank::Sequence,
+                       taxon_rank highestRank = taxon_rank::Domain)
 {
     if(!cand[0].tax) return nullptr;
     if(cand.size() < 2) {
@@ -249,7 +248,7 @@ lowest_common_taxon(
             scores.clear();
         }
     }
-    //candidates couldn't agree on a taxon on any relevant taxonomic rank
+    //candidates couldn't agree on a taxon in rank range [lowest,highest]
     return nullptr;
 }
 
@@ -257,7 +256,7 @@ lowest_common_taxon(
 
 /*************************************************************************//**
  *
- * @brief
+ * @brief classification cadidates + derived best classification
  *
  *****************************************************************************/
 struct classification
@@ -272,9 +271,9 @@ struct classification
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
- * @brief  classify using top candidates
+ * @brief  classify using top matches/candidates
  *
  *****************************************************************************/
 const taxon*
@@ -293,15 +292,15 @@ classify(const database& db, const classification_options& opt,
         return cand[0].tax;
     }
 
-    return lowest_common_taxon(db, cand, opt.hitsDiffFraction,
-                               opt.lowestRank, opt.highestRank);
+    return lowest_common_ancestor(db, cand, opt.hitsDiffFraction,
+                                  opt.lowestRank, opt.highestRank);
 }
 
 
 
 /*************************************************************************//**
  *
- * @brief
+ * @brief classify using all database matches
  *
  *****************************************************************************/
 classification
@@ -324,7 +323,7 @@ classify(const database& db,
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief add difference between result and truth to statistics
  *
@@ -392,7 +391,7 @@ void evaluate_classification(
 
 
 
-/*****************************************************************************
+/*************************************************************************//**
  *
  * @brief compute alignment of top hits and optionally show it
  *
@@ -443,7 +442,7 @@ void show_alignment(std::ostream& os,
 
 /*************************************************************************//**
  *
- * @brief
+ * @brief print header line for mapping table
  *
  *****************************************************************************/
 void show_query_mapping_header(std::ostream& os,
