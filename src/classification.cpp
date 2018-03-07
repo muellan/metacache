@@ -188,6 +188,8 @@ void prepare_evaluation(const database& db,
  * @param lowestRank       lowest rank for classification
  * @param highestRank      highest rank for classification
  *
+ * @param maxNumCandidates limit investigation to max. number of candidates
+ *
  *****************************************************************************/
 const taxon*
 lowest_common_ancestor(const database& db,
@@ -196,58 +198,58 @@ lowest_common_ancestor(const database& db,
                        taxon_rank lowestRank = taxon_rank::Sequence,
                        taxon_rank highestRank = taxon_rank::Domain)
 {
-    if(!cand[0].tax) return nullptr;
-    if(cand.size() < 2) {
-        if(cand[0].tax->rank() <= highestRank) return cand[0].tax;
+    if(cand.empty() || !cand[0].tax) return nullptr;
+
+    if(cand.size() == 1) {
+        return (cand[0].tax->rank() <= highestRank) ? cand[0].tax : nullptr;
     }
-    else if(cand.size() < 3) {
+
+    if(cand.size() == 2) {
         const taxon* tax = db.ranked_lca(cand[0].tax, cand[1].tax);
 
         //classify if rank is below or at the highest rank of interest
-        if(tax && tax->rank() <= highestRank) return tax;
+        return (tax && tax->rank() <= highestRank) ? tax : nullptr;
     }
-    else {
-        if(lowestRank == taxon_rank::Sequence) ++lowestRank;
 
-        std::unordered_map<const taxon*,int> scores;
-        scores.rehash(2*cand.size());
+    //2 < cand.size() <= lca_upper_candidate_limit
+    if(lowestRank == taxon_rank::Sequence) ++lowestRank;
 
-        int totalscore = 0;
-        for(int i = 0, n = cand.size(); i < n; ++i) {
-            totalscore += cand[i].hits;
+    std::unordered_map<const taxon*,int> scores;
+    scores.rehash(2 * cand.size());
+
+    int totalscore = 0;
+    for(const auto& c : cand) { totalscore += c.hits; }
+    float threshold = totalscore * trustedMajority;
+
+    for(auto rank = lowestRank; rank <= highestRank; ++rank) {
+        //hash-count taxon id occurrences on rank 'r'
+        for(const auto& c : cand) {
+            const taxon* tax = db.ancestor(c.tax, rank);
+            auto score = c.hits;
+            auto it = scores.find(tax);
+            if(it != scores.end()) {
+                it->second += score;
+            } else {
+                scores.insert(it, {tax, score});
+            }
         }
-        float threshold = totalscore * trustedMajority;
-
-        for(auto rank = lowestRank; rank <= highestRank; ++rank) {
-            //hash-count taxon id occurrences on rank 'r'
-            for(int i = 0, n = cand.size(); i < n; ++i) {
-                //use target id instead of taxon if at sequence level
-                const taxon* tax = db.ancestor(cand[i].tax, rank);
-                auto score = cand[i].hits;
-                auto it = scores.find(tax);
-                if(it != scores.end()) {
-                    it->second += score;
-                } else {
-                    scores.insert(it, {tax, score});
-                }
+        //determine taxon with most votes
+        const taxon* toptax = nullptr;
+        int topscore = 0;
+        for(const auto& x : scores) {
+            if(x.second > topscore) {
+                toptax   = x.first;
+                topscore = x.second;
             }
-            //determine taxon with most votes
-            const taxon* toptax = nullptr;
-            int topscore = 0;
-            for(const auto& x : scores) {
-                if(x.second > topscore) {
-                    toptax   = x.first;
-                    topscore = x.second;
-                }
-            }
-            //if enough candidates (weighted by their hits)
-            //agree on a taxon => classify as such
-            if(toptax && topscore >= threshold) {
-                return toptax;
-            }
-            scores.clear();
         }
+        //if enough candidates (weighted by their hits)
+        //agree on a taxon => classify as such
+        if(toptax && topscore >= threshold) {
+            return toptax;
+        }
+        scores.clear();
     }
+
     //candidates couldn't agree on a taxon in rank range [lowest,highest]
     return nullptr;
 }
@@ -280,6 +282,12 @@ const taxon*
 classify(const database& db, const classification_options& opt,
          const classification_candidates& cand)
 {
+    if(cand.empty()) return nullptr;
+
+    if(cand.size() == 1) {
+        return (cand[0].hits >= opt.hitsMin) ? cand[0].tax : nullptr;
+    }
+
     //sum of top-2 hits < threshold => considered not classifiable
     if((cand[0].hits + cand[1].hits) < opt.hitsMin) return nullptr;
 
