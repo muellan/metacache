@@ -251,7 +251,8 @@ void show_rank_statistics(const args_parser& args)
 
     for(const auto& s : stat) {
         cout << s.first->id() << " \t "
-             << s.first->name() << " \t " << s.second << '\n';
+             << s.first->name() << " \t "
+             << s.second << '\n';
     }
 }
 
