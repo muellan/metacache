@@ -12,7 +12,7 @@ Mode Starting
 ```
 main.cpp                     main entry point; selects modes
 
-modes.h                      declares modo starting functions
+modes.h                      declares mode starting functions
 mode_query.cpp               start classification 
 mode_build.cpp               database building 
 mode_info.cpp                database property queries
@@ -29,10 +29,10 @@ query_options.cpp            command line args -> query settings
 classification.h             classification starting function
 classification.cpp           query database and classify reads based on matches 
 candidates.h                 determine top hits in contiguous windows
-matches_per_target.h         target/reference sequence -> 
+matches_per_target.h         target->matches map construction
 classification_statistics.h  rank-based classification statistics
 
-sketch_database.h            feature -> location map + taxonomy + aux data
+sketch_database.h            feature->location map + taxonomy + auxiliary data
 hash_multimap.h              hashmap used by sketch_database
 chunk_allocator.h            default allocator used by hash_multimap
 

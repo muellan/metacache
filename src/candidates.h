@@ -328,12 +328,12 @@ public:
                     [&] (const match_candidate& c, hit_count h) {
                         return c.hits > h;
                     });
+
                 if(i != top_.end() || top_.size() < rules.maxCandidates) {
                     top_.insert(i, cand);
                     if(top_.size() > rules.maxCandidates)
                         top_.resize(rules.maxCandidates);
                 }
-
             }
             //above sequence level, taxa can occur more than once
             else {
@@ -356,6 +356,7 @@ public:
                         [&] (const match_candidate& c, hit_count h) {
                             return c.hits > h;
                         });
+
                     if(j != top_.end() || top_.size() < rules.maxCandidates) {
                         top_.insert(j, cand);
                         if(top_.size() > rules.maxCandidates)
