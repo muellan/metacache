@@ -124,8 +124,6 @@ using matches_per_location = database::matches_per_location;
  *        default is a top 2 voting scheme;
  *        forward declarations (break cycle "config.h" <-> "candidates.h")
  */
-template<std::size_t>
-class top_distinct_matches_in_contiguous_window_ranges;
 
 class distinct_matches_in_contiguous_window_ranges;
 class best_distinct_matches_in_contiguous_window_ranges;
