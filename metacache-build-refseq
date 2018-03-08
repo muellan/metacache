@@ -28,7 +28,7 @@ MODE=standard
 
 if [ $# -lt 1 ]; then
   echo "Building database for NCBI RefSeq complete bacterial and virus genomes."
-  echo "    General script usage: $0 (big|standard|small)"
+  echo "Usage:    $0 (big|standard|small)"
 fi
 
 
@@ -40,6 +40,7 @@ fi
 
 # download-ncbi-taxonomy <target folder>
 ./download-ncbi-taxonomy genomes/taxonomy
+# ./download-ncbi-taxmaps  genomes/taxonomy
 
 
 case "$MODE" in
@@ -53,4 +54,5 @@ case "$MODE" in
     ./metacache build refseq_small genomes/refseq -taxonomy genomes/taxonomy -kmerlen 16 -winlen 256 -sketchlen 16
     ;;
 esac
+
 
