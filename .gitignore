@@ -1,4 +1,6 @@
 /build_*
+/db
+/db_info
 /debug  
 /release
 /seafile

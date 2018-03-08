@@ -7,10 +7,12 @@ COMPILER     = g++
 MPI_COMPILER = mpicxx
 DIALECT      = -std=c++11
 WARNINGS     = -Wall -Wextra -Wpedantic
+OPTIMIZATION = -O3 
+#-march native -fomit-frame-pointer 
 
-REL_FLAGS   = $(INCLUDES) $(MACROS) $(DIALECT) -O3 $(WARNINGS)
+REL_FLAGS   = $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) $(WARNINGS)
 DBG_FLAGS   = $(INCLUDES) $(MACROS) $(DIALECT) -O0 -g $(WARNINGS)
-TEST_FLAGS  = $(INCLUDES) $(MACROS) $(DIALECT) -O3 $(WARNINGS)
+TEST_FLAGS  = $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) $(WARNINGS)
 
 REL_LDFLAGS  = -pthread -s
 DBG_LDFLAGS  = -pthread 
