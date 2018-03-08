@@ -326,7 +326,7 @@ public:
             if(cand.tax->rank() == taxon_rank::Sequence) {
                 auto i = std::lower_bound(top_.begin(), top_.end(), cand.hits,
                     [&] (const match_candidate& c, hit_count h) {
-                        return c.hits < h;
+                        return c.hits > h;
                     });
                 if(i != top_.end() || top_.size() < rules.maxCandidates) {
                     top_.insert(i, cand);
@@ -354,7 +354,7 @@ public:
                 else  {
                     auto j = std::lower_bound(top_.begin(), top_.end(), cand.hits,
                         [&] (const match_candidate& c, hit_count h) {
-                            return c.hits < h;
+                            return c.hits > h;
                         });
                     if(j != top_.end() || top_.size() < rules.maxCandidates) {
                         top_.insert(j, cand);
