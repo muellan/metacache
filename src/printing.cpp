@@ -219,40 +219,62 @@ void show_taxon_header(std::ostream& os,
                        const classification_output_options& opt,
                        const std::string& prefix)
 {
-
     const auto rmax = opt.showLineage ? opt.highestRank : opt.lowestRank;
 
-    for(auto r = opt.lowestRank; r <= rmax; ++r) {
+    if(opt.lowestRank == rmax) {
         switch(opt.showTaxaAs) {
             default:
             case taxon_print_mode::rank_name:
-                os << prefix << taxonomy::rank_name(r)
-                   << opt.format.rankSuffix;
+                os << prefix << "rank" << opt.format.rankSuffix;
                 [[fallthrough]] // fall through
             case taxon_print_mode::name:
                 os << prefix << "taxname";
                 break;
             case taxon_print_mode::rank_id:
-                os << prefix << taxonomy::rank_name(r)
-                   << opt.format.rankSuffix;
+                os << prefix << "rank" << opt.format.rankSuffix;
                 [[fallthrough]] // fall through
             case taxon_print_mode::id:
                 os << prefix << "taxid";
                 break;
             case taxon_print_mode::rank_name_id:
-                os << prefix << taxonomy::rank_name(r)
-                   << opt.format.rankSuffix;
+                os << prefix << "rank" << opt.format.rankSuffix;
                 [[fallthrough]] // fall through
             case taxon_print_mode::name_id:
-                os << prefix << "taxname"
-                   << opt.format.taxidPrefix
-                   << prefix << "taxid"
-                   << opt.format.taxidSuffix;
+                os << prefix << "taxname" << opt.format.taxidPrefix
+                   << prefix << "taxid" << opt.format.taxidSuffix;
                 break;
         }
-        if(r < rmax) os << opt.format.taxSeparator;
     }
-
+    else {
+        for(auto r = opt.lowestRank; r <= rmax; ++r) {
+            switch(opt.showTaxaAs) {
+                default:
+                case taxon_print_mode::rank_name:
+                    os << prefix << taxonomy::rank_name(r)
+                       << opt.format.rankSuffix;
+                    [[fallthrough]] // fall through
+                case taxon_print_mode::name:
+                    os << prefix << "taxname";
+                    break;
+                case taxon_print_mode::rank_id:
+                    os << prefix << taxonomy::rank_name(r)
+                       << opt.format.rankSuffix;
+                    [[fallthrough]] // fall through
+                case taxon_print_mode::id:
+                    os << prefix << "taxid";
+                    break;
+                case taxon_print_mode::rank_name_id:
+                    os << prefix << taxonomy::rank_name(r)
+                       << opt.format.rankSuffix;
+                    [[fallthrough]] // fall through
+                case taxon_print_mode::name_id:
+                    os << prefix << "taxname" << opt.format.taxidPrefix
+                       << prefix << "taxid" << opt.format.taxidSuffix;
+                    break;
+            }
+            if(r < rmax) os << opt.format.taxSeparator;
+        }
+    }
 }
 
 
