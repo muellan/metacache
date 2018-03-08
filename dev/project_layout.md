@@ -82,6 +82,7 @@ io_error.h                   I/O exception definitions
 
 parallel_task_queue.h        thread pool
 
-timer.h
+timer.h                      simple std::chrono based timer class
+string_utils.h               string processing utilities (trim)
 typename.h                   name demangling functions
 ```

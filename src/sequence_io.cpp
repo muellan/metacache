@@ -27,6 +27,7 @@
 
 #include "io_error.h"
 #include "sequence_io.h"
+#include "string_utils.h"
 
 
 namespace mc {
@@ -312,7 +313,7 @@ extract_ncbi_accession_version_number(const string& prefix,
         auto s = text.find('.', i+1);
         if(s == string::npos || (s-i) > 20) return "";
         auto k = end_of_accession_number(text,s+1);
-        return text.substr(i, k-i);
+        return trimmed(text.substr(i, k-i));
     }
     return "";
 }
@@ -334,7 +335,7 @@ extract_ncbi_accession_version_number(string text)
 
     //try to find version speparator
     auto s = text.find('.');
-    if(s < 20) return text.substr(0, end_of_accession_number(text,s+1));
+    if(s < 20) return trimmed(text.substr(0, end_of_accession_number(text,s+1)));
 
     return "";
 }
@@ -355,7 +356,7 @@ extract_ncbi_accession_number(const string& prefix,
         //version separator
         auto l = text.find('.', j);
         if(l < k) k = l;
-        return text.substr(i, k-i);
+        return trimmed(text.substr(i, k-i));
     }
     return "";
 }
@@ -392,7 +393,7 @@ extract_genbank_identifier(const string& text)
             j = text.find(' ', i);
             if(j == string::npos) j = text.size();
         }
-        return text.substr(i, j-i);
+        return trimmed(text.substr(i, j-i));
     }
     return "";
 }

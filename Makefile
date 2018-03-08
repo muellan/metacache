@@ -51,6 +51,7 @@ HEADERS = \
           src/sketch_database.h \
           src/stat_confusion.h \
           src/stat_moments.h \
+          src/string_utils.h \
           src/taxonomy.h \
           src/taxonomy_io.h \
           src/timer.h \

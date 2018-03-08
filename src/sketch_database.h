@@ -275,7 +275,7 @@ public:
         targets_{},
         taxa_{},
         ranksCache_{taxa_, taxon_rank::Sequence},
-        name2tax{}
+        name2tax_{}
     {
         features_.max_load_factor(0.8);
     }
@@ -479,7 +479,7 @@ public:
 
 
     //---------------------------------------------------------------
-    bool add_target(const sequence& seq, taxon_name  sid,
+    bool add_target(const sequence& seq, taxon_name sid,
                     taxon_id parentTaxid = 0,
                     file_source source = file_source{})
     {
@@ -494,7 +494,7 @@ public:
         if(seq.empty()) return false;
 
         //don't allow non-unique sequence ids
-        if(name2tax.find(sid) != name2tax.end()) return false;
+        if(name2tax_.find(sid) != name2tax_.end()) return false;
 
         const auto targetCount = target_id(targets_.size());
         const auto taxid = taxon_id_of_target(targetCount);
@@ -520,7 +520,7 @@ public:
 
         //allows lookup via sequence id (e.g. NCBI accession number)
         const taxon* newtax = &(*nit);
-        name2tax.insert({std::move(sid), newtax});
+        name2tax_.insert({std::move(sid), newtax});
 
         //target id -> taxon lookup table
         targets_.push_back(newtax);
@@ -552,7 +552,7 @@ public:
     //---------------------------------------------------------------
     void clear() {
         ranksCache_.clear();
-        name2tax.clear();
+        name2tax_.clear();
         features_.clear();
     }
 
@@ -563,7 +563,7 @@ public:
      */
     void clear_without_deallocation() {
         ranksCache_.clear();
-        name2tax.clear();
+        name2tax_.clear();
         features_.clear_without_deallocation();
     }
 
@@ -584,10 +584,10 @@ public:
      * @brief will only find sequence-level taxon names == sequence id
      */
     const taxon*
-    taxon_with_name(const taxon_name & name) const noexcept {
+    taxon_with_name(const taxon_name& name) const noexcept {
         if(name.empty()) return nullptr;
-        auto i = name2tax.find(name);
-        if(i == name2tax.end()) return nullptr;
+        auto i = name2tax_.find(name);
+        if(i == name2tax_.end()) return nullptr;
         return i->second;
     }
 
@@ -942,10 +942,11 @@ public:
         }
 
         //sequence id lookup
-        name2tax.clear();
+        name2tax_.clear();
         for(const auto& t : taxa_) {
-            if(t.rank() == taxon_rank::Sequence)
-                name2tax.insert({t.name(), &t});
+            if(t.rank() == taxon_rank::Sequence) {
+                name2tax_.insert({t.name(), &t});
+            }
         }
 
         //ranked linage cache
@@ -1193,7 +1194,7 @@ private:
     std::vector<const taxon*> targets_;
     taxonomy taxa_;
     ranked_lineages_cache ranksCache_;
-    std::map<taxon_name ,const taxon*> name2tax;
+    std::unordered_map<taxon_name,const taxon*> name2tax_;
 };
 
 
