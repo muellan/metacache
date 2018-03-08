@@ -35,6 +35,8 @@ namespace mc {
 
 using std::cout;
 using std::cerr;
+using std::endl;
+using std::flush;
 
 
 /*************************************************************************//**
@@ -65,7 +67,7 @@ struct annotation_options
     std::string fieldSeparator = " ";
     std::string valueSeparator = "|";
 
-    sequence_id_type idtype = sequence_id_type::acc;
+    sequence_id_type idtype = sequence_id_type::acc_ver;
 
     std::vector<std::string> mappingFiles;
 };
@@ -178,11 +180,11 @@ void read_mappings_from_file(sequence_id_type idtype,
     std::ifstream is {file};
 
     if(!is.good()) {
-        cerr << "File '" << file << "' could not be read." << std::endl;
+        cerr << "File '" << file << "' could not be read." << endl;
         return;
     }
 
-    cout << "Processing mappings in file '" << file << "'" << std::endl;
+    cout << "Processing mappings in file '" << file << "'" << endl;
 
     const auto fsize = file_size(file);
     auto nextStatStep = fsize / 1000;
@@ -315,8 +317,7 @@ void annotate_with_taxid(const annotation_options& opt)
 
     std::ifstream is {opt.infile};
     if(!is.good()) {
-        cerr << "Input file " << opt.infile << " could not be opened."
-                  << std::endl;
+        cerr << "Input file " << opt.infile << " could not be opened." << endl;
     }
 
     auto map = std::map<std::string,taxid_t>{};
@@ -331,14 +332,14 @@ void annotate_with_taxid(const annotation_options& opt)
     else {
         std::ofstream os {opt.outfile};
         if(os.good()) {
-            cout << "Mapping ... " << std::flush;
+            cout << "Mapping ... " << flush;
             annotate_with_taxid(opt, map, is, os);
-            cout << "complete." << std::endl;
+            cout << "complete." << endl;
         }
         else {
             cerr << "Output file " << opt.outfile
                  << " could not be opened."
-                 << std::endl;
+                 << endl;
         }
     }
 
@@ -363,9 +364,9 @@ void main_mode_annotate(const args_parser& args)
                      << "Output will be written to ";
 
                 if(!opt.outfile.empty()) {
-                    cout << "'" << opt.outfile << "'" << std::endl;
+                    cout << "'" << opt.outfile << "'" << endl;
                 } else {
-                    cout << "'stdout'" << std::endl;
+                    cout << "'stdout'" << endl;
                 }
                 annotate_with_taxid(opt);
                 break;

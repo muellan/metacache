@@ -20,9 +20,9 @@ OPTIONS
     -out <filename>      Redirect output to file <filename>.
                          If not specified, output will be written to stdout.
 
+    -id=accver           use accession.version ids
     -id=acc              use accession ids
-       =accver           use accession.version ids
-       =gi               usi gi ids
+    -id=gi               usi gi ids
                          default: "accver"
 
     -field-sep <string>  String that separates header fields.

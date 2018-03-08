@@ -352,6 +352,9 @@ extract_ncbi_accession_number(const string& prefix,
     if(i != string::npos) {
         auto j = i + prefix.size();
         auto k = end_of_accession_number(text,j);
+        //version separator
+        auto l = text.find('.', j);
+        if(l < k) k = l;
         return text.substr(i, k-i);
     }
     return "";
