@@ -132,8 +132,7 @@ class best_distinct_matches_in_contiguous_window_ranges;
 
 
 using classification_candidates =
-    top_distinct_matches_in_contiguous_window_ranges<2>;
-//    best_distinct_matches_in_contiguous_window_ranges;
+    best_distinct_matches_in_contiguous_window_ranges;
 //    distinct_matches_in_contiguous_window_ranges;
 
 
