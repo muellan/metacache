@@ -181,78 +181,45 @@ void prepare_evaluation(const database& db,
  *
  * @brief lowest common ancestral taxon of several candidate taxa
  *
- * @param trustedMajority  fraction of total feature hits that a
- *                         candidate (taxon) must have in order to be
- *                         chosen as classification result
- *
- * @param lowestRank       lowest rank for classification
- * @param highestRank      highest rank for classification
- *
- * @param maxNumCandidates limit investigation to max. number of candidates
- *
  *****************************************************************************/
 const taxon*
 lowest_common_ancestor(const database& db,
-                       const classification_candidates& cand,
-                       float trustedMajority,
-                       taxon_rank lowestRank = taxon_rank::Sequence,
-                       taxon_rank highestRank = taxon_rank::Domain)
+                       const classification_options& opt,
+                       const classification_candidates& cand)
 {
+    using hit_count = match_candidate::count_type;
+
     if(cand.empty() || !cand[0].tax) return nullptr;
 
     if(cand.size() == 1) {
-        return (cand[0].tax->rank() <= highestRank) ? cand[0].tax : nullptr;
+        return (cand[0].tax->rank() <= opt.highestRank) ? cand[0].tax : nullptr;
     }
 
     if(cand.size() == 2) {
+        // (cand[1].hits > cand[0].hits - opt.hitsMin)
         const taxon* tax = db.ranked_lca(cand[0].tax, cand[1].tax);
 
         //classify if rank is below or at the highest rank of interest
-        return (tax && tax->rank() <= highestRank) ? tax : nullptr;
+        return (tax && tax->rank() <= opt.highestRank) ? tax : nullptr;
     }
 
-    //2 < cand.size() <= lca_upper_candidate_limit
-    if(lowestRank == taxon_rank::Sequence) ++lowestRank;
+    // begin lca with first candidate
+    const taxon* lca_taxon = cand[0].tax;
+    hit_count threshold = (cand[0].hits - opt.hitsMin) * opt.hitsDiffFraction;
 
-    using score_t = match_candidate::count_type;
-    std::unordered_map<const taxon*,score_t> scores;
-    scores.rehash(2 * cand.size());
-
-    score_t totalscore = 0;
-    for(const auto& c : cand) { totalscore += c.hits; }
-    float threshold = totalscore * trustedMajority;
-
-    for(auto rank = lowestRank; rank <= highestRank; ++rank) {
-        //hash-count taxon id occurrences on rank 'r'
-        for(const auto& c : cand) {
-            const taxon* tax = db.ancestor(c.tax, rank);
-            auto score = c.hits;
-            auto it = scores.find(tax);
-            if(it != scores.end()) {
-                it->second += score;
-            } else {
-                scores.insert(it, {tax, score});
-            }
+    for(auto i = cand.begin()+1; i != cand.end(); ++i) {
+        // include all candidates with hits above threshold
+        if(i->hits > threshold) {
+            // include candidate in lca
+            lca_taxon = db.ranked_lca(lca_taxon, i->tax);
+            // exit early if lca rank already too high
+            if(lca_taxon->rank() > opt.highestRank)
+                return nullptr;
+        } else {
+            break;
         }
-        //determine taxon with most votes
-        const taxon* toptax = nullptr;
-        score_t topscore = 0;
-        for(const auto& x : scores) {
-            if(x.second > topscore) {
-                toptax   = x.first;
-                topscore = x.second;
-            }
-        }
-        //if enough candidates (weighted by their hits)
-        //agree on a taxon => classify as such
-        if(toptax && topscore >= threshold) {
-            return toptax;
-        }
-        scores.clear();
     }
-
-    //candidates couldn't agree on a taxon in rank range [lowest,highest]
-    return nullptr;
+    return lca_taxon;
 }
 
 
@@ -301,8 +268,7 @@ classify(const database& db, const classification_options& opt,
         return cand[0].tax;
     }
 
-    return lowest_common_ancestor(db, cand, opt.hitsDiffFraction,
-                                  opt.lowestRank, opt.highestRank);
+    return lowest_common_ancestor(db, opt, cand);
 }
 
 
