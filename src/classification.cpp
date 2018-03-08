@@ -213,7 +213,7 @@ lowest_common_ancestor(const database& db,
             // include candidate in lca
             lca_taxon = db.ranked_lca(lca_taxon, i->tax);
             // exit early if lca rank already too high
-            if(lca_taxon->rank() > opt.highestRank)
+            if(!lca_taxon || lca_taxon->rank() > opt.highestRank)
                 return nullptr;
         } else {
             break;
