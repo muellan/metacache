@@ -25,28 +25,6 @@
 
 namespace mc {
 
-
-
-//-------------------------------------------------------------------
-void show_target_info(std::ostream& os, const database& db, const taxon& tax)
-{
-    os  << "Target " << tax.name() << "):\n"
-        << "    source:     "
-        << tax.source().filename << " / " << tax.source().index
-        << "\n    length:     " << tax.source().windows << " windows";
-
-    for(const taxon* t : db.ranks(tax)) {
-        if(t) {
-            auto rn = std::string(t->rank_name()) + ":";
-            rn.resize(12, ' ');
-            os << "\n    " << rn << "(" << t->id() << ") " << t->name();
-        }
-    }
-    os << '\n';
-}
-
-
-
 //-------------------------------------------------------------------
 void show_query_parameters(std::ostream& os, const query_options& opt)
 {

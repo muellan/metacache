@@ -1,7 +1,8 @@
 Documentation for MetaCache mode "info"
 
 SYNOPSIS
-    metacache info [<database>]
+    metacache info 
+    metacache info <database>
     metacache info <database> target [<sequence_id>...] 
     metacache info <database> lineages 
     metacache info <database> rank <name>
@@ -18,7 +19,7 @@ SUB-MODES
     metacache info <database>
         show basic database configuration & properties of <database>
 
-    metacache info <database> target 
+    metacache info <database> target
         list all available meta information for all reference sequences
         in <database>
 

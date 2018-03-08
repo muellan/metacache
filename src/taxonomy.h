@@ -197,6 +197,7 @@ public:
         if(name == "superphylum")   return rank::subKingdom;
         if(name == "subkingdom")    return rank::subKingdom;
         if(name == "kingdom")       return rank::Kingdom;
+        if(name == "subdomain")     return rank::Kingdom;
         if(name == "superkingdom")  return rank::Domain;
         if(name == "domain")        return rank::Domain;
         if(name == "root")          return rank::root;
