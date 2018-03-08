@@ -1,6 +1,7 @@
 /build_*
 /db
 /db_info
+/genomes
 /debug  
 /release
 /seafile
