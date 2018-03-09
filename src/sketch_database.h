@@ -251,7 +251,7 @@ public:
             return (a.loc < b.loc);
         }
     };
-    //location (= target window) -> number of featers
+    //location (= target window) -> number of features
     using matches_per_location = std::vector<location_matches>;
 
 
