@@ -11,6 +11,12 @@ if [ $# -ge 1 ]; then
     make clean
     popd
   fi
+
+  if [ $# -gt 1 ]; then
+    if [ "$2" == "notest" ]; then
+      exit
+    fi
+  fi
 fi
 
 mkdir results
