@@ -3,6 +3,8 @@
 if [ $# -ge 1 ]; then
   if [ "$1" == "clean" ]; then
     rm *.db
+    rm -r data
+    rm -r taxonomy
     rm -r results
     pushd .
     cd ..
@@ -12,6 +14,13 @@ if [ $# -ge 1 ]; then
 fi
 
 mkdir results
+
+
+# ---------------------------------------------------------
+# extract test data
+# ---------------------------------------------------------
+tar zxvf data.tar.gz
+tar zxvf taxonomy.tar.gz
 
 
 # ---------------------------------------------------------
