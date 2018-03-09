@@ -318,6 +318,7 @@ void annotate_with_taxid(const annotation_options& opt)
     std::ifstream is {opt.infile};
     if(!is.good()) {
         cerr << "Input file " << opt.infile << " could not be opened." << endl;
+        return;
     }
 
     auto map = std::map<std::string,taxid_t>{};
