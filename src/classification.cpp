@@ -519,61 +519,6 @@ void show_query_mapping(
 
 /*************************************************************************//**
  *
- * @brief default classification scheme & output
- *        try to map each read to a taxon with the lowest possible rank
- *
- *****************************************************************************/
-void map_queries_to_targets_default(
-    const vector<string>& infiles,
-    const database& db, const query_options& opt,
-    classification_results& results)
-{
-    using obuf_t = std::ostringstream;
-
-    const auto makeBatchBuffer = [] { return obuf_t(); };
-
-
-    const auto processQuery = [&] (
-        obuf_t& buf, sequence_query&& query, matches_per_location&& allhits)
-    {
-        if(query.empty()) return;
-
-        prepare_evaluation(db, opt.evaluate, query, allhits);
-
-        auto cls = classify(db, opt.classify, query, allhits);
-
-        evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
-
-        show_query_mapping(buf, db, opt.output, query, cls, allhits);
-    };
-
-
-    const auto finalizeBatch = [&] (const obuf_t& buf) {
-        //write buffer to output stream when batch is finished
-        results.mapout << buf.str();
-    };
-
-
-    const auto showStatus = [&] (const std::string& msg, float progress) {
-        if(opt.output.mapViewMode != map_view_mode::none) {
-            results.mapout << opt.output.format.comment << msg << '\n';
-        }
-        if(progress >= 0.0f) {
-            show_progress_indicator(results.status, progress);
-        }
-    };
-
-
-    //run (parallel) database queries according to processing options
-    query_database(infiles, db, opt.process,
-                   makeBatchBuffer, processQuery, finalizeBatch,
-                   showStatus);
-}
-
-
-
-/*************************************************************************//**
- *
  * @brief per-batch buffer for output and (target -> hits) lists
  *
  *****************************************************************************/
@@ -590,7 +535,7 @@ struct mappings_buffer
  *        try to map each read to a taxon with the lowest possible rank
  *
  *****************************************************************************/
-void map_queries_to_targets_and_vice_versa(
+void map_queries_to_targets_default(
     const vector<string>& infiles,
     const database& db, const query_options& opt,
     classification_results& results)
@@ -598,10 +543,12 @@ void map_queries_to_targets_and_vice_versa(
     //global target -> query_id/win:hits... list
     matches_per_target tgtMatches;
 
-    //batch buffer (each batch might be processed by a different thread)
+    //makes an empty batch buffer
+    //(each batch might be processed by a different thread)
     const auto makeBatchBuffer = [] { return mappings_buffer(); };
 
 
+    //updates buffer with the database answer of a single query
     const auto processQuery = [&] (mappings_buffer& buf,
         sequence_query&& query, matches_per_location&& allhits)
     {
@@ -611,10 +558,12 @@ void map_queries_to_targets_and_vice_versa(
 
         auto cls = classify(db, opt.classify, query, allhits);
 
-        //insert all candidates with at least 'hitsMin' hits into
-        //target -> match list
-        buf.hitsPerTarget.insert(query.id, allhits, cls.candidates,
-                                 opt.classify.hitsMin);
+        if(opt.output.showHitsPerTargetList) {
+            //insert all candidates with at least 'hitsMin' hits into
+            //target -> match list
+            buf.hitsPerTarget.insert(query.id, allhits, cls.candidates,
+                                     opt.classify.hitsMin);
+        }
 
         evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
 
@@ -623,8 +572,10 @@ void map_queries_to_targets_and_vice_versa(
 
 
     const auto finalizeBatch = [&] (mappings_buffer&& buf) {
-        //merge batch (target->hits) lists into global one
-        tgtMatches.merge(std::move(buf.hitsPerTarget));
+        if(opt.output.showHitsPerTargetList) {
+            //merge batch (target->hits) lists into global one
+            tgtMatches.merge(std::move(buf.hitsPerTarget));
+        }
         //write output buffer to output stream when batch is finished
         results.mapout << buf.out.str();
     };
@@ -645,6 +596,7 @@ void map_queries_to_targets_and_vice_versa(
                    makeBatchBuffer, processQuery, finalizeBatch,
                    showStatus);
 
+    //target -> hits list?
     if(tgtMatches.empty()) return;
 
     results.auxout
@@ -674,13 +626,7 @@ void map_queries_to_targets(const vector<string>& infiles,
         show_query_mapping_header(results.mapout, opt.output);
     }
 
-    if(opt.output.showHitsPerTargetList) {
-        map_queries_to_targets_and_vice_versa(infiles, db, opt, results);
-    }
-    //default (and the only functionality available prior to version 0.20)
-    else {
-        map_queries_to_targets_default(infiles, db, opt, results);
-    }
+    map_queries_to_targets_default(infiles, db, opt, results);
 }
 
 } // namespace mc
