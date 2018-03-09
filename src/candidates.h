@@ -134,8 +134,8 @@ void for_all_contiguous_window_ranges(const matches_per_location& matches,
     match_candidate curBest;
     curBest.tax = fst->loc.tax;
     curBest.hits = hits;
-    curBest.pos.beg = fst->loc.win;;
-    curBest.pos.end = fst->loc.win;;
+    curBest.pos.beg = fst->loc.win;
+    curBest.pos.end = fst->loc.win;
     auto lst = fst;
     ++lst;
 
