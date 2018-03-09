@@ -5,9 +5,10 @@
 /debug  
 /release
 /seafile
-/test
 /.settings
 /dev/html
+/test/results
+/test/build_*
 .project
 .cproject
 *.exe

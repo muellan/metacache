@@ -1,6 +1,5 @@
 REL_ARTIFACT  = metacache
 DBG_ARTIFACT  = metacache_debug
-TEST_ARTIFACT = run-tests
 
 #COMPILER     = nvcc
 COMPILER     = g++
@@ -12,11 +11,9 @@ OPTIMIZATION = -O3
 
 REL_FLAGS   = $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) $(WARNINGS)
 DBG_FLAGS   = $(INCLUDES) $(MACROS) $(DIALECT) -O0 -g $(WARNINGS)
-TEST_FLAGS  = $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) $(WARNINGS)
 
 REL_LDFLAGS  = -pthread -s
 DBG_LDFLAGS  = -pthread 
-TEST_LDFLAGS = -pthread -s
 
 
 #--------------------------------------------------------------------
@@ -73,32 +70,20 @@ SOURCES = \
           src/sequence_io.cpp \
           src/taxonomy_io.cpp
 
-TEST_HEADERS = \
-
-TEST_SOURCES = \
-          test\tests.cpp \
-          test/hash_multimap_test.cpp
-
 
 #--------------------------------------------------------------------
 REL_DIR  = build_release
 DBG_DIR  = build_debug
-TEST_DIR = build_test
 
 PLAIN_SRCS = $(notdir $(SOURCES))
 PLAIN_OBJS = $(PLAIN_SRCS:%.cpp=%.o)
 
-PLAIN_TEST_SRCS = $(notdir $(TEST_SOURCES))	
-PLAIN_TEST_OBJS = $(PLAIN_TEST_SRCS:%.cpp=%.o)
-
 #--------------------------------------------------------------------
 REL_OBJS  = $(PLAIN_OBJS:%=$(REL_DIR)/%)
 DBG_OBJS  = $(PLAIN_OBJS:%=$(DBG_DIR)/%)
-TEST_OBJS = $(PLAIN_TEST_OBJS:%=$(TEST_DIR)/%)
 
 REL_COMPILE  = $(COMPILER) $(REL_FLAGS) -c $< -o $@
 DBG_COMPILE  = $(COMPILER) $(DBG_FLAGS) -c $< -o $@
-TEST_COMPILE = $(COMPILER) $(TEST_FLAGS) -c $< -o $@
 
 
 
@@ -110,8 +95,6 @@ TEST_COMPILE = $(COMPILER) $(TEST_FLAGS) -c $< -o $@
 release: $(REL_DIR) $(REL_ARTIFACT)
 
 debug: $(DBG_DIR) $(DBG_ARTIFACT)
-
-test: $(TEST_DIR) $(TEST_ARTIFACT)
 
 all: release debug test
 
@@ -227,19 +210,3 @@ $(DBG_DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.h
 	$(DBG_COMPILE)
 
 
-#--------------------------------------------------------------------
-# tests
-#--------------------------------------------------------------------
-$(TEST_DIR):
-	mkdir $(TEST_DIR) 
-
-$(TEST_ARTIFACT): $(TEST_OBJS)
-	$(COMPILER) -o $(TEST_ARTIFACT) $(TEST_OBJS) $(TEST_LDFLAGS)
-
-# test specific sources
-$(TEST_DIR)/tests.o : test/tests.cpp $(TEST_HEADERS)
-	$(TEST_COMPILE)
-	
-$(TEST_DIR)/hash_multimap_test.o : test/hash_multimap_test.cpp src/hash_multimap.h
-	$(TEST_COMPILE)
-	

@@ -1,0 +1,104 @@
+#!/bin/bash
+
+if [ $# -ge 1 ]; then
+  if [ "$1" == "clean" ]; then
+    rm *.db
+    rm -r results
+    pushd .
+    cd ..
+    make clean
+    popd
+  fi
+fi
+
+mkdir results
+
+
+# ---------------------------------------------------------
+# make MetaCache executable
+# ---------------------------------------------------------
+pushd .
+cd ..
+make -j8
+popd
+
+
+# ---------------------------------------------------------
+# make small testing database
+# ---------------------------------------------------------
+if [ ! -e "bacteria1.db" ]; then
+    ../metacache build bacteria1 data/bacteria1.fa -taxonomy taxonomy
+fi
+
+
+# ---------------------------------------------------------
+# output formatting tests
+# ---------------------------------------------------------
+function add_formatting_tests1 {
+  input=$1
+  param=$2
+
+  tests="${tests} ${input} ${param}\n"
+  tests="${tests} ${input} ${param} -lineage\n"
+  tests="${tests} ${input} ${param} -separate-cols\n"
+  tests="${tests} ${input} ${param} -lineage -separate-cols\n"
+
+  tests="${tests} ${input} ${param} -taxids\n"
+  tests="${tests} ${input} ${param} -lineage -taxids\n"
+  tests="${tests} ${input} ${param} -separate-cols -taxids\n"
+  tests="${tests} ${input} ${param} -lineage -separate-cols -taxids\n"
+
+  tests="${tests} ${input} ${param} -taxids-only\n"
+  tests="${tests} ${input} ${param} -lineage -taxids-only\n"
+  tests="${tests} ${input} ${param} -separate-cols -taxids-only\n"
+  tests="${tests} ${input} ${param} -lineage -separate-cols -taxids-only\n"
+}
+
+function add_formatting_tests2 {
+  add_formatting_tests1 $1 "$2"
+  add_formatting_tests1 $1 "$2 -omit-ranks"
+  add_formatting_tests1 $1 "$2 -queryids"
+  add_formatting_tests1 $1 "$2 -queryids -omit-ranks"
+}
+
+function add_formatting_tests {
+  add_formatting_tests2 $1 "$2"
+  add_formatting_tests2 $1 "$2 -mapped-only"
+  add_formatting_tests2 $1 "$2 -separator /%/"
+}
+
+query=data/fmt.fa 
+
+tests=""
+add_formatting_tests $query "-threads 1 -nosummary -noqueryparams"
+
+echo -e ${tests} | ../metacache query bacteria1 | grep "NC_" > results/fmt.out
+
+DIFF=$( diff results/fmt.out data/fmt.expected ) 
+
+if [ "$DIFF" != "" ]; then
+    echo "FAILED formatting test: Actual output does not match expected output."
+    exit
+fi
+
+
+# ---------------------------------------------------------
+# classification tests
+# ---------------------------------------------------------
+common="-threads 1 -noqueryparams -mapped-only -precision -ground-truth -tophits -allhits -hits-per-seq"
+tests=""
+tests="${tests} data/single.fa ${common}\n"
+tests="${tests} data/pair.1.fa data/pair.2.fa -pairfiles ${common}\n"
+
+echo -e ${tests} | ../metacache query bacteria1 | grep "|\|#" | grep -v "time\|speed\|list\|ignore" > results/classified.out
+
+DIFF=$( diff results/classified.out data/classified.expected ) 
+
+if [ "$DIFF" != "" ]; then
+    echo "FAILED classification test: Actual output does not match expected output."
+    exit
+fi
+
+
+echo "SUCCESS"
+

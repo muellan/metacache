@@ -11,8 +11,6 @@
 #include <set>
 
 
-namespace mc_test {
-
 using namespace mc;
 
 
@@ -411,4 +409,19 @@ void hash_multimap_performance()
 }
 
 
+
+//-------------------------------------------------------------------
+int main()
+{
+    try {
+        hash_multimap_correctness();
+        hash_multimap_performance();
+
+        return 0;
+    }
+    catch (std::exception& e) {
+        std::cout << "ERROR: " << e.what() << std::endl;
+        return 1;
+    }
 }
+
