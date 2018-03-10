@@ -45,11 +45,11 @@ SUB-MODES
 
 EXAMPLES
     List metadata for all reference sequences in database 'refseq':
-        metacache info refseq.db
+        metacache info refseq.db target
 
     List metadata for the sequence with id NC_12345.6 in database 'refseq':
-        metacache info refseq.db sequ NC_12345.6
+        metacache info refseq.db target NC_12345.6
 
-    List distribution of the number of sequences on rank 'domain':
-        metacache info refseq.db rank domain
+    List distribution of the number of sequences on rank 'phylum':
+        metacache info refseq.db rank phylum
 
