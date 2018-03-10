@@ -306,31 +306,30 @@ public:
         const matches_per_location& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
     :
-        top_{}
+        cand_{}
     {
         for_all_contiguous_window_ranges(matches, rules.maxWindowsInRange,
             [&,this] (const match_candidate& cand) {
-                if(top_.size() >= rules.maxWindowsInRange) return false;
-                top_.push_back(cand);
+                cand_.push_back(cand);
                 return true;
             });
     }
 
 
     //---------------------------------------------------------------
-    const_iterator begin() const noexcept { return top_.begin(); }
-    const_iterator end()   const noexcept { return top_.end(); }
+    const_iterator begin() const noexcept { return cand_.begin(); }
+    const_iterator end()   const noexcept { return cand_.end(); }
 
-    bool empty() const noexcept { return top_.empty(); }
+    bool empty() const noexcept { return cand_.empty(); }
 
-    size_type size()  const noexcept { return top_.size(); }
+    size_type size()  const noexcept { return cand_.size(); }
 
     const match_candidate&
-    operator [] (size_type i) const noexcept { return top_[i]; }
+    operator [] (size_type i) const noexcept { return cand_[i]; }
 
 
 private:
-    candidates_list top_;
+    candidates_list cand_;
 };
 
 
