@@ -30,19 +30,22 @@ classification.h             classification starting function
 classification.cpp           query database and classify reads based on matches 
 candidates.h                 determine top hits in contiguous windows
 matches_per_target.h         target->matches map construction
-classification_statistics.h  rank-based classification statistics
-
-sketch_database.h            feature->location map + taxonomy + auxiliary data
-hash_multimap.h              hashmap used by sketch_database
-chunk_allocator.h            default allocator used by hash_multimap
 
 querying.h                   multi-threaded, batched database query functions;
                              also paired-end read handling
 
+printing.h/cpp               classification and analysis output functions
+```
+
+Database Operations / Sketching
+---------------------------------------------------------------------
+```                          
+sketch_database.h            feature->location map + taxonomy + auxiliary data
+hash_multimap.h              hashmap used by sketch_database
+chunk_allocator.h            default allocator used by hash_multimap
+
 taxonomy.h                   taxonomic tree
 taxonomy_io.h/cpp            NCBI taxonomic files -> taxonomic tree
-
-printing.h/cpp               classification and analysis output functions
 
 bitmanip.h                   bit-level manipulation functions
 dna_encoding.h               ASCII DNA strings -> 2-bit encoded kmers
@@ -55,9 +58,11 @@ sequence_io.h/cpp            reference sequence readers for FASTA/FASTQ files
 sequence_view.h              non-owning string view class
 ```
 
-Result Analysis
+Analysis
 ---------------------------------------------------------------------
 ```
+classification_statistics.h  rank-based classification statistics
+
 alignment.h                  construct (semi-global) alignments
 
 stat_confusion.h             thread-safe (binary) confusion statistics
@@ -65,7 +70,6 @@ stat_moments.h               accumulators for statistical moments
                              (mean, variance, skewness) and extrema (min/max)
 stat_combined.h              combined statistical accumulators
 ```
-
 
 Utilities
 ---------------------------------------------------------------------
