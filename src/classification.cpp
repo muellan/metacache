@@ -243,6 +243,32 @@ struct classification
 
 /*************************************************************************//**
  *
+ * @brief generate classification candidates
+ *
+ *****************************************************************************/
+classification_candidates
+make_classification_candidates(const database& db,
+                               const classification_options& opt,
+                               const sequence_query& query,
+                               const matches_per_location& allhits)
+{
+    candidate_generation_rules rules;
+
+    rules.maxWindowsInRange = window_id( 2 + (
+        std::max(query.seq1.size() + query.seq2.size(), opt.insertSizeMax) /
+        db.target_window_stride() ));
+
+    rules.mergeBelow    = opt.lowestRank;
+    rules.maxCandidates = opt.maxNumCandidatesPerQuery;
+
+    return classification_candidates{db, allhits, rules};
+
+}
+
+
+
+/*************************************************************************//**
+ *
  * @brief  classify using top matches/candidates
  *
  *****************************************************************************/
@@ -284,16 +310,7 @@ classify(const database& db,
          const sequence_query& query,
          const matches_per_location& allhits)
 {
-    candidate_generation_rules rules;
-
-    rules.maxWindowsInRange = window_id( 2 + (
-        std::max(query.seq1.size() + query.seq2.size(), opt.insertSizeMax) /
-        db.target_window_stride() ));
-
-    rules.mergeBelow    = opt.lowestRank;
-    rules.maxCandidates = opt.maxNumCandidatesPerQuery;
-
-    classification cls { classification_candidates{db, allhits, rules} };
+    classification cls { make_classification_candidates(db, opt, query, allhits) };
 
     cls.best = classify(db, opt, cls.candidates);
 
