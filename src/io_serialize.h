@@ -105,8 +105,10 @@ read_binary(std::istream& is, std::basic_string<CharT>& str)
     std::uint64_t n = 0;
     is.read(reinterpret_cast<char*>(&n), sizeof(n));
     str.clear();
-    str.resize(n);
-    is.read(reinterpret_cast<char*>(&(*str.begin())), n * sizeof(CharT));
+    if(n > 0) {
+        str.resize(n);
+        is.read(reinterpret_cast<char*>(&(*str.begin())), n * sizeof(CharT));
+    }
 }
 
 
