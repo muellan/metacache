@@ -82,8 +82,7 @@ void query_batched(
 {
     const auto load = 32 * queue.concurrency();
 
-    std::mutex mtx1;
-    std::mutex mtx2;
+    std::mutex mtx;
     std::atomic<std::uint64_t> queryLimit(opt.queryLimit);
 
     while(reader.has_next() && queryLimit > 0) {
@@ -95,20 +94,17 @@ void query_batched(
                     i < opt.batchSize && queryLimit > 0 && reader.has_next();
                     ++i, --queryLimit)
                 {
-                    std::unique_lock<std::mutex> lock1(mtx1);
                     auto seq = reader.next();
-                    query_id qid = reader.index();
-                    lock1.unlock();
 
                     if(!seq.header.empty()) {
                         update(buffer,
-                               sequence_query{qid,
+                               sequence_query{seq.index,
                                               std::move(seq.header),
                                               std::move(seq.data)},
                                db.matches(seq.data) );
                     }
                 }
-                std::lock_guard<std::mutex> lock(mtx2);
+                std::lock_guard<std::mutex> lock(mtx);
                 finalize(std::move(buffer));
             }); //enqueue
         }
@@ -157,20 +153,18 @@ void query_batched_merged_pairs(
                     if(!reader1.has_next() || !reader2.has_next()) break;
                     auto seq1 = reader1.next();
                     auto seq2 = reader2.next();
-                    query_id qid = reader1.index();
                     lock1.unlock();
 
-                    if(opt.pairing == pairing_mode::sequences) {
-                        qid /= 2;
-                    }
-
                     if(!seq1.header.empty()) {
+                        auto qidx = seq1.index;
+                        if(opt.pairing == pairing_mode::sequences) qidx /= 2;
+
                         auto matches = db.matches(seq1.data);
                         //merge matches with hits of second sequence
                         db.accumulate_matches(seq2.data, matches);
 
                         update(buffer,
-                               sequence_query{qid,
+                               sequence_query{qidx,
                                               std::move(seq1.header),
                                               std::move(seq1.data),
                                               std::move(seq2.data)},

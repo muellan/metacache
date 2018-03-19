@@ -56,8 +56,9 @@ sequence_reader::next()
 
     std::lock_guard<std::mutex> lock(mutables_);
     sequence seq;
+    ++index_;
+    seq.index = index_;
     read_next(seq);
-    index_++;
     return seq;
 }
 
@@ -72,8 +73,9 @@ void sequence_reader::skip(index_type skip)
     sequence seq;
 
     for(; skip > 0 && has_next(); --skip) {
+        ++index_;
+        seq.index = index_;
         read_next(seq);
-        index_++;
     }
 }
 

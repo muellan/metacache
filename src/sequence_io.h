@@ -53,6 +53,7 @@ public:
     using index_type = std::uint_least64_t;
 
     struct sequence {
+        index_type  index;       //number of sequence in file (+ offset)
         std::string header;      //meta information (FASTA >, FASTQ @)
         std::string data;        //actual sequence
         std::string qualities;   //quality scores (FASTQ)
