@@ -166,7 +166,9 @@ public:
                 [] (const candidate& a, const candidate& b) {
                     if(a.matches.front() < b.matches.front()) return true;
                     if(a.matches.front() > b.matches.front()) return false;
-                    return (a.matches.back() < b.matches.back());
+                    if(a.matches.back() < b.matches.back()) return true;
+                    if(a.matches.back() > b.matches.back()) return false;
+                    return (a.qeryid < b.qeryid);
                 });
         }
     }
