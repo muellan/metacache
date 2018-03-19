@@ -76,6 +76,8 @@ public:
 
     index_type index() const noexcept { return index_.load(); }
 
+    void index_offset(index_type index) { index_.store(index); }
+
 protected:
     void invalidate() { valid_.store(false); }
 

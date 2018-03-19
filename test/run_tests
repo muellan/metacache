@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# ---------------------------------------------------------
+# script expects to run in its own directory
+# ---------------------------------------------------------
+dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd $dir
+
+
+# ---------------------------------------------------------
+# parse command line arguments
+# ---------------------------------------------------------
 if [ $# -ge 1 ]; then
   if [ "$1" == "clean" ]; then
     rm *.db
@@ -85,11 +95,11 @@ function add_formatting_tests {
 query=data/fmt.fa 
 
 tests=""
-add_formatting_tests $query "-threads 1 -nosummary -noqueryparams"
+add_formatting_tests $query "-nosummary -noqueryparams"
 
 echo -e ${tests} | ../metacache query bacteria1 | grep "NC_" > results/fmt.out
 
-DIFF=$( diff results/fmt.out data/fmt.expected ) 
+DIFF=$( diff <(sort results/fmt.out) <(sort data/fmt.expected) )
 
 if [ "$DIFF" != "" ]; then
     echo "FAILED formatting test: Actual output does not match expected output."
@@ -100,14 +110,14 @@ fi
 # ---------------------------------------------------------
 # classification tests
 # ---------------------------------------------------------
-common="-threads 1 -noqueryparams -mapped-only -precision -ground-truth -tophits -allhits -hits-per-seq"
+common="-noqueryparams -mapped-only -precision -ground-truth -tophits -allhits -hits-per-seq"
 tests=""
 tests="${tests} data/single.fa ${common}\n"
 tests="${tests} data/pair.1.fa data/pair.2.fa -pairfiles ${common}\n"
 
 echo -e ${tests} | ../metacache query bacteria1 | grep "|\|#" | grep -v "time\|speed\|list\|ignore" > results/classified.out
 
-DIFF=$( diff results/classified.out data/classified.expected ) 
+DIFF=$( diff <(sort results/classified.out) <(sort data/classified.expected) )
 
 if [ "$DIFF" != "" ]; then
     echo "FAILED classification test: Actual output does not match expected output."
