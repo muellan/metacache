@@ -139,6 +139,11 @@ void fasta_reader::read_next(sequence& seq)
         invalidate();
         return;
     }
+
+    if(!file_.good()) {
+        invalidate();
+        return;
+    }
 }
 
 

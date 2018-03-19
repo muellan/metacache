@@ -82,9 +82,9 @@ void query_batched(
 {
     const auto load = 32 * queue.concurrency();
 
-    std::mutex mtx;
+    std::mutex mtx1;
+    std::mutex mtx2;
     std::atomic<std::uint64_t> queryLimit(opt.queryLimit);
-    std::atomic<query_id> qid(0);
 
     while(reader.has_next() && queryLimit > 0) {
         if(queue.unsafe_waiting() < load) {
@@ -95,16 +95,20 @@ void query_batched(
                     i < opt.batchSize && queryLimit > 0 && reader.has_next();
                     ++i, --queryLimit)
                 {
+                    std::unique_lock<std::mutex> lock1(mtx1);
                     auto seq = reader.next();
+                    query_id qid = reader.index();
+                    lock1.unlock();
+
                     if(!seq.header.empty()) {
                         update(buffer,
-                               sequence_query{++qid,
+                               sequence_query{qid,
                                               std::move(seq.header),
                                               std::move(seq.data)},
                                db.matches(seq.data) );
                     }
                 }
-                std::lock_guard<std::mutex> lock(mtx);
+                std::lock_guard<std::mutex> lock(mtx2);
                 finalize(std::move(buffer));
             }); //enqueue
         }
@@ -139,7 +143,6 @@ void query_batched_merged_pairs(
     std::mutex mtx1;
     std::mutex mtx2;
     std::atomic<std::uint64_t> queryLimit(opt.queryLimit);
-    std::atomic<query_id> qid(0);
 
     while(reader1.has_next() && reader2.has_next() && queryLimit > 0) {
         if(queue.unsafe_waiting() < load) {
@@ -154,7 +157,12 @@ void query_batched_merged_pairs(
                     if(!reader1.has_next() || !reader2.has_next()) break;
                     auto seq1 = reader1.next();
                     auto seq2 = reader2.next();
+                    query_id qid = reader1.index();
                     lock1.unlock();
+
+                    if(opt.pairing == pairing_mode::sequences) {
+                        qid /= 2;
+                    }
 
                     if(!seq1.header.empty()) {
                         auto matches = db.matches(seq1.data);
@@ -162,7 +170,7 @@ void query_batched_merged_pairs(
                         db.accumulate_matches(seq2.data, matches);
 
                         update(buffer,
-                               sequence_query{++qid,
+                               sequence_query{qid,
                                               std::move(seq1.header),
                                               std::move(seq1.data),
                                               std::move(seq2.data)},
@@ -205,6 +213,8 @@ void query_per_file(
     BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
     StatusCallback&& showStatus)
 {
+    query_id offset = 0;
+
     for(size_t i = 0; i < infilenames.size(); ++i) {
         const auto& fname = infilenames[i];
 
@@ -213,6 +223,8 @@ void query_per_file(
 
         try {
             auto reader = make_sequence_reader(fname);
+            reader->index_offset(offset);
+
             if(opt.pairing == pairing_mode::sequences) {
                 query_batched_merged_pairs(queue, *reader, *reader, db, opt,
                                            std::forward<BufferSource>(bufsrc),
@@ -224,6 +236,8 @@ void query_per_file(
                               std::forward<BufferUpdate>(bufupdate),
                               std::forward<BufferSink>(bufsink));
             }
+
+            offset += reader->index();
         }
         catch(std::exception& e) {
             showStatus(std::string("FAIL: ") + e.what(), progress);
@@ -258,6 +272,8 @@ void query_with_file_pairs(
     BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
     StatusCallback&& showStatus)
 {
+    query_id offset = 0;
+
     for(size_t i = 0; i < infilenames.size(); i += 2) {
         //pair up reads from two consecutive files in the list
         const auto& fname1 = infilenames[i];
@@ -268,12 +284,16 @@ void query_with_file_pairs(
 
         try {
             auto reader1 = make_sequence_reader(fname1);
+            reader1->index_offset(offset);
             auto reader2 = make_sequence_reader(fname2);
+            reader2->index_offset(offset);
 
             query_batched_merged_pairs(queue, *reader1, *reader2, db, opt,
                                        std::forward<BufferSource>(bufsrc),
                                        std::forward<BufferUpdate>(bufupdate),
                                        std::forward<BufferSink>(bufsink));
+
+            offset += reader1->index();
         }
         catch(std::exception& e) {
             showStatus(std::string("FAIL: ") + e.what(), progress);
