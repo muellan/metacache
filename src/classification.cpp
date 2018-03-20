@@ -567,7 +567,7 @@ void map_queries_to_targets_default(
 
     //updates buffer with the database answer of a single query
     const auto processQuery = [&] (mappings_buffer& buf,
-        sequence_query&& query, matches_per_location&& allhits)
+        sequence_query&& query, matches_per_location& allhits)
     {
         if(query.empty()) return;
 
