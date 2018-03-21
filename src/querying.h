@@ -89,7 +89,7 @@ void query_batched(
         if(queue.unsafe_waiting() < load) {
             queue.enqueue([&] {
                 auto buffer = getBuffer();
-                matches_per_location matches_buffer;
+                matches_per_location matches;
 
                 for(std::size_t i = 0;
                     i < opt.batchSize && queryLimit > 0 && reader.has_next();
@@ -98,14 +98,14 @@ void query_batched(
                     auto seq = reader.next();
 
                     if(!seq.header.empty()) {
-                        matches_buffer.resize(0);
-                        db.accumulate_matches(seq.data, matches_buffer);
+                        matches.clear();
+                        db.accumulate_matches(seq.data, matches);
 
                         update(buffer,
                                sequence_query{seq.index,
                                               std::move(seq.header),
                                               std::move(seq.data)},
-                               matches_buffer );
+                               matches );
                     }
                 }
                 std::lock_guard<std::mutex> lock(mtx);
@@ -148,7 +148,7 @@ void query_batched_merged_pairs(
         if(queue.unsafe_waiting() < load) {
             queue.enqueue([&]{
                 auto buffer = getBuffer();
-                matches_per_location matches_buffer;
+                matches_per_location matches;
 
                 for(std::size_t i = 0; i < opt.batchSize && queryLimit > 0;
                     ++i, --queryLimit)
@@ -164,17 +164,17 @@ void query_batched_merged_pairs(
                         auto qidx = seq1.index;
                         if(opt.pairing == pairing_mode::sequences) qidx /= 2;
 
-                        matches_buffer.resize(0);
-                        db.accumulate_matches(seq1.data, matches_buffer);
+                        matches.clear();
+                        db.accumulate_matches(seq1.data, matches);
                         //merge matches with hits of second sequence
-                        db.accumulate_matches(seq2.data, matches_buffer);
+                        db.accumulate_matches(seq2.data, matches);
 
                         update(buffer,
                                sequence_query{qidx,
                                               std::move(seq1.header),
                                               std::move(seq1.data),
                                               std::move(seq2.data)},
-                               matches_buffer );
+                               matches);
                     }
                 }
                 std::lock_guard<std::mutex> lock(mtx2);
