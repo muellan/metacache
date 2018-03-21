@@ -83,7 +83,8 @@ void query_batched(
     const auto load = 32 * queue.concurrency();
 
     std::mutex mtx;
-    std::atomic<std::uint64_t> queryLimit(opt.queryLimit);
+    std::atomic<std::uint64_t> queryLimit{opt.queryLimit};
+    std::atomic<bool> empty{true};
 
     while(reader.has_next() && queryLimit > 0) {
         if(queue.unsafe_waiting() < load) {
@@ -98,6 +99,7 @@ void query_batched(
                     auto seq = reader.next();
 
                     if(!seq.header.empty()) {
+                        empty.store(false);
                         matches.clear();
                         db.accumulate_matches(seq.data, matches);
 
@@ -108,8 +110,10 @@ void query_batched(
                                matches );
                     }
                 }
-                std::lock_guard<std::mutex> lock(mtx);
-                finalize(std::move(buffer));
+                if(!empty.load()) {
+                    std::lock_guard<std::mutex> lock(mtx);
+                    finalize(std::move(buffer));
+                }
             }); //enqueue
         }
     }
@@ -142,7 +146,8 @@ void query_batched_merged_pairs(
 
     std::mutex mtx1;
     std::mutex mtx2;
-    std::atomic<std::uint64_t> queryLimit(opt.queryLimit);
+    std::atomic<std::uint64_t> queryLimit{opt.queryLimit};
+    std::atomic<bool> empty{true};
 
     while(reader1.has_next() && reader2.has_next() && queryLimit > 0) {
         if(queue.unsafe_waiting() < load) {
@@ -165,6 +170,7 @@ void query_batched_merged_pairs(
                         if(opt.pairing == pairing_mode::sequences) qidx /= 2;
 
                         matches.clear();
+                        empty.store(false);
                         db.accumulate_matches(seq1.data, matches);
                         //merge matches with hits of second sequence
                         db.accumulate_matches(seq2.data, matches);
@@ -177,8 +183,10 @@ void query_batched_merged_pairs(
                                matches);
                     }
                 }
-                std::lock_guard<std::mutex> lock(mtx2);
-                finalize(std::move(buffer));
+                if(!empty) {
+                    std::lock_guard<std::mutex> lock(mtx2);
+                    finalize(std::move(buffer));
+                }
             }); //enqueue
         }
     }
