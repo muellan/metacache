@@ -84,13 +84,13 @@ void query_batched(
 
     std::mutex mtx;
     std::atomic<std::uint64_t> queryLimit{opt.queryLimit};
-    std::atomic<bool> empty{true};
 
     while(reader.has_next() && queryLimit > 0) {
         if(queue.unsafe_waiting() < load) {
             queue.enqueue([&] {
                 auto buffer = getBuffer();
                 matches_per_location matches;
+                bool empty = true;
 
                 for(std::size_t i = 0;
                     i < opt.batchSize && queryLimit > 0 && reader.has_next();
@@ -99,7 +99,7 @@ void query_batched(
                     auto seq = reader.next();
 
                     if(!seq.header.empty()) {
-                        empty.store(false);
+                        empty = false;
                         matches.clear();
                         db.accumulate_matches(seq.data, matches);
 
@@ -110,7 +110,7 @@ void query_batched(
                                matches );
                     }
                 }
-                if(!empty.load()) {
+                if(!empty) {
                     std::lock_guard<std::mutex> lock(mtx);
                     finalize(std::move(buffer));
                 }
@@ -147,13 +147,13 @@ void query_batched_merged_pairs(
     std::mutex mtx1;
     std::mutex mtx2;
     std::atomic<std::uint64_t> queryLimit{opt.queryLimit};
-    std::atomic<bool> empty{true};
 
     while(reader1.has_next() && reader2.has_next() && queryLimit > 0) {
         if(queue.unsafe_waiting() < load) {
             queue.enqueue([&]{
                 auto buffer = getBuffer();
                 matches_per_location matches;
+                bool empty = true;
 
                 for(std::size_t i = 0; i < opt.batchSize && queryLimit > 0;
                     ++i, --queryLimit)
@@ -170,7 +170,7 @@ void query_batched_merged_pairs(
                         if(opt.pairing == pairing_mode::sequences) qidx /= 2;
 
                         matches.clear();
-                        empty.store(false);
+                        empty = false;
                         db.accumulate_matches(seq1.data, matches);
                         //merge matches with hits of second sequence
                         db.accumulate_matches(seq2.data, matches);
