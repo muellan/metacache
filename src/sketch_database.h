@@ -813,7 +813,7 @@ public:
                        matches_per_location& res) const
     {
         for_each_match(queryBegin, queryEnd,
-            [this, &res] (const location& loc) {
+            [&res] (const location& loc) {
                 auto it = std::lower_bound(begin(res), end(res), loc,
                     [](const location_matches& lc, const location& l) {
                         return lc.loc < l;

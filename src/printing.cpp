@@ -101,19 +101,19 @@ void show_taxon(std::ostream& os,
         default:
         case taxon_print_mode::rank_name:
             os << taxonomy::rank_name(tax->rank()) << fmt.rankSuffix;
-            [[fallthrough]] // fall through
+            // fall through
         case taxon_print_mode::name:
             os << tax->name();
             break;
         case taxon_print_mode::rank_id:
             os << taxonomy::rank_name(tax->rank()) << fmt.rankSuffix;
-            [[fallthrough]] // fall through
+            // fall through
         case taxon_print_mode::id:
             os << tax->id();
             break;
         case taxon_print_mode::rank_name_id:
             os << taxonomy::rank_name(tax->rank()) << fmt.rankSuffix;
-            [[fallthrough]] // fall through
+            // fall through
         case taxon_print_mode::name_id:
             os << tax->name() << fmt.taxidPrefix << tax->id() << fmt.taxidSuffix;
             break;
@@ -132,19 +132,19 @@ void show_no_taxon(std::ostream& os,
         default:
         case taxon_print_mode::rank_name:
             os << taxonomy::rank_name(rank) << fmt.rankSuffix;
-            [[fallthrough]] // fall through
+            // fall through
         case taxon_print_mode::name:
             os << fmt.none;
             break;
         case taxon_print_mode::rank_id:
             os << taxonomy::rank_name(rank) << fmt.rankSuffix;
-            [[fallthrough]] // fall through
+            // fall through
         case taxon_print_mode::id:
             os << taxonomy::none_id();
             break;
         case taxon_print_mode::rank_name_id:
             os << taxonomy::rank_name(rank) << fmt.rankSuffix;
-            [[fallthrough]] // fall through
+            // fall through
         case taxon_print_mode::name_id:
             os << fmt.none << fmt.taxidPrefix << taxonomy::none_id()
                << fmt.taxidSuffix;
@@ -189,19 +189,19 @@ void show_blank_lineage(std::ostream& os,
             default:
             case taxon_print_mode::rank_name:
                 os << fmt.none << fmt.rankSuffix;
-                [[fallthrough]] // fall through
+                // fall through
             case taxon_print_mode::name:
                 os << fmt.none;
                 break;
             case taxon_print_mode::rank_id:
                 os << fmt.none << fmt.rankSuffix;
-                [[fallthrough]] // fall through
+                // fall through
             case taxon_print_mode::id:
                 os << taxonomy::none_id();
                 break;
             case taxon_print_mode::rank_name_id:
                 os << fmt.none << fmt.rankSuffix;
-                [[fallthrough]] // fall through
+                // fall through
             case taxon_print_mode::name_id:
                 os << fmt.none
                    << fmt.taxidPrefix << taxonomy::none_id()
@@ -226,19 +226,19 @@ void show_taxon_header(std::ostream& os,
             default:
             case taxon_print_mode::rank_name:
                 os << prefix << "rank" << opt.format.rankSuffix;
-                [[fallthrough]] // fall through
+                // fall through
             case taxon_print_mode::name:
                 os << prefix << "taxname";
                 break;
             case taxon_print_mode::rank_id:
                 os << prefix << "rank" << opt.format.rankSuffix;
-                [[fallthrough]] // fall through
+                // fall through
             case taxon_print_mode::id:
                 os << prefix << "taxid";
                 break;
             case taxon_print_mode::rank_name_id:
                 os << prefix << "rank" << opt.format.rankSuffix;
-                [[fallthrough]] // fall through
+                // fall through
             case taxon_print_mode::name_id:
                 os << prefix << "taxname" << opt.format.taxidPrefix
                    << prefix << "taxid" << opt.format.taxidSuffix;
@@ -252,21 +252,21 @@ void show_taxon_header(std::ostream& os,
                 case taxon_print_mode::rank_name:
                     os << prefix << taxonomy::rank_name(r)
                        << opt.format.rankSuffix;
-                    [[fallthrough]] // fall through
+                    // fall through
                 case taxon_print_mode::name:
                     os << prefix << "taxname";
                     break;
                 case taxon_print_mode::rank_id:
                     os << prefix << taxonomy::rank_name(r)
                        << opt.format.rankSuffix;
-                    [[fallthrough]] // fall through
+                    // fall through
                 case taxon_print_mode::id:
                     os << prefix << "taxid";
                     break;
                 case taxon_print_mode::rank_name_id:
                     os << prefix << taxonomy::rank_name(r)
                        << opt.format.rankSuffix;
-                    [[fallthrough]] // fall through
+                    // fall through
                 case taxon_print_mode::name_id:
                     os << prefix << "taxname" << opt.format.taxidPrefix
                        << prefix << "taxid" << opt.format.taxidSuffix;
