@@ -10,6 +10,8 @@ cd $dir
 # ---------------------------------------------------------
 # parse command line arguments
 # ---------------------------------------------------------
+COMPILER=g++
+
 if [ $# -ge 1 ]; then
   if [ "$1" == "clean" ]; then
     rm *.db
@@ -20,12 +22,13 @@ if [ $# -ge 1 ]; then
     cd ..
     make clean
     popd
-  fi
-
-  if [ $# -gt 1 ]; then
-    if [ "$2" == "notest" ]; then
-      exit
+    if [ $# -gt 1 ]; then
+      if [ "$2" == "notest" ]; then
+        exit
+      fi
     fi
+  else
+    COMPILER=$1
   fi
 fi
 
@@ -44,7 +47,7 @@ tar zxvf taxonomy.tar.gz
 # ---------------------------------------------------------
 pushd .
 cd ..
-make -j8
+make -j8 COMPILER=$COMPILER
 popd
 
 
@@ -103,7 +106,7 @@ DIFF=$( diff <(sort results/fmt.out) <(sort data/fmt.expected) )
 
 if [ "$DIFF" != "" ]; then
     echo "FAILED formatting test: Actual output does not match expected output."
-    exit
+    exit 1
 fi
 
 
@@ -121,7 +124,7 @@ DIFF=$( diff <(sort results/classified.out) <(sort data/classified.expected) )
 
 if [ "$DIFF" != "" ]; then
     echo "FAILED classification test: Actual output does not match expected output."
-    exit
+    exit 1
 fi
 
 

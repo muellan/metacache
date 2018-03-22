@@ -1,0 +1,61 @@
+dist: trusty
+sudo: false
+language: cpp
+
+# addons:
+matrix:
+  include:
+
+  - os: linux
+    addons:
+      apt:
+        sources:
+          - ubuntu-toolchain-r-test
+        packages:
+          - g++-5
+    env:
+      - MATRIX_EVAL="CC=gcc-5 && CXX=g++-5"
+      - COMPILER="gcc++"
+
+  - os: linux
+    addons:
+      apt:
+        sources:
+          - ubuntu-toolchain-r-test
+        packages:
+          - g++-7
+    env:
+      - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
+      - COMPILER="g++"
+
+  - os: linux
+    addons:
+      apt:
+        sources:
+          - ubuntu-toolchain-r-test
+          - llvm-toolchain-precise-3.8
+        packages:
+          - clang-3.8
+    env:
+      - MATRIX_EVAL="CC=clang-3.8 && CXX=clang++-3.8"
+      - COMPILER="clang"
+
+  - os: linux
+    addons:
+      apt:
+        sources:
+          - llvm-toolchain-trusty-5.0
+        packages:
+          - clang-5.0
+          - valgrind
+    env:
+      - MATRIX_EVAL="CC=clang-5.0 && CXX=clang++-5.0"
+      - COMPILER="clang"
+
+before_install:
+    - eval "${MATRIX_EVAL}"
+
+
+script:
+    - ./test/run_tests ${COMPILER}
+
