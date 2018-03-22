@@ -5,58 +5,24 @@ language: cpp
 # addons:
 matrix:
   include:
+    - env: COMPILER=clang++-3.8  
+      addons: { apt: { packages: ["clang-3.8"], sources: ["ubuntu-toolchain-r-test", "llvm-toolchain-precise-3.8"] } }
 
-  - os: linux
-    addons:
-      apt:
-        sources:
-          - ubuntu-toolchain-r-test
-        packages:
-          - g++-5
-    env:
-      - MATRIX_EVAL="CC=gcc-5 && CXX=g++-5"
-      - COMPILER="g++"
+    - env: COMPILER=clang++-5.0  
+      addons: &defaults { apt: { packages: ["clang-5.0"], sources: ["ubuntu-toolchain-r-test", "llvm-toolchain-trusty-5.0"] } }
 
-  - os: linux
-    addons:
-      apt:
-        sources:
-          - ubuntu-toolchain-r-test
-        packages:
-          - g++-7
-    env:
-      - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
-      - COMPILER="g++"
+    - env: COMPILER=g++-5  
+      addons: { apt: { packages: ["g++-5"], sources: ["ubuntu-toolchain-r-test"] } }
 
-  - os: linux
-    addons:
-      apt:
-        sources:
-          - ubuntu-toolchain-r-test
-          - llvm-toolchain-precise-3.8
-        packages:
-          - clang-3.8
-    env:
-      - MATRIX_EVAL="CC=clang-3.8 && CXX=clang++-3.8"
-      - COMPILER="clang++"
+    - env: COMPILER=g++-7  
+      addons: { apt: { packages: ["g++-7"], sources: ["ubuntu-toolchain-r-test"] } }
 
-  - os: linux
-    addons:
-      apt:
-        sources:
-          - ubuntu-toolchain-r-test
-          - llvm-toolchain-trusty-5.0
-        packages:
-          - clang-5.0
-    env:
-      - MATRIX_EVAL="CC=clang-5.0 && CXX=clang++-5.0"
-      - COMPILER="clang++"
 
-before_install:
-    - eval "${MATRIX_EVAL}"
+install:
+  - if [[ "${COMPILER}" != "" ]]; then export CXX=${COMPILER}; fi
+  - ${CXX} --version
 
 
 script:
-    - $COMPILER --version
     - ./test/run_tests $COMPILER
 
