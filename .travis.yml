@@ -15,7 +15,7 @@ matrix:
           - g++-5
     env:
       - MATRIX_EVAL="CC=gcc-5 && CXX=g++-5"
-      - COMPILER="gcc++"
+      - COMPILER="g++"
 
   - os: linux
     addons:
@@ -38,24 +38,25 @@ matrix:
           - clang-3.8
     env:
       - MATRIX_EVAL="CC=clang-3.8 && CXX=clang++-3.8"
-      - COMPILER="clang"
+      - COMPILER="clang++"
 
   - os: linux
     addons:
       apt:
         sources:
+          - ubuntu-toolchain-r-test
           - llvm-toolchain-trusty-5.0
         packages:
           - clang-5.0
-          - valgrind
     env:
       - MATRIX_EVAL="CC=clang-5.0 && CXX=clang++-5.0"
-      - COMPILER="clang"
+      - COMPILER="clang++"
 
 before_install:
     - eval "${MATRIX_EVAL}"
 
 
 script:
-    - ./test/run_tests ${COMPILER}
+    - $COMPILER --version
+    - ./test/run_tests $COMPILER
 
