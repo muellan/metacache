@@ -2,8 +2,7 @@ REL_ARTIFACT  = metacache
 DBG_ARTIFACT  = metacache_debug
 
 #COMPILER     = nvcc
-COMPILER     = g++
-MPI_COMPILER = mpicxx
+COMPILER     = $(CXX)
 DIALECT      = -std=c++11
 WARNINGS     = -Wall -Wextra -Wpedantic
 OPTIMIZATION = -O3 
