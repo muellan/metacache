@@ -405,7 +405,7 @@ void show_alignment(std::ostream& os,
         try {
             //load candidate file and forward to sequence
             auto reader = make_sequence_reader(src.filename);
-            reader->skip(src.index);
+            reader->skip(src.index-1);
 
             if(reader->has_next()) {
                 auto tgtSequ = reader->next().data;
