@@ -20,6 +20,16 @@
  *
  *****************************************************************************/
 
+#include <ostream>
+#include <utility>
+
+#include "candidates.h"
+#include "classification_statistics.h"
+#include "matches_per_target.h"
+#include "sketch_database.h"
+#include "stat_confusion.h"
+#include "taxonomy.h"
+
 #include "printing.h"
 
 

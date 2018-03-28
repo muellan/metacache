@@ -20,6 +20,7 @@
  *****************************************************************************/
 #include <dirent.h> //POSIX header
 #include <cstring>
+#include <iterator>
 
 #include "filesys_utility.h"
 

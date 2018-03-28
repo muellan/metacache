@@ -21,6 +21,8 @@
 
 #include <string>
 #include <fstream>
+#include <iostream>
+#include <vector>
 
 #include "args_handling.h"
 #include "filesys_utility.h"

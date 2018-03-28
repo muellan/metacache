@@ -24,6 +24,7 @@
 
 #include <vector>
 #include <string>
+#include <iostream>
 
 #include "classification_statistics.h"
 #include "timer.h"
@@ -31,6 +32,9 @@
 
 
 namespace mc {
+
+/// @brief forward declarations
+struct query_options;
 
 
 /*************************************************************************//**

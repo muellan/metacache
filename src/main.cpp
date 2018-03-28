@@ -20,15 +20,12 @@
  *****************************************************************************/
 
 #include <iostream>
-#include <fstream>
 #include <stdexcept>
+#include <string>
 
-#include "args_handling.h"
+#include "args_parser.h"
 #include "modes.h"
-#include "dna_encoding.h"
 
-#include "timer.h"
- 
 
 /*************************************************************************//**
  *

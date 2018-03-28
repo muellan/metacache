@@ -20,16 +20,22 @@
  *****************************************************************************/
 
 #include <sstream>
+#include <stdexcept>
+#include <algorithm>
+#include <iterator>
+#include <memory>
 
-#include "dna_encoding.h"
-#include "printing.h"
-#include "sequence_io.h"
-#include "sequence_view.h"
 #include "alignment.h"
 #include "candidates.h"
+#include "cmdline_utility.h"
+#include "dna_encoding.h"
+#include "matches_per_target.h"
+#include "printing.h"
 #include "query_options.h"
 #include "querying.h"
-#include "matches_per_target.h"
+#include "sequence_io.h"
+#include "sequence_view.h"
+#include "sketch_database.h"
 
 #include "classification.h"
 

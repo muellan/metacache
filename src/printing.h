@@ -23,6 +23,9 @@
 #ifndef MC_PRINT_RESULTS_H_
 #define MC_PRINT_RESULTS_H_
 
+#include <string>
+#include <iosfwd>
+
 #include "config.h"
 #include "classification_statistics.h"
 #include "matches_per_target.h"

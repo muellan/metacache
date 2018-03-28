@@ -32,7 +32,6 @@
 namespace mc {
 
 
-
 /*************************************************************************//**
  *
  * @brief database configuration parameters

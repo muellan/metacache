@@ -19,12 +19,17 @@
  *
  *****************************************************************************/
 
-#include <map>
 #include <cstdint>
 #include <fstream>
+#include <iostream>
+#include <iterator>
+#include <map>
+#include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
 
-#include "timer.h"
-#include "args_handling.h"
+#include "args_parser.h"
 #include "filesys_utility.h"
 #include "cmdline_utility.h"
 #include "sequence_io.h"

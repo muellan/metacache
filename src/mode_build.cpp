@@ -19,10 +19,24 @@
  *
  *****************************************************************************/
 
+#include <cstdint>
+#include <algorithm>
+#include <iostream>
+#include <map>
+#include <memory>
+#include <set>
+#include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "timer.h"
 #include "args_handling.h"
+#include "args_parser.h"
 #include "filesys_utility.h"
 #include "cmdline_utility.h"
+#include "io_error.h"
+#include "io_options.h"
 #include "config.h"
 #include "sequence_io.h"
 #include "taxonomy_io.h"
