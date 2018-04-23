@@ -87,6 +87,7 @@ private:
         std::unordered_map<const taxon*, std::vector<candidate>>;
 
 public:
+    using iterator        = hits_per_target::iterator;
     using const_iterator  = hits_per_target::const_iterator;
 
 
@@ -106,6 +107,9 @@ public:
     const_iterator begin() const noexcept { return hitsPerTarget_.begin(); }
     const_iterator end()   const noexcept { return hitsPerTarget_.end(); }
 
+    iterator erase(const_iterator pos) {
+        return hitsPerTarget_.erase(pos);
+    }    
 
     //---------------------------------------------------------------
     void insert(query_id qid,
@@ -120,7 +124,7 @@ public:
             // taxa of higher levels if the "-lowest" command line option
             // is set to a rank higher than "sequence"
             if(cand.tax && cand.tax->rank() == taxon_rank::Sequence &&
-                cand.hits >= minHitsPerCandidate)
+                cand.hits > minHitsPerCandidate)
             {
                 // find candidate in matches
                 location_matches lm({cand.tax, cand.pos.beg},0);
