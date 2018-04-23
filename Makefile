@@ -1,7 +1,6 @@
 REL_ARTIFACT  = metacache
 DBG_ARTIFACT  = metacache_debug
 
-#COMPILER     = nvcc
 COMPILER     = $(CXX)
 DIALECT      = -std=c++11
 WARNINGS     = -Wall -Wextra -Wpedantic

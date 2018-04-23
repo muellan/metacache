@@ -152,7 +152,7 @@ ADVANCED OPTIONS
                        This will decrease querying speed!
                        default: off
 
-    -coverage          Also report true/false positives and true/false negatives.
+    -taxon-coverage    Also report true/false positives and true/false negatives.
                        This option will turn on '-precision'.
                        This will decrease querying speed!
                        default: off
