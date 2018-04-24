@@ -125,6 +125,8 @@ struct classification_options
     std::size_t insertSizeMax = 0;
 
     std::size_t maxNumCandidatesPerQuery = 2;
+
+    float covPercentile = 0.0f;
 };
 
 

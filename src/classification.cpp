@@ -324,6 +324,12 @@ classify(const database& db,
 }
 
 
+
+/*************************************************************************//**
+ *
+ * @brief classify using only matches in tgtMatches
+ *
+ *****************************************************************************/
 void
 update_classification(const database& db,
                       const classification_options& opt,
@@ -331,13 +337,14 @@ update_classification(const database& db,
                       const matches_per_target& tgtMatches)
 {
     for(auto it = cls.candidates.begin(); it != cls.candidates.end();) {
-        if(tgtMatches.find(it->tax) != tgtMatches.end())
+        if(tgtMatches.find(it->tax) == tgtMatches.end())
             it = cls.candidates.erase(it);
         else
             ++it;
     }
     cls.best = classify(db, opt, cls.candidates);
 }
+
 
 
 /*************************************************************************//**
@@ -588,17 +595,18 @@ void filter_targets_by_coverage(
     //sort by coverage descending
     std::sort(coveragePercentages.begin(), coveragePercentages.end(),
         [](coverage_percentage& a, coverage_percentage& b){
-            return a.second > b.second;
+            return a.second < b.second;
     });
 
     //filter out targets
     float coveragePercentagesPartSum = 0;
-    for(auto it = coveragePercentages.rbegin(); it != coveragePercentages.rend(); ++it) {
+    for(auto it = coveragePercentages.begin(); it != coveragePercentages.end(); ++it) {
         coveragePercentagesPartSum += it->second;
         if(coveragePercentagesPartSum > percentile / 100 * coveragePercentagesSum) {
-            coveragePercentages.resize(std::distance(it, coveragePercentages.rend()));
+            // coveragePercentages.resize(std::distance(it, coveragePercentages.rend()));
             break;
         }
+        tgtMatches.erase(it->first);
     }
 }
 
@@ -696,15 +704,17 @@ void map_queries_to_targets_default(
 
         // const auto cls = buf.classifications.at(query.id);
 
-        if(opt.output.showHitsPerTargetList && cls.best) {
-            //insert best candidate with if classified as unique sequence
-            if(cls.best->rank() == taxon_rank::Sequence)
+        if(opt.output.showHitsPerTargetList) {
+            //insert best candidate if classified as unique sequence
+            if(cls.best && cls.best->rank() == taxon_rank::Sequence)
                 buf.uniqueHitsPerTarget.insert(query.id, allhits, cls.candidates,
-                                               cls.candidates[0].hits);
+                                               cls.candidates[0].hits - 1);
             //insert all candidates relevant for classification
-            // if(cls.best->rank() != taxon_rank::none)
-            if((cls.candidates[0].hits + cls.candidates[1].hits) >= opt.classify.hitsMin)
+            // if(cls.best && cls.best->rank() != taxon_rank::none) // this only works if all targets are ranked 
+            if((cls.candidates.size() == 1 && cls.candidates[0].hits >= opt.classify.hitsMin) ||
+               (cls.candidates.size() >= 2 && (cls.candidates[0].hits + cls.candidates[1].hits) >= opt.classify.hitsMin))
                 buf.hitsPerTarget.insert(query.id, allhits, cls.candidates,
+                                         // (cls.candidates[0].hits - opt.classify.hitsMin));
                                          (cls.candidates[0].hits - opt.classify.hitsMin) * opt.classify.hitsDiffFraction);
         }
 
@@ -752,26 +762,63 @@ void map_queries_to_targets_default(
 
     //filter uniqueTgtMatches, delete targets from uniqueTgtMatches and tgtMatches
     //filter tgtMatches, delete targets from tgtMatches
-    filter_targets_by_coverage(uniqueTgtMatches, tgtMatches);
-    // todo: use queue and buffer for output
-    for(auto& mapping : queryMappings) {
-        // classify using only targets left in tgtMatches
-        update_classification(db, opt.classify, mapping.second.cls, tgtMatches);
+    // filter_targets_by_coverage(uniqueTgtMatches, tgtMatches);
+    // if(!uniqueTgtMatches.empty()) {
+    //     //filter unique matches by coverage
+    //     // filter_targets_by_coverage(uniqueTgtMatches, percentile);
 
-        evaluate_classification(db, opt.evaluate, mapping.second.query, mapping.second.cls, results.statistics);
+    //     //discard targets without uniques
+    //     for(auto it = tgtMatches.begin(); it != tgtMatches.end();) {
+    //         if(uniqueTgtMatches.find(it->first) == uniqueTgtMatches.end())
+    //             it = tgtMatches.erase(it);
+    //         else
+    //             ++it;
+    //     }
+    // }
+    //filter all matches by coverage
+    filter_targets_by_coverage(tgtMatches, opt.classify.covPercentile);
 
-        show_query_mapping(results.mapout, db, opt.output, mapping.second.query, mapping.second.cls, matches_per_location{});
+
+    parallel_queue queue(opt.process.numThreads);
+    const auto load = 32 * queue.concurrency();
+    std::mutex mtx;
+
+    // for(auto& mapping : queryMappings) {
+    auto it = queryMappings.begin();
+    while(it != queryMappings.end()) {
+        if(queue.unsafe_waiting() < load) {
+            auto batchEnd = size_t(std::distance(it, queryMappings.end())) > opt.process.batchSize ?
+                            std::next(it, opt.process.batchSize) : queryMappings.end();
+            queue.enqueue([&, it] {
+                std::ostringstream bufout;
+                for(auto i = it; i != batchEnd; ++i) {
+                    // classify using only targets left in tgtMatches
+                    update_classification(db, opt.classify, i->second.cls, tgtMatches);
+
+                    evaluate_classification(db, opt.evaluate, i->second.query, i->second.cls, results.statistics);
+
+                    show_query_mapping(bufout, db, opt.output, i->second.query, i->second.cls, matches_per_location{});
+                }
+                std::lock_guard<std::mutex> lock(mtx);
+                results.mapout << bufout.str();
+            }); //enqueue
+            it = batchEnd;
+        }
     }
+    //wait for all enqueued tasks to finish
+    queue.wait(); 
 
-    results.auxout
-        << opt.output.format.comment
-        << "--- list of hits for each reference sequence ---\n"
-        << opt.output.format.comment
-        << "window start position within sequence = window_index * window_stride(="
-        << db.query_window_stride() << ")\n";
 
-    tgtMatches.sort_match_lists();
-    show_matches_per_targets(results.auxout, db, tgtMatches, opt.output);
+    // results.auxout
+    //     << opt.output.format.comment
+    //     << "--- list of hits for each reference sequence ---\n"
+    //     << opt.output.format.comment
+    //     << "window start position within sequence = window_index * window_stride(="
+    //     << db.query_window_stride() << ")\n";
+
+    // tgtMatches.sort_match_lists();
+    // show_matches_per_targets(results.auxout, db, tgtMatches, opt.output);
+    // show_num_matches_per_targets(results.auxout, db, tgtMatches, opt.output);
 }
 
 

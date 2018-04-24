@@ -412,6 +412,26 @@ void show_matches_per_targets(std::ostream& os,
 }
 
 
+//-------------------------------------------------------------------
+void show_num_matches_per_targets(std::ostream& os,
+                                  const database& db,
+                                  const matches_per_target& tgtMatches,
+                                  const classification_output_options& opt)
+{
+    os << opt.format.comment << "TABLE_LAYOUT: "
+        << " sequence " << opt.format.column
+        << " windows_in_sequence " << opt.format.column
+        << "queryid/window_index:hits/window_index:hits/...,queryid/...\n";
+
+    for(const auto& mapping : tgtMatches) {
+        show_taxon(os, db, opt, mapping.first);
+        os << opt.format.column << mapping.first->source().windows
+           << opt.format.column << mapping.second.size()
+           << '\n';
+    }
+}
+
+
 
 //-------------------------------------------------------------------
 void show_taxon_statistics(std::ostream& os,

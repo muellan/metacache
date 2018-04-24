@@ -106,6 +106,17 @@ void show_matches_per_targets(std::ostream& os,
 
 /*************************************************************************//**
  *
+ * @brief prints the number of matches for each classification target
+ *
+ *****************************************************************************/
+void show_num_matches_per_targets(std::ostream& os,
+                                  const database&,
+                                  const matches_per_target&,
+                                  const classification_output_options&);
+
+
+/*************************************************************************//**
+ *
  * @brief prints per-rank classification statistics
  *
  *****************************************************************************/
