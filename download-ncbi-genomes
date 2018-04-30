@@ -51,7 +51,6 @@ function download_specific_lib {
         awk -F "\t" '$11=="latest"{print $20}' assembly_summary.txt > ftpdirpaths
       fi
 
-      cat ftpdirpaths > ftpdirpaths
       awk 'BEGIN{FS=OFS="/";filesuffix="genomic.fna.gz"}{ftpdir=$0;asm=$10;file=asm"_"filesuffix;print ftpdir,file}' ftpdirpaths > ftpfilepaths
       # wget -nc -i ftpfilepaths
       cat ftpfilepaths | xargs -P ${PARALLEL} -n 1 wget -c -nv
