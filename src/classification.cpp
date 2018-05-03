@@ -29,7 +29,6 @@
 #include "sequence_view.h"
 #include "alignment.h"
 #include "candidates.h"
-#include "query_options.h"
 #include "querying.h"
 #include "matches_per_target.h"
 
@@ -336,6 +335,18 @@ update_classification(const database& db,
                       classification& cls,
                       const matches_per_target& tgtMatches)
 {
+    size_t candidateCount = 0;
+    for(auto it = cls.candidates.begin(); it != cls.candidates.end(); ++it) {
+        if(tgtMatches.find(it->tax) != tgtMatches.end())
+            candidateCount += 1;
+    }
+    if(candidateCount == 0)
+        //no candidates would remain -> keep old classification
+        return;
+    if(candidateCount == cls.candidates.size())
+        //nothing changed -> keep old classification
+        return;
+
     for(auto it = cls.candidates.begin(); it != cls.candidates.end();) {
         if(tgtMatches.find(it->tax) == tgtMatches.end())
             it = cls.candidates.erase(it);
@@ -563,6 +574,69 @@ void show_query_mapping(
 /*************************************************************************//**
  *
  * @brief filter out targets which have a coverage percentage below a percentile of all
+ *        coverage percentages
+ *
+ *****************************************************************************/
+void filter_targets_by_grouped_coverage(
+    const database& db,
+    matches_per_target& tgtMatches,
+    float percentile)
+{
+    using coverage_percentage = std::pair<const taxon*, float>;
+
+    std::unordered_map<const taxon*, window_id> group_numwindows(tgtMatches.size());
+    std::unordered_map<const taxon*, window_id> group_sizes(tgtMatches.size());
+    std::unordered_map<const taxon*, vector<const taxon*> > group_children(tgtMatches.size());
+
+    //sum number of coverred windows and sizes for each parent
+    for(const auto& mapping : tgtMatches) {
+        const taxon* target = mapping.first;
+        const window_id targetSize = target->source().windows;
+        std::set<window_id> hitWindows;
+        for(const auto& candidate : mapping.second) {
+            for(const auto& windowMatch : candidate.matches) {
+                hitWindows.emplace(windowMatch.win);
+            }
+        }
+        const taxon* parent = db.parent(target);
+        group_numwindows[parent] += hitWindows.size();
+        group_sizes[parent] += targetSize;
+        group_children[parent].emplace_back(target);
+    }
+
+    //calculate coverage percentages
+    vector<coverage_percentage> coveragePercentages;
+    coveragePercentages.reserve(tgtMatches.size());
+
+    float coveragePercentagesSum = 0;
+    for(const auto& group_size : group_sizes) {
+        const float covP = float(group_numwindows[group_size.first]) / group_size.second;
+        coveragePercentagesSum += covP;
+        coveragePercentages.emplace_back(group_size.first, covP);
+    }
+
+    //sort by coverage descending
+    std::sort(coveragePercentages.begin(), coveragePercentages.end(),
+        [](coverage_percentage& a, coverage_percentage& b){
+            return a.second < b.second;
+    });
+
+    //filter out targets
+    float coveragePercentagesPartSum = 0;
+    for(auto it = coveragePercentages.begin(); it != coveragePercentages.end(); ++it) {
+        coveragePercentagesPartSum += it->second;
+        if(coveragePercentagesPartSum > percentile / 100 * coveragePercentagesSum) {
+            // coveragePercentages.resize(std::distance(it, coveragePercentages.rend()));
+            break;
+        }
+        for(const auto& child : group_children[it->first])
+            tgtMatches.erase(child);
+    }
+}
+
+/*************************************************************************//**
+ *
+ * @brief filter out targets which have a coverage percentage below a percentile of all
  *        coverage percentages                 
  *
  *****************************************************************************/
@@ -621,7 +695,7 @@ void filter_targets_by_coverage(
 void filter_targets_by_coverage(
     matches_per_target& uniqueTgtMatches, 
     matches_per_target& tgtMatches,
-    float percentile = 0.001f)
+    float percentile)
 {
     if(!uniqueTgtMatches.empty()) {
         //filter unique matches by coverage
@@ -661,7 +735,6 @@ struct mappings_buffer
 {
     std::ostringstream out;
     std::unordered_map<query_id, query_mapping> queryMappings;
-    // std::unordered_map<query_id, classification> classifications;
     matches_per_target hitsPerTarget;
     matches_per_target uniqueHitsPerTarget;
 };
@@ -682,8 +755,6 @@ void map_queries_to_targets_default(
     matches_per_target uniqueTgtMatches;
     matches_per_target tgtMatches;
     std::unordered_map<query_id, query_mapping> queryMappings;
-    // std::unordered_map<query_id, sequence_query> queryInfos;
-    // std::unordered_map<query_id, classification> classifications;
 
     //makes an empty batch buffer
     //(each batch might be processed by a different thread)
@@ -699,28 +770,31 @@ void map_queries_to_targets_default(
 
         auto cls = classify(db, opt.classify, query, allhits);
 
-        // buf.queryInfos.emplace(query.id, query);
-        // buf.classifications.emplace(query.id, classify(db, opt.classify, query, allhits));
-
-        // const auto cls = buf.classifications.at(query.id);
 
         if(opt.output.showHitsPerTargetList) {
             //insert best candidate if classified as unique sequence
-            if(cls.best && cls.best->rank() == taxon_rank::Sequence)
-                buf.uniqueHitsPerTarget.insert(query.id, allhits, cls.candidates,
-                                               cls.candidates[0].hits - 1);
+            // if(cls.best && cls.best->rank() == taxon_rank::Sequence)
+            //     buf.uniqueHitsPerTarget.insert(query.id, allhits, cls.candidates,
+            //                                    cls.candidates[0].hits - 1);
             //insert all candidates relevant for classification
             // if(cls.best && cls.best->rank() != taxon_rank::none) // this only works if all targets are ranked 
-            if((cls.candidates.size() == 1 && cls.candidates[0].hits >= opt.classify.hitsMin) ||
-               (cls.candidates.size() >= 2 && (cls.candidates[0].hits + cls.candidates[1].hits) >= opt.classify.hitsMin))
+            // if((cls.candidates.size() == 1 && cls.candidates[0].hits >= opt.classify.hitsMin) ||
+               // (cls.candidates.size() >= 2 && (cls.candidates[0].hits + cls.candidates[1].hits) >= opt.classify.hitsMin))
                 buf.hitsPerTarget.insert(query.id, allhits, cls.candidates,
                                          // (cls.candidates[0].hits - opt.classify.hitsMin));
-                                         (cls.candidates[0].hits - opt.classify.hitsMin) * opt.classify.hitsDiffFraction);
+                                         // (cls.candidates[0].hits - opt.classify.hitsMin) * opt.classify.hitsDiffFraction);
+                                         0);
         }
 
         // evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
 
         // show_query_mapping(buf.out, db, opt.output, query, cls, allhits);
+
+        sequence().swap(query.seq1);
+        // query.seq1.swap(sequence);
+        if(query.seq2.size())
+            sequence().swap(query.seq2);
+            // query.seq2.swap(sequence{});
 
         buf.queryMappings.emplace(query.id, query_mapping{std::move(query), std::move(cls)});
     };
@@ -730,10 +804,6 @@ void map_queries_to_targets_default(
         if(opt.output.showHitsPerTargetList) {
             queryMappings.insert(std::make_move_iterator(buf.queryMappings.begin()),
                                  std::make_move_iterator(buf.queryMappings.end()) );
-            // queryInfos.insert(std::make_move_iterator(buf.queryInfos.begin()),
-            //                   std::make_move_iterator(buf.queryInfos.end()) );
-            // classifications.insert(std::make_move_iterator(buf.classifications.begin()),
-            //                        std::make_move_iterator(buf.classifications.end()) );
             //merge batch (target->hits) lists into global one
             uniqueTgtMatches.merge(std::move(buf.uniqueHitsPerTarget));
             tgtMatches.merge(std::move(buf.hitsPerTarget));
@@ -777,19 +847,29 @@ void map_queries_to_targets_default(
     // }
     //filter all matches by coverage
     filter_targets_by_coverage(tgtMatches, opt.classify.covPercentile);
+    // filter_targets_by_grouped_coverage(db, tgtMatches, opt.classify.covPercentile);
 
+    //serial
+    // for(auto& mapping : queryMappings) {
+    //     // classify using only targets left in tgtMatches
+    //     update_classification(db, opt.classify, mapping.second.cls, tgtMatches);
 
+    //     evaluate_classification(db, opt.evaluate, mapping.second.query, mapping.second.cls, results.statistics);
+
+    //     show_query_mapping(results.mapout, db, opt.output, mapping.second.query, mapping.second.cls, matches_per_location{});
+    // }
+
+    //parallel
     parallel_queue queue(opt.process.numThreads);
     const auto load = 32 * queue.concurrency();
     std::mutex mtx;
 
-    // for(auto& mapping : queryMappings) {
     auto it = queryMappings.begin();
     while(it != queryMappings.end()) {
         if(queue.unsafe_waiting() < load) {
             auto batchEnd = size_t(std::distance(it, queryMappings.end())) > opt.process.batchSize ?
                             std::next(it, opt.process.batchSize) : queryMappings.end();
-            queue.enqueue([&, it] {
+            queue.enqueue([&, it, batchEnd] {
                 std::ostringstream bufout;
                 for(auto i = it; i != batchEnd; ++i) {
                     // classify using only targets left in tgtMatches
