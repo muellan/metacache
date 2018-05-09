@@ -20,6 +20,8 @@
  *
  *****************************************************************************/
 
+#include <set>
+
 #include "printing.h"
 
 
@@ -391,7 +393,7 @@ void show_matches_per_targets(std::ostream& os,
     os << opt.format.comment << "TABLE_LAYOUT: "
         << " sequence " << opt.format.column
         << " windows_in_sequence " << opt.format.column
-        << "queryid/window_index:hits/window_index:hits/...,queryid/...\n";
+        << " queryid/window_index:hits/window_index:hits/...,queryid/...\n";
 
     for(const auto& mapping : tgtMatches) {
         show_taxon(os, db, opt, mapping.first);
@@ -421,12 +423,56 @@ void show_num_matches_per_targets(std::ostream& os,
     os << opt.format.comment << "TABLE_LAYOUT: "
         << " sequence " << opt.format.column
         << " windows_in_sequence " << opt.format.column
-        << "queryid/window_index:hits/window_index:hits/...,queryid/...\n";
+        << " number of matched windows (including duplicates)\n";
 
     for(const auto& mapping : tgtMatches) {
         show_taxon(os, db, opt, mapping.first);
         os << opt.format.column << mapping.first->source().windows
            << opt.format.column << mapping.second.size()
+           << '\n';
+    }
+}
+
+//-------------------------------------------------------------------
+void show_features_of_targets(std::ostream& os,
+                                  const database& db,
+                                  const matches_per_target& tgtMatches,
+                                  const classification_output_options& opt)
+{
+    os << opt.format.comment << "TABLE_LAYOUT: "
+    << " sequence " << opt.format.column
+    << " windows_in_sequence " << opt.format.column
+    << " coverage percentage " << opt.format.column
+    << " longest gap\n";
+
+    //calculate coverage percentages
+    for(const auto& mapping : tgtMatches) {
+        const taxon* target = mapping.first;
+        std::set<window_id> hitWindows;
+        for(const auto& candidate : mapping.second) {
+            for(const auto& windowMatch : candidate.matches) {
+                hitWindows.emplace(windowMatch.win);
+            }
+        }
+        const window_id targetSize = target->source().windows;
+        const float covP = float(hitWindows.size()) / targetSize;
+
+        window_id longestGapSize = 0;
+        window_id prevWin = 0;
+        for(const auto& win : hitWindows) {
+            const window_id gapSize = win - prevWin;
+            if(gapSize > longestGapSize)
+                longestGapSize = gapSize;
+            prevWin = win;
+        }
+        const window_id gapSize = (targetSize-1) - prevWin;
+        if(gapSize > longestGapSize)
+            longestGapSize = gapSize;
+
+        show_taxon(os, db, opt, mapping.first);
+        os << opt.format.column << targetSize
+           << opt.format.column << covP
+           << opt.format.column << longestGapSize
            << '\n';
     }
 }

@@ -24,13 +24,14 @@
 
 #include <thread>
 
+#include "config.h"
 #include "taxonomy.h"
 
 
 namespace mc {
 
 
-using taxon_rank = taxonomy::rank;
+// using taxon_rank = taxonomy::rank;
 
 
 /*************************************************************************//**
@@ -127,6 +128,8 @@ struct classification_options
     std::size_t maxNumCandidatesPerQuery = 2;
 
     float covPercentile = 0.0f;
+
+    window_id maxGapSize = std::numeric_limits<window_id>::max();
 };
 
 

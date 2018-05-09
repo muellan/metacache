@@ -22,6 +22,8 @@
 #include <sstream>
 #include <unordered_map>
 #include <algorithm> // sort
+#include <set>
+#include <unordered_set>
 
 #include "dna_encoding.h"
 #include "printing.h"
@@ -335,17 +337,17 @@ update_classification(const database& db,
                       classification& cls,
                       const matches_per_target& tgtMatches)
 {
-    size_t candidateCount = 0;
-    for(auto it = cls.candidates.begin(); it != cls.candidates.end(); ++it) {
-        if(tgtMatches.find(it->tax) != tgtMatches.end())
-            candidateCount += 1;
-    }
-    if(candidateCount == 0)
-        //no candidates would remain -> keep old classification
-        return;
-    if(candidateCount == cls.candidates.size())
-        //nothing changed -> keep old classification
-        return;
+    // size_t candidateCount = 0;
+    // for(auto it = cls.candidates.begin(); it != cls.candidates.end(); ++it) {
+    //     if(tgtMatches.find(it->tax) != tgtMatches.end())
+    //         candidateCount += 1;
+    // }
+    // if(candidateCount == 0)
+    //     //no candidates would remain -> keep old classification
+    //     return;
+    // if(candidateCount == cls.candidates.size())
+    //     //nothing changed -> keep old classification
+    //     return;
 
     for(auto it = cls.candidates.begin(); it != cls.candidates.end();) {
         if(tgtMatches.find(it->tax) == tgtMatches.end())
@@ -424,6 +426,51 @@ void evaluate_classification(
     }
 }
 
+
+/*************************************************************************//**
+ *
+ * @brief evaluate candidates of one query
+ *
+ *****************************************************************************/
+void evaluate_candidates(
+    const database& db,
+    const evaluation_options& opt,
+    const sequence_query& query,
+    const classification& cls,
+    classification_statistics& statistics)
+{
+    if(opt.precision) {
+        const taxon* best = cls.best;
+        const auto lca = db.ranked_lca(best, query.groundTruth);
+        auto lowestCorrectRank = lca ? lca->rank() : taxon_rank::none;
+        
+        for(const auto& cand : cls.candidates) {
+            const auto lca = db.ranked_lca(cand.tax, query.groundTruth);
+            if(lca && lca->rank() < lowestCorrectRank) {
+                best = cand.tax;
+                lowestCorrectRank = lca->rank();
+            }
+        }
+
+        if(best && query.groundTruth && best->rank() != query.groundTruth->rank()) {
+            best = nullptr;
+            lowestCorrectRank = taxon_rank::none;
+        }
+
+        statistics.assign_known_correct(
+            best ? best->rank() : taxon_rank::none,
+            query.groundTruth ? query.groundTruth->rank() : taxon_rank::none,
+            lowestCorrectRank);
+
+        //check if taxa of assigned target are covered
+        // if(opt.taxonCoverage) {
+            // update_coverage_statistics(db, query, cls, statistics);
+        // }
+
+    } else {
+        statistics.assign(cls.best ? cls.best->rank() : taxon_rank::none);
+    }
+}
 
 
 /*************************************************************************//**
@@ -571,6 +618,71 @@ void show_query_mapping(
     os << '\n';
 }
 
+
+
+/*************************************************************************//**
+ *
+ * @brief todo
+ *
+ *****************************************************************************/
+void show_read_features(
+    std::ostream& os,
+    const database& db,
+    const classification_output_options& opt,
+    const sequence_query& query,
+    const classification& cls,
+    const matches_per_location& allhits)
+{
+    // if(opt.mapViewMode == map_view_mode::none ||
+    //     (opt.mapViewMode == map_view_mode::mapped_only && !cls.best))
+    // {
+    //     return;
+    // }
+
+    // const auto& colsep = opt.format.column;
+
+    // if(opt.showQueryIds) os << query.id << colsep;
+
+    // //print query header (first contiguous string only)
+    // auto l = query.header.find(' ');
+    // if(l != string::npos) {
+    //     auto oit = std::ostream_iterator<char>{os, ""};
+    //     std::copy(query.header.begin(), query.header.begin() + l, oit);
+    // }
+    // else {
+    //     os << query.header;
+    // }
+    // os << colsep;
+
+    // if(opt.showGroundTruth) {
+    //     show_taxon(os, db, opt, query.groundTruth);
+    //     os << colsep;
+    // }
+
+    // if(opt.showAllHits) {
+    //     show_matches(os, db, allhits, opt.lowestRank);
+    //     os << colsep;
+    // }
+    // if(opt.showTopHits) {
+    //     show_matches(os, db, cls.candidates, opt.lowestRank);
+    //     os << colsep;
+    // }
+    // if(opt.showLocations) {
+    //     show_candidate_ranges(os, db, cls.candidates);
+    //     os << colsep;
+    // }
+
+    // show_taxon(os, db, opt, cls.best);
+
+    // if(opt.showAlignment && cls.best) {
+    //     show_alignment(os, db, opt, query, cls.candidates);
+    // }
+
+    // os << '\n';
+}
+
+
+
 /*************************************************************************//**
  *
  * @brief filter out targets which have a coverage percentage below a percentile of all
@@ -580,7 +692,7 @@ void show_query_mapping(
 void filter_targets_by_grouped_coverage(
     const database& db,
     matches_per_target& tgtMatches,
-    float percentile)
+    const float percentile)
 {
     using coverage_percentage = std::pair<const taxon*, float>;
 
@@ -634,6 +746,46 @@ void filter_targets_by_grouped_coverage(
     }
 }
 
+
+/*************************************************************************//**
+ *
+ * @brief filter out targets which have a larger gap than maxGapSize
+ *
+ *****************************************************************************/
+void filter_targets_by_gap(
+    matches_per_target& tgtMatches,
+    const window_id maxGapSize)
+{
+    for(auto it = tgtMatches.begin(); it != tgtMatches.end();) {
+        const taxon* target = it->first;
+        std::set<window_id> hitWindows;
+        for(const auto& candidate : it->second) {
+            for(const auto& windowMatch : candidate.matches) {
+                hitWindows.emplace(windowMatch.win);
+            }
+        }
+        const window_id targetSize = target->source().windows;
+
+        window_id longestGapSize = 0;
+        window_id prevWin = 0;
+        for(const auto& win : hitWindows) {
+            const window_id gapSize = win - prevWin;
+            if(gapSize > longestGapSize)
+                longestGapSize = gapSize;
+            prevWin = win;
+        }
+        const window_id gapSize = (targetSize-1) - prevWin;
+        if(gapSize > longestGapSize)
+            longestGapSize = gapSize;
+
+        if(longestGapSize > maxGapSize)
+            it = tgtMatches.erase(it);
+        else
+            ++it;
+    }
+}
+
+
 /*************************************************************************//**
  *
  * @brief filter out targets which have a coverage percentage below a percentile of all
@@ -642,7 +794,7 @@ void filter_targets_by_grouped_coverage(
  *****************************************************************************/
 void filter_targets_by_coverage(
     matches_per_target& tgtMatches,
-    float percentile)
+    const float percentile)
 {
     using coverage_percentage = std::pair<const taxon*, float>;
 
@@ -655,7 +807,7 @@ void filter_targets_by_coverage(
     for(const auto& mapping : tgtMatches) {
         const taxon* target = mapping.first;
         const window_id targetSize = target->source().windows;
-        std::set<window_id> hitWindows;
+        std::unordered_set<window_id> hitWindows;
         for(const auto& candidate : mapping.second) {
             for(const auto& windowMatch : candidate.matches) {
                 hitWindows.emplace(windowMatch.win);
@@ -695,7 +847,7 @@ void filter_targets_by_coverage(
 void filter_targets_by_coverage(
     matches_per_target& uniqueTgtMatches, 
     matches_per_target& tgtMatches,
-    float percentile)
+    const float percentile)
 {
     if(!uniqueTgtMatches.empty()) {
         //filter unique matches by coverage
@@ -778,17 +930,19 @@ void map_queries_to_targets_default(
             //                                    cls.candidates[0].hits - 1);
             //insert all candidates relevant for classification
             // if(cls.best && cls.best->rank() != taxon_rank::none) // this only works if all targets are ranked 
-            // if((cls.candidates.size() == 1 && cls.candidates[0].hits >= opt.classify.hitsMin) ||
-               // (cls.candidates.size() >= 2 && (cls.candidates[0].hits + cls.candidates[1].hits) >= opt.classify.hitsMin))
+            if((cls.candidates.size() == 1 && cls.candidates[0].hits >= opt.classify.hitsMin) ||
+               (cls.candidates.size() >= 2 && (cls.candidates[0].hits + cls.candidates[1].hits) >= opt.classify.hitsMin))
                 buf.hitsPerTarget.insert(query.id, allhits, cls.candidates,
                                          // (cls.candidates[0].hits - opt.classify.hitsMin));
                                          // (cls.candidates[0].hits - opt.classify.hitsMin) * opt.classify.hitsDiffFraction);
                                          0);
         }
+        else {
+            evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
+            // evaluate_candidates(db, opt.evaluate, query, cls, results.statistics);
 
-        // evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
-
-        // show_query_mapping(buf.out, db, opt.output, query, cls, allhits);
+            show_query_mapping(buf.out, db, opt.output, query, cls, allhits);
+        }
 
         sequence().swap(query.seq1);
         // query.seq1.swap(sequence);
@@ -846,8 +1000,12 @@ void map_queries_to_targets_default(
     //     }
     // }
     //filter all matches by coverage
-    filter_targets_by_coverage(tgtMatches, opt.classify.covPercentile);
+    if(opt.classify.covPercentile > 0)
+        filter_targets_by_coverage(tgtMatches, opt.classify.covPercentile);
     // filter_targets_by_grouped_coverage(db, tgtMatches, opt.classify.covPercentile);
+
+    if(opt.classify.maxGapSize < std::numeric_limits<window_id>::max())
+        filter_targets_by_gap(tgtMatches, opt.classify.maxGapSize);
 
     //serial
     // for(auto& mapping : queryMappings) {
@@ -899,6 +1057,7 @@ void map_queries_to_targets_default(
     // tgtMatches.sort_match_lists();
     // show_matches_per_targets(results.auxout, db, tgtMatches, opt.output);
     // show_num_matches_per_targets(results.auxout, db, tgtMatches, opt.output);
+    show_features_of_targets(results.auxout, db, tgtMatches, opt.output);
 }
 
 
