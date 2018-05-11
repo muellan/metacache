@@ -359,6 +359,64 @@ update_classification(const database& db,
 }
 
 
+/*************************************************************************//**
+ *
+ * @brief  choose classification closest to ground truth from top candidates or lca
+ *
+ *****************************************************************************/
+const taxon*
+choose_best_classification(const database& db,
+                           const classification_options& opt,
+                           const taxon* groundTruth,
+                           const classification_candidates& cand)
+{
+    if(!groundTruth)
+        return nullptr;
+
+    const taxon* best = nullptr;
+    if(cand.size() >= 2) {
+        best = db.ranked_lca(cand[0].tax, cand[1].tax);
+    }
+    auto lca = db.ranked_lca(best, groundTruth);
+    auto lowestCorrectRank = lca ? lca->rank() : taxon_rank::none;
+    
+    for(const auto& c : cand) {
+        const auto lca = db.ranked_lca(c.tax, groundTruth);
+        if(lca && lca->rank() < lowestCorrectRank) {
+            best = c.tax;
+            lowestCorrectRank = lca->rank();
+        }
+    }
+
+    // if(best && groundTruth && best->rank() != groundTruth->rank()) {
+    lca = db.ranked_lca(best, groundTruth);
+    if(lca && lca->rank() > opt.highestRank) {
+        best = nullptr;
+        lowestCorrectRank = taxon_rank::none;
+    }
+
+    return best;
+}
+
+
+/*************************************************************************//**
+ *
+ * @brief classify closest to ground truth using all database matches
+ *
+ *****************************************************************************/
+classification
+classify_best(const database& db,
+              const classification_options& opt,
+              const sequence_query& query,
+              const matches_per_location& allhits)
+{
+    classification cls { make_classification_candidates(db, opt, query, allhits) };
+
+    cls.best = choose_best_classification(db, opt, query.groundTruth, cls.candidates);
+
+    return cls;
+}
+
 
 /*************************************************************************//**
  *
@@ -435,13 +493,18 @@ void evaluate_classification(
 void evaluate_candidates(
     const database& db,
     const evaluation_options& opt,
+    const classification_options& opt_classify,
     const sequence_query& query,
     const classification& cls,
     classification_statistics& statistics)
 {
     if(opt.precision) {
-        const taxon* best = cls.best;
-        const auto lca = db.ranked_lca(best, query.groundTruth);
+        // const taxon* best = cls.best;
+        const taxon* best = nullptr;
+        if(cls.candidates.size() >= 2) {
+            best = db.ranked_lca(cls.candidates[0].tax, cls.candidates[1].tax);
+        }
+        auto lca = db.ranked_lca(best, query.groundTruth);
         auto lowestCorrectRank = lca ? lca->rank() : taxon_rank::none;
         
         for(const auto& cand : cls.candidates) {
@@ -452,7 +515,9 @@ void evaluate_candidates(
             }
         }
 
-        if(best && query.groundTruth && best->rank() != query.groundTruth->rank()) {
+        // if(best && query.groundTruth && best->rank() != query.groundTruth->rank()) {
+        lca = db.ranked_lca(best, query.groundTruth);
+        if(lca && lca->rank() > opt_classify.highestRank) {
             best = nullptr;
             lowestCorrectRank = taxon_rank::none;
         }
@@ -920,8 +985,8 @@ void map_queries_to_targets_default(
 
         prepare_evaluation(db, opt.evaluate, query, allhits);
 
-        auto cls = classify(db, opt.classify, query, allhits);
-
+        // auto cls = classify(db, opt.classify, query, allhits);
+        auto cls = classify_best(db, opt.classify, query, allhits);
 
         if(opt.output.showHitsPerTargetList) {
             //insert best candidate if classified as unique sequence
@@ -938,8 +1003,8 @@ void map_queries_to_targets_default(
                                          0);
         }
         else {
-            evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
-            // evaluate_candidates(db, opt.evaluate, query, cls, results.statistics);
+            // evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
+            evaluate_candidates(db, opt.evaluate, opt.classify, query, cls, results.statistics);
 
             show_query_mapping(buf.out, db, opt.output, query, cls, allhits);
         }
