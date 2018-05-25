@@ -24,6 +24,7 @@
 #include <algorithm> // sort
 #include <set>
 #include <unordered_set>
+#include <iterator>
 
 #include "dna_encoding.h"
 #include "printing.h"
@@ -368,31 +369,66 @@ const taxon*
 choose_best_classification(const database& db,
                            const classification_options& opt,
                            const taxon* groundTruth,
-                           const classification_candidates& cand)
+                           const classification_candidates& cand,
+                           const taxon* myTax = nullptr,
+                           const size_t offset = -1)
 {
     if(!groundTruth)
         return nullptr;
 
+    // const taxon* best = myTax;
+    // auto lca_truth = db.ranked_lca(best, groundTruth);
+    // auto lowestCorrectRank = lca_truth ? lca_truth->rank() : taxon_rank::none;
+
     const taxon* best = nullptr;
-    if(cand.size() >= 2) {
-        best = db.ranked_lca(cand[0].tax, cand[1].tax);
-    }
-    auto lca = db.ranked_lca(best, groundTruth);
-    auto lowestCorrectRank = lca ? lca->rank() : taxon_rank::none;
-    
-    for(const auto& c : cand) {
-        const auto lca = db.ranked_lca(c.tax, groundTruth);
-        if(lca && lca->rank() < lowestCorrectRank) {
-            best = c.tax;
-            lowestCorrectRank = lca->rank();
+    auto lowestCorrectRank = taxon_rank::none;
+
+    for(size_t i=offset+1; i<cand.size(); ++i) {
+        auto lca = cand[i].tax;
+        if(myTax)
+            lca = db.ranked_lca(myTax, lca);
+
+        auto test = choose_best_classification(db, opt, groundTruth, cand, lca, i);
+
+        auto lca_truth = db.ranked_lca(test, groundTruth);
+        if(lca_truth && lca_truth->rank() < lowestCorrectRank) {
+            best = test;
+            lowestCorrectRank = lca_truth->rank();
         }
+        // if(lca_truth && lca_truth->rank() == lowestCorrectRank) {
+        //     if(test->rank() > best->rank()) {
+
+        //     }
+        // }
+    }
+
+    // if(cand.size() >= 2) {
+    //     best = db.ranked_lca(cand[0].tax, cand[1].tax);
+    // }
+    // auto lca = db.ranked_lca(best, groundTruth);
+    // auto lowestCorrectRank = lca ? lca->rank() : taxon_rank::none;
+
+    // for(const auto& c : cand) {
+    //     lca = db.ranked_lca(c.tax, groundTruth);
+    //     if(lca && lca->rank() < lowestCorrectRank) {
+    //         best = c.tax;
+    //         lowestCorrectRank = lca->rank();
+    //     }
+    // }
+
+    auto test = myTax;
+
+    auto lca_truth = db.ranked_lca(test, groundTruth);
+    if(lca_truth && lca_truth->rank() < lowestCorrectRank) {
+        best = test;
+        // lowestCorrectRank = lca_truth->rank();
     }
 
     // if(best && groundTruth && best->rank() != groundTruth->rank()) {
-    lca = db.ranked_lca(best, groundTruth);
-    if(lca && lca->rank() > opt.highestRank) {
+    lca_truth = db.ranked_lca(best, groundTruth);
+    if(lca_truth && lca_truth->rank() > opt.highestRank) {
         best = nullptr;
-        lowestCorrectRank = taxon_rank::none;
+        // lowestCorrectRank = taxon_rank::none;
     }
 
     return best;
@@ -484,58 +520,6 @@ void evaluate_classification(
     }
 }
 
-
-/*************************************************************************//**
- *
- * @brief evaluate candidates of one query
- *
- *****************************************************************************/
-void evaluate_candidates(
-    const database& db,
-    const evaluation_options& opt,
-    const classification_options& opt_classify,
-    const sequence_query& query,
-    const classification& cls,
-    classification_statistics& statistics)
-{
-    if(opt.precision) {
-        // const taxon* best = cls.best;
-        const taxon* best = nullptr;
-        if(cls.candidates.size() >= 2) {
-            best = db.ranked_lca(cls.candidates[0].tax, cls.candidates[1].tax);
-        }
-        auto lca = db.ranked_lca(best, query.groundTruth);
-        auto lowestCorrectRank = lca ? lca->rank() : taxon_rank::none;
-        
-        for(const auto& cand : cls.candidates) {
-            const auto lca = db.ranked_lca(cand.tax, query.groundTruth);
-            if(lca && lca->rank() < lowestCorrectRank) {
-                best = cand.tax;
-                lowestCorrectRank = lca->rank();
-            }
-        }
-
-        // if(best && query.groundTruth && best->rank() != query.groundTruth->rank()) {
-        lca = db.ranked_lca(best, query.groundTruth);
-        if(lca && lca->rank() > opt_classify.highestRank) {
-            best = nullptr;
-            lowestCorrectRank = taxon_rank::none;
-        }
-
-        statistics.assign_known_correct(
-            best ? best->rank() : taxon_rank::none,
-            query.groundTruth ? query.groundTruth->rank() : taxon_rank::none,
-            lowestCorrectRank);
-
-        //check if taxa of assigned target are covered
-        // if(opt.taxonCoverage) {
-            // update_coverage_statistics(db, query, cls, statistics);
-        // }
-
-    } else {
-        statistics.assign(cls.best ? cls.best->rank() : taxon_rank::none);
-    }
-}
 
 
 /*************************************************************************//**
@@ -682,70 +666,6 @@ void show_query_mapping(
 
     os << '\n';
 }
-
-
-
-/*************************************************************************//**
- *
- * @brief todo
- *
- *****************************************************************************/
-void show_read_features(
-    std::ostream& os,
-    const database& db,
-    const classification_output_options& opt,
-    const sequence_query& query,
-    const classification& cls,
-    const matches_per_location& allhits)
-{
-    // if(opt.mapViewMode == map_view_mode::none ||
-    //     (opt.mapViewMode == map_view_mode::mapped_only && !cls.best))
-    // {
-    //     return;
-    // }
-
-    // const auto& colsep = opt.format.column;
-
-    // if(opt.showQueryIds) os << query.id << colsep;
-
-    // //print query header (first contiguous string only)
-    // auto l = query.header.find(' ');
-    // if(l != string::npos) {
-    //     auto oit = std::ostream_iterator<char>{os, ""};
-    //     std::copy(query.header.begin(), query.header.begin() + l, oit);
-    // }
-    // else {
-    //     os << query.header;
-    // }
-    // os << colsep;
-
-    // if(opt.showGroundTruth) {
-    //     show_taxon(os, db, opt, query.groundTruth);
-    //     os << colsep;
-    // }
-
-    // if(opt.showAllHits) {
-    //     show_matches(os, db, allhits, opt.lowestRank);
-    //     os << colsep;
-    // }
-    // if(opt.showTopHits) {
-    //     show_matches(os, db, cls.candidates, opt.lowestRank);
-    //     os << colsep;
-    // }
-    // if(opt.showLocations) {
-    //     show_candidate_ranges(os, db, cls.candidates);
-    //     os << colsep;
-    // }
-
-    // show_taxon(os, db, opt, cls.best);
-
-    // if(opt.showAlignment && cls.best) {
-    //     show_alignment(os, db, opt, query, cls.candidates);
-    // }
-
-    // os << '\n';
-}
-
 
 
 /*************************************************************************//**
@@ -995,16 +915,16 @@ void map_queries_to_targets_default(
             //                                    cls.candidates[0].hits - 1);
             //insert all candidates relevant for classification
             // if(cls.best && cls.best->rank() != taxon_rank::none) // this only works if all targets are ranked 
-            if((cls.candidates.size() == 1 && cls.candidates[0].hits >= opt.classify.hitsMin) ||
-               (cls.candidates.size() >= 2 && (cls.candidates[0].hits + cls.candidates[1].hits) >= opt.classify.hitsMin))
+            // if((cls.candidates.size() == 1 && cls.candidates[0].hits >= opt.classify.hitsMin) ||
+            //    (cls.candidates.size() >= 2 && (cls.candidates[0].hits + cls.candidates[1].hits) >= opt.classify.hitsMin))
                 buf.hitsPerTarget.insert(query.id, allhits, cls.candidates,
                                          // (cls.candidates[0].hits - opt.classify.hitsMin));
                                          // (cls.candidates[0].hits - opt.classify.hitsMin) * opt.classify.hitsDiffFraction);
                                          0);
         }
         else {
-            // evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
-            evaluate_candidates(db, opt.evaluate, opt.classify, query, cls, results.statistics);
+            evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
+            // evaluate_candidates(db, opt.evaluate, opt.classify, query, cls, results.statistics);
 
             show_query_mapping(buf.out, db, opt.output, query, cls, allhits);
         }
@@ -1120,9 +1040,9 @@ void map_queries_to_targets_default(
     //     << db.query_window_stride() << ")\n";
 
     // tgtMatches.sort_match_lists();
-    // show_matches_per_targets(results.auxout, db, tgtMatches, opt.output);
+    show_matches_per_targets(results.auxout, db, tgtMatches, opt.output);
     // show_num_matches_per_targets(results.auxout, db, tgtMatches, opt.output);
-    show_features_of_targets(results.auxout, db, tgtMatches, opt.output);
+    // show_features_of_targets(results.auxout, db, tgtMatches, opt.output);
 }
 
 
