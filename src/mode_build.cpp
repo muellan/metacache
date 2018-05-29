@@ -89,10 +89,8 @@ struct build_options
  *
  *****************************************************************************/
 build_options
-get_build_options(const args_parser& args)
+get_build_options(const args_parser& args, const build_options& defaults = {})
 {
-    const build_options defaults;
-
     build_options opt;
 
     opt.dbfile = database_name(args);
@@ -147,60 +145,24 @@ get_build_options(const args_parser& args)
 
 /*************************************************************************//**
  *
- * @brief command line args + database parameters -> database modification parameters
+ * @brief extract db creation parameters
  *
  *****************************************************************************/
 build_options
-modify_build_options(const args_parser& args, const database& db)
+get_build_options_from_db(const database& db)
 {
-    const build_options defaults;
-
     build_options opt;
-
-    opt.dbfile = database_name(args);
-
-    opt.infiles = sequence_filenames(args);
-
-    if(args.contains("silent")) {
-        opt.infoLevel = info_level::silent;
-    } else if(args.contains("verbose")) {
-        opt.infoLevel = info_level::verbose;
-    }
 
     opt.kmerlen   = db.target_sketcher().kmer_size();
     opt.sketchlen = db.target_sketcher().sketch_size();
     opt.winlen    = db.target_window_size();
     opt.winstride = db.target_window_stride();
 
-    opt.maxLoadFactor = args.get<float>({"max-load-fac", "max_load_fac",
-                                         "maxloadfac"},
-                                        db.max_load_factor());
+    opt.maxLoadFactor = db.max_load_factor();
 
-    opt.maxLocationsPerFeature = args.get<int>({"max-locations-per-feature",
-                                                "max_locations_per_feature" },
-                                                 db.max_locations_per_feature());
+    opt.maxLocationsPerFeature = db.max_locations_per_feature();
 
-    opt.removeOverpopulatedFeatures = args.contains({"remove-overpopulated-features",
-                                                     "remove_overpopulated_features" });
-
-    opt.removeAmbigFeaturesOnRank = taxonomy::rank_from_name(
-        args.get<string>({"remove-ambig-features",
-                               "remove_ambig_features"},
-                    taxonomy::rank_name(defaults.removeAmbigFeaturesOnRank)));
-
-    opt.maxTaxaPerFeature = args.get<int>({"max-ambig-per-feature",
-                                           "max_ambig_per_feature"},
-                                            defaults.maxTaxaPerFeature);
-
-    opt.maxWindowSimilarity = args.get<float>({"max-window-similarity",
-                                               "max_new_window_similarity"},
-                                               db.max_new_window_similarity());
-
-    //interpret numbers > 1 as percentage
-    if(opt.maxWindowSimilarity > 1.0f) opt.maxWindowSimilarity *= 0.01f;
-    if(opt.maxWindowSimilarity < 0.0f) opt.maxWindowSimilarity = 0.0f;
-
-    opt.taxonomy = get_taxonomy_options(args);
+    opt.maxWindowSimilarity = db.max_new_window_similarity();
 
     return opt;
 }
@@ -606,7 +568,7 @@ void main_mode_build_modify(const args_parser& args)
 
     auto db = make_database<database>(dbfile);
 
-    auto opt = modify_build_options(args, db);
+    auto opt = get_build_options(args, get_build_options_from_db(db));
 
     if(opt.infoLevel != info_level::silent && !opt.infiles.empty()) {
         cout << "Adding reference sequences to database..." << endl;
