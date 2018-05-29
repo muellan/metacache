@@ -89,10 +89,8 @@ struct build_options
  *
  *****************************************************************************/
 build_options
-get_build_options(const args_parser& args)
+get_build_options(const args_parser& args, const build_options& defaults = {})
 {
-    const build_options defaults;
-
     build_options opt;
 
     opt.dbfile = database_name(args);
@@ -143,6 +141,31 @@ get_build_options(const args_parser& args)
     return opt;
 }
 
+
+
+/*************************************************************************//**
+ *
+ * @brief extract db creation parameters
+ *
+ *****************************************************************************/
+build_options
+get_build_options_from_db(const database& db)
+{
+    build_options opt;
+
+    opt.kmerlen   = db.target_sketcher().kmer_size();
+    opt.sketchlen = db.target_sketcher().sketch_size();
+    opt.winlen    = db.target_window_size();
+    opt.winstride = db.target_window_stride();
+
+    opt.maxLoadFactor = db.max_load_factor();
+
+    opt.maxLocationsPerFeature = db.max_locations_per_feature();
+
+    opt.maxWindowSimilarity = db.max_new_window_similarity();
+
+    return opt;
+}
 
 
 
@@ -535,17 +558,17 @@ void add_to_database(database& db, const build_options& opt)
  *****************************************************************************/
 void main_mode_build_modify(const args_parser& args)
 {
-    auto opt = get_build_options(args);
+    auto dbfile = database_name(args);
 
-    if(opt.dbfile.empty()) {
+    if(dbfile.empty()) {
         throw std::invalid_argument{"No database filename provided."};
     }
 
-    if(opt.infoLevel != info_level::silent) {
-        cout << "Modify database " << opt.dbfile << endl;
-    }
+    cout << "Modify database " << dbfile << endl;
 
-    auto db = make_database<database>(opt.dbfile);
+    auto db = make_database<database>(dbfile);
+
+    auto opt = get_build_options(args, get_build_options_from_db(db));
 
     if(opt.infoLevel != info_level::silent && !opt.infiles.empty()) {
         cout << "Adding reference sequences to database..." << endl;
