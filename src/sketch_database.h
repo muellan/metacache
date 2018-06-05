@@ -146,7 +146,7 @@ public:
 private:
     //use negative numbers for sequence level taxon ids
     static constexpr taxon_id
-    taxon_id_of_target(target_id id) noexcept { return -id-1; }
+    taxon_id_of_target(target_id id) noexcept { return -taxon_id(id)-1; }
 
 
     //-----------------------------------------------------
