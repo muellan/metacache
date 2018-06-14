@@ -141,7 +141,7 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
             is >> rankName;
             is >> rankNameExt;
             if(rankNameExt != "|")
-                rankName.append(rankNameExt);
+                rankName += ' ' + rankNameExt;
             forward(is, '\n');
 
             //get taxon name
