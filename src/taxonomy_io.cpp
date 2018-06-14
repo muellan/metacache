@@ -131,6 +131,7 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
         taxon_id taxonId;
         taxon_id parentId;
         string rankName;
+        string rankNameExt;
 
         while(is.good()) {
             is >> taxonId;
@@ -138,6 +139,9 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
             is >> parentId;
             forward(is, '|');
             is >> rankName;
+            is >> rankNameExt;
+            if(rankNameExt != "|")
+                rankName.append(rankNameExt);
             forward(is, '\n');
 
             //get taxon name
