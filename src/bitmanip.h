@@ -23,6 +23,7 @@
 #define MC_BITMANIP_H_
 
 #include <cstdint>
+#include <climits>
 #include <string>
 #include <type_traits>
 
@@ -38,7 +39,7 @@ namespace mc {
 template<class T, std::uint8_t bitsPerSymbol>
 struct max_word_size
 {
-    static constexpr std::uint8_t value = ((sizeof(T) * 8) / bitsPerSymbol);
+    static constexpr std::uint8_t value = ((sizeof(T) * CHAR_BIT) / bitsPerSymbol);
 };
 
 
@@ -53,12 +54,12 @@ struct max_word_size
  *****************************************************************************/
 template<class Int>
 inline std::string
-bits_as_string(Int x, std::uint8_t groupsize = 8)
+bits_as_string(Int x, std::uint8_t groupsize = CHAR_BIT)
 {
     static_assert(std::is_integral<Int>::value,
                   "only integer types are supported");
 
-    constexpr auto bits = sizeof(Int) * 8;
+    constexpr auto bits = sizeof(Int) * CHAR_BIT;
 
     auto s = std::string{};
     s.reserve(bits + (bits / groupsize));

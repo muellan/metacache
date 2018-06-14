@@ -316,11 +316,11 @@ for_each_kmer_2bit(numk_t k,
 
     auto kmer    = UInt(0);
     auto kmerMsk = UInt(~0);
-    kmerMsk >>= (sizeof(kmerMsk) * 8) - (k * 2);
+    kmerMsk >>= (sizeof(kmerMsk) * CHAR_BIT) - (k * 2);
 
     auto ambig    = ambig_t(0);  //bitfield marking ambiguous nucleotides
     auto ambigMsk = ambig_t(~0);
-    ambigMsk >>= (sizeof(ambigMsk) * 8) - k;
+    ambigMsk >>= (sizeof(ambigMsk) * CHAR_BIT) - k;
 
     ++last;
     for(auto ssend = next(first); ssend != last; ++first, ++ssend) {
