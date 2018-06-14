@@ -98,6 +98,14 @@ OUTPUT FORMATTING OPTIONS
                        options '-lowest' and '-highest'.
                        default: off
 
+    -no-query-params   don't show query settings at the beginning of the
+                       mapping output
+                       default: do show query settings
+
+    -no-summary        don't show result summary & mapping statistics at the
+                       end of the mapping output
+                       default: do show the summary
+
 ADVANCED ANALYSIS OPTIONS
 
     -tophits           For each query, print top feature hits in database.
