@@ -74,6 +74,7 @@ struct build_options
     int maxTaxaPerFeature = 1;
 
     taxonomy_options taxonomy;
+    bool resetParents = false;
 
     info_level infoLevel = info_level::moderate;
 
@@ -135,6 +136,8 @@ get_build_options(const args_parser& args, const build_options& defaults = {})
     //interpret numbers > 1 as percentage
     if(opt.maxWindowSimilarity > 1.0f) opt.maxWindowSimilarity *= 0.01f;
     if(opt.maxWindowSimilarity < 0.0f) opt.maxWindowSimilarity = 0.0f;
+
+    opt.resetParents = args.contains({"reset-parents", "reset_parents"});
 
     opt.taxonomy = get_taxonomy_options(args);
 
@@ -261,21 +264,45 @@ unranked_targets(const database& db)
 
 /*************************************************************************//**
  *
+ * @return all target taxa
+ *
+ *****************************************************************************/
+std::set<const taxon*>
+all_targets(const database& db)
+{
+    auto res = std::set<const taxon*>{};
+
+    for(const auto& tax : db.target_taxa()) {
+        res.insert(&tax);
+    }
+
+    return res;
+}
+
+
+
+/*************************************************************************//**
+ *
  * @brief try to assign parent taxa to target taxa using mapping files
  *
  *****************************************************************************/
 void try_to_rank_unranked_targets(database& db, const build_options& opt)
 {
-    auto unranked = unranked_targets(db);
+    std::set<const taxon*> unranked;
+    if(opt.resetParents)
+        unranked = all_targets(db);
+    else
+        unranked = unranked_targets(db);
 
     if(!unranked.empty()) {
         if(opt.infoLevel != info_level::silent) {
             cout << unranked.size()
-                 << " targets could not be ranked." << endl;
+                 << " targets are unranked." << endl;
         }
 
         for(const auto& file : opt.taxonomy.mappingPostFiles) {
             rank_targets_with_mapping_file(db, unranked, file);
+            if(unranked.empty()) break;
         }
     }
 
