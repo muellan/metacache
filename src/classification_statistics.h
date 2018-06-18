@@ -110,9 +110,9 @@ public:
                 for(rank r = correct; r <= rank::root; ++r) ++correct_[int(r)];
             }
             //if ranks below the correct rank are known,
-            //then all assigned ranks below the correct rank are wrong
+            //then all ranks below the correct rank are wrong
             if(correct > known) {
-                for(rank r = assigned; r < correct; ++r) {
+                for(rank r = rank::Sequence; r < correct; ++r) {
                     ++wrong_[int(r)];
                 }
             }
