@@ -109,10 +109,10 @@ public:
             else {
                 for(rank r = correct; r <= rank::root; ++r) ++correct_[int(r)];
             }
-            //if ranks above and including the current rank of assignment
-            //are wrong => levels below of current assignment must be wrong, too
-            if(correct > assigned) {
-                for(rank r = known; r < correct; ++r) {
+            //if ranks below the correct rank are known,
+            //then all assigned ranks below the correct rank are wrong
+            if(correct > known) {
+                for(rank r = assigned; r < correct; ++r) {
                     ++wrong_[int(r)];
                 }
             }
