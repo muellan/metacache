@@ -22,7 +22,12 @@
 #ifndef MC_QUERY_OPTIONS_H_
 #define MC_QUERY_OPTIONS_H_
 
+#include <cstdint>
+#include <cstddef>
+#include <limits>
+#include <string>
 #include <thread>
+#include <vector>
 
 #include "config.h"
 #include "taxonomy.h"

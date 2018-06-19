@@ -22,6 +22,9 @@
 #ifndef MC_MODES_H_
 #define MC_MODES_H_
 
+#include <string>
+
+#include "args_parser.h"
 
 namespace mc {
 

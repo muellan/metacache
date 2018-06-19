@@ -27,12 +27,12 @@
 #define MC_FASTA_READER_H_
 
 
-#include <fstream>
-#include <string>
+#include <atomic>
 #include <cstdint>
+#include <fstream>
 #include <memory>
 #include <mutex>
-#include <atomic>
+#include <string>
 
 #include "io_error.h"
 

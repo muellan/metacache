@@ -102,6 +102,8 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
                   << "; continuing with ids only." << std::endl;
     }
 
+    taxonomy tax;
+
     //read merged taxa
     is.close();
     is.open(mergeTaxFile);
@@ -117,11 +119,11 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
             is >> newId;
             forward(is, '\n');
             mergedTaxa.insert({oldId,newId});
+
+            tax.emplace(oldId, newId, "", "");
         }
         if(showInfo) cout << "done." << std::endl;
     }
-
-    taxonomy tax;
 
     //read taxonomic structure
     is.close();
@@ -131,6 +133,7 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
         taxon_id taxonId;
         taxon_id parentId;
         string rankName;
+        string rankNameExt;
 
         while(is.good()) {
             is >> taxonId;
@@ -138,6 +141,9 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
             is >> parentId;
             forward(is, '|');
             is >> rankName;
+            is >> rankNameExt;
+            if(rankNameExt != "|")
+                rankName += ' ' + rankNameExt;
             forward(is, '\n');
 
             //get taxon name

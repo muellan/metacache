@@ -20,15 +20,20 @@
  *
  *****************************************************************************/
 
-#include <functional>
-#include <limits>
+#include <algorithm>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 #include "args_handling.h"
 #include "cmdline_utility.h"
 #include "filesys_utility.h"
 #include "query_options.h"
 #include "classification.h"
+#include "classification_statistics.h"
 #include "printing.h"
+#include "config.h"
 
 
 namespace mc {

@@ -315,7 +315,7 @@ extract_ncbi_accession_version_number(const string& prefix,
     if(text.empty()) return "";
 
     auto i = text.find(prefix);
-    if(i < 20) {
+    if(i < string::npos) {
         //find separator *after* prefix
         auto s = text.find('.', i+1);
         if(s == string::npos || (s-i) > 20) return "";

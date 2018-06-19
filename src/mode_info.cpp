@@ -19,11 +19,18 @@
  *
  *****************************************************************************/
 #include <map>
+#include <array>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
 #include <typeinfo>
 
 #include "args_handling.h"
-#include "sequence_io.h"
-#include "printing.h"
+#include "query_options.h"
+#include "candidates.h"
+#include "config.h"
 #include "typename.h"
 
 
