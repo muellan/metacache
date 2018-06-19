@@ -116,7 +116,7 @@ ground_truth(const database& db, const string& header)
     tax = db.taxon_with_name(extract_ncbi_accession_version_number(header));
     if(tax) return db.next_ranked_ancestor(tax);
 
-    tax = db.taxon_with_name(extract_ncbi_accession_number(header));
+    tax = db.taxon_with_similar_name(extract_ncbi_accession_number(header));
     if(tax) return db.next_ranked_ancestor(tax);
 
     //try to extract id from header
