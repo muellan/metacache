@@ -215,7 +215,7 @@ void rank_targets_with_mapping_file(database& db,
         const taxon* tax = db.taxon_with_name(accver);
 
         if(!tax) {
-            tax = db.taxon_with_name(acc);
+            tax = db.taxon_with_similar_name(acc);
             if(!tax) tax = db.taxon_with_name(gi);
         }
 

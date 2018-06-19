@@ -591,6 +591,19 @@ public:
         if(i == name2tax_.end()) return nullptr;
         return i->second;
     }
+    //-----------------------------------------------------
+    /**
+     * @brief will find sequence-level taxon names with different versions
+     */
+    const taxon*
+    taxon_with_similar_name(const taxon_name& name) const noexcept {
+        if(name.empty()) return nullptr;
+        auto i = name2tax_.upper_bound(name);
+        if(i == name2tax_.end()) return nullptr;
+        const auto s = name.size();
+        if(0 != i->first.compare(0,s,name)) return nullptr;
+        return i->second;
+    }
 
 
     //---------------------------------------------------------------
@@ -1195,7 +1208,7 @@ private:
     std::vector<const taxon*> targets_;
     taxonomy taxa_;
     ranked_lineages_cache ranksCache_;
-    std::unordered_map<taxon_name,const taxon*> name2tax_;
+    std::map<taxon_name,const taxon*> name2tax_;
 };
 
 
