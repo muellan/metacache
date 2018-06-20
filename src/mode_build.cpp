@@ -40,6 +40,7 @@
 #include "config.h"
 #include "sequence_io.h"
 #include "taxonomy_io.h"
+#include "parallel_task_queue.h"
 
 
 namespace mc {
@@ -273,7 +274,69 @@ void try_to_rank_unranked_targets(database& db, const build_options& opt)
 
 /*************************************************************************//**
  *
- * @brief adds reference sequences to database
+ * @brief add one reference sequences from *one* file to database
+ *
+ *****************************************************************************/
+void add_target_to_database(database& db,
+    const std::string& filename,
+    const std::map<string,database::taxon_id>& sequ2taxid,
+    info_level infoLvl = info_level::moderate)
+
+{
+    auto reader = make_sequence_reader(filename);
+    while(reader->has_next()) {
+
+        auto sequ = reader->next();
+
+        if(!sequ.data.empty()) {
+            auto seqId  = extract_accession_string(sequ.header);
+            auto fileId = extract_accession_string(filename);
+
+            //make sure sequence id is not empty,
+            //use entire header if neccessary
+            if(seqId.empty()) seqId = sequ.header;
+
+            //targets need to have a sequence id
+            //look up taxon id
+            taxon_id parentTaxId = 0;
+            if(!sequ2taxid.empty()) {
+                auto it = sequ2taxid.find(seqId);
+                if(it != sequ2taxid.end()) {
+                    parentTaxId = it->second;
+                } else {
+                    it = sequ2taxid.find(fileId);
+                    if(it != sequ2taxid.end()) parentTaxId = it->second;
+                }
+            }
+            //no valid taxid assigned -> try to find one in header
+            if(parentTaxId < 1) parentTaxId = extract_taxon_id(sequ.header);
+
+            if(infoLvl == info_level::verbose) {
+                cout << "[" << seqId;
+                if(parentTaxId > 0) cout << ":" << parentTaxId;
+                cout << "] ";
+            }
+
+            //try to add to database
+            bool added = db.add_target(
+                sequ.data, seqId, parentTaxId,
+                database::file_source{filename, reader->index()});
+
+            if(infoLvl == info_level::verbose && !added) {
+                cout << seqId << " not added to database" << endl;
+            }
+        }
+    }
+    if(infoLvl == info_level::verbose) {
+        cout << "done." << endl;
+    }
+}
+
+
+
+/*************************************************************************//**
+ *
+ * @brief adds reference sequences from *several* files to database
  *
  *****************************************************************************/
 void add_targets_to_database(database& db,
@@ -293,52 +356,7 @@ void add_targets_to_database(database& db,
         }
 
         try {
-            auto reader = make_sequence_reader(filename);
-            while(reader->has_next()) {
-
-                auto sequ = reader->next();
-                if(!sequ.data.empty()) {
-                    auto seqId  = extract_accession_string(sequ.header);
-                    auto fileId = extract_accession_string(filename);
-
-                    //make sure sequence id is not empty,
-                    //use entire header if neccessary
-                    if(seqId.empty()) seqId = sequ.header;
-
-                    //targets need to have a sequence id
-                    //look up taxon id
-                    taxon_id parentTaxId = 0;
-                    if(!sequ2taxid.empty()) {
-                        auto it = sequ2taxid.find(seqId);
-                        if(it != sequ2taxid.end()) {
-                            parentTaxId = it->second;
-                        } else {
-                            it = sequ2taxid.find(fileId);
-                            if(it != sequ2taxid.end()) parentTaxId = it->second;
-                        }
-                    }
-                    //no valid taxid assigned -> try to find one in annotation
-                    if(parentTaxId < 1) parentTaxId = extract_taxon_id(sequ.header);
-
-                    if(infoLvl == info_level::verbose) {
-                        cout << "[" << seqId;
-                        if(parentTaxId > 0) cout << ":" << parentTaxId;
-                        cout << "] ";
-                    }
-
-                    //try to add to database
-                    bool added = db.add_target(
-                        sequ.data, seqId, parentTaxId,
-                        database::file_source{filename, reader->index()});
-
-                    if(infoLvl == info_level::verbose && !added) {
-                        cout << seqId << " not added to database" << endl;
-                    }
-                }
-            }
-            if(infoLvl == info_level::verbose) {
-                cout << "done." << endl;
-            }
+            add_target_to_database(db, filename, sequ2taxid, infoLvl);
         }
         catch(database::target_limit_exceeded_error&) {
             cout << endl;
