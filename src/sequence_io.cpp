@@ -38,12 +38,15 @@ using std::string;
 //-------------------------------------------------------------------
 constexpr const char* accession_prefix[]
 {
-    "NC_", "NG_", "NS_", "NT_", "NW_", "NZ_", "AC_", "GCF_",
+    "GCF_",
+    "AC_", 
+    "NC_", "NG_", "NS_", "NT_", "NW_", "NZ_", 
     "AE", "AJ", "AL", "AM", "AP", "AY",
     "BA", "BK", "BX",
     "CM", "CP", "CR", "CT", "CU",
     "FM", "FN", "FO", "FP", "FQ", "FR",
-    "HE", "JH"
+    "HE", 
+    "JH"
 };
 
 
@@ -315,24 +318,27 @@ extract_ncbi_accession_version_number(const string& prefix,
     if(text.empty()) return "";
 
     auto i = text.find(prefix);
-    if(i < string::npos) {
-        //find separator *after* prefix
-        auto s = text.find('.', i+1);
-        if(s == string::npos || (s-i) > 20) return "";
-        auto k = end_of_accession_number(text,s+1);
-        return trimmed(text.substr(i, k-i));
-    }
-    return "";
+    if(i == string::npos) return "";
+
+    //find separator *after* prefix
+    auto s = text.find('.', i + prefix.size());
+    if(s == string::npos || (s-i) > 25) return "";
+
+    auto k = end_of_accession_number(text,s+1);
+
+    return trimmed(text.substr(i, k-i));
 }
 
 //---------------------------------------------------------
 string
 extract_ncbi_accession_version_number(string text)
 {
-    if(text.empty()) return "";
+    if(text.size() < 2) return ""; 
 
     //remove leading dots
-    while(!text.empty() && text[0] == '.') text.erase(0);
+    while(text.size() < 2 && text[0] == '.') text.erase(0);
+
+    if(text.size() < 2) return "";
 
     //try to find any known prefix + separator
     for(auto prefix : accession_prefix) {
@@ -341,8 +347,8 @@ extract_ncbi_accession_version_number(string text)
     }
 
     //try to find version speparator
-    auto s = text.find('.');
-    if(s < 20) return trimmed(text.substr(0, end_of_accession_number(text,s+1)));
+    auto s = text.find('.', 1);
+    if(s < 25) return trimmed(text.substr(0, end_of_accession_number(text,s+1)));
 
     return "";
 }

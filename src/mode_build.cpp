@@ -320,6 +320,33 @@ void try_to_rank_unranked_targets(database& db, const build_options& opt)
 
 
 
+/*************************************************************************//**
+ *
+ * @brief look up taxon id based on an identifier (accession number etc.)
+ *
+ *****************************************************************************/
+taxon_id find_taxon_id(
+    const std::map<string,taxon_id>& name2tax, 
+    const string& name)
+{
+    if(name2tax.empty()) return taxonomy::none_id();
+    if(name.empty()) return taxonomy::none_id();
+
+    //try to find exact match
+    auto i = name2tax.find(name);
+    if(i != name2tax.end()) return i->second;
+
+    //find nearest match
+    i = name2tax.upper_bound(name);
+    if(i == name2tax.end()) return taxonomy::none_id();
+
+    //if nearest match contains 'name' as prefix -> good enough
+    //e.g. accession vs. accession.version
+    if(i->first.compare(0,name.size(),name) != 0) return taxonomy::none_id();
+    return i->second;
+}
+
+
 
 /*************************************************************************//**
  *
@@ -328,7 +355,7 @@ void try_to_rank_unranked_targets(database& db, const build_options& opt)
  *****************************************************************************/
 void add_targets_to_database(database& db,
     const std::vector<string>& infiles,
-    const std::map<string,database::taxon_id>& sequ2taxid,
+    const std::map<string,taxon_id>& sequ2taxid,
     info_level infoLvl = info_level::moderate)
 {
     int n = infiles.size();
@@ -355,20 +382,13 @@ void add_targets_to_database(database& db,
                     //use entire header if neccessary
                     if(seqId.empty()) seqId = sequ.header;
 
-                    //targets need to have a sequence id
-                    //look up taxon id
-                    taxon_id parentTaxId = 0;
-                    if(!sequ2taxid.empty()) {
-                        auto it = sequ2taxid.find(seqId);
-                        if(it != sequ2taxid.end()) {
-                            parentTaxId = it->second;
-                        } else {
-                            it = sequ2taxid.find(fileId);
-                            if(it != sequ2taxid.end()) parentTaxId = it->second;
-                        }
-                    }
-                    //no valid taxid assigned -> try to find one in annotation
-                    if(parentTaxId < 1) parentTaxId = extract_taxon_id(sequ.header);
+                    taxon_id parentTaxId = find_taxon_id(sequ2taxid, seqId);
+
+                    if(parentTaxId == taxonomy::none_id())
+                        parentTaxId = find_taxon_id(sequ2taxid, fileId);
+
+                    if(parentTaxId == taxonomy::none_id())
+                        parentTaxId = find_taxon_id(sequ.header);
 
                     if(infoLvl == info_level::verbose) {
                         cout << "[" << seqId;
