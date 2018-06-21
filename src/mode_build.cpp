@@ -40,6 +40,7 @@
 #include "config.h"
 #include "sequence_io.h"
 #include "taxonomy_io.h"
+#include "parallel_task_queue.h"
 
 
 namespace mc {
@@ -350,7 +351,7 @@ taxon_id find_taxon_id(
 
 /*************************************************************************//**
  *
- * @brief adds reference sequences to database
+ * @brief adds reference sequences from *several* files to database
  *
  *****************************************************************************/
 void add_targets_to_database(database& db,
@@ -388,7 +389,7 @@ void add_targets_to_database(database& db,
                         parentTaxId = find_taxon_id(sequ2taxid, fileId);
 
                     if(parentTaxId == taxonomy::none_id())
-                        parentTaxId = find_taxon_id(sequ.header);
+                        parentTaxId = extract_taxon_id(sequ.header);
 
                     if(infoLvl == info_level::verbose) {
                         cout << "[" << seqId;
