@@ -2,7 +2,7 @@ REL_ARTIFACT  = metacache
 DBG_ARTIFACT  = metacache_debug
 
 COMPILER     = $(CXX)
-DIALECT      = -std=c++11
+DIALECT      = -std=c++14
 WARNINGS     = -Wall -Wextra -Wpedantic
 OPTIMIZATION = -O3 
 #-march native -fomit-frame-pointer 

@@ -11,10 +11,9 @@ Project
 
 C++ Language Usage
 ------------------
- - C++11
+ - C++14
 
- - NO C++14/17 features (yet) - we'll maybe change that soon
-    (NO full return type deduction, NO generic lambdas, etc.)
+ - NO C++17 features (yet)
 
  - NO **owning** raw pointers
    => Every resource must be cleaned up if it's owner is destroyed.

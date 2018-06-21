@@ -64,7 +64,7 @@ public:
     //---------------------------------------------------------------
     template<
         class Arg, class... Args, class =
-        typename std::enable_if<!std::is_same<typename std::decay<Arg>::type,task_thread>::value,Arg>::type
+        std::enable_if_t<!std::is_same<std::decay_t<Arg>,task_thread>::value,Arg>
     >
     explicit
     task_thread(Arg&& arg, Args&&... args):

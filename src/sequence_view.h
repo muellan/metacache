@@ -42,7 +42,7 @@ class sequence_view
 public:
     using iterator   = RAIterator;
     using size_type  = SizeT;
-    using value_type = typename std::decay<decltype(*std::declval<iterator>())>::type;
+    using value_type = std::decay_t<decltype(*std::declval<iterator>())>;
 
     //---------------------------------------------------------------
     explicit
@@ -59,10 +59,8 @@ public:
     }
 
     //---------------------------------------------------------------
-    auto
-    operator [] (size_type i) const noexcept
-        -> decltype(std::declval<iterator>()[i])
-    {
+    decltype(auto)
+    operator [] (size_type i) const noexcept {
         return beg_[i];
     }
 

@@ -36,8 +36,7 @@ namespace mc {
  *
  *
  *****************************************************************************/
-template<class T, class = typename
-    std::enable_if<std::is_fundamental<T>::value,T>::type>
+template<class T, class = std::enable_if_t<std::is_fundamental<T>::value,T>>
 inline void
 write_binary(std::ostream& os, T x)
 {
@@ -88,8 +87,7 @@ write_binary(std::ostream& os, const std::array<T,n>& a)
  *
  *
  *****************************************************************************/
-template<class T, class = typename
-    std::enable_if<std::is_fundamental<T>::value,T>::type>
+template<class T, class = std::enable_if_t<std::is_fundamental<T>::value,T>>
 inline void
 read_binary(std::istream& is, T& x)
 {

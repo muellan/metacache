@@ -60,7 +60,7 @@ make_real(const T& x) {
 //-------------------------------------------------------------------
 template<class Accumulator>
 inline auto
-result(const Accumulator& a) -> decltype(a.result())
+result(const Accumulator& a)
 {
     return a.result();
 }
@@ -76,7 +76,6 @@ result(const Accumulator& a) -> decltype(a.result())
 template<class InputIterator>
 inline auto
 mean(InputIterator begin, InputIterator end)
-    -> decltype(make_real(*begin))
 {
     using std::distance;
 
@@ -90,7 +89,6 @@ mean(InputIterator begin, InputIterator end)
 template<class InputIterator>
 inline auto
 raw_moment_1(InputIterator begin, InputIterator end)
-    -> decltype(make_real(*begin))
 {
     using std::distance;
 
@@ -110,7 +108,6 @@ raw_moment_1(InputIterator begin, InputIterator end)
 template<class InputIterator>
 inline auto
 raw_moment_2(InputIterator begin, InputIterator end)
-    -> decltype(make_real(*begin))
 {
     using std::distance;
 
@@ -133,7 +130,6 @@ raw_moment_2(InputIterator begin, InputIterator end)
 template<class InputIterator>
 inline auto
 variance(InputIterator begin, InputIterator end)
-    -> decltype(make_real(*begin))
 {
     using std::distance;
 
@@ -158,7 +154,6 @@ variance(InputIterator begin, InputIterator end)
 template<class InputIterator>
 inline auto
 central_moment_2(InputIterator begin, InputIterator end)
-    -> decltype(variance(begin,end))
 {
     return variance(begin,end);
 }
@@ -167,7 +162,6 @@ central_moment_2(InputIterator begin, InputIterator end)
 template<class InputIterator>
 inline auto
 stddev(InputIterator begin, InputIterator end)
-    -> decltype(variance(begin,end))
 {
     using std::sqrt;
 
@@ -184,7 +178,6 @@ stddev(InputIterator begin, InputIterator end)
 template<class InputIterator>
 inline auto
 raw_moment_3(InputIterator begin, InputIterator end)
-    -> decltype(make_real(*begin))
 {
     using std::distance;
 
@@ -207,7 +200,6 @@ raw_moment_3(InputIterator begin, InputIterator end)
 template<class InputIterator>
 inline auto
 central_moment_3(InputIterator begin, InputIterator end)
-    -> decltype(make_real(*begin))
 {
     using std::distance;
 
@@ -236,7 +228,6 @@ central_moment_3(InputIterator begin, InputIterator end)
 template<class InputIterator>
 inline auto
 skewness(InputIterator begin, InputIterator end)
-    -> decltype(make_real(*begin))
 {
     using std::distance;
     using std::pow;
@@ -280,7 +271,6 @@ skewness(InputIterator begin, InputIterator end)
 template<class InputIterator>
 inline auto
 raw_moment_4(InputIterator begin, InputIterator end)
-    -> decltype(make_real(*begin))
 {
     using std::distance;
 
@@ -302,7 +292,6 @@ raw_moment_4(InputIterator begin, InputIterator end)
 template<class InputIterator>
 inline auto
 central_moment_4(InputIterator begin, InputIterator end)
-    -> decltype(make_real(*begin))
 {
     using std::distance;
 
@@ -336,7 +325,6 @@ central_moment_4(InputIterator begin, InputIterator end)
 template<class InputIterator>
 inline auto
 kurtosis(InputIterator begin, InputIterator end)
-    -> decltype(make_real(*begin))
 {
     using std::distance;
 
@@ -377,7 +365,6 @@ kurtosis(InputIterator begin, InputIterator end)
 template<class InputIterator>
 inline auto
 kurtosis_excess(InputIterator begin, InputIterator end)
-    -> decltype((kurtosis(begin,end) - 3))
 {
     return (kurtosis(begin,end) - 3);
 }

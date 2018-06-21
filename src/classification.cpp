@@ -59,7 +59,6 @@ template<class Sequence>
 inline auto
 make_view_from_window_range(const Sequence& s, const window_range& range,
                             int size, int stride)
-    -> decltype(make_view(s.begin(),s.end()))
 {
     auto end = s.begin() + (stride * range.end) + size;
     if(end > s.end()) end = s.end();
