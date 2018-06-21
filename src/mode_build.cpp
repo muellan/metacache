@@ -75,6 +75,7 @@ struct build_options
     int maxTaxaPerFeature = 1;
 
     taxonomy_options taxonomy;
+    bool resetParents = false;
 
     info_level infoLevel = info_level::moderate;
 
@@ -90,10 +91,8 @@ struct build_options
  *
  *****************************************************************************/
 build_options
-get_build_options(const args_parser& args)
+get_build_options(const args_parser& args, const build_options& defaults = {})
 {
-    const build_options defaults;
-
     build_options opt;
 
     opt.dbfile = database_name(args);
@@ -139,11 +138,38 @@ get_build_options(const args_parser& args)
     if(opt.maxWindowSimilarity > 1.0f) opt.maxWindowSimilarity *= 0.01f;
     if(opt.maxWindowSimilarity < 0.0f) opt.maxWindowSimilarity = 0.0f;
 
+    opt.resetParents = args.contains({"reset-parents", "reset_parents"});
+
     opt.taxonomy = get_taxonomy_options(args);
 
     return opt;
 }
 
+
+
+/*************************************************************************//**
+ *
+ * @brief extract db creation parameters
+ *
+ *****************************************************************************/
+build_options
+get_build_options_from_db(const database& db)
+{
+    build_options opt;
+
+    opt.kmerlen   = db.target_sketcher().kmer_size();
+    opt.sketchlen = db.target_sketcher().sketch_size();
+    opt.winlen    = db.target_window_size();
+    opt.winstride = db.target_window_stride();
+
+    opt.maxLoadFactor = db.max_load_factor();
+
+    opt.maxLocationsPerFeature = db.max_locations_per_feature();
+
+    opt.maxWindowSimilarity = db.max_new_window_similarity();
+
+    return opt;
+}
 
 
 
@@ -190,7 +216,7 @@ void rank_targets_with_mapping_file(database& db,
         const taxon* tax = db.taxon_with_name(accver);
 
         if(!tax) {
-            tax = db.taxon_with_name(acc);
+            tax = db.taxon_with_similar_name(acc);
             if(!tax) tax = db.taxon_with_name(gi);
         }
 
@@ -239,21 +265,45 @@ unranked_targets(const database& db)
 
 /*************************************************************************//**
  *
+ * @return all target taxa
+ *
+ *****************************************************************************/
+std::set<const taxon*>
+all_targets(const database& db)
+{
+    auto res = std::set<const taxon*>{};
+
+    for(const auto& tax : db.target_taxa()) {
+        res.insert(&tax);
+    }
+
+    return res;
+}
+
+
+
+/*************************************************************************//**
+ *
  * @brief try to assign parent taxa to target taxa using mapping files
  *
  *****************************************************************************/
 void try_to_rank_unranked_targets(database& db, const build_options& opt)
 {
-    auto unranked = unranked_targets(db);
+    std::set<const taxon*> unranked;
+    if(opt.resetParents)
+        unranked = all_targets(db);
+    else
+        unranked = unranked_targets(db);
 
     if(!unranked.empty()) {
         if(opt.infoLevel != info_level::silent) {
             cout << unranked.size()
-                 << " targets could not be ranked." << endl;
+                 << " targets are unranked." << endl;
         }
 
         for(const auto& file : opt.taxonomy.mappingPostFiles) {
             rank_targets_with_mapping_file(db, unranked, file);
+            if(unranked.empty()) break;
         }
     }
 
@@ -553,17 +603,17 @@ void add_to_database(database& db, const build_options& opt)
  *****************************************************************************/
 void main_mode_build_modify(const args_parser& args)
 {
-    auto opt = get_build_options(args);
+    auto dbfile = database_name(args);
 
-    if(opt.dbfile.empty()) {
+    if(dbfile.empty()) {
         throw std::invalid_argument{"No database filename provided."};
     }
 
-    if(opt.infoLevel != info_level::silent) {
-        cout << "Modify database " << opt.dbfile << endl;
-    }
+    cout << "Modify database " << dbfile << endl;
 
-    auto db = make_database<database>(opt.dbfile);
+    auto db = make_database<database>(dbfile);
+
+    auto opt = get_build_options(args, get_build_options_from_db(db));
 
     if(opt.infoLevel != info_level::silent && !opt.infiles.empty()) {
         cout << "Adding reference sequences to database..." << endl;
