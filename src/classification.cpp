@@ -565,8 +565,13 @@ void map_queries_to_targets_default(
     //global target -> query_id/win:hits... list
     matches_per_target tgtMatches;
 
-    //makes an empty batch buffer
-    //(each batch might be processed by a different thread)
+    //input queries are divided into batches;
+    //each batch might be processed by a different thread;
+    //the following 4 lambdas define actions that should be performed
+    //on such a batch and its associated buffer;
+    //the batch buffer can be used to cache intermediate results
+
+    //creates an empty batch buffer
     const auto makeBatchBuffer = [] { return mappings_buffer(); };
 
 
@@ -592,7 +597,7 @@ void map_queries_to_targets_default(
         show_query_mapping(buf.out, db, opt.output, query, cls, allhits);
     };
 
-
+    //runs before a batch buffer is discarded
     const auto finalizeBatch = [&] (mappings_buffer&& buf) {
         if(opt.output.showHitsPerTargetList) {
             //merge batch (target->hits) lists into global one
@@ -602,7 +607,7 @@ void map_queries_to_targets_default(
         results.mapout << buf.out.str();
     };
 
-
+    //runs in case of notification events
     const auto showStatus = [&] (const std::string& msg, float progress) {
         if(opt.output.mapViewMode != map_view_mode::none) {
             results.mapout << opt.output.format.comment << msg << '\n';

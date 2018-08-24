@@ -395,6 +395,9 @@ public:
     feature_count_type
     remove_features_with_more_locations_than(bucket_size_type n)
     {
+        //note that features are not really removed, because the hashmap
+        //does not support erasing keys; instead all values belonging to
+        //the key are cleared and the key is kept without values
         feature_count_type rem = 0;
         for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
             if(i->size() > n) {

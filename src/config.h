@@ -122,7 +122,7 @@ using matches_per_location = database::matches_per_location;
 /**************************************************************************
  * @brief controls how a classification is derived from a location hit list;
  *        default is a top 2 voting scheme;
- *        forward declarations (break cycle "config.h" <-> "candidates.h")
+ *        forward declarations (breaks cycle "config.h" <-> "candidates.h")
  */
 
 class distinct_matches_in_contiguous_window_ranges;
