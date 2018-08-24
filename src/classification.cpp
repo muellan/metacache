@@ -140,15 +140,16 @@ ground_truth(const database& db, const string& header)
  *****************************************************************************/
 void remove_hits_on_rank(const database& db,
                          const taxon& tax, taxon_rank rank,
-                         matches_per_location& hits)
+                         match_locations& hits)
 {
     const taxon* excl = db.ancestor(tax,rank);
 
-    matches_per_location maskedHits;
+    match_locations maskedHits;
     for(const auto& hit : hits) {
-        auto t = db.ancestor(hit.loc.tax, rank);
+        auto t = db.ancestor(hit.tax, rank);
         if(t != excl) {
-            maskedHits.push_back(hit);
+            // maskedHits.push_back(hit);
+            maskedHits.insert(maskedHits.end(),hit);
         }
     }
 
@@ -166,7 +167,7 @@ void remove_hits_on_rank(const database& db,
 void prepare_evaluation(const database& db,
                         const evaluation_options& opt,
                         sequence_query& query,
-                        matches_per_location& allhits)
+                        match_locations& allhits)
 {
     if(opt.precision ||
        (opt.determineGroundTruth) ||
@@ -256,7 +257,7 @@ classification_candidates
 make_classification_candidates(const database& db,
                                const classification_options& opt,
                                const sequence_query& query,
-                               const matches_per_location& allhits)
+                               const match_locations& allhits)
 {
     candidate_generation_rules rules;
 
@@ -314,7 +315,7 @@ classification
 classify(const database& db,
          const classification_options& opt,
          const sequence_query& query,
-         const matches_per_location& allhits)
+         const match_locations& allhits)
 {
     classification cls { make_classification_candidates(db, opt, query, allhits) };
 
@@ -488,7 +489,7 @@ void show_query_mapping(
     const classification_output_options& opt,
     const sequence_query& query,
     const classification& cls,
-    const matches_per_location& allhits)
+    const match_locations& allhits)
 {
     if(opt.mapViewMode == map_view_mode::none ||
         (opt.mapViewMode == map_view_mode::mapped_only && !cls.best))
@@ -573,7 +574,7 @@ void map_queries_to_targets_default(
 
     //updates buffer with the database answer of a single query
     const auto processQuery = [&] (mappings_buffer& buf,
-        sequence_query&& query, matches_per_location& allhits)
+        sequence_query&& query, match_locations& allhits)
     {
         if(query.empty()) return;
 

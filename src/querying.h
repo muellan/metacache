@@ -89,7 +89,7 @@ void query_batched(
         if(queue.unsafe_waiting() < load) {
             queue.enqueue([&] {
                 auto buffer = getBuffer();
-                matches_per_location matches;
+                match_locations matches;
                 bool empty = true;
 
                 for(std::size_t i = 0;
@@ -101,7 +101,10 @@ void query_batched(
                     if(!seq.header.empty()) {
                         empty = false;
                         matches.clear();
+
                         db.accumulate_matches(seq.data, matches);
+
+                        std::sort(matches.begin(), matches.end());
 
                         update(buffer,
                                sequence_query{seq.index,
@@ -152,7 +155,7 @@ void query_batched_merged_pairs(
         if(queue.unsafe_waiting() < load) {
             queue.enqueue([&]{
                 auto buffer = getBuffer();
-                matches_per_location matches;
+                match_locations matches;
                 bool empty = true;
 
                 for(std::size_t i = 0; i < opt.batchSize && queryLimit > 0;
@@ -171,9 +174,12 @@ void query_batched_merged_pairs(
 
                         matches.clear();
                         empty = false;
+
                         db.accumulate_matches(seq1.data, matches);
                         //merge matches with hits of second sequence
                         db.accumulate_matches(seq2.data, matches);
+
+                        std::sort(matches.begin(), matches.end());
 
                         update(buffer,
                                sequence_query{qidx,

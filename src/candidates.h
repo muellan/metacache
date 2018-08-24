@@ -115,7 +115,7 @@ struct candidate_generation_rules
  *
  *****************************************************************************/
 template<class Consumer>
-void for_all_contiguous_window_ranges(const matches_per_location& matches,
+void for_all_contiguous_window_ranges(const match_locations& matches,
                                       window_id numWindows,
                                       Consumer&& consume)
 {
@@ -130,12 +130,12 @@ void for_all_contiguous_window_ranges(const matches_per_location& matches,
     if(fst == end(matches)) return;
 
     //first entry in list
-    hit_count hits = fst->hits;
+    hit_count hits = 1;
     match_candidate curBest;
-    curBest.tax = fst->loc.tax;
+    curBest.tax = fst->tax;
     curBest.hits = hits;
-    curBest.pos.beg = fst->loc.win;
-    curBest.pos.end = fst->loc.win;
+    curBest.pos.beg = fst->win;
+    curBest.pos.end = fst->win;
     auto lst = fst;
     ++lst;
 
@@ -144,33 +144,33 @@ void for_all_contiguous_window_ranges(const matches_per_location& matches,
         //look for neighboring windows with the highest total hit count
         //as long as we are in the same target and the windows are in a
         //contiguous range
-        if(lst->loc.tax == curBest.tax) {
+        if(lst->tax == curBest.tax) {
             //add new hits to the right
-            hits += lst->hits;
+            hits++;
             //subtract hits to the left that fall out of range
             while(fst != lst &&
-                (lst->loc.win - fst->loc.win) >= numWindows)
+                (lst->win - fst->win) >= numWindows)
             {
-                hits -= fst->hits;
+                hits--;
                 //move left side of range
                 ++fst;
             }
             //track best of the local sub-ranges
             if(hits > curBest.hits) {
                 curBest.hits = hits;
-                curBest.pos.beg = fst->loc.win;
-                curBest.pos.end = lst->loc.win;
+                curBest.pos.beg = fst->win;
+                curBest.pos.end = lst->win;
             }
         }
         else { //end of current target
             if(!consume(curBest)) return;
             //reset to new target
             fst = lst;
-            hits = fst->hits;
-            curBest.tax  = fst->loc.tax;
+            hits = 1;
+            curBest.tax  = fst->tax;
             curBest.hits = hits;
-            curBest.pos.beg = fst->loc.win;
-            curBest.pos.end = fst->loc.win;
+            curBest.pos.beg = fst->win;
+            curBest.pos.end = fst->win;
         }
 
         ++lst;
@@ -201,7 +201,7 @@ public:
      */
     best_distinct_matches_in_contiguous_window_ranges(
         const database& db,
-        const matches_per_location& matches,
+        const match_locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
     :
         top_{}
@@ -303,7 +303,7 @@ public:
      */
     distinct_matches_in_contiguous_window_ranges(
         const database&, //not needed here
-        const matches_per_location& matches,
+        const match_locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
     :
         cand_{}

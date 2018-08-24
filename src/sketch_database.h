@@ -252,9 +252,8 @@ public:
             return (a.loc < b.loc);
         }
     };
-    //location (= target window) -> number of features
-    using matches_per_location = std::vector<location_matches>;
 
+    using match_locations = std::vector<location>;
 
     //---------------------------------------------------------------
     explicit
@@ -793,7 +792,7 @@ public:
                     auto locs = features_.find(f);
                     if(locs != features_.end()) {
                         for(const auto& loc : *locs) {
-                            consume(location{targets_[loc.tgt], loc.win});
+                            consume(loc);
                         }
                     }
                 }
@@ -802,50 +801,21 @@ public:
 
 
     //---------------------------------------------------------------
-    matches_per_location
-    matches(const sequence& query) const
-    {
-        auto res = matches_per_location{};
-        using std::begin;
-        using std::end;
-        accumulate_matches(begin(query), end(query), res);
-        return res;
-    }
-    //---------------------------------------------------------------
-    template<class InputIterator>
-    matches_per_location
-    matches(InputIterator first, InputIterator last) const
-    {
-        auto res = matches_per_location{};
-        accumulate_matches(first, last, res);
-        return res;
-    }
-    //---------------------------------------------------------------
     template<class InputIterator>
     void
     accumulate_matches(InputIterator queryBegin, InputIterator queryEnd,
-                       matches_per_location& res) const
+                       match_locations& res) const
     {
         for_each_match(queryBegin, queryEnd,
-            [&res] (const location& loc) {
-                auto it = std::lower_bound(begin(res), end(res), loc,
-                    [](const location_matches& lc, const location& l) {
-                        return lc.loc < l;
-                    });
-
-                if(it != end(res) && it->loc == loc) {
-                    ++(it->hits);
-                }
-                else {
-                    res.insert(it, {loc, match_count_type(1)});
-                }
+            [this, &res] (const target_location& loc) {
+                res.emplace_back(targets_[loc.tgt], loc.win);
             });
     }
 
     //---------------------------------------------------------------
     void
     accumulate_matches(const sequence& query,
-                       matches_per_location& res) const
+                       match_locations& res) const
     {
         using std::begin;
         using std::end;

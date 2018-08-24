@@ -82,7 +82,7 @@ void show_matches(std::ostream&,
  *****************************************************************************/
 void show_matches(std::ostream&,
                   const database&,
-                  const matches_per_location&,
+                  const match_locations&,
                   taxon_rank lowest = taxon_rank::Sequence);
 
 
