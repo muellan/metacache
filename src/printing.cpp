@@ -349,27 +349,53 @@ void show_matches(std::ostream& os,
 //-------------------------------------------------------------------
 void show_matches(std::ostream& os,
                   const database& db,
-                  const matches_per_location& matches,
+                  const match_locations& matches,
                   taxon_rank lowest)
 {
     if(matches.empty()) return;
 
     if(lowest == taxon_rank::Sequence) {
-        for(const auto& r : matches) {
-            const taxon* tax = r.loc.tax;
-            if(tax) os << tax->name()
-                       << '/' << int(r.loc.win)
-                       << ':' << int(r.hits) << ',';
+        auto cur = matches.begin();
+        int count = 1;
+        for(auto it = matches.begin()+1; it != matches.end(); ++it) {
+            if(*cur == *it)
+                ++count;
+            else {
+                const taxon* tax = cur->tax;
+                if(tax) os << tax->name()
+                           << '/' << int(cur->win)
+                           << ':' << count << ',';
+                cur = it;
+                count = 1;
+            }
         }
+        const taxon* tax = cur->tax;
+        if(tax) os << tax->name()
+                   << '/' << int(cur->win)
+                   << ':' << count << ',';
     }
     else {
-        for(const auto& r : matches) {
-            const taxon* tax = db.ancestor(r.loc.tax, lowest);
-            if(tax) {
-                os << tax->name() << ':' << int(r.hits) << ',';
-            } else {
-                os << r.loc.tax->name() << ':' << int(r.hits) << ',';
+        auto cur = matches.begin();
+        int count = 1;
+        for(auto it = matches.begin()+1; it != matches.end(); ++it) {
+            if(*cur == *it)
+                ++count;
+            else {
+                const taxon* tax = db.ancestor(cur->tax, lowest);
+                if(tax) {
+                    os << tax->name() << ':' << count << ',';
+                } else {
+                    os << cur->tax->name() << ':' << count << ',';
+                }
+                cur = it;
+                count = 1;
             }
+        }
+        const taxon* tax = db.ancestor(cur->tax, lowest);
+        if(tax) {
+            os << tax->name() << ':' << count << ',';
+        } else {
+            os << cur->tax->name() << ':' << count << ',';
         }
     }
 }
