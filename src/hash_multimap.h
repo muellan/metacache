@@ -461,7 +461,7 @@ public:
         hash_{}, keyEqual_{}, alloc_{valloc},
         buckets_{kalloc}
     {
-        buckets_.resize(5);
+        buckets_.resize(1019);
     }
 
     //-----------------------------------------------------
@@ -474,7 +474,7 @@ public:
         hash_{}, keyEqual_{keyComp}, alloc_{valloc},
         buckets_{kalloc}
     {
-        buckets_.resize(5);
+        buckets_.resize(1019);
     }
 
     //-----------------------------------------------------
@@ -488,7 +488,7 @@ public:
         hash_{hash}, keyEqual_{keyComp}, alloc_{valloc},
         buckets_{kalloc}
     {
-        buckets_.resize(5);
+        buckets_.resize(1019);
     }
 
 
