@@ -166,12 +166,11 @@ public:
     quadratic_probing_iterator& operator ++ () noexcept {
         pos_ += hop_;
         if(pos_ >= end_) {
-            hop_ = 1;
             if(beg_ == end_) {
                 pos_ = end_;
                 return *this;
             }
-            pos_ = beg_;
+            pos_ -= (end_ - beg_);
             end_ = fst_;
             beg_ = fst_;
         }
