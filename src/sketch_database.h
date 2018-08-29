@@ -236,24 +236,8 @@ public:
         }
     };
 
-    //-------------------------------------------------------------------
-    struct location_matches {
-        location_matches() = default;
-        constexpr
-        location_matches(location l, match_count_type c) noexcept :
-            loc{l}, hits{c}
-        {}
-
-        location loc;
-        match_count_type hits = 0;
-
-        friend bool
-        operator < (const location_matches& a, const location_matches& b) noexcept {
-            return (a.loc < b.loc);
-        }
-    };
-
     using match_locations = std::vector<location>;
+
 
     //---------------------------------------------------------------
     explicit
@@ -277,7 +261,7 @@ public:
         ranksCache_{taxa_, taxon_rank::Sequence},
         name2tax_{}
     {
-        features_.max_load_factor(0.8);
+        features_.max_load_factor(default_max_load_factor());
     }
 
     sketch_database(const sketch_database&) = delete;
@@ -836,7 +820,7 @@ public:
     }
     //-----------------------------------------------------
     static constexpr float default_max_load_factor() noexcept {
-        return 0.8f;
+        return 0.85f;
     }
 
 
