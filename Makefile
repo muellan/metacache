@@ -1,5 +1,6 @@
 REL_ARTIFACT  = metacache
 DBG_ARTIFACT  = metacache_debug
+PRF_ARTIFACT  = metacache_prf
 
 COMPILER     = $(CXX)
 DIALECT      = -std=c++14
@@ -9,9 +10,11 @@ OPTIMIZATION = -O3
 
 REL_FLAGS   = $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) $(WARNINGS)
 DBG_FLAGS   = $(INCLUDES) $(MACROS) $(DIALECT) -O0 -g $(WARNINGS)
+PRF_FLAGS   = $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) -g $(WARNINGS)
 
 REL_LDFLAGS  = -pthread -s
 DBG_LDFLAGS  = -pthread 
+PRF_LDFLAGS  = -pthread 
 
 
 #--------------------------------------------------------------------
@@ -72,6 +75,7 @@ SOURCES = \
 #--------------------------------------------------------------------
 REL_DIR  = build_release
 DBG_DIR  = build_debug
+PRF_DIR  = build_profile
 
 PLAIN_SRCS = $(notdir $(SOURCES))
 PLAIN_OBJS = $(PLAIN_SRCS:%.cpp=%.o)
@@ -79,9 +83,11 @@ PLAIN_OBJS = $(PLAIN_SRCS:%.cpp=%.o)
 #--------------------------------------------------------------------
 REL_OBJS  = $(PLAIN_OBJS:%=$(REL_DIR)/%)
 DBG_OBJS  = $(PLAIN_OBJS:%=$(DBG_DIR)/%)
+PRF_OBJS  = $(PLAIN_OBJS:%=$(PRF_DIR)/%)
 
 REL_COMPILE  = $(COMPILER) $(REL_FLAGS) -c $< -o $@
 DBG_COMPILE  = $(COMPILER) $(DBG_FLAGS) -c $< -o $@
+PRF_COMPILE  = $(COMPILER) $(PRF_FLAGS) -c $< -o $@
 
 
 
@@ -94,7 +100,9 @@ release: $(REL_DIR) $(REL_ARTIFACT)
 
 debug: $(DBG_DIR) $(DBG_ARTIFACT)
 
-all: release debug test
+profile: $(PRF_DIR) $(PRF_ARTIFACT)
+
+all: release debug profile test
 
 clean : 
 	rm -rf build_*
@@ -102,6 +110,7 @@ clean :
 	rm -f *.json
 	rm -f $(REL_ARTIFACT)
 	rm -f $(DBG_ARTIFACT)
+	rm -f $(PRF_ARTIFACT)
 
 
 #--------------------------------------------------------------------
@@ -208,3 +217,53 @@ $(DBG_DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.h
 	$(DBG_COMPILE)
 
 
+#--------------------------------------------------------------------
+# profile (out-of-place build)
+#--------------------------------------------------------------------
+$(PRF_DIR):
+	mkdir $(PRF_DIR) 
+
+$(PRF_ARTIFACT): $(PRF_OBJS)
+	$(COMPILER) -o $(PRF_ARTIFACT) $(PRF_OBJS) $(PRF_LDFLAGS)
+
+$(PRF_DIR)/main.o : src/main.cpp src/modes.h 
+	$(PRF_COMPILE)
+
+$(PRF_DIR)/printing.o : src/printing.cpp $(HEADERS)
+	$(PRF_COMPILE)
+
+$(PRF_DIR)/classification.o : src/classification.cpp $(HEADERS)
+	$(PRF_COMPILE)
+
+$(PRF_DIR)/query_options.o : src/query_options.cpp $(HEADERS)
+	$(PRF_COMPILE)
+	
+$(PRF_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)
+	$(PRF_COMPILE)
+	
+$(PRF_DIR)/mode_build.o : src/mode_build.cpp $(HEADERS)
+	$(PRF_COMPILE)
+	
+$(PRF_DIR)/mode_info.o : src/mode_info.cpp $(HEADERS)
+	$(PRF_COMPILE)
+
+$(PRF_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
+	$(PRF_COMPILE)
+
+$(PRF_DIR)/taxonomy_io.o : src/taxonomy_io.cpp $(HEADERS)
+	$(PRF_COMPILE)
+
+$(PRF_DIR)/mode_help.o : src/mode_help.cpp src/modes.h src/args_handling.h src/filesys_utility.h
+	$(PRF_COMPILE)
+
+$(PRF_DIR)/sequence_io.o : src/sequence_io.cpp src/sequence_io.h src/io_error.h
+	$(PRF_COMPILE)
+
+$(PRF_DIR)/args_handling.o : src/args_handling.cpp src/args_handling.h src/args_parser.h src/filesys_utility.h
+	$(PRF_COMPILE)
+
+$(PRF_DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.h
+	$(PRF_COMPILE)
+
+$(PRF_DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.h
+	$(PRF_COMPILE)

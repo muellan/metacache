@@ -26,7 +26,7 @@
 !/test/*.gz
 .project
 .cproject
+.vscode
 metacache
 metacache_debug
-metacache.exe
-metacache_debug.exe
+metacache_prf
