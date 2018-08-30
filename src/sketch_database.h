@@ -158,6 +158,9 @@ private:
     //avoid padding bits
     struct target_location
     {
+        using target_id_t = target_id;
+        using window_id_t = window_id;
+
         constexpr
         target_location(target_id g = 0, window_id w = 0) noexcept :
             tgt{g}, win{w}
@@ -871,10 +874,6 @@ public:
 
         //target insertion parameters
         read_binary(is, maxLocsPerFeature_);
-        //dummy for legacy db format compatibility
-        //could be re-used in the future
-        float dummy;
-        read_binary(is, dummy);
 
         //taxon metadata
         read_binary(is, taxa_);
@@ -944,10 +943,6 @@ public:
 
         //target insertion parameters
         write_binary(os, maxLocsPerFeature_);
-        //dummy for legacy db format compatibility
-        //could be re-used in the future
-        float dummy = 0.0f;
-        write_binary(os, dummy);
 
         //taxon & target metadata
         write_binary(os, taxa_);

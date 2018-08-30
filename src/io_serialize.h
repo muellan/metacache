@@ -62,9 +62,8 @@ write_binary(std::ostream& os, const std::vector<T>& v)
 {
     std::uint64_t n = v.size();
     os.write(reinterpret_cast<const char*>(&n), sizeof(n));
-    for(const auto& x : v) {
-        write_binary(os, x);
-    }
+    if(n > 0)
+        os.write(reinterpret_cast<const char*>(v.data()), n * sizeof(T));
 }
 
 
@@ -116,13 +115,11 @@ inline void
 read_binary(std::istream& is, std::vector<T>& v)
 {
 
-    std::uint64_t l = 0;
-    is.read(reinterpret_cast<char*>(&l), sizeof(l));
-    v.clear();
-    v.resize(l);
-    for(auto& x : v) {
-        read_binary(is, x);
-    }
+    std::uint64_t n = 0;
+    is.read(reinterpret_cast<char*>(&n), sizeof(n));
+    v.resize(n);
+    if(n > 0)
+        is.read(reinterpret_cast<char*>(v.data()), n * sizeof(T));
 }
 
 
