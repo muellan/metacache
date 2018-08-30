@@ -254,7 +254,6 @@ public:
         queryWindowSize_(targetWindowSize_),
         queryWindowStride_(targetWindowStride_),
         maxLocsPerFeature_(max_supported_locations_per_feature()),
-        maxNewWindowSimilarity_{1.0f},
         features_{},
         targets_{},
         taxa_{},
@@ -394,26 +393,6 @@ public:
 
     //---------------------------------------------------------------
     /**
-     * @brief if new targets are added to the database,
-     *        only features of windows with a sketch similarity smaller or equal
-     *        to 'ratio' are added to the database
-     *        default is 1.0 which means that this is turned off
-     */
-    void max_new_window_similarity(float ratio)
-    {
-        if(ratio > 1.0f) ratio = 1.0f;
-        if(ratio < 0.0f) ratio = 0.0f;
-        maxNewWindowSimilarity_ = ratio;
-    }
-    //-----------------------------------------------------
-    float max_new_window_similarity() const noexcept
-    {
-        return maxNewWindowSimilarity_;
-    }
-
-
-    //---------------------------------------------------------------
-    /**
      * @brief  removes features that have more than 'maxambig' different
      *         taxa on a certain taxonomic rank
      *         e.g. remove features that are present in more than 4 phyla
@@ -487,12 +466,7 @@ public:
         const auto taxid = taxon_id_of_target(targetCount);
 
         //sketch sequence -> insert features
-        if(max_new_window_similarity() < 0.99f) {
-            source.windows = add_dissimilar_window_sketches(seq,
-                                 targetCount, max_new_window_similarity());
-        } else {
-            source.windows = add_all_window_sketches(seq, targetCount);
-        }
+        source.windows = add_all_window_sketches(seq, targetCount);
 
         //insert sequence metadata as a new taxon
         if(parentTaxid < 1) parentTaxid = 0;
@@ -897,7 +871,10 @@ public:
 
         //target insertion parameters
         read_binary(is, maxLocsPerFeature_);
-        read_binary(is, maxNewWindowSimilarity_);
+        //dummy for legacy db format compatibility
+        //could be re-used in the future
+        float dummy;
+        read_binary(is, dummy);
 
         //taxon metadata
         read_binary(is, taxa_);
@@ -967,7 +944,10 @@ public:
 
         //target insertion parameters
         write_binary(os, maxLocsPerFeature_);
-        write_binary(os, maxNewWindowSimilarity_);
+        //dummy for legacy db format compatibility
+        //could be re-used in the future
+        float dummy = 0.0f;
+        write_binary(os, dummy);
 
         //taxon & target metadata
         write_binary(os, taxa_);
@@ -1039,49 +1019,6 @@ public:
 
 private:
     //---------------------------------------------------------------
-    window_id add_dissimilar_window_sketches(const sequence& seq, target_id tgt,
-                                             float maxSimilarity)
-    {
-        using iter_t = typename sequence::const_iterator;
-
-        window_id win = 0;
-        for_each_window(seq, targetWindowSize_, targetWindowStride_,
-            [&, this] (iter_t b, iter_t e) {
-                auto tgtSketch = targetSketcher_(b,e);
-
-                //query sketch against current database content
-                std::map<target_location,match_count_type> matches;
-                for(auto f : querySketcher_(b,e)) {
-                    auto locs = features_.find(f);
-                    if(locs != features_.end()) {
-                        for(const auto& loc : *locs) {
-                            auto it = matches.find(loc);
-                            if(it != matches.end())
-                                ++(it->second);
-                            else
-                                matches.insert(it, {loc, 1});
-                        }
-                    }
-                }
-                auto sim = max_hits_in_neighboring_windows(matches) /
-                           float(tgtSketch.size());
-
-                if(sim <= maxSimilarity) {
-                    //insert features from sketch into database
-                    for(const auto& f : tgtSketch) {
-                        auto it = features_.insert(f, target_location{tgt, win});
-                        if(it->size() > maxLocsPerFeature_) {
-                            features_.shrink(it, maxLocsPerFeature_);
-                        }
-                    }
-                }
-                ++win;
-            });
-        return win;
-    }
-
-
-    //---------------------------------------------------------------
     window_id add_all_window_sketches(const sequence& seq, target_id tgt)
     {
         using iter_t = typename sequence::const_iterator;
@@ -1102,54 +1039,6 @@ private:
         return win;
     }
 
-    /****************************************************************
-     * @brief
-     */
-    match_count_type
-    max_hits_in_neighboring_windows(
-        const std::map<target_location,match_count_type>& matches)
-    {
-        if(matches.empty()) return 0;
-
-        target_id tgt = std::numeric_limits<target_id>::max();
-        match_count_type hits = 0;
-        match_count_type curBest = 0;
-        match_count_type overallBest = 0;
-
-        //check hits per query sequence
-        auto fst = begin(matches);
-        auto lst = fst;
-        while(lst != end(matches)) {
-            //look for neighboring windows with the highest total hit count
-            //as long as we are in the same target and the windows are in a
-            //contiguous range of at most 3 windows
-            if(lst->first.tgt == tgt) {
-                //add new hits to the right
-                hits += lst->second;
-                //subtract hits to the left that fall out of range
-                while(fst != lst &&
-                     (lst->first.win - fst->first.win) >= 3)
-                {
-                    hits -= fst->second;
-                    //move left side of range
-                    ++fst;
-                }
-                //track best of the local sub-ranges
-                if(hits > curBest) curBest = hits;
-            }
-            else { //end of current target
-                if(curBest > overallBest) overallBest = curBest;
-                //reset to new target
-                hits = lst->second;
-                tgt  = lst->first.tgt;
-                curBest = hits;
-                fst = lst;
-            }
-            ++lst;
-        }
-        return (curBest > overallBest) ? curBest : overallBest;
-    }
-
 
     //---------------------------------------------------------------
     sketcher targetSketcher_;
@@ -1159,7 +1048,6 @@ private:
     std::uint64_t queryWindowSize_;
     std::uint64_t queryWindowStride_;
     std::uint64_t maxLocsPerFeature_;
-    float maxNewWindowSimilarity_;
     target_id targetCount_;
     feature_store features_;
     std::vector<const taxon*> targets_;
@@ -1234,7 +1122,6 @@ void print_static_properties(const sketch_database<S,K,H,G,W,L>& db)
         << "window limit         " << std::uint64_t(db.max_windows_per_target()) << '\n'
         << "window length        " << db.target_window_size() << '\n'
         << "window stride        " << db.target_window_stride() << '\n'
-        << "window similarity <= " << (100 * db.max_new_window_similarity()) << "%\n"
         << "------------------------------------------------\n"
         << "sketcher type        " << type_name<typename db_t::sketcher>() << '\n'
         << "feature type         " << type_name<feature_t>() << " " << (sizeof(feature_t)*CHAR_BIT) << " bits\n"

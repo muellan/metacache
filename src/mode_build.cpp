@@ -69,8 +69,6 @@ struct build_options
     int maxLocationsPerFeature = database::max_supported_locations_per_feature();
     bool removeOverpopulatedFeatures = true;
 
-    float maxWindowSimilarity = 1.0f; //insert everything
-
     taxon_rank removeAmbigFeaturesOnRank = taxon_rank::none;
     int maxTaxaPerFeature = 1;
 
@@ -130,14 +128,6 @@ get_build_options(const args_parser& args, const build_options& defaults = {})
                                            "max_ambig_per_feature"},
                                             defaults.maxTaxaPerFeature);
 
-    opt.maxWindowSimilarity = args.get<float>({"max-window-similarity",
-                                               "max_new_window_similarity"},
-                                               defaults.maxWindowSimilarity);
-
-    //interpret numbers > 1 as percentage
-    if(opt.maxWindowSimilarity > 1.0f) opt.maxWindowSimilarity *= 0.01f;
-    if(opt.maxWindowSimilarity < 0.0f) opt.maxWindowSimilarity = 0.0f;
-
     opt.resetParents = args.contains({"reset-parents", "reset_parents"});
 
     opt.taxonomy = get_taxonomy_options(args);
@@ -165,8 +155,6 @@ get_build_options_from_db(const database& db)
     opt.maxLoadFactor = db.max_load_factor();
 
     opt.maxLocationsPerFeature = db.max_locations_per_feature();
-
-    opt.maxWindowSimilarity = db.max_new_window_similarity();
 
     return opt;
 }
@@ -448,8 +436,6 @@ void prepare_database(database& db, const build_options& opt)
         cerr << "Using custom hash table load factor of "
              << opt.maxLoadFactor << endl;
     }
-
-    db.max_new_window_similarity(opt.maxWindowSimilarity);
 
     if(!opt.taxonomy.path.empty()) {
         db.reset_taxa_above_sequence_level(
