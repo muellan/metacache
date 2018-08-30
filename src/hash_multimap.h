@@ -93,15 +93,11 @@ public:
        pos_(pos), fst_(pos), beg_(beg), end_(end)
     {}
 
-    auto operator -> () const
-        -> decltype(std::declval<RAIterator>().operator->())
-    {
+    decltype(auto) operator -> () const {
         return pos_.operator->();
     }
 
-    auto operator * () const
-        -> decltype(*std::declval<RAIterator>())
-    {
+    decltype(auto) operator * () const {
         return *pos_;
     }
 
@@ -151,15 +147,11 @@ public:
        hop_(1), pos_(pos), fst_(pos), beg_(beg), end_(end)
     {}
 
-    auto operator -> () const
-        -> decltype(std::declval<RAIterator>().operator->())
-    {
+    decltype(auto) operator -> () const {
         return pos_.operator->();
     }
 
-    auto operator * () const
-        -> decltype(*std::declval<RAIterator>())
-    {
+    decltype(auto) operator * () const {
         return *pos_;
     }
 
@@ -836,10 +828,8 @@ public:
     get_value_allocator() const noexcept {
         return alloc_;
     }
-    auto
-    get_bucket_allocator() const noexcept
-        -> decltype(std::declval<bucket_store_t>().get_allocator())
-    {
+    decltype(auto)
+    get_bucket_allocator() const noexcept {
         return buckets_.get_allocator();
     }
 

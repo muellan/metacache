@@ -25,7 +25,7 @@ Once the default database is built you can classify reads:
 ## Detailed Installation Instructions
 
 #### Requirements
-MetaCache itself should compile on any platform for which a C++11 conforming compiler is available. The Makefile is written with g++ or clang++ in mind, but could probably be adapted to MSVC or other compilers.
+MetaCache itself should compile on any platform for which a C++14 conforming compiler is available. The Makefile is written with g++ or clang++ in mind, but could probably be adapted to MSVC or other compilers.
 
 The helper scripts (for downloading genomes, taxonomy etc.) require the Bash shell to run. That means you need a working bash executable as well as some common GNU utilities like "awk" and "wget". On Windows you should use the 'Windows Subsystem for Linux' (which gives you an Ubuntu user mode talking to the Windows Kernel).
 
