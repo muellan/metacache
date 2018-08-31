@@ -794,7 +794,7 @@ public:
     }
     //-----------------------------------------------------
     static constexpr float default_max_load_factor() noexcept {
-        return 0.85f;
+        return 0.8f;
     }
 
 
