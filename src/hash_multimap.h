@@ -948,13 +948,14 @@ private:
                 read_binary(is, key);
                 read_binary(is, nvals);
                 if(nvals > 0) {
-                    auto it = insert_into_slot(std::move(key), nullptr, 0, 0);
-                    it->resize(alloc_, nvals);
-
                     read_binary(is, target_id_buf);
                     read_binary(is, window_id_buf);
 
-                    // for(auto v = it->values_, e = v+nvals; v < e; ++v) {
+                    auto it = insert_into_slot(std::move(key), nullptr, 0, 0);
+                    if(it == buckets_.end()) continue;
+
+                    it->resize(alloc_, nvals);
+
                     for(size_t i = 0; i < nvals; ++i) {
                         it->values_[i] = {target_id_buf[i], window_id_buf[i]};
                     }
@@ -982,7 +983,7 @@ private:
         std::vector<target_id> target_id_buf;
         std::vector<window_id> window_id_buf;
 
-       for(const auto& bucket : buckets_) {
+        for(const auto& bucket : buckets_) {
             if(!bucket.empty()) {
                 write_binary(os, bucket.key());
                 write_binary(os, bucket.size());
