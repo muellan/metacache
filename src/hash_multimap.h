@@ -922,6 +922,8 @@ private:
     void deserialize(std::istream& is)
     {
         using len_t = std::uint64_t;
+        using target_id = typename value_type::target_id_t;
+        using window_id = typename value_type::window_id_t;
 
         clear();
 
@@ -937,17 +939,25 @@ private:
             reserve_values(nvalues);
             reserve_keys(nkeys);
 
+            std::vector<target_id> target_id_buf;
+            std::vector<window_id> window_id_buf;
+
             for(len_t i = 0; i < nkeys; ++i) {
                 key_type key;
                 bucket_size_type nvals = 0;
                 read_binary(is, key);
                 read_binary(is, nvals);
                 if(nvals > 0) {
+                    read_binary(is, target_id_buf);
+                    read_binary(is, window_id_buf);
+
                     auto it = insert_into_slot(std::move(key), nullptr, 0, 0);
+                    if(it == buckets_.end()) continue;
+
                     it->resize(alloc_, nvals);
 
-                    for(auto v = it->values_, e = v+nvals; v < e; ++v) {
-                        read_binary(is, *v);
+                    for(size_t i = 0; i < nvals; ++i) {
+                        it->values_[i] = {target_id_buf[i], window_id_buf[i]};
                     }
                 }
             }
@@ -964,18 +974,32 @@ private:
     void serialize(std::ostream& os) const
     {
         using len_t = std::uint64_t;
+        using target_id = typename value_type::target_id_t;
+        using window_id = typename value_type::window_id_t;
 
         write_binary(os, len_t(non_empty_bucket_count()));
         write_binary(os, len_t(value_count()));
+
+        std::vector<target_id> target_id_buf;
+        std::vector<window_id> window_id_buf;
 
         for(const auto& bucket : buckets_) {
             if(!bucket.empty()) {
                 write_binary(os, bucket.key());
                 write_binary(os, bucket.size());
 
+                target_id_buf.clear();
+                target_id_buf.reserve(bucket.size());
+                window_id_buf.clear();
+                window_id_buf.reserve(bucket.size());
+
                 for(const auto& v : bucket) {
-                    write_binary(os, v);
+                    target_id_buf.emplace_back(v.tgt);
+                    window_id_buf.emplace_back(v.win);
                 }
+
+                write_binary(os, target_id_buf);
+                write_binary(os, window_id_buf);
             }
         }
     }
