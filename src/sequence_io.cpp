@@ -135,6 +135,7 @@ void fasta_reader::read_next(sequence& seq)
         }
         else {
             seqss << line;
+            pos_ = file_.tellg();
         }
     }
     seq.data = seqss.str();
@@ -158,6 +159,7 @@ void fasta_reader::read_next(sequence& seq)
 void fasta_reader::seek(std::streampos pos)
 {
     file_.seekg(pos);
+    linebuffer_.clear();
 
     if(!file_.good()) {
         invalidate();
@@ -170,7 +172,7 @@ void fasta_reader::seek(std::streampos pos)
 //-------------------------------------------------------------------
 std::streampos fasta_reader::tell( )
 {
-    return file_.tellg();
+    return pos_;
 }
 
 

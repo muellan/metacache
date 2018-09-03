@@ -118,6 +118,7 @@ protected:
 private:
     std::ifstream file_;
     std::string linebuffer_;
+    std::streampos pos_;
 };
 
 
