@@ -76,27 +76,50 @@ struct sequence_query
  *****************************************************************************/
 template<class BufferSource, class BufferUpdate, class BufferSink>
 void query_batched(
-    parallel_queue& queue, sequence_reader& reader,
+    parallel_queue& queue, const std::string& infilename, query_id& offset,
     const database& db, const query_processing_options& opt,
     BufferSource&& getBuffer, BufferUpdate&& update, BufferSink&& finalize)
 {
-    const auto load = 32 * queue.concurrency();
+    const auto load = queue.concurrency();
 
     std::mutex mtx;
     std::atomic<std::uint64_t> queryLimit{opt.queryLimit};
 
-    while(reader.has_next() && queryLimit > 0) {
+    std::atomic<std::uint64_t> workId{offset};
+    std::atomic<bool> done{false};
+
+    std::mutex endMtx;
+    std::streampos endPos{0};
+    query_id endQid{offset};
+
+    while(!done && queryLimit > 0) {
         if(queue.unsafe_waiting() < load) {
             queue.enqueue([&] {
+                auto reader = make_sequence_reader(infilename);
+                std::streampos myEndPos;
+                query_id myEndQid;
+                {
+                    std::lock_guard<std::mutex> lock(endMtx);
+                    myEndPos = endPos;
+                    myEndQid = endQid;
+                }
+                reader->seek(myEndPos);
+                reader->index_offset(myEndQid);
+
                 auto buffer = getBuffer();
                 match_locations matches;
                 bool empty = true;
 
                 for(std::size_t i = 0;
-                    i < opt.batchSize && queryLimit > 0 && reader.has_next();
+                    i < opt.batchSize && queryLimit > 0 && reader->has_next();
                     ++i, --queryLimit)
                 {
-                    auto seq = reader.next();
+                    auto wid = workId.fetch_add(1);
+                    auto rid = reader->index();
+                    if(rid != wid)
+                        reader->skip(wid-rid);
+
+                    auto seq = reader->next();
 
                     if(!seq.header.empty()) {
                         empty = false;
@@ -117,11 +140,24 @@ void query_batched(
                     std::lock_guard<std::mutex> lock(mtx);
                     finalize(std::move(buffer));
                 }
+
+                myEndPos = reader->tell();
+                myEndQid = reader->index();
+                if(myEndPos > endPos) {// reading endPos unsafe
+                    std::lock_guard<std::mutex> lock(endMtx);
+                    endPos = myEndPos;
+                    endQid = myEndQid;
+                }
+
+                if(!reader->has_next())
+                    done = true;
             }); //enqueue
         }
     }
     //wait for all enqueued tasks to finish
     queue.wait();
+
+    offset = endQid;
 }
 
 
@@ -244,14 +280,16 @@ void query_per_file(
                                            std::forward<BufferSource>(bufsrc),
                                            std::forward<BufferUpdate>(bufupdate),
                                            std::forward<BufferSink>(bufsink));
+
+                offset += reader->index();
             } else {
-                query_batched(queue, *reader, db, opt,
+                query_batched(queue, fname, offset, db, opt,
                               std::forward<BufferSource>(bufsrc),
                               std::forward<BufferUpdate>(bufupdate),
                               std::forward<BufferSink>(bufsink));
             }
 
-            offset += reader->index();
+            // offset += reader->index();
         }
         catch(std::exception& e) {
             showStatus(std::string("FAIL: ") + e.what(), progress);

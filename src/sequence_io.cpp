@@ -155,6 +155,27 @@ void fasta_reader::read_next(sequence& seq)
 
 
 //-------------------------------------------------------------------
+void fasta_reader::seek(std::streampos pos)
+{
+    file_.seekg(pos);
+
+    if(!file_.good()) {
+        invalidate();
+    }
+}
+
+
+
+
+//-------------------------------------------------------------------
+std::streampos fasta_reader::tell( )
+{
+    return file_.tellg();
+}
+
+
+
+//-------------------------------------------------------------------
 fastq_reader::fastq_reader(string filename):
     sequence_reader{},
     file_{}
@@ -202,6 +223,28 @@ void fastq_reader::read_next(sequence& seq)
         return;
     }
     getline(file_, seq.qualities);
+}
+
+
+
+
+//-------------------------------------------------------------------
+void fastq_reader::seek(std::streampos pos)
+{
+    file_.seekg(pos);
+
+    if(!file_.good()) {
+        invalidate();
+    }
+}
+
+
+
+
+//-------------------------------------------------------------------
+std::streampos fastq_reader::tell( )
+{
+    return file_.tellg();
 }
 
 

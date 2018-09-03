@@ -79,6 +79,9 @@ public:
 
     void index_offset(index_type index) { index_.store(index); }
 
+    virtual void seek(std::streampos pos) = 0;
+    virtual std::streampos tell() = 0;
+
 protected:
     void invalidate() { valid_.store(false); }
 
@@ -106,6 +109,9 @@ public:
     explicit
     fasta_reader(std::string filename);
 
+    void seek(std::streampos pos) override;
+    std::streampos tell() override;
+
 protected:
     void read_next(sequence&) override;
 
@@ -128,6 +134,9 @@ class fastq_reader :
 public:
     explicit
     fastq_reader(std::string filename);
+
+    void seek(std::streampos pos) override;
+    std::streampos tell() override;
 
 protected:
     void read_next(sequence&) override;
