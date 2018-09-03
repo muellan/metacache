@@ -80,7 +80,7 @@ void query_batched(
     const database& db, const query_processing_options& opt,
     BufferSource&& getBuffer, BufferUpdate&& update, BufferSink&& finalize)
 {
-    const auto load = queue.concurrency();
+    const auto load = 32 * queue.concurrency();
 
     std::mutex mtx;
     std::atomic<std::uint64_t> queryLimit{opt.queryLimit};
