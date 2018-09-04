@@ -168,12 +168,14 @@ void fasta_reader::skip_next()
         linebuffer_.clear();
     }
     file_.ignore(std::numeric_limits<std::streamsize>::max(), '>');
+    pos_ = file_.tellg();
 
     if(!file_.good()) {
         invalidate();
         return;
     } else {
         file_.unget();
+        pos_ = file_.tellg();
     }
 }
 

@@ -88,7 +88,7 @@ void query_batched(
     std::atomic<std::uint64_t> workId{startId};
     std::atomic<bool> done{false};
 
-    std::mutex endMtx;
+    std::mutex tipMtx;
     std::streampos pos{0};
     query_id qid{startId};
 
@@ -96,8 +96,6 @@ void query_batched(
         if(queue.unsafe_waiting() < load) {
             queue.enqueue([&] {
                 auto reader = make_sequence_reader(infilename);
-                std::streampos myPos;
-                query_id myQid;
 
                 auto buffer = getBuffer();
                 match_locations matches;
@@ -107,8 +105,12 @@ void query_batched(
                     i < opt.batchSize && queryLimit > 0;
                     ++i, --queryLimit)
                 {
+                    std::streampos myPos;
+                    query_id myQid;
+
+                    // get most recent position and query id
                     {
-                        std::lock_guard<std::mutex> lock(endMtx);
+                        std::lock_guard<std::mutex> lock(tipMtx);
                         myPos = pos;
                         myQid = qid;
                     }
@@ -116,19 +118,19 @@ void query_batched(
                     if(!reader->has_next()) break;
                     reader->index_offset(myQid);
 
+                    // get work id and skip to this read
                     auto wid = workId.fetch_add(1);
-                    auto rid = reader->index();
-                    if(rid != wid) {
-                        // std::cout << rid << ' ' << wid << ' ' << myPos << std::endl;
-                        reader->skip(wid-rid);
+                    if(myQid != wid) {
+                        reader->skip(wid-myQid);
                     }
-
+                    if(!reader->has_next()) break;
                     auto seq = reader->next();
 
+                    // update most recent position and query id
                     myPos = reader->tell();
                     myQid = reader->index();
                     if(myQid > qid) {// reading qid unsafe
-                        std::lock_guard<std::mutex> lock(endMtx);
+                        std::lock_guard<std::mutex> lock(tipMtx);
                         if(myQid > qid) {// reading qid safe
                             pos = myPos;
                             qid = myQid;
