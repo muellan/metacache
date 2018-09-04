@@ -184,8 +184,7 @@ private:
 
 /*************************************************************************//**
  *
- * @brief polymorphic file reader for (pairs of) bio-sequences
- *        base class handles concurrency safety
+ * @brief file reader for (pairs of) bio-sequences
  *
  *****************************************************************************/
 class sequence_pair_reader
@@ -197,6 +196,10 @@ public:
     using sequence         = sequence_reader::sequence;
     using sequence_pair    = std::pair<sequence,sequence>;
 
+    /** @brief if filename2 empty : single sequence mode
+     *         if filename1 == filename2 : read consecutive pairs in one file
+     *         else : read from 2 files in lockstep
+     */
     sequence_pair_reader(const std::string& filename1,
                          const std::string& filename2);
 
@@ -226,6 +229,7 @@ private:
     mutable std::mutex mutables_;
     std::unique_ptr<sequence_reader> reader1_;
     std::unique_ptr<sequence_reader> reader2_;
+    bool singleMode_;
 };
 
 

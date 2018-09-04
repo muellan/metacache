@@ -26,6 +26,9 @@
 #include <sstream>
 #include <stdexcept>
 
+//TODO remove next line
+#include <iostream>
+
 #include "io_error.h"
 #include "sequence_io.h"
 #include "string_utils.h"
@@ -104,7 +107,7 @@ fasta_reader::fasta_reader(const string& filename):
         }
     }
     else {
-        invalidate();
+        throw file_access_error{"no filename was given"};
     }
 }
 
@@ -229,7 +232,7 @@ fastq_reader::fastq_reader(const string& filename):
         }
     }
     else {
-        invalidate();
+        throw file_access_error{"no filename was given"};
     }
 }
 
@@ -387,15 +390,21 @@ std::streampos sequence_header_reader::do_tell()
 
 //-------------------------------------------------------------------
 sequence_pair_reader::sequence_pair_reader(const std::string& filename1,
-                                           const std::string& filename2):
+                                           const std::string& filename2)
+:
     mutables_{},
     reader1_{nullptr},
-    reader2_{nullptr}
+    reader2_{nullptr},
+    singleMode_{true}
 {
     if(!filename1.empty()) {
         reader1_ = make_sequence_reader(filename1);
-        if(!filename2.empty() && filename1 != filename2) {
-            reader2_ = make_sequence_reader(filename2);
+
+        if(!filename2.empty()) {
+            singleMode_ = false;
+            if(filename1 != filename2) {
+                reader2_ = make_sequence_reader(filename2);
+            }
         }
     }
 }
@@ -423,6 +432,8 @@ sequence_pair_reader::next()
 
     std::lock_guard<std::mutex> lock(mutables_);
 
+    if(singleMode_) return sequence_pair{reader1_->next(), sequence{}};
+
     if(reader2_) return sequence_pair{reader1_->next(), reader2_->next()};
 
     sequence_pair seq;
@@ -446,8 +457,13 @@ void sequence_pair_reader::skip(index_type skip)
         reader1_->skip(skip);
         reader2_->skip(skip);
     }
+    else if(singleMode_) {
+        reader1_->skip(skip);
+    }
     else {
+        const auto idx = reader1_->index();
         reader1_->skip(2*skip);
+        reader1_->index_offset(idx+skip);
     }
 }
 
