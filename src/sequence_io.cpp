@@ -24,6 +24,7 @@
  *****************************************************************************/
 
 #include <sstream>
+#include <stdexcept>
 
 #include "io_error.h"
 #include "sequence_io.h"
@@ -48,6 +49,9 @@ constexpr const char* accession_prefix[]
     "HE", 
     "JH"
 };
+
+
+
 
 
 
@@ -82,20 +86,27 @@ void sequence_reader::skip(index_type skip)
 
 
 
+
+
+
 //-------------------------------------------------------------------
-fasta_reader::fasta_reader(string filename):
+fasta_reader::fasta_reader(const string& filename):
     sequence_reader{},
     file_{},
     linebuffer_{}
 {
-    file_.open(filename.c_str());
+    if(!filename.empty()) {
+        file_.open(filename);
 
-    if(file_.rdstate() & std::ifstream::failbit) {
+        if(file_.rdstate() & std::ifstream::failbit) {
+            invalidate();
+            throw file_access_error{"can't open file " + filename};
+        }
+    }
+    else {
         invalidate();
-        throw file_access_error{"can't open file " + filename};
     }
 }
-
 
 
 
@@ -153,7 +164,6 @@ void fasta_reader::read_next(sequence& seq)
 
 
 
-
 //-------------------------------------------------------------------
 void fasta_reader::skip_next()
 {
@@ -181,9 +191,8 @@ void fasta_reader::skip_next()
 
 
 
-
 //-------------------------------------------------------------------
-void fasta_reader::seek(std::streampos pos)
+void fasta_reader::do_seek(std::streampos pos)
 {
     file_.seekg(pos);
     linebuffer_.clear();
@@ -195,25 +204,32 @@ void fasta_reader::seek(std::streampos pos)
 
 
 
-
 //-------------------------------------------------------------------
-std::streampos fasta_reader::tell( )
+std::streampos fasta_reader::do_tell()
 {
     return pos_;
 }
 
 
 
+
+
+
 //-------------------------------------------------------------------
-fastq_reader::fastq_reader(string filename):
+fastq_reader::fastq_reader(const string& filename):
     sequence_reader{},
     file_{}
 {
-    file_.open(filename.c_str());
+    if(!filename.empty()) {
+        file_.open(filename);
 
-    if(file_.rdstate() & std::ifstream::failbit) {
+        if(file_.rdstate() & std::ifstream::failbit) {
+            invalidate();
+            throw file_access_error{"can't open file " + filename};
+        }
+    }
+    else {
         invalidate();
-        throw file_access_error{"can't open file " + filename};
     }
 }
 
@@ -256,7 +272,6 @@ void fastq_reader::read_next(sequence& seq)
 
 
 
-
 //-------------------------------------------------------------------
 void fastq_reader::skip_next()
 {
@@ -265,6 +280,7 @@ void fastq_reader::skip_next()
         return;
     }
 
+    //TODO does not cover all cases
     file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
@@ -278,9 +294,8 @@ void fastq_reader::skip_next()
 
 
 
-
 //-------------------------------------------------------------------
-void fastq_reader::seek(std::streampos pos)
+void fastq_reader::do_seek(std::streampos pos)
 {
     file_.seekg(pos);
 
@@ -291,9 +306,8 @@ void fastq_reader::seek(std::streampos pos)
 
 
 
-
 //-------------------------------------------------------------------
-std::streampos fastq_reader::tell( )
+std::streampos fastq_reader::do_tell()
 {
     return file_.tellg();
 }
@@ -301,11 +315,13 @@ std::streampos fastq_reader::tell( )
 
 
 
+
+
 //-------------------------------------------------------------------
-sequence_header_reader::sequence_header_reader(string filename):
+sequence_header_reader::sequence_header_reader(const string& filename):
     file_{}
 {
-    file_.open(filename.c_str());
+    file_.open(filename);
 
     if(file_.rdstate() & std::ifstream::failbit) {
         invalidate();
@@ -339,9 +355,157 @@ void sequence_header_reader::read_next(sequence& seq)
 
 
 //-------------------------------------------------------------------
+void sequence_header_reader::skip_next()
+{
+    throw std::runtime_error{"sequence_header_reader::skip_next::not implemented"};
+}
+
+
+
+//-------------------------------------------------------------------
+void sequence_header_reader::do_seek(std::streampos pos)
+{
+    file_.seekg(pos);
+
+    if(!file_.good()) {
+        invalidate();
+    }
+}
+
+
+
+//-------------------------------------------------------------------
+std::streampos sequence_header_reader::do_tell()
+{
+    return file_.tellg();
+}
+
+
+
+
+
+
+//-------------------------------------------------------------------
+sequence_pair_reader::sequence_pair_reader(const std::string& filename1,
+                                           const std::string& filename2):
+    mutables_{},
+    reader1_{nullptr},
+    reader2_{nullptr}
+{
+    if(!filename1.empty()) {
+        reader1_ = make_sequence_reader(filename1);
+        if(!filename2.empty() && filename1 != filename2) {
+            reader2_ = make_sequence_reader(filename2);
+        }
+    }
+}
+
+
+
+//-------------------------------------------------------------------
+bool sequence_pair_reader::has_next() const noexcept
+{
+    std::lock_guard<std::mutex> lock(mutables_);
+    if(!reader1_) return false;
+    if(!reader1_->has_next()) return false;
+    if(!reader2_) return true;
+    if(!reader2_->has_next()) return false;
+    return true;
+}
+
+
+
+//-------------------------------------------------------------------
+sequence_pair_reader::sequence_pair
+sequence_pair_reader::next()
+{
+    if(!has_next()) return sequence_pair{};
+
+    std::lock_guard<std::mutex> lock(mutables_);
+
+    if(reader2_) return sequence_pair{reader1_->next(), reader2_->next()};
+
+    sequence_pair seq;
+    const auto idx = reader1_->index();
+    seq.first  = reader1_->next();
+    //make sure the index is only increased after the 2nd 'next()'
+    reader1_->index_offset(idx);
+    seq.second = reader1_->next();
+    return seq;
+}
+
+
+
+//-------------------------------------------------------------------
+void sequence_pair_reader::skip(index_type skip)
+{
+    if(skip < 1 || !reader1_) return;
+
+    if(reader2_) {
+        std::lock_guard<std::mutex> lock(mutables_);
+        reader1_->skip(skip);
+        reader2_->skip(skip);
+    }
+    else {
+        reader1_->skip(2*skip);
+    }
+}
+
+
+
+//-------------------------------------------------------------------
+sequence_pair_reader::index_type sequence_pair_reader::index() const noexcept
+{
+    if(!reader1_) return index_type{0};
+    return reader1_->index();
+}
+
+
+
+//-------------------------------------------------------------------
+void sequence_pair_reader::index_offset(index_type index)
+{
+    if(!reader1_) return;
+
+    std::lock_guard<std::mutex> lock(mutables_);
+    reader1_->index_offset(index);
+    if(reader2_) reader2_->index_offset(index);
+}
+
+
+
+//-------------------------------------------------------------------
+void sequence_pair_reader::seek(const stream_positions& pos)
+{
+    if(!reader1_) return;
+
+    std::lock_guard<std::mutex> lock(mutables_);
+    reader1_->seek(pos.first);
+    if(reader2_) reader2_->seek(pos.second);
+}
+
+
+
+//-------------------------------------------------------------------
+sequence_pair_reader::stream_positions
+sequence_pair_reader::tell()
+{
+    return stream_positions{
+            reader1_ ? reader1_->tell() : std::streampos{},
+            reader2_ ? reader2_->tell() : std::streampos{} };
+}
+
+
+
+
+
+
+//-------------------------------------------------------------------
 std::unique_ptr<sequence_reader>
 make_sequence_reader(const string& filename)
 {
+    if(filename.empty()) return nullptr;
+
     auto n = filename.size();
     if(filename.find(".fq")    == (n-3) ||
        filename.find(".fnq")   == (n-4) ||
