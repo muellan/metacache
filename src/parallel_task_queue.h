@@ -475,6 +475,8 @@ public:
         isDone_.wait(lock, [this]{return empty() && (running() < 1);});
     }
 
+
+private:
     //-----------------------------------------------------
     void notify_task_started() {
         isFull_.notify_one();
@@ -485,8 +487,6 @@ public:
         isBusy_.notify_one();
     }
 
-
-private:
 
     //---------------------------------------------------------------
     void try_assign_tasks()
