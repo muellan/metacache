@@ -73,12 +73,10 @@ void sequence_reader::skip(index_type skip)
     if(skip < 1) return;
 
     std::lock_guard<std::mutex> lock(mutables_);
-    sequence seq;
 
     for(; skip > 0 && has_next(); --skip) {
         ++index_;
-        seq.index = index_;
-        read_next(seq);
+        skip_next();
     }
 }
 
@@ -97,6 +95,7 @@ fasta_reader::fasta_reader(string filename):
         throw file_access_error{"can't open file " + filename};
     }
 }
+
 
 
 
@@ -149,6 +148,32 @@ void fasta_reader::read_next(sequence& seq)
     if(!file_.good()) {
         invalidate();
         return;
+    }
+}
+
+
+
+
+//-------------------------------------------------------------------
+void fasta_reader::skip_next()
+{
+    if(!file_.good()) {
+        invalidate();
+        return;
+    }
+
+    if(linebuffer_.empty()) {
+        file_.ignore(1);
+    } else {
+        linebuffer_.clear();
+    }
+    file_.ignore(std::numeric_limits<std::streamsize>::max(), '>');
+
+    if(!file_.good()) {
+        invalidate();
+        return;
+    } else {
+        file_.unget();
     }
 }
 
@@ -225,6 +250,28 @@ void fastq_reader::read_next(sequence& seq)
         return;
     }
     getline(file_, seq.qualities);
+}
+
+
+
+
+//-------------------------------------------------------------------
+void fastq_reader::skip_next()
+{
+    if(!file_.good()) {
+        invalidate();
+        return;
+    }
+
+    file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+    if(!file_.good()) {
+        invalidate();
+        return;
+    }
 }
 
 

@@ -88,6 +88,8 @@ protected:
     //derived readers have to implement this
     virtual void read_next(sequence&) = 0;
 
+    virtual void skip_next() = 0;
+
 private:
     mutable std::mutex mutables_;
     std::atomic<index_type> index_;
@@ -115,6 +117,8 @@ public:
 protected:
     void read_next(sequence&) override;
 
+    void skip_next() override;
+
 private:
     std::ifstream file_;
     std::string linebuffer_;
@@ -141,6 +145,8 @@ public:
 
 protected:
     void read_next(sequence&) override;
+
+    void skip_next() override;
 
 private:
     std::ifstream file_;
