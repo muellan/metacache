@@ -94,75 +94,73 @@ void query_batched(
     query_id qid{startId};
 
     while(!done && queryLimit > 0) {
-        if(queue.unsafe_waiting() < load) {
-            queue.enqueue([&] {
-                sequence_pair_reader reader{filename1, filename2};
+        queue.enqueue_when([&]{return queue.unsafe_waiting() < load;}, [&] {
+            sequence_pair_reader reader{filename1, filename2};
 
-                auto buffer = getBuffer();
-                match_locations matches;
-                bool empty = true;
+            auto buffer = getBuffer();
+            match_locations matches;
+            bool empty = true;
 
-                for(std::size_t i = 0;
-                    i < opt.batchSize && queryLimit > 0;
-                    ++i, --queryLimit)
+            for(std::size_t i = 0;
+                i < opt.batchSize && queryLimit > 0;
+                ++i, --queryLimit)
+            {
+                sequence_pair_reader::stream_positions myPos;
+                query_id myQid;
+
+                // get most recent position and query id
                 {
-                    sequence_pair_reader::stream_positions myPos;
-                    query_id myQid;
+                    std::lock_guard<std::mutex> lock(tipMtx);
+                    myPos = pos;
+                    myQid = qid;
+                }
+                reader.seek(myPos);
+                if(!reader.has_next()) break;
+                reader.index_offset(myQid);
 
-                    // get most recent position and query id
-                    {
-                        std::lock_guard<std::mutex> lock(tipMtx);
-                        myPos = pos;
-                        myQid = qid;
-                    }
-                    reader.seek(myPos);
-                    if(!reader.has_next()) break;
-                    reader.index_offset(myQid);
+                // get work id and skip to this read
+                auto wid = workId.fetch_add(1);
+                if(myQid != wid) {
+                    reader.skip(wid-myQid);
+                }
+                if(!reader.has_next()) break;
+                auto seq = reader.next();
 
-                    // get work id and skip to this read
-                    auto wid = workId.fetch_add(1);
-                    if(myQid != wid) {
-                        reader.skip(wid-myQid);
-                    }
-                    if(!reader.has_next()) break;
-                    auto seq = reader.next();
-
-                    // update most recent position and query id
-                    myPos = reader.tell();
-                    myQid = reader.index();
-                    if(myQid > qid) {// reading qid unsafe
-                        std::lock_guard<std::mutex> lock(tipMtx);
-                        if(myQid > qid) {// reading qid safe
-                            pos = myPos;
-                            qid = myQid;
-                        }
-                    }
-
-                    if(!seq.first.header.empty()) {
-                        empty = false;
-                        matches.clear();
-
-                        db.accumulate_matches(seq.first.data, matches);
-                        db.accumulate_matches(seq.second.data, matches);
-
-                        std::sort(matches.begin(), matches.end());
-
-                        update(buffer,
-                               sequence_query{seq.first.index,
-                                              std::move(seq.first.header),
-                                              std::move(seq.first.data),
-                                              std::move(seq.second.data)},
-                               matches );
+                // update most recent position and query id
+                myPos = reader.tell();
+                myQid = reader.index();
+                if(myQid > qid) {// reading qid unsafe
+                    std::lock_guard<std::mutex> lock(tipMtx);
+                    if(myQid > qid) {// reading qid safe
+                        pos = myPos;
+                        qid = myQid;
                     }
                 }
-                if(!empty) {
-                    std::lock_guard<std::mutex> lock(mtx);
-                    finalize(std::move(buffer));
-                }
 
-                if(!reader.has_next()) done = true;
-            }); //enqueue
-        }
+                if(!seq.first.header.empty()) {
+                    empty = false;
+                    matches.clear();
+
+                    db.accumulate_matches(seq.first.data, matches);
+                    db.accumulate_matches(seq.second.data, matches);
+
+                    std::sort(matches.begin(), matches.end());
+
+                    update(buffer,
+                           sequence_query{seq.first.index,
+                                          std::move(seq.first.header),
+                                          std::move(seq.first.data),
+                                          std::move(seq.second.data)},
+                           matches );
+                }
+            }
+            if(!empty) {
+                std::lock_guard<std::mutex> lock(mtx);
+                finalize(std::move(buffer));
+            }
+
+            if(!reader.has_next()) done = true;
+        }); //enqueue
     }
     //wait for all enqueued tasks to finish
     queue.wait();

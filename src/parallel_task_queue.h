@@ -296,8 +296,10 @@ private:
         {}
 
         void operator () () {
+            queue_->notify_task_started();
             task_();
             --queue_->running_;
+            queue_->notify_task_complete();
         }
 
     private:
@@ -377,6 +379,16 @@ public:
         std::lock_guard<std::mutex> lock(mutables_);
         waiting_.emplace_back(std::forward<Args>(args)...);
         hasWaiting_.store(true);
+    }
+    //-----------------------------------------------------
+    template<class Predicate, class... Args>
+    void
+    enqueue_when(Predicate&& pred, Args&&... args) {
+        if(!pred()) {
+            std::unique_lock<std::mutex> lk{mtxFull_};
+            isFull_.wait(lk, pred);
+        }
+        enqueue(std::forward<Args>(args)...);
     }
 
 
@@ -460,7 +472,17 @@ public:
     void wait()
     {
         std::unique_lock<std::mutex> lock{mutables_};
-        while(!empty() || running()) isDone_.wait(lock);
+        isDone_.wait(lock, [this]{return empty() && (running() < 1);});
+    }
+
+    //-----------------------------------------------------
+    void notify_task_started() {
+        isFull_.notify_one();
+    }
+
+    //-----------------------------------------------------
+    void notify_task_complete() {
+        isBusy_.notify_one();
     }
 
 
@@ -495,17 +517,21 @@ private:
     /// @brief this will run in a separate, dedicated thread
     void schedule()
     {
-         while(active_.load()) {
-             if(!empty() && !busy()) {
-                 try_assign_tasks();
-             }
-             else if(running() < 1) {
-                 std::lock_guard<std::mutex> lock{mutables_};
-                 if(empty() && (running() < 1)) {
-                     isDone_.notify_all();
-                 }
-             }
-         }
+        while(active_.load()) {
+            if(busy()) {
+                std::unique_lock<std::mutex> lk{mtxBusy_};
+                isBusy_.wait(lk, [this]{return !busy();});
+            }
+            else if(!empty()) {
+                try_assign_tasks();
+            }
+            else if(running() < 1) {
+                std::lock_guard<std::mutex> lock{mutables_};
+                if(empty() && (running() < 1)) {
+                    isDone_.notify_all();
+                }
+            }
+        }
     }
 
 
@@ -517,6 +543,10 @@ private:
     std::deque<task_type> waiting_;
     std::vector<task_thread<task_executor>> workers_;
     std::condition_variable isDone_;
+    std::mutex mtxBusy_;
+    std::condition_variable isBusy_;
+    std::mutex mtxFull_;
+    std::condition_variable isFull_;
     std::thread scheduler_;
 };
 
