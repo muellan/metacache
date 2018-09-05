@@ -85,7 +85,7 @@ void query_batched(
     const auto load = 32 * queue.concurrency();
 
     std::mutex mtx;
-    std::atomic<query_id> queryLimit{opt.queryLimit};
+    std::atomic<std::int_least64_t> queryLimit{opt.queryLimit};
     std::atomic<query_id> workId{startId};
     std::atomic<bool> done{false};
 
@@ -101,10 +101,7 @@ void query_batched(
             match_locations matches;
             bool empty = true;
 
-            for(std::size_t i = 0;
-                i < opt.batchSize && queryLimit > 0;
-                ++i, --queryLimit)
-            {
+            for(std::size_t i = 0; i < opt.batchSize && queryLimit-- > 0; ++i) {
                 sequence_pair_reader::stream_positions myPos;
                 query_id myQid;
 

@@ -102,8 +102,10 @@ get_query_processing_options(const args_parser& args,
     auto batchSize = args.get<int>("batch-size", defaults.batchSize);
     if(batchSize >= 1) opt.batchSize = batchSize;
 
-    opt.queryLimit = args.get<std::uint_least64_t>({"query-limit"},
+    opt.queryLimit = args.get<std::int_least64_t>({"query-limit"},
                                           defaults.queryLimit);
+
+    if(opt.queryLimit < 0) opt.queryLimit = 0;
 
     return opt;
 }
