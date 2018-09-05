@@ -17,6 +17,8 @@
 /debug  
 /release
 /seafile
+/analysis
+/results
 /.settings
 /dev/html
 /test/results
