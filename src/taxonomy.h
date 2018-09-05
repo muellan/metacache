@@ -756,7 +756,8 @@ public:
     //-----------------------------------------------------
     const ranked_lineage&
     operator [] (const taxon& tax) const {
-        std::lock_guard<std::mutex> lock(mutables_);
+        //not needed for querying
+//        std::lock_guard<std::mutex> lock(mutables_);
         auto i = lins_.find(&tax);
         if(i != lins_.end()) return i->second;
         return lins_.emplace(&tax, taxa_.ranks(tax)).first->second;
