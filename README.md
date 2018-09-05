@@ -1,5 +1,7 @@
 # MetaCache
 
+[![Linux build status](https://travis-ci.org/muellan/metacache.svg?branch=master)](https://travis-ci.org/muellan/metacache) 
+
 MetaCache is a classification system for mapping short reads from metagenomic samples to their most likely taxon of origin. MetaCache aims to reduce the memory requirement usually associated with k-mer based methods while retaining their speed. It uses locality sensitive hashing to quickly identify candidate regions within one or multiple reference genomes. A read is then classified based on the similarity to those regions.
 
 
