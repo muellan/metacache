@@ -12,12 +12,20 @@ You need to specify one of the following modes:
     annotate    annotate sequences with taxonomic information 
 
 EXAMPLES:
-    Query 'myreads.fna' against pre-built database 'refseq':
+    Query single FASTA file 'myreads.fna' against pre-built database 'refseq':
+        ./metacache query refseq myreads.fna -out results.txt
+        with output to the console:
         ./metacache query refseq myreads.fna
 
-    Query all sequence files in folder 'test' againgst pre-built database 'refseq':
-        ./metacache query refseq test
+    Query all sequence files in folder 'test' againgst database 'refseq':
+        ./metacache query refseq test -out results.txt
 
+    Query paired-end reads in separate files:
+        ./metacache query refseq reads1.fa reads2.fa -pairfiles -out results.txt
+
+    Query paired-end reads in one file (a1,a2,b1,b2,...):
+        ./metacache query refseq paired_reads.fa -pairseq -out results.txt
+    
     View documentation for all query options:
         ./metacache help query
 
