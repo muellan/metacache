@@ -608,21 +608,17 @@ void map_queries_to_targets_default(
         results.mapout << buf.out.str();
     };
 
-    //runs in case of notification events
-    const auto showStatus = [&] (const std::string& msg, float progress) {
+    //runs if something needs to be appended to the output
+    const auto appendToOutput = [&] (const std::string& msg) {
         if(opt.output.mapViewMode != map_view_mode::none) {
             results.mapout << opt.output.format.comment << msg << '\n';
         }
-        if(progress >= 0.0f) {
-            show_progress_indicator(results.status, progress);
-        }
     };
-
 
     //run (parallel) database queries according to processing options
     query_database(infiles, db, opt.process,
                    makeBatchBuffer, processQuery, finalizeBatch,
-                   showStatus);
+                   appendToOutput);
 
     //target -> hits list?
     if(tgtMatches.empty()) return;

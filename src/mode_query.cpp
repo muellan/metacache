@@ -154,11 +154,9 @@ void process_input_files(const vector<string>& infiles,
         return;
     }
     else {
-        bool anyreadable = false;
-        for(const auto& f : infiles) {
-            if(file_readable(f)) { anyreadable = true; break; }
-        }
-        if(!anyreadable) {
+        bool noneReadable = std::none_of(infiles.begin(), infiles.end(),
+                           [](const auto& f) { return file_readable(f); });
+        if(noneReadable) {
             throw std::runtime_error{
                         "None of the query sequence files could be opened"};
         }

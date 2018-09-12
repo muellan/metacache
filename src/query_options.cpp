@@ -102,6 +102,21 @@ get_query_processing_options(const args_parser& args,
     auto batchSize = args.get<int>("batch-size", defaults.batchSize);
     if(batchSize >= 1) opt.batchSize = batchSize;
 
+    auto numSeq = args.get<int>("per-thread-sequential-queries",
+                                defaults.perThreadSequentialQueries);
+
+    if(numSeq >= 1) {
+        opt.perThreadSequentialQueries = numSeq;
+    }
+    else {
+        //adapt to number of threads
+        if(numThreads < 64) {
+            opt.perThreadSequentialQueries = 4;
+        } else {
+            opt.perThreadSequentialQueries = 8;
+        }
+    }
+
     opt.queryLimit = args.get<std::int_least64_t>({"query-limit"},
                                           defaults.queryLimit);
 

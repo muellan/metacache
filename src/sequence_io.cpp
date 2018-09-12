@@ -101,7 +101,7 @@ fasta_reader::fasta_reader(const string& filename):
     if(!filename.empty()) {
         file_.open(filename);
 
-        if(file_.rdstate() & std::ifstream::failbit) {
+        if(!file_.good()) {
             invalidate();
             throw file_access_error{"can't open file " + filename};
         }
@@ -226,7 +226,7 @@ fastq_reader::fastq_reader(const string& filename):
     if(!filename.empty()) {
         file_.open(filename);
 
-        if(file_.rdstate() & std::ifstream::failbit) {
+        if(!file_.good()) {
             invalidate();
             throw file_access_error{"can't open file " + filename};
         }
@@ -326,7 +326,7 @@ sequence_header_reader::sequence_header_reader(const string& filename):
 {
     file_.open(filename);
 
-    if(file_.rdstate() & std::ifstream::failbit) {
+    if(!file_.good()) {
         invalidate();
         throw file_access_error{"can't open file " + filename};
     }
@@ -527,13 +527,13 @@ make_sequence_reader(const string& filename)
        filename.find(".fnq")   == (n-4) ||
        filename.find(".fastq") == (n-6) )
     {
-        return std::unique_ptr<sequence_reader>{new fastq_reader{filename}};
+        return std::make_unique<fastq_reader>(filename);
     }
     else if(filename.find(".fa")    == (n-3) ||
             filename.find(".fna")   == (n-4) ||
             filename.find(".fasta") == (n-6) )
     {
-        return std::unique_ptr<sequence_reader>{new fasta_reader{filename}};
+        return std::make_unique<fasta_reader>(filename);
     }
 
     //try to determine file type content
@@ -543,10 +543,10 @@ make_sequence_reader(const string& filename)
         getline(is,line);
         if(!line.empty()) {
             if(line[0] == '>') {
-                return std::unique_ptr<sequence_reader>{new fasta_reader{filename}};
+                return std::make_unique<fasta_reader>(filename);
             }
             else if(line[0] == '@') {
-                return std::unique_ptr<sequence_reader>{new fastq_reader{filename}};
+                return std::make_unique<fastq_reader>(filename);
             }
         }
         throw file_read_error{"file format not recognized"};
