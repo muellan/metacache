@@ -87,7 +87,6 @@ query_id query_batched(
     BufferSource&& getBuffer, BufferUpdate&& update, BufferSink&& finalize,
     LogCallback&& log)
 {
-    std::mutex exceptionMtx;
     std::mutex finalizeMtx;
     std::atomic<std::int_least64_t> queryLimit{opt.queryLimit};
     std::atomic<query_id> workId{startId};
@@ -188,14 +187,12 @@ query_id query_batched(
             }
             catch(file_access_error& e) {
                 if(threadId == 0) {
-                    std::lock_guard<std::mutex> lock(exceptionMtx);
                     log(std::string("FAIL: ") + e.what());
                 }
             }
             catch(std::exception& e) {
-                std::lock_guard<std::mutex> lock(exceptionMtx);
                 log(std::string("FAIL: ") + e.what());
-            }        
+            }
         }
     }
 
