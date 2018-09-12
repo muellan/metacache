@@ -80,11 +80,10 @@ template<
     class BufferSource, class BufferUpdate, class BufferSink,
     class LogCallback
 >
-void query_batched(
-    // parallel_queue& queue,
+query_id query_batched(
     const std::string& filename1, const std::string& filename2,
     const database& db, const query_processing_options& opt,
-    query_id& startId,
+    const query_id& startId,
     BufferSource&& getBuffer, BufferUpdate&& update, BufferSink&& finalize,
     LogCallback&& log)
 {
@@ -200,7 +199,7 @@ void query_batched(
         }
     }
 
-    startId = qid;
+    return qid;
 }
 
 
@@ -246,11 +245,11 @@ void query_database(
         }
         showProgress(infilenames.size() > 1 ? i/float(infilenames.size()) : -1);
 
-        query_batched(fname1, fname2, db, opt, readIdOffset,
-                      std::forward<BufferSource>(bufsrc),
-                      std::forward<BufferUpdate>(bufupdate),
-                      std::forward<BufferSink>(bufsink),
-                      std::forward<LogHandler>(log));
+        readIdOffset = query_batched(fname1, fname2, db, opt, readIdOffset,
+                                     std::forward<BufferSource>(bufsrc),
+                                     std::forward<BufferUpdate>(bufupdate),
+                                     std::forward<BufferSink>(bufsink),
+                                     std::forward<LogHandler>(log));
     }
 }
 
