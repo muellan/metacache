@@ -39,7 +39,6 @@ HEADERS = \
           src/io_serialize.h \
           src/matches_per_target.h \
           src/modes.h \
-          src/parallel_task_queue.h \
           src/printing.h \
           src/query_options.h \
           src/querying.h \

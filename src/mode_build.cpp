@@ -40,7 +40,6 @@
 #include "config.h"
 #include "sequence_io.h"
 #include "taxonomy_io.h"
-#include "parallel_task_queue.h"
 
 
 namespace mc {
