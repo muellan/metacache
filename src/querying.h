@@ -99,9 +99,8 @@ void query_batched(
 
     std::vector<std::thread> threads;
     // assign work to threads
-    for(int i = 0; i < opt.numThreads; ++i) {
-        threads.emplace_back([&] {
-            const int threadId = i;
+    for(int threadId = 0; threadId < opt.numThreads; ++threadId) {
+        threads.emplace_back([&,threadId] {
             try {
                 sequence_pair_reader reader{filename1, filename2};
 
@@ -182,7 +181,7 @@ void query_batched(
                 }
             }
             catch(file_access_error& e) {
-                if(threadId == 1) {
+                if(threadId == 0) {
                     std::lock_guard<std::mutex> lock(exceptionMtx);
                     log(std::string("FAIL: ") + e.what());
                 }
