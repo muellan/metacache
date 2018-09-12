@@ -24,6 +24,7 @@
 
 #include <vector>
 #include <iostream>
+#include <future>
 
 #include "config.h"
 #include "sequence_io.h"
@@ -97,88 +98,94 @@ void query_batched(
     query_id qid{startId};
     sequence_pair_reader::stream_positions pos{0,0};
 
-    std::vector<std::thread> threads;
+    std::vector<std::future<void>> threads;
     // assign work to threads
     for(int threadId = 0; threadId < opt.numThreads; ++threadId) {
-        threads.emplace_back([&,threadId] {
-            try {
-                sequence_pair_reader reader{filename1, filename2};
+        threads.emplace_back(std::async(std::launch::async, [&] {
+            sequence_pair_reader reader{filename1, filename2};
 
-                auto buffer = getBuffer();
-                match_locations matches;
-                bool bufferEmpty = true;
+            auto buffer = getBuffer();
+            match_locations matches;
+            bool bufferEmpty = true;
 
-                const auto readSequentially = opt.perThreadSequentialQueries;
+            const auto readSequentially = opt.perThreadSequentialQueries;
 
-                std::vector<sequence_pair_reader::sequence_pair> sequences;
-                sequences.reserve(readSequentially);
+            std::vector<sequence_pair_reader::sequence_pair> sequences;
+            sequences.reserve(readSequentially);
 
-                while(reader.has_next() && queryLimit > 0) {
-                    for(std::size_t i = 0;
-                        i < opt.batchSize && queryLimit.fetch_sub(readSequentially) > 0; ++i)
+            while(reader.has_next() && queryLimit > 0) {
+                for(std::size_t i = 0;
+                    i < opt.batchSize && queryLimit.fetch_sub(readSequentially) > 0; ++i)
+                {
+                    query_id myQid;
+                    sequence_pair_reader::stream_positions myPos;
+
+                    // get most recent position and query id
                     {
-                        query_id myQid;
-                        sequence_pair_reader::stream_positions myPos;
-
-                        // get most recent position and query id
-                        {
-                            std::lock_guard<std::mutex> lock(tipMtx);
-                            myQid = qid;
-                            myPos = pos;
-                        }
-                        reader.seek(myPos);
-                        if(!reader.has_next()) break;
-                        reader.index_offset(myQid);
-
-                        // get work id and skip to this read
-                        auto wid = workId.fetch_add(readSequentially);
-                        if(myQid != wid) {
-                            reader.skip(wid-myQid);
-                        }
-                        if(!reader.has_next()) break;
-                        // auto seq = reader.next();
-                        for(int i = 0; i < readSequentially; ++i) {
-                            sequences.emplace_back(reader.next());
-                        }
-
-                        // update most recent position and query id
-                        myQid = reader.index();
-                        myPos = reader.tell();
-                        while(myQid > qid) {// reading qid unsafe
-                            if(tipMtx.try_lock()) {
-                                if(myQid > qid) {// reading qid safe
-                                    qid = myQid;
-                                    pos = myPos;
-                                }
-                                tipMtx.unlock();
-                            }
-                        }
-
-                        for(auto& seq : sequences) {
-                            if(!seq.first.header.empty()) {
-                                bufferEmpty = false;
-                                matches.clear();
-
-                                db.accumulate_matches(seq.first.data, matches);
-                                db.accumulate_matches(seq.second.data, matches);
-
-                                std::sort(matches.begin(), matches.end());
-
-                                update(buffer,
-                                       sequence_query{seq.first.index,
-                                                      std::move(seq.first.header),
-                                                      std::move(seq.first.data),
-                                                      std::move(seq.second.data)},
-                                       matches );
-                            }
-                        }
-                        sequences.clear();
+                        std::lock_guard<std::mutex> lock(tipMtx);
+                        myQid = qid;
+                        myPos = pos;
                     }
-                    if(!bufferEmpty) {
-                        std::lock_guard<std::mutex> lock(finalizeMtx);
-                        finalize(std::move(buffer));
+                    reader.seek(myPos);
+                    if(!reader.has_next()) break;
+                    reader.index_offset(myQid);
+
+                    // get work id and skip to this read
+                    auto wid = workId.fetch_add(readSequentially);
+                    if(myQid != wid) {
+                        reader.skip(wid-myQid);
                     }
+                    if(!reader.has_next()) break;
+                    for(int i = 0; i < readSequentially; ++i) {
+                        sequences.emplace_back(reader.next());
+                    }
+
+                    // update most recent position and query id
+                    myQid = reader.index();
+                    myPos = reader.tell();
+                    while(myQid > qid) {// reading qid unsafe
+                        if(tipMtx.try_lock()) {
+                            if(myQid > qid) {// reading qid safe
+                                qid = myQid;
+                                pos = myPos;
+                            }
+                            tipMtx.unlock();
+                        }
+                    }
+
+                    for(auto& seq : sequences) {
+                        if(!seq.first.header.empty()) {
+                            bufferEmpty = false;
+                            matches.clear();
+
+                            db.accumulate_matches(seq.first.data, matches);
+                            db.accumulate_matches(seq.second.data, matches);
+
+                            std::sort(matches.begin(), matches.end());
+
+                            update(buffer,
+                                   sequence_query{seq.first.index,
+                                                  std::move(seq.first.header),
+                                                  std::move(seq.first.data),
+                                                  std::move(seq.second.data)},
+                                   matches );
+                        }
+                    }
+                    sequences.clear();
                 }
+                if(!bufferEmpty) {
+                    std::lock_guard<std::mutex> lock(finalizeMtx);
+                    finalize(std::move(buffer));
+                }
+            }
+        })); //emplace
+    }
+
+    // wait for all threads to finish and catch exceptions
+    for(unsigned int threadId = 0; threadId < threads.size(); ++threadId) {
+        if(threads[threadId].valid()) {
+            try {
+                threads[threadId].get();
             }
             catch(file_access_error& e) {
                 if(threadId == 0) {
@@ -189,13 +196,8 @@ void query_batched(
             catch(std::exception& e) {
                 std::lock_guard<std::mutex> lock(exceptionMtx);
                 log(std::string("FAIL: ") + e.what());
-            }
-        }); //emplace
-    }
-
-    // wait for all threads to finish
-    for(auto& thread : threads) {
-        thread.join();
+            }        
+        }
     }
 
     startId = qid;
@@ -226,9 +228,6 @@ void query_database(
     BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
     InfoCallback&& showInfo, ProgressHandler&& showProgress, LogHandler&& log)
 {
-    // parallel_queue queue(opt.numThreads);
-    std::vector<std::thread> threads(opt.numThreads);
-
     const size_t stride = opt.pairing == pairing_mode::files ? 1 : 0;
     const std::string nofile;
     query_id readIdOffset = 0;
