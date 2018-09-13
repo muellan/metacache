@@ -107,6 +107,7 @@ query_id query_batched(
             std::vector<sequence_pair_reader::sequence_pair> sequences;
             sequences.reserve(readSequentially);
             match_locations matches;
+            match_locations matchesBuffer;
 
             while(reader.has_next() && queryLimit > 0) {
                 auto batchBuffer = getBuffer();
@@ -155,11 +156,12 @@ query_id query_batched(
                         if(!seq.first.header.empty()) {
                             bufferEmpty = false;
                             matches.clear();
+                            // matchesBuffer.clear();
 
-                            db.accumulate_matches(seq.first.data, matches);
-                            db.accumulate_matches(seq.second.data, matches);
+                            db.accumulate_matches(seq.first.data, matches, matchesBuffer);
+                            db.accumulate_matches(seq.second.data, matches, matchesBuffer);
 
-                            std::sort(matches.begin(), matches.end());
+                            // std::sort(matches.begin(), matches.end());
 
                             update(batchBuffer,
                                    sequence_query{seq.first.index,

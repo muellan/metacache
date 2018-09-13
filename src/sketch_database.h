@@ -233,8 +233,8 @@ public:
 
         friend bool
         operator < (const location& a, const location& b) noexcept {
-            if(a.tax < b.tax) return true;
-            if(a.tax > b.tax) return false;
+            if(a.tax > b.tax) return true;
+            if(a.tax < b.tax) return false;
             return (a.win < b.win);
         }
     };
@@ -768,22 +768,41 @@ public:
     template<class InputIterator>
     void
     accumulate_matches(InputIterator queryBegin, InputIterator queryEnd,
-                       match_locations& res) const
+                       match_locations& res, match_locations& buffer) const
     {
-        for_each_match(queryBegin, queryEnd,
-            [this, &res] (const target_location& loc) {
-                res.emplace_back(targets_[loc.tgt], loc.win);
+        for_each_window(queryBegin, queryEnd, queryWindowSize_, queryWindowStride_,
+            [this, &res, &buffer] (InputIterator b, InputIterator e) {
+                auto sk = querySketcher_(b,e);
+                for(auto f : sk) {
+                    auto locs = features_.find(f);
+                    if(locs != features_.end()) {
+                        if(locs->size() == 1) {
+                            location l{targets_[(*locs)[0].tgt], (*locs)[0].win};
+                            auto it = std::upper_bound(std::begin(res), std::end(res), l);
+                            res.insert(it, l);
+                        }
+                        else if(locs->size() > 0) {
+                            auto size = res.size();
+                            for(const auto& loc : *locs) {
+                                res.emplace_back(targets_[loc.tgt], loc.win);
+                            }
+                            buffer.resize(res.size());
+                            std::merge(res.begin(), res.begin()+size, res.begin()+size, res.end(), buffer.begin());
+                            std::swap(res,buffer);
+                        }
+                    }
+                }
             });
     }
 
     //---------------------------------------------------------------
     void
     accumulate_matches(const sequence& query,
-                       match_locations& res) const
+                       match_locations& res, match_locations& buffer) const
     {
         using std::begin;
         using std::end;
-        accumulate_matches(begin(query), end(query), res);
+        accumulate_matches(begin(query), end(query), res, buffer);
     }
 
 
