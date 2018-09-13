@@ -102,16 +102,16 @@ query_id query_batched(
         threads.emplace_back(std::async(std::launch::async, [&] {
             sequence_pair_reader reader{filename1, filename2};
 
-            auto buffer = getBuffer();
-            match_locations matches;
-            bool bufferEmpty = true;
-
             const auto readSequentially = opt.perThreadSequentialQueries;
 
             std::vector<sequence_pair_reader::sequence_pair> sequences;
             sequences.reserve(readSequentially);
+            match_locations matches;
 
             while(reader.has_next() && queryLimit > 0) {
+                auto batchBuffer = getBuffer();
+                bool bufferEmpty = true;
+
                 for(std::size_t i = 0;
                     i < opt.batchSize && queryLimit.fetch_sub(readSequentially) > 0; ++i)
                 {
@@ -161,7 +161,7 @@ query_id query_batched(
 
                             std::sort(matches.begin(), matches.end());
 
-                            update(buffer,
+                            update(batchBuffer,
                                    sequence_query{seq.first.index,
                                                   std::move(seq.first.header),
                                                   std::move(seq.first.data),
@@ -173,7 +173,7 @@ query_id query_batched(
                 }
                 if(!bufferEmpty) {
                     std::lock_guard<std::mutex> lock(finalizeMtx);
-                    finalize(std::move(buffer));
+                    finalize(std::move(batchBuffer));
                 }
             }
         })); //emplace
