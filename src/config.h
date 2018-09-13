@@ -117,6 +117,7 @@ using taxon_rank           = database::taxon_rank;
 using taxon_id             = database::taxon_id;
 using ranked_lineage       = database::ranked_lineage;
 using match_locations      = database::match_locations;
+using match_target_locations      = database::match_target_locations;
 
 
 /**************************************************************************

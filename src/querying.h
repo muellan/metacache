@@ -106,8 +106,10 @@ query_id query_batched(
 
             std::vector<sequence_pair_reader::sequence_pair> sequences;
             sequences.reserve(readSequentially);
+
             match_locations matches;
-            match_locations matchesBuffer;
+            match_target_locations matchesBuffer;
+            match_target_locations matchesBuffer2;
 
             while(reader.has_next() && queryLimit > 0) {
                 auto batchBuffer = getBuffer();
@@ -155,23 +157,27 @@ query_id query_batched(
                     for(auto& seq : sequences) {
                         if(!seq.first.header.empty()) {
                             bufferEmpty = false;
-                            matches.clear();
+                            matchesBuffer.clear();
                             // matchesBuffer.clear();
 
-                            db.accumulate_matches(seq.first.data, matches, matchesBuffer);
-                            const auto sizeFirst = matches.size();
-                            db.accumulate_matches(seq.second.data, matches, matchesBuffer);
-                            const auto sizeSecond = matches.size() - sizeFirst;
+                            db.accumulate_matches(seq.first.data, matchesBuffer, matchesBuffer2);
+                            const auto sizeFirst = matchesBuffer.size();
+                            db.accumulate_matches(seq.second.data, matchesBuffer, matchesBuffer2);
+                            const auto sizeSecond = matchesBuffer.size() - sizeFirst;
 
                             if(sizeSecond > 0) {
-                                matchesBuffer.resize(matches.size());
-                                std::merge(matches.begin(), matches.begin()+sizeFirst,
-                                           matches.begin()+sizeFirst, matches.end(),
-                                           matchesBuffer.begin());
-                                std::swap(matches, matchesBuffer);
+                                matchesBuffer.resize(matchesBuffer.size());
+                                std::merge(matchesBuffer.begin(), matchesBuffer.begin()+sizeFirst,
+                                           matchesBuffer.begin()+sizeFirst, matchesBuffer.end(),
+                                           matchesBuffer2.begin());
+                                std::swap(matchesBuffer, matchesBuffer2);
                             }
 
                             // std::sort(matches.begin(), matches.end());
+
+                            matches.clear();
+                            for(auto& m : matchesBuffer)
+                                matches.emplace_back(db.taxon_of_target(m.tgt), m.win);
 
                             update(batchBuffer,
                                    sequence_query{seq.first.index,

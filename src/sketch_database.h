@@ -144,6 +144,7 @@ public:
     };
 
 
+    const taxon* taxon_of_target(target_id id) const {return targets_[id]; }
 private:
     //use negative numbers for sequence level taxon ids
     static constexpr taxon_id
@@ -240,6 +241,7 @@ public:
     };
 
     using match_locations = std::vector<location>;
+    using match_target_locations = std::vector<target_location>;
 
 
     //---------------------------------------------------------------
@@ -786,7 +788,7 @@ void merge_sort(std::vector<T>& a, std::vector<size_t>& offsets, std::vector<T>&
     template<class InputIterator>
     void
     accumulate_matches(InputIterator queryBegin, InputIterator queryEnd,
-                       match_locations& res, match_locations& buffer) const
+                       match_target_locations& res, match_target_locations& buffer) const
     {
         for_each_window(queryBegin, queryEnd, queryWindowSize_, queryWindowStride_,
             [this, &res, &buffer] (InputIterator b, InputIterator e) {
@@ -799,9 +801,7 @@ void merge_sort(std::vector<T>& a, std::vector<size_t>& offsets, std::vector<T>&
                 for(auto f : sk) {
                     auto locs = features_.find(f);
                     if(locs != features_.end() && locs->size() > 0) {
-                        for(const auto& loc : *locs) {
-                            res.emplace_back(targets_[loc.tgt], loc.win);
-                        }
+                        res.insert(res.end(), locs->begin(), locs->end());
                         offsets.emplace_back(res.size());
                     }
                 }
@@ -813,7 +813,7 @@ void merge_sort(std::vector<T>& a, std::vector<size_t>& offsets, std::vector<T>&
     //---------------------------------------------------------------
     void
     accumulate_matches(const sequence& query,
-                       match_locations& res, match_locations& buffer) const
+                       match_target_locations& res, match_target_locations& buffer) const
     {
         using std::begin;
         using std::end;
