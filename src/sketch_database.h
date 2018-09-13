@@ -764,6 +764,24 @@ public:
     }
 
 
+template<class T>
+void merge_sort(std::vector<T>& a, std::vector<size_t>& offsets, std::vector<T>& b) const {
+    if(offsets.size() < 3) return;
+    b.resize(a.size());
+
+    int numChunks = offsets.size()-1;
+    for(int s = 1; s < numChunks; s *= 2) {
+        for(int i = 0; i < numChunks; i += 2*s) {
+            auto begin = offsets[i];
+            auto mid = i + s <= numChunks ? offsets[i + s] : offsets[numChunks];
+            auto end = i + 2*s <= numChunks ? offsets[i + 2*s] : offsets[numChunks];
+            std::merge(a.begin()+begin, a.begin()+mid, a.begin()+mid, a.begin()+end, b.begin()+begin);
+        }
+        std::swap(a, b);
+    }
+}
+
+
     //---------------------------------------------------------------
     template<class InputIterator>
     void
@@ -773,25 +791,22 @@ public:
         for_each_window(queryBegin, queryEnd, queryWindowSize_, queryWindowStride_,
             [this, &res, &buffer] (InputIterator b, InputIterator e) {
                 auto sk = querySketcher_(b,e);
+
+                std::vector<size_t> offsets;
+                offsets.reserve(sk.size()+1);
+                offsets.emplace_back(res.size());
+
                 for(auto f : sk) {
                     auto locs = features_.find(f);
-                    if(locs != features_.end()) {
-                        if(locs->size() == 1) {
-                            location l{targets_[(*locs)[0].tgt], (*locs)[0].win};
-                            auto it = std::upper_bound(std::begin(res), std::end(res), l);
-                            res.insert(it, l);
+                    if(locs != features_.end() && locs->size() > 0) {
+                        for(const auto& loc : *locs) {
+                            res.emplace_back(targets_[loc.tgt], loc.win);
                         }
-                        else if(locs->size() > 0) {
-                            auto size = res.size();
-                            for(const auto& loc : *locs) {
-                                res.emplace_back(targets_[loc.tgt], loc.win);
-                            }
-                            buffer.resize(res.size());
-                            std::merge(res.begin(), res.begin()+size, res.begin()+size, res.end(), buffer.begin());
-                            std::swap(res,buffer);
-                        }
+                        offsets.emplace_back(res.size());
                     }
                 }
+
+                merge_sort(res, offsets, buffer);
             });
     }
 

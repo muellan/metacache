@@ -159,7 +159,17 @@ query_id query_batched(
                             // matchesBuffer.clear();
 
                             db.accumulate_matches(seq.first.data, matches, matchesBuffer);
+                            const auto sizeFirst = matches.size();
                             db.accumulate_matches(seq.second.data, matches, matchesBuffer);
+                            const auto sizeSecond = matches.size() - sizeFirst;
+
+                            if(sizeSecond > 0) {
+                                matchesBuffer.resize(matches.size());
+                                std::merge(matches.begin(), matches.begin()+sizeFirst,
+                                           matches.begin()+sizeFirst, matches.end(),
+                                           matchesBuffer.begin());
+                                std::swap(matches, matchesBuffer);
+                            }
 
                             // std::sort(matches.begin(), matches.end());
 
