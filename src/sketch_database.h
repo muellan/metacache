@@ -731,49 +731,18 @@ public:
         return false;
     }
 
-private:
-    //---------------------------------------------------------------
-    /**
-     * @param a       : merge sorted ranges in this vector
-     * @param offsets : positions where the ranges begin/end
-     * @param b       : use this vector as a buffer
-     *
-     * @details offsets.front() must be 0 and offsets.back() must be a.size()
-     */
-    template<class T>
-    void
-    merge_sort(std::vector<T>& a, std::vector<size_t>& offsets, std::vector<T>& b) const {
-        if(offsets.size() < 3) return;
-        b.resize(a.size());
 
-        int numChunks = offsets.size()-1;
-        for(int s = 1; s < numChunks; s *= 2) {
-            for(int i = 0; i < numChunks; i += 2*s) {
-                auto begin = offsets[i];
-                auto mid = i + s <= numChunks ? offsets[i + s] : offsets[numChunks];
-                auto end = i + 2*s <= numChunks ? offsets[i + 2*s] : offsets[numChunks];
-                std::merge(a.begin()+begin, a.begin()+mid,
-                           a.begin()+mid, a.begin()+end,
-                           b.begin()+begin);
-            }
-            std::swap(a, b);
-        }
-    }
-
-public:
     //---------------------------------------------------------------
     template<class InputIterator>
     void
     accumulate_matches(InputIterator queryBegin, InputIterator queryEnd,
-                       match_target_locations& res, match_target_locations& buffer) const
+                       match_target_locations& res, std::vector<size_t>& offsets) const
     {
         for_each_window(queryBegin, queryEnd, queryWindowSize_, queryWindowStride_,
-            [this, &res, &buffer] (InputIterator b, InputIterator e) {
+            [this, &res, &offsets] (InputIterator b, InputIterator e) {
                 auto sk = querySketcher_(b,e);
 
-                std::vector<size_t> offsets;
-                offsets.reserve(sk.size()+1);
-                offsets.emplace_back(res.size());
+                offsets.reserve(offsets.size() + sk.size());
 
                 for(auto f : sk) {
                     auto locs = features_.find(f);
@@ -782,19 +751,17 @@ public:
                         offsets.emplace_back(res.size());
                     }
                 }
-
-                merge_sort(res, offsets, buffer);
             });
     }
 
     //---------------------------------------------------------------
     void
     accumulate_matches(const sequence& query,
-                       match_target_locations& res, match_target_locations& buffer) const
+                       match_target_locations& res, std::vector<size_t>& offsets) const
     {
         using std::begin;
         using std::end;
-        accumulate_matches(begin(query), end(query), res, buffer);
+        accumulate_matches(begin(query), end(query), res, offsets);
     }
 
 

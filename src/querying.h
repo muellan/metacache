@@ -65,6 +65,37 @@ struct sequence_query
 
 /*************************************************************************//**
  *
+ * @param a       : merge sorted ranges in this vector
+ * @param offsets : positions where the ranges begin/end
+ * @param b       : use this vector as a buffer
+ *
+ * @details offsets.front() must be 0 and offsets.back() must be a.size()
+ *
+ *****************************************************************************/
+template<class T>
+void
+merge_sort(std::vector<T>& a, std::vector<size_t>& offsets, std::vector<T>& b) {
+    if(offsets.size() < 3) return;
+    b.resize(a.size());
+
+    int numChunks = offsets.size()-1;
+    for(int s = 1; s < numChunks; s *= 2) {
+        for(int i = 0; i < numChunks; i += 2*s) {
+            auto begin = offsets[i];
+            auto mid = i + s <= numChunks ? offsets[i + s] : offsets[numChunks];
+            auto end = i + 2*s <= numChunks ? offsets[i + 2*s] : offsets[numChunks];
+            std::merge(a.begin()+begin, a.begin()+mid,
+                       a.begin()+mid, a.begin()+end,
+                       b.begin()+begin);
+        }
+        std::swap(a, b);
+    }
+}
+
+
+
+/*************************************************************************//**
+ *
  * @brief queries database with batches of reads from one sequence source
  *        produces one match list per sequence
  *
@@ -158,22 +189,12 @@ query_id query_batched(
                         if(!seq.first.header.empty()) {
                             bufferEmpty = false;
                             matchesBuffer.clear();
-                            // matchesBuffer.clear();
+                            std::vector<size_t> offsets{0};
 
-                            db.accumulate_matches(seq.first.data, matchesBuffer, matchesBuffer2);
-                            const auto sizeFirst = matchesBuffer.size();
-                            db.accumulate_matches(seq.second.data, matchesBuffer, matchesBuffer2);
-                            const auto sizeSecond = matchesBuffer.size() - sizeFirst;
+                            db.accumulate_matches(seq.first.data, matchesBuffer, offsets);
+                            db.accumulate_matches(seq.second.data, matchesBuffer, offsets);
 
-                            if(sizeSecond > 0) {
-                                matchesBuffer.resize(matchesBuffer.size());
-                                std::merge(matchesBuffer.begin(), matchesBuffer.begin()+sizeFirst,
-                                           matchesBuffer.begin()+sizeFirst, matchesBuffer.end(),
-                                           matchesBuffer2.begin());
-                                std::swap(matchesBuffer, matchesBuffer2);
-                            }
-
-                            // std::sort(matches.begin(), matches.end());
+                            merge_sort(matchesBuffer, offsets, matchesBuffer2);
 
                             matches.clear();
                             for(auto& m : matchesBuffer)
