@@ -234,8 +234,8 @@ public:
 
         friend bool
         operator < (const location& a, const location& b) noexcept {
-            if(a.tax > b.tax) return true;
-            if(a.tax < b.tax) return false;
+            if(a.tax < b.tax) return true;
+            if(a.tax > b.tax) return false;
             return (a.win < b.win);
         }
     };
@@ -731,59 +731,36 @@ public:
         return false;
     }
 
-
+private:
     //---------------------------------------------------------------
-    template<class Consumer>
+    /**
+     * @param a       : merge sorted ranges in this vector
+     * @param offsets : positions where the ranges begin/end
+     * @param b       : use this vector as a buffer
+     *
+     * @details offsets.front() must be 0 and offsets.back() must be a.size()
+     */
+    template<class T>
     void
-    for_each_match(const sequence& query, Consumer&& consume) const
-    {
-        if(query.empty()) return;
+    merge_sort(std::vector<T>& a, std::vector<size_t>& offsets, std::vector<T>& b) const {
+        if(offsets.size() < 3) return;
+        b.resize(a.size());
 
-        using std::begin;
-        using std::end;
-        for_each_match(begin(query), end(query),
-                             std::forward<Consumer>(consume));
-    }
-
-    //-----------------------------------------------------
-    template<class InputIterator, class Consumer>
-    void
-    for_each_match(InputIterator queryBegin, InputIterator queryEnd,
-                   Consumer&& consume) const
-    {
-        for_each_window(queryBegin, queryEnd, queryWindowSize_, queryWindowStride_,
-            [this, &consume] (InputIterator b, InputIterator e) {
-                auto sk = querySketcher_(b,e);
-                for(auto f : sk) {
-                    auto locs = features_.find(f);
-                    if(locs != features_.end()) {
-                        for(const auto& loc : *locs) {
-                            consume(loc);
-                        }
-                    }
-                }
-            });
-    }
-
-
-template<class T>
-void merge_sort(std::vector<T>& a, std::vector<size_t>& offsets, std::vector<T>& b) const {
-    if(offsets.size() < 3) return;
-    b.resize(a.size());
-
-    int numChunks = offsets.size()-1;
-    for(int s = 1; s < numChunks; s *= 2) {
-        for(int i = 0; i < numChunks; i += 2*s) {
-            auto begin = offsets[i];
-            auto mid = i + s <= numChunks ? offsets[i + s] : offsets[numChunks];
-            auto end = i + 2*s <= numChunks ? offsets[i + 2*s] : offsets[numChunks];
-            std::merge(a.begin()+begin, a.begin()+mid, a.begin()+mid, a.begin()+end, b.begin()+begin);
+        int numChunks = offsets.size()-1;
+        for(int s = 1; s < numChunks; s *= 2) {
+            for(int i = 0; i < numChunks; i += 2*s) {
+                auto begin = offsets[i];
+                auto mid = i + s <= numChunks ? offsets[i + s] : offsets[numChunks];
+                auto end = i + 2*s <= numChunks ? offsets[i + 2*s] : offsets[numChunks];
+                std::merge(a.begin()+begin, a.begin()+mid,
+                           a.begin()+mid, a.begin()+end,
+                           b.begin()+begin);
+            }
+            std::swap(a, b);
         }
-        std::swap(a, b);
     }
-}
 
-
+public:
     //---------------------------------------------------------------
     template<class InputIterator>
     void
