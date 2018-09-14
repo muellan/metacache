@@ -125,7 +125,8 @@ public:
                 // find candidate in matches
                 location lm{cand.tax, cand.pos.beg};
                 auto it = std::lower_bound(matches.begin(), matches.end(), lm,
-                    [](const location& a, const location& b){
+                    [] (const location& a, const location& b) {
+                        //assumes that sequence level taxa have negative taxids
                         if(a.tax->id() < b.tax->id()) return false;
                         if(a.tax->id() > b.tax->id()) return true;
                         return (a.win < b.win);
