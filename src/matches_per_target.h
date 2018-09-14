@@ -124,7 +124,12 @@ public:
             {
                 // find candidate in matches
                 location lm{cand.tax, cand.pos.beg};
-                auto it = std::lower_bound(matches.begin(), matches.end(), lm);
+                auto it = std::lower_bound(matches.begin(), matches.end(), lm,
+                    [](const location& a, const location& b){
+                        if(a.tax->id() < b.tax->id()) return false;
+                        if(a.tax->id() > b.tax->id()) return true;
+                        return (a.win < b.win);
+                    });
                 // fill window vector
                 if(it == matches.end()) return;
 
