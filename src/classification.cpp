@@ -193,8 +193,6 @@ lowest_common_ancestor(const database& db,
                        const classification_options& opt,
                        const classification_candidates& cand)
 {
-    using hit_count = match_candidate::count_type;
-
     if(cand.empty() || !cand[0].tax) return nullptr;
 
     if(cand.size() == 1) {
@@ -211,7 +209,7 @@ lowest_common_ancestor(const database& db,
 
     // begin lca with first candidate
     const taxon* lca_taxon = cand[0].tax;
-    hit_count threshold = (cand[0].hits - opt.hitsMin) * opt.hitsDiffFraction;
+    float threshold = cand[0].hits > opt.hitsMin ? (cand[0].hits - opt.hitsMin) * opt.hitsDiffFraction : 0;
 
     for(auto i = cand.begin()+1; i != cand.end(); ++i) {
         // include all candidates with hits above threshold
