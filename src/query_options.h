@@ -212,6 +212,8 @@ struct classification_output_options
     bool showAlignment = false;
     //show list of target -> hit mappings
     bool showHitsPerTargetList = false;
+    //show list of taxon -> number of reads
+    bool showTaxCounts = false;
     //show error messages?
     bool showErrors = true;
 

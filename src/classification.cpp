@@ -538,6 +538,15 @@ void show_query_mapping(
 
 
 
+struct taxonByRank {
+    bool operator() (const taxon* lhs, const taxon* rhs) {
+        if(lhs->rank() > rhs->rank()) return true;
+        if(lhs->rank() < rhs->rank()) return false;
+        return lhs < rhs;
+    }
+};
+using taxon_count_map = std::map<const taxon*, query_id, taxonByRank>;
+
 /*************************************************************************//**
  *
  * @brief per-batch buffer for output and (target -> hits) lists
@@ -547,6 +556,7 @@ struct mappings_buffer
 {
     std::ostringstream out;
     matches_per_target hitsPerTarget;
+    taxon_count_map taxCounts;
 };
 
 /*************************************************************************//**
@@ -563,6 +573,8 @@ void map_queries_to_targets_default(
 {
     //global target -> query_id/win:hits... list
     matches_per_target tgtMatches;
+    //global taxon -> read count
+    taxon_count_map allTaxCounts;
 
     //input queries are divided into batches;
     //each batch might be processed by a different thread;
@@ -591,6 +603,9 @@ void map_queries_to_targets_default(
                                      opt.classify.hitsMin);
         }
 
+        if(opt.output.showTaxCounts && cls.best)
+            buf.taxCounts[cls.best] += 1;
+
         evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
 
         show_query_mapping(buf.out, db, opt.output, query, cls, allhits);
@@ -601,6 +616,11 @@ void map_queries_to_targets_default(
         if(opt.output.showHitsPerTargetList) {
             //merge batch (target->hits) lists into global one
             tgtMatches.merge(std::move(buf.hitsPerTarget));
+        }
+        if(opt.output.showTaxCounts) {
+            //add batch (taxon->read count) to global counts
+            for(const auto& taxCount : buf.taxCounts)
+                allTaxCounts[taxCount.first] += taxCount.second;
         }
         //write output buffer to output stream when batch is finished
         results.mapout << buf.out.str();
@@ -618,18 +638,31 @@ void map_queries_to_targets_default(
                    makeBatchBuffer, processQuery, finalizeBatch,
                    appendToOutput);
 
-    //target -> hits list?
-    if(tgtMatches.empty()) return;
+    if(opt.output.showHitsPerTargetList) {
+        results.auxout
+            << opt.output.format.comment
+            << "--- list of hits for each reference sequence ---\n"
+            << opt.output.format.comment
+            << "window start position within sequence = window_index * window_stride(="
+            << db.query_window_stride() << ")\n";
 
-    results.auxout
-        << opt.output.format.comment
-        << "--- list of hits for each reference sequence ---\n"
-        << opt.output.format.comment
-        << "window start position within sequence = window_index * window_stride(="
-        << db.query_window_stride() << ")\n";
+        tgtMatches.sort_match_lists();
+        show_matches_per_targets(results.auxout, db, tgtMatches, opt.output);
+    }
 
-    tgtMatches.sort_match_lists();
-    show_matches_per_targets(results.auxout, db, tgtMatches, opt.output);
+    if(opt.output.showTaxCounts) {
+        results.auxout
+            << opt.output.format.comment
+            << "query summary: number of reads mapped per taxon\n";
+        for(const auto& taxCount : allTaxCounts) {
+            results.auxout
+                << taxCount.first->rank_name() 
+                << taxCount.first->name()
+                << taxCount.second
+                << '\n'; 
+        }
+
+    }
 }
 
 

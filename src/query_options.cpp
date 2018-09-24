@@ -294,6 +294,10 @@ get_classification_output_options(const args_parser& args,
         args.contains({"hits-per-seq", "hitsperseq", "hits_per_seq",
                        "hits-per-sequence", "hitspersequence", "hits_per_sequence"});
 
+    opt.showTaxCounts = defaults.showTaxCounts ||
+        args.contains({"taxcounts", "tax-counts", "taxon_counts",
+                       "taxoncounts", "taxon-counts", "taxon_counts"});
+
     opt.showErrors = defaults.showErrors && !args.contains({"-noerr","-noerrors"});
 
     opt.showGroundTruth = evaluate.determineGroundTruth;
