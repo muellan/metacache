@@ -542,7 +542,7 @@ struct taxonByRank {
     bool operator() (const taxon* lhs, const taxon* rhs) {
         if(lhs->rank() > rhs->rank()) return true;
         if(lhs->rank() < rhs->rank()) return false;
-        return lhs < rhs;
+        return lhs->id() < rhs->id();
     }
 };
 using taxon_count_map = std::map<const taxon*, float, taxonByRank>;
@@ -666,33 +666,26 @@ void map_queries_to_targets_default(
     }
 
     if(opt.output.showEstimationAtRank != taxonomy::rank::none) {
-        std::unordered_map<const taxon*, query_id > taxWeights;
-        taxWeights.reserve(allTaxCounts.size());
-
         //prune taxon below estimation rank
-        //use taxWeights as buffer
-        //TODO skip all tax >= estimation rank (lower bound?)
-        for(auto taxCount = allTaxCounts.begin(); taxCount != allTaxCounts.end();) {
-            if(taxCount->first->rank() < opt.output.showEstimationAtRank) {
-                auto lineage = db.ranks(taxCount->first);
-                const taxon* ancestor = nullptr;
-                unsigned index = static_cast<unsigned>(taxCount->first->rank())+1;
-                while(!ancestor && index < lineage.size())
-                    ancestor = lineage[index++];
-                if(ancestor) {
-                    taxWeights[ancestor] += taxCount->second;
-                    taxCount = allTaxCounts.erase(taxCount);
-                    continue;
-                }
+        taxon t{0,0,"",static_cast<taxonomy::rank>(static_cast<unsigned>(opt.output.showEstimationAtRank)+1)};
+        auto begin = allTaxCounts.lower_bound(&t);
+        for(auto taxCount = begin; taxCount != allTaxCounts.end();) {
+            auto lineage = db.ranks(taxCount->first);
+            const taxon* ancestor = nullptr;
+            unsigned index = static_cast<unsigned>(taxCount->first->rank())+1;
+            while(!ancestor && index < lineage.size())
+                ancestor = lineage[index++];
+            if(ancestor) {
+                allTaxCounts[ancestor] += taxCount->second;
+                taxCount = allTaxCounts.erase(taxCount);
+            } else {
+                ++taxCount;
             }
-            ++taxCount;
         }
-        for(const auto& taxCount : taxWeights) {
-            allTaxCounts[taxCount.first] += taxCount.second;
-        }
-        taxWeights.clear();
 
         std::unordered_map<const taxon*, std::vector<const taxon*> > taxChildren;
+        std::unordered_map<const taxon*, query_id > taxWeights;
+        taxWeights.reserve(allTaxCounts.size());
 
         //initialize weigths for fast lookup
         for(const auto& taxCount : allTaxCounts) {
