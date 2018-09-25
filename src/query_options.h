@@ -214,6 +214,10 @@ struct classification_output_options
     bool showHitsPerTargetList = false;
     //show list of taxon -> number of reads
     bool showTaxCounts = false;
+    //show estimated number of reads at specific rank
+    taxon_rank showEstimationAtRank = taxon_rank::none;
+    //needed for the two options above
+    bool makeTaxCounts = false;
     //show error messages?
     bool showErrors = true;
 

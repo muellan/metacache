@@ -143,7 +143,7 @@ get_classification_options(const args_parser& args,
     auto lowestRank = args.get<string>("lowest", "");
     if(!lowestRank.empty()) {
         auto r = taxonomy::rank_from_name(lowestRank);
-        if(r < taxonomy::rank::root) opt.lowestRank = r;
+        if(r < taxon_rank::root) opt.lowestRank = r;
     }
 
     opt.highestRank = defaults.highestRank;
@@ -297,6 +297,16 @@ get_classification_output_options(const args_parser& args,
     opt.showTaxCounts = defaults.showTaxCounts ||
         args.contains({"taxcounts", "tax-counts", "taxon_counts",
                        "taxoncounts", "taxon-counts", "taxon_counts"});
+
+    opt.showEstimationAtRank = defaults.showEstimationAtRank;
+    auto estimationRank = args.get<string>({"estimate", "estimation"}, "");
+    if(!estimationRank.empty()) {
+        auto r = taxonomy::rank_from_name(estimationRank);
+        if(r < taxon_rank::root) opt.showEstimationAtRank = r;
+    }
+
+    if(opt.showTaxCounts || opt.showEstimationAtRank != taxon_rank::none)
+        opt.makeTaxCounts = true;
 
     opt.showErrors = defaults.showErrors && !args.contains({"-noerr","-noerrors"});
 

@@ -545,7 +545,8 @@ struct taxonByRank {
         return lhs < rhs;
     }
 };
-using taxon_count_map = std::map<const taxon*, query_id, taxonByRank>;
+using taxon_count_map = std::map<const taxon*, float, taxonByRank>;
+// using taxon_count_map = std::unordered_map<const taxon*, query_id>;
 
 /*************************************************************************//**
  *
@@ -603,8 +604,9 @@ void map_queries_to_targets_default(
                                      opt.classify.hitsMin);
         }
 
-        if(opt.output.showTaxCounts && cls.best)
+        if(opt.output.makeTaxCounts && cls.best) {
             buf.taxCounts[cls.best] += 1;
+        }
 
         evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
 
@@ -617,7 +619,7 @@ void map_queries_to_targets_default(
             //merge batch (target->hits) lists into global one
             tgtMatches.merge(std::move(buf.hitsPerTarget));
         }
-        if(opt.output.showTaxCounts) {
+        if(opt.output.makeTaxCounts) {
             //add batch (taxon->read count) to global counts
             for(const auto& taxCount : buf.taxCounts)
                 allTaxCounts[taxCount.first] += taxCount.second;
@@ -656,12 +658,98 @@ void map_queries_to_targets_default(
             << "query summary: number of reads mapped per taxon\n";
         for(const auto& taxCount : allTaxCounts) {
             results.auxout
-                << taxCount.first->rank_name() 
-                << taxCount.first->name()
+                << taxCount.first->rank_name() << opt.output.format.rankSuffix
+                << taxCount.first->name() << opt.output.format.column
                 << taxCount.second
                 << '\n'; 
         }
+    }
 
+    if(opt.output.showEstimationAtRank != taxonomy::rank::none) {
+        std::unordered_map<const taxon*, query_id > taxWeights;
+        taxWeights.reserve(allTaxCounts.size());
+
+        //prune taxon below estimation rank
+        //use taxWeights as buffer
+        //TODO skip all tax >= estimation rank (lower bound?)
+        for(auto taxCount = allTaxCounts.begin(); taxCount != allTaxCounts.end();) {
+            if(taxCount->first->rank() < opt.output.showEstimationAtRank) {
+                auto lineage = db.ranks(taxCount->first);
+                const taxon* ancestor = nullptr;
+                unsigned index = static_cast<unsigned>(taxCount->first->rank())+1;
+                while(!ancestor && index < lineage.size())
+                    ancestor = lineage[index++];
+                if(ancestor) {
+                    taxWeights[ancestor] += taxCount->second;
+                    taxCount = allTaxCounts.erase(taxCount);
+                    continue;
+                }
+            }
+            ++taxCount;
+        }
+        for(const auto& taxCount : taxWeights) {
+            allTaxCounts[taxCount.first] += taxCount.second;
+        }
+        taxWeights.clear();
+
+        std::unordered_map<const taxon*, std::vector<const taxon*> > taxChildren;
+
+        //initialize weigths for fast lookup
+        for(const auto& taxCount : allTaxCounts) {
+            taxWeights[taxCount.first] = 0;
+        }
+
+        //for every taxon find its parent and add to their count
+        //traverse allTaxCounts from leafs to root
+        for(auto taxCount = allTaxCounts.rbegin(); taxCount != allTaxCounts.rend(); ++taxCount) {
+            //find closest parent
+            auto lineage = db.ranks(taxCount->first);
+            const taxon* parent = nullptr;
+            unsigned index = static_cast<unsigned>(taxCount->first->rank())+1;
+            while(index < lineage.size()) {
+                parent = lineage[index++];
+                if(parent && taxWeights.count(parent)) {
+                    //add own count to parent
+                    taxWeights[parent] += taxWeights[taxCount->first] + taxCount->second;
+                    //link from parent to child
+                    taxChildren[parent].emplace_back(taxCount->first);
+                    break;
+                }
+            }
+        }
+
+        //distribute counts to children and erase parents
+        //traverse allTaxCounts from root to leafs
+        for(auto taxCount = allTaxCounts.begin(); taxCount != allTaxCounts.end();) {
+            auto children = taxChildren.find(taxCount->first);
+            if(children != taxChildren.end()) {
+                query_id sumChildren = taxWeights[taxCount->first];
+ 
+                //distribute proportionally
+                for(const auto& child : children->second) {
+                    allTaxCounts[child] += taxCount->second * (allTaxCounts[child]+taxWeights[child]) / sumChildren;
+                }
+                taxCount = allTaxCounts.erase(taxCount);
+            }
+            else {
+                ++taxCount;
+            }
+        }
+        //remaining tax counts are leafs
+
+        auto assignedCount = results.statistics.assigned();
+
+        //output leafs
+        results.auxout
+            << opt.output.format.comment
+            << "estimation: number of reads per " << taxonomy::rank_name(opt.output.showEstimationAtRank) << "\n";
+        for(const auto& taxCount : allTaxCounts) {
+            results.auxout
+                << taxCount.first->rank_name() << opt.output.format.rankSuffix
+                << taxCount.first->name() << opt.output.format.column
+                << taxCount.second / assignedCount << "% (" << taxCount.second << ')'
+                << '\n'; 
+        }
     }
 }
 
