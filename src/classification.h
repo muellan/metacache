@@ -81,6 +81,23 @@ void map_queries_to_targets(
     classification_results&);
 
 
+/*************************************************************************//**
+ *
+ * @brief sorting taxa by rank
+ *
+ *****************************************************************************/
+struct sortTaxaByRank {
+    //sort by rank starting with root, then by id
+    bool operator() (const taxon* lhs, const taxon* rhs) {
+        if(lhs->rank() > rhs->rank()) return true;
+        if(lhs->rank() < rhs->rank()) return false;
+        return lhs->id() < rhs->id();
+    }
+};
+using taxon_count_map = std::map<const taxon*, float, sortTaxaByRank>;
+// using taxon_count_map = std::unordered_map<const taxon*, query_id>;
+
+
 } // namespace mc
 
 #endif

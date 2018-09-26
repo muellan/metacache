@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "candidates.h"
+#include "classification.h"
 #include "classification_statistics.h"
 #include "matches_per_target.h"
 #include "sketch_database.h"
@@ -424,10 +425,16 @@ void show_matches_per_targets(std::ostream& os,
                               const matches_per_target& tgtMatches,
                               const classification_output_options& opt)
 {
+    os << opt.format.comment
+       << "--- list of hits for each reference sequence ---\n"
+       << opt.format.comment
+       << "window start position within sequence = window_index * window_stride(="
+       << db.query_window_stride() << ")\n";
+
     os << opt.format.comment << "TABLE_LAYOUT: "
-        << " sequence " << opt.format.column
-        << " windows_in_sequence " << opt.format.column
-        << "queryid/window_index:hits/window_index:hits/...,queryid/...\n";
+       << " sequence " << opt.format.column
+       << " windows_in_sequence " << opt.format.column
+       << "queryid/window_index:hits/window_index:hits/...,queryid/...\n";
 
     for(const auto& mapping : tgtMatches) {
         show_taxon(os, db, opt, mapping.first);
@@ -444,6 +451,37 @@ void show_matches_per_targets(std::ostream& os,
             }
         }
         os << '\n';
+    }
+}
+
+
+
+void show_tax_counts(std::ostream& os,
+                     const taxon_count_map& allTaxCounts,
+                     const classification_output_options&  opt) {
+    os << opt.format.comment
+       << "query summary: number of reads mapped per taxon\n";
+    for(const auto& taxCount : allTaxCounts) {
+        os << taxCount.first->rank_name() << opt.format.rankSuffix
+           << taxCount.first->name() << opt.format.column
+           << taxCount.second
+           << '\n';
+    }
+}
+
+
+
+void show_estimation(std::ostream& os,
+                     const taxon_count_map& allTaxCounts,
+                     const classification_statistics::count_t assignedCount,
+                     const classification_output_options&  opt) {
+    os << opt.format.comment
+       << "estimated abundance (number of reads) per " << taxonomy::rank_name(opt.showEstimationAtRank) << "\n";
+    for(const auto& taxCount : allTaxCounts) {
+        os << taxCount.first->rank_name() << opt.format.rankSuffix
+           << taxCount.first->name() << opt.format.column
+           << taxCount.second / assignedCount << "% (" << taxCount.second << ')'
+           << '\n';
     }
 }
 
