@@ -480,7 +480,7 @@ void show_estimation(std::ostream& os,
     for(const auto& taxCount : allTaxCounts) {
         os << taxCount.first->rank_name() << opt.format.rankSuffix
            << taxCount.first->name() << opt.format.column
-           << taxCount.second / assignedCount << "% (" << taxCount.second << ')'
+           << taxCount.second / assignedCount * 100 << "% (" << taxCount.second << ')'
            << '\n';
     }
 }
