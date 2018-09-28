@@ -715,8 +715,8 @@ void map_queries_to_targets_default(
     if(opt.output.showEstimationAtRank != taxonomy::rank::none) {
         estimate_abundance(db, allTaxCounts, opt.output.showEstimationAtRank);
 
-        auto assignedCount = results.statistics.assigned();
-        show_estimation(results.auxout, allTaxCounts, assignedCount, opt.output);
+        auto totalCount = results.statistics.total();
+        show_estimation(results.auxout, allTaxCounts, totalCount, opt.output);
     }
 }
 

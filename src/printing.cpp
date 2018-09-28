@@ -473,14 +473,14 @@ void show_tax_counts(std::ostream& os,
 
 void show_estimation(std::ostream& os,
                      const taxon_count_map& allTaxCounts,
-                     const classification_statistics::count_t assignedCount,
+                     const classification_statistics::count_t totalCount,
                      const classification_output_options&  opt) {
     os << opt.format.comment
        << "estimated abundance (number of reads) per " << taxonomy::rank_name(opt.showEstimationAtRank) << "\n";
     for(const auto& taxCount : allTaxCounts) {
         os << taxCount.first->rank_name() << opt.format.rankSuffix
            << taxCount.first->name() << opt.format.column
-           << taxCount.second / assignedCount * 100 << "% (" << taxCount.second << ')'
+           << taxCount.second / totalCount * 100 << "% (" << taxCount.second << ')'
            << '\n';
     }
 }
