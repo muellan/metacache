@@ -352,16 +352,21 @@ get_query_options(const args_parser& args,
     opt.splitFiles = defaults.splitFiles ||
                      args.contains({"splitout","split-out"});
 
-    opt.outfile = args.get<string>("out", defaults.outfile);
-    if(opt.outfile.empty()) {
+    opt.readsFile = args.get<string>("out", defaults.readsFile);
+    if(opt.readsFile.empty()) {
         //use string after "splitout" as output filename prefix
-        opt.outfile = args.get<string>({"splitout","split-out"}, "");
+        opt.readsFile = args.get<string>({"splitout","split-out"}, "");
     }
 
-    opt.auxfile = args.get<string>({"hits-per-seq", "hitsperseq", "hits_per_seq",
+    opt.targetsFile = args.get<string>({"hits-per-seq", "hitsperseq", "hits_per_seq",
                        "hits-per-sequence", "hitspersequence", "hits_per_sequence"}, "");
 
-    if(opt.auxfile == opt.outfile) opt.auxfile.clear();
+    if(opt.targetsFile == opt.readsFile) opt.targetsFile.clear();
+
+    opt.taxaFile = args.get<string>({"taxcounts", "tax-counts", "taxon_counts",
+                       "taxoncounts", "taxon-counts", "taxon_counts"}, "");
+
+    if(opt.taxaFile == opt.readsFile) opt.taxaFile.clear();
 
     opt.showDBproperties = defaults.showDBproperties || args.contains("verbose");
 

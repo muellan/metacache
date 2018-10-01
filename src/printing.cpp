@@ -456,6 +456,7 @@ void show_matches_per_targets(std::ostream& os,
 
 
 
+//-------------------------------------------------------------------
 void show_tax_counts(std::ostream& os,
                      const taxon_count_map& allTaxCounts,
                      const classification_output_options&  opt) {
@@ -471,6 +472,7 @@ void show_tax_counts(std::ostream& os,
 
 
 
+//-------------------------------------------------------------------
 void show_estimation(std::ostream& os,
                      const taxon_count_map& allTaxCounts,
                      const classification_statistics::count_t totalCount,

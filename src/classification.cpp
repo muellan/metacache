@@ -688,13 +688,13 @@ void map_queries_to_targets_default(
                 allTaxCounts[taxCount.first] += taxCount.second;
         }
         //write output buffer to output stream when batch is finished
-        results.mapout << buf.out.str();
+        results.perReadOut << buf.out.str();
     };
 
     //runs if something needs to be appended to the output
     const auto appendToOutput = [&] (const std::string& msg) {
         if(opt.output.mapViewMode != map_view_mode::none) {
-            results.mapout << opt.output.format.comment << msg << '\n';
+            results.perReadOut << opt.output.format.comment << msg << '\n';
         }
     };
 
@@ -705,18 +705,18 @@ void map_queries_to_targets_default(
 
     if(opt.output.showHitsPerTargetList) {
         tgtMatches.sort_match_lists();
-        show_matches_per_targets(results.auxout, db, tgtMatches, opt.output);
+        show_matches_per_targets(results.perTargetOut, db, tgtMatches, opt.output);
     }
 
     if(opt.output.showTaxCounts) {
-        show_tax_counts(results.auxout, allTaxCounts, opt.output);
+        show_tax_counts(results.perTaxonOut, allTaxCounts, opt.output);
     }
 
     if(opt.output.showEstimationAtRank != taxonomy::rank::none) {
         estimate_abundance(db, allTaxCounts, opt.output.showEstimationAtRank);
 
         auto totalCount = results.statistics.total();
-        show_estimation(results.auxout, allTaxCounts, totalCount, opt.output);
+        show_estimation(results.perTaxonOut, allTaxCounts, totalCount, opt.output);
     }
 }
 
@@ -733,7 +733,7 @@ void map_queries_to_targets(const vector<string>& infiles,
                             classification_results& results)
 {
     if(opt.output.mapViewMode != map_view_mode::none) {
-        show_query_mapping_header(results.mapout, opt.output);
+        show_query_mapping_header(results.perReadOut, opt.output);
     }
 
     map_queries_to_targets_default(infiles, db, opt, results);

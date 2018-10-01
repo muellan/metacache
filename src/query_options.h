@@ -244,10 +244,12 @@ struct query_options
 
     //make a separate output file for each input file
     bool splitFiles = false;
-    //output filename for mappings
-    std::string outfile;
-    //output filename for additional analyses
-    std::string auxfile;
+    //output filename for mappings per read
+    std::string readsFile;
+    //output filename for mappings per target
+    std::string targetsFile;
+    //output filename for mappings per taxon
+    std::string taxaFile;
     //show database properties
     bool showDBproperties = false;
     bool showQueryParams = true;
