@@ -100,8 +100,8 @@ using sketcher = single_function_unique_min_hasher<kmer_type,sketching_hash>;
  *        note: std::hash<SomeUnsignedIntegerType>
  *              is mostly implemented as the identity function
  */
-using feature_hash = std::hash<typename sketcher::feature_type>;
-//using feature_hash = same_size_hash<typename sketcher::feature_type>;
+//using feature_hash = std::hash<typename sketcher::feature_type>;
+using feature_hash = same_size_hash<typename sketcher::feature_type>;
 
 
 /**************************************************************************
