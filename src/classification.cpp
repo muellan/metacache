@@ -396,21 +396,23 @@ void evaluate_classification(
  * @brief estimate read counts per taxon at specific level
  *
  *****************************************************************************/
-void estimate_abundance(const database& db, taxon_count_map& allTaxCounts, const taxonomy::rank rank) {
-    //prune taxon below estimation rank
-    taxon t{0,0,"",static_cast<taxonomy::rank>(static_cast<unsigned>(rank)+1)};
-    auto begin = allTaxCounts.lower_bound(&t);
-    for(auto taxCount = begin; taxCount != allTaxCounts.end();) {
-        auto lineage = db.ranks(taxCount->first);
-        const taxon* ancestor = nullptr;
-        unsigned index = static_cast<unsigned>(taxCount->first->rank())+1;
-        while(!ancestor && index < lineage.size())
-            ancestor = lineage[index++];
-        if(ancestor) {
-            allTaxCounts[ancestor] += taxCount->second;
-            taxCount = allTaxCounts.erase(taxCount);
-        } else {
-            ++taxCount;
+void estimate_abundance(const database& db, taxon_count_map& allTaxCounts, const taxon_rank rank) {
+    if(rank != taxon_rank::Sequence) {
+        //prune taxon below estimation rank
+        taxon t{0,0,"",static_cast<taxon_rank>(static_cast<unsigned>(rank)-1)};
+        auto begin = allTaxCounts.lower_bound(&t);
+        for(auto taxCount = begin; taxCount != allTaxCounts.end();) {
+            auto lineage = db.ranks(taxCount->first);
+            const taxon* ancestor = nullptr;
+            unsigned index = static_cast<unsigned>(rank);
+            while(!ancestor && index < lineage.size())
+                ancestor = lineage[index++];
+            if(ancestor) {
+                allTaxCounts[ancestor] += taxCount->second;
+                taxCount = allTaxCounts.erase(taxCount);
+            } else {
+                ++taxCount;
+            }
         }
     }
 
