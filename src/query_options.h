@@ -226,6 +226,19 @@ struct classification_output_options
     taxon_rank highestRank = taxon_rank::Domain;
 
     formatting_strings format;
+
+    //make a separate output file for each input file
+    bool splitFiles = false;
+    //output filename for mappings per read
+    std::string readsFile;
+    //output filename for mappings per target
+    std::string targetsFile;
+    //output filename for mappings per taxon
+    std::string taxaFile;
+    //show database properties
+    bool showDBproperties = false;
+    bool showQueryParams = true;
+    bool showSummary = true;
 };
 
 
@@ -241,19 +254,6 @@ struct query_options
     classification_options classify;
     evaluation_options evaluate;
     classification_output_options output;
-
-    //make a separate output file for each input file
-    bool splitFiles = false;
-    //output filename for mappings per read
-    std::string readsFile;
-    //output filename for mappings per target
-    std::string targetsFile;
-    //output filename for mappings per taxon
-    std::string taxaFile;
-    //show database properties
-    bool showDBproperties = false;
-    bool showQueryParams = true;
-    bool showSummary = true;
 };
 
 

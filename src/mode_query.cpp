@@ -135,7 +135,7 @@ void process_input_files(const vector<string>& infiles,
 
     classification_results results {*perReadOut,*perTargetOut,*perTaxonOut,*status};
 
-    if(opt.showQueryParams) {
+    if(opt.output.showQueryParams) {
         show_query_parameters(results.perReadOut, opt);
     }
 
@@ -148,7 +148,7 @@ void process_input_files(const vector<string>& infiles,
     clear_current_line(results.status);
     results.status.flush();
 
-    if(opt.showSummary) show_summary(opt, results);
+    if(opt.output.showSummary) show_summary(opt, results);
 
     results.flush_all_streams();
 }
@@ -179,7 +179,7 @@ void process_input_files(const vector<string>& infiles,
     }
 
     //process files / file pairs separately
-    if(opt.splitFiles) {
+    if(opt.output.splitFiles) {
         string readsFile;
         string targetsFile;
         string taxaFile;
@@ -188,49 +188,62 @@ void process_input_files(const vector<string>& infiles,
             for(std::size_t i = 0; i < infiles.size(); i += 2) {
                 const auto& f1 = infiles[i];
                 const auto& f2 = infiles[i+1];
-                if(!opt.readsFile.empty()) {
-                    readsFile = opt.readsFile
+                if(!opt.output.readsFile.empty()) {
+                    readsFile = opt.output.readsFile
                             + "_" + extract_filename(f1)
                             + "_" + extract_filename(f2)
                             + ".txt";
                 }
-                if(!opt.targetsFile.empty() && opt.targetsFile != opt.readsFile) {
-                    targetsFile = opt.targetsFile
+                if(!opt.output.targetsFile.empty() && 
+                    opt.output.targetsFile != opt.output.readsFile)
+                {
+                    targetsFile = opt.output.targetsFile
                             + "_" + extract_filename(f1)
                             + "_" + extract_filename(f2)
                             + ".txt";
                 }
-                if(!opt.taxaFile.empty() && opt.taxaFile != opt.readsFile) {
-                    taxaFile = opt.taxaFile
+                if(!opt.output.taxaFile.empty() && 
+                    opt.output.taxaFile != opt.output.readsFile)
+                {
+                    taxaFile = opt.output.taxaFile
                             + "_" + extract_filename(f1)
                             + "_" + extract_filename(f2)
                             + ".txt";
                 }
-                process_input_files(vector<string>{f1,f2}, db, opt, readsFile, targetsFile, taxaFile);
+                process_input_files(vector<string>{f1,f2}, db, opt,
+                                    readsFile, targetsFile, taxaFile);
             }
         }
         //process each input file separately
         else {
             for(const auto& f : infiles) {
-                if(!opt.readsFile.empty()) {
-                    readsFile = opt.readsFile + "_"
+                if(!opt.output.readsFile.empty()) {
+                    readsFile = opt.output.readsFile + "_"
                             + extract_filename(f) + ".txt";
                 }
-                if(!opt.targetsFile.empty() && opt.targetsFile != opt.readsFile) {
-                    targetsFile = opt.targetsFile + "_"
+                if(!opt.output.targetsFile.empty() && 
+                    opt.output.targetsFile != opt.output.readsFile)
+                {
+                    targetsFile = opt.output.targetsFile + "_"
                             + extract_filename(f) + ".txt";
                 }
-                if(!opt.taxaFile.empty() && opt.taxaFile != opt.readsFile) {
-                    taxaFile = opt.taxaFile + "_"
+                if(!opt.output.taxaFile.empty() && 
+                    opt.output.taxaFile != opt.output.readsFile)
+                {
+                    taxaFile = opt.output.taxaFile + "_"
                             + extract_filename(f) + ".txt";
                 }
-                process_input_files(vector<string>{f}, db, opt, readsFile, targetsFile, taxaFile);
+                process_input_files(vector<string>{f}, db, opt,
+                                    readsFile, targetsFile, taxaFile);
             }
         }
     }
     //process all input files at once
     else {
-        process_input_files(infiles, db, opt, opt.readsFile, opt.targetsFile, opt.taxaFile);
+        process_input_files(infiles, db, opt,
+                            opt.output.readsFile,
+                            opt.output.targetsFile,
+                            opt.output.taxaFile);
     }
 }
 
@@ -406,7 +419,7 @@ void main_mode_query(const args_parser& args)
 
     auto db = read_database(dbname, get_database_query_options(args));
 
-    if(opt.showDBproperties) {
+    if(opt.output.showDBproperties) {
         print_static_properties(db);
         print_content_properties(db);
     }
