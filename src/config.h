@@ -112,12 +112,12 @@ using database = sketch_database<sequence,sketcher,feature_hash,
                                  target_id,window_id,loclist_size_t>;
 
 /** @brief pull some types from database into global namespace */
-using taxon                = database::taxon;
-using taxon_rank           = database::taxon_rank;
-using taxon_id             = database::taxon_id;
-using ranked_lineage       = database::ranked_lineage;
-using match_locations      = database::match_locations;
-using match_target_locations      = database::match_target_locations;
+using taxon                  = database::taxon;
+using taxon_rank             = database::taxon_rank;
+using taxon_id               = database::taxon_id;
+using ranked_lineage         = database::ranked_lineage;
+using match_locations        = database::match_locations;
+using match_target_locations = database::match_target_locations;
 
 
 /**************************************************************************

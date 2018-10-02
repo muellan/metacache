@@ -113,20 +113,22 @@ void show_matches_per_targets(std::ostream&,
  * @brief prints a list of accumulated read counts per taxon
  *
  *****************************************************************************/
-void show_tax_counts(std::ostream&,
+void show_abundances(std::ostream&,
                      const taxon_count_map&,
+                     const classification_statistics::count_t,
                      const classification_output_options&);
 
 
 /*************************************************************************//**
  *
- * @brief prints a list of estimated read counts per taxon at specific level
+ * @brief prints a list of accumulated read counts per taxon
+ * @pre   all taxa are assumed to have the same rank
  *
  *****************************************************************************/
-void show_estimation(std::ostream&,
-                     const taxon_count_map&,
-                     const classification_statistics::count_t,
-                     const classification_output_options&);
+void show_abundance_estimates(std::ostream&,
+                              const taxon_count_map&,
+                              const classification_statistics::count_t,
+                              const classification_output_options&);
 
 
 /*************************************************************************//**

@@ -109,7 +109,7 @@ fi
 # ---------------------------------------------------------
 # classification tests
 # ---------------------------------------------------------
-common="-noqueryparams -mapped-only -precision -ground-truth -tophits -allhits -hits-per-seq"
+common="-noqueryparams -mapped-only -precision -ground-truth -tophits -allhits -hits-per-seq -abundances -abundance-per species"
 tests=""
 tests="${tests} data/single.fa ${common}\n"
 tests="${tests} data/pairs.fa -pairseq ${common}\n"

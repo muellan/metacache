@@ -156,10 +156,17 @@ public:
 
     //---------------------------------------------------------------
     inline friend rank& operator ++ (rank& r) {
-        return int(r) < num_ranks ? (r = rank(int(r) + 1)) : r;
+        return std::uint8_t(r) < num_ranks ? (r = rank(std::uint8_t(r) + 1)) : r;
     }
     inline friend rank& operator -- (rank& r) {
-        return int(r) > 1 ? (r = rank(int(r) - 1)) : r;
+        return std::uint8_t(r) > 0 ? (r = rank(std::uint8_t(r) - 1)) : r;
+    }
+
+    inline friend rank operator + (rank r, std::uint8_t offset) {
+        return std::uint8_t(r) < num_ranks ? rank(std::uint8_t(r) + offset) : rank::root;
+    }
+    inline friend rank operator - (rank r, std::uint8_t offset) {
+        return std::uint8_t(r) >= offset ? rank(std::uint8_t(r) - offset) : rank::Sequence;
     }
 
 

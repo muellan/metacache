@@ -457,34 +457,49 @@ void show_matches_per_targets(std::ostream& os,
 
 
 //-------------------------------------------------------------------
-void show_tax_counts(std::ostream& os,
-                     const taxon_count_map& allTaxCounts,
-                     const classification_output_options&  opt) {
-    os << opt.format.comment
-       << "query summary: number of reads mapped per taxon\n";
-    for(const auto& taxCount : allTaxCounts) {
-        os << taxCount.first->rank_name() << opt.format.rankSuffix
-           << taxCount.first->name() << opt.format.column
-           << taxCount.second
-           << '\n';
+void show_abundance_table(std::ostream& os,
+                          const taxon_count_map& allTaxCounts,
+                          const classification_statistics::count_t totalCount,
+                          const classification_output_options&  opt)
+{
+    for(const auto& tc : allTaxCounts) {
+        if(tc.first) {
+            os << tc.first->rank_name() << opt.format.rankSuffix
+               << tc.first->name();
+        } else {
+            os << "none";
+        }
+        os << opt.format.column << tc.second << opt.format.column
+           << (tc.second / double(totalCount) * 100) << "%\n";
     }
 }
 
 
 
 //-------------------------------------------------------------------
-void show_estimation(std::ostream& os,
+void show_abundances(std::ostream& os,
                      const taxon_count_map& allTaxCounts,
                      const classification_statistics::count_t totalCount,
-                     const classification_output_options&  opt) {
+                     const classification_output_options& opt)
+{
     os << opt.format.comment
-       << "estimated abundance (number of reads) per " << taxonomy::rank_name(opt.showEstimationAtRank) << "\n";
-    for(const auto& taxCount : allTaxCounts) {
-        os << taxCount.first->rank_name() << opt.format.rankSuffix
-           << taxCount.first->name() << opt.format.column
-           << taxCount.second / totalCount * 100 << "% (" << taxCount.second << ')'
-           << '\n';
-    }
+        << "query summary: number of queries mapped per taxon\n";
+    show_abundance_table(os, allTaxCounts, totalCount, opt);
+}
+
+
+
+//-------------------------------------------------------------------
+void show_abundance_estimates(std::ostream& os,
+                              const taxon_count_map& allTaxCounts,
+                              const classification_statistics::count_t totalCount,
+                              const classification_output_options& opt)
+{
+    os << opt.format.comment
+       << "estimated abundance (number of queries) per "
+       << taxonomy::rank_name(opt.showAbundanceEstimatesOnRank) << "\n";
+
+    show_abundance_table(os, allTaxCounts, totalCount, opt);
 }
 
 

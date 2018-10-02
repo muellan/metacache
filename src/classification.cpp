@@ -361,7 +361,7 @@ void evaluate_classification(
 void estimate_abundance(const database& db, taxon_count_map& allTaxCounts, const taxon_rank rank) {
     if(rank != taxon_rank::Sequence) {
         //prune taxon below estimation rank
-        taxon t{0,0,"",static_cast<taxon_rank>(static_cast<unsigned>(rank)-1)};
+        taxon t{0,0,"",rank-1};
         auto begin = allTaxCounts.lower_bound(&t);
         for(auto taxCount = begin; taxCount != allTaxCounts.end();) {
             auto lineage = db.ranks(taxCount->first);
@@ -393,7 +393,7 @@ void estimate_abundance(const database& db, taxon_count_map& allTaxCounts, const
         //find closest parent
         auto lineage = db.ranks(taxCount->first);
         const taxon* parent = nullptr;
-        unsigned index = static_cast<unsigned>(taxCount->first->rank())+1;
+        auto index = static_cast<std::uint8_t>(taxCount->first->rank()+1);
         while(index < lineage.size()) {
             parent = lineage[index++];
             if(parent && taxWeights.count(parent)) {
@@ -632,7 +632,7 @@ void map_queries_to_targets_default(
         }
 
         if(opt.output.makeTaxCounts && cls.best) {
-            buf.taxCounts[cls.best] += 1;
+            ++buf.taxCounts[cls.best];
         }
 
         evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
@@ -672,15 +672,16 @@ void map_queries_to_targets_default(
         show_matches_per_targets(results.perTargetOut, db, tgtMatches, opt.output);
     }
 
-    if(opt.output.showTaxCounts) {
-        show_tax_counts(results.perTaxonOut, allTaxCounts, opt.output);
+    if(opt.output.showTaxAbundances) {
+        show_abundances(results.perTaxonOut, allTaxCounts,
+                        results.statistics.total(), opt.output);
     }
 
-    if(opt.output.showEstimationAtRank != taxonomy::rank::none) {
-        estimate_abundance(db, allTaxCounts, opt.output.showEstimationAtRank);
+    if(opt.output.showAbundanceEstimatesOnRank != taxonomy::rank::none) {
+        estimate_abundance(db, allTaxCounts, opt.output.showAbundanceEstimatesOnRank);
 
-        auto totalCount = results.statistics.total();
-        show_estimation(results.perTaxonOut, allTaxCounts, totalCount, opt.output);
+        show_abundance_estimates(results.perTaxonOut, allTaxCounts,
+                                 results.statistics.total(), opt.output);
     }
 }
 

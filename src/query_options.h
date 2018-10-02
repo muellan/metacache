@@ -213,9 +213,9 @@ struct classification_output_options
     //show list of target -> hit mappings
     bool showHitsPerTargetList = false;
     //show list of taxon -> number of reads
-    bool showTaxCounts = false;
+    bool showTaxAbundances = false;
     //show estimated number of reads at specific rank
-    taxon_rank showEstimationAtRank = taxon_rank::none;
+    taxon_rank showAbundanceEstimatesOnRank = taxon_rank::none;
     //needed for the two options above
     bool makeTaxCounts = false;
     //show error messages?
@@ -230,11 +230,11 @@ struct classification_output_options
     //make a separate output file for each input file
     bool splitFiles = false;
     //output filename for mappings per read
-    std::string readsFile;
+    std::string queryMappingsFile;
     //output filename for mappings per target
     std::string targetsFile;
     //output filename for mappings per taxon
-    std::string taxaFile;
+    std::string abundanceFile;
     //show database properties
     bool showDBproperties = false;
     bool showQueryParams = true;

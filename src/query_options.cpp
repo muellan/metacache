@@ -302,26 +302,24 @@ get_classification_output_options(const args_parser& args,
 
     opt.targetsFile = args.get<string>(
                       {"hits-per-seq", "hitsperseq", "hits_per_seq",
-                       "hits-per-sequence", "hitspersequence", "hits_per_sequence"}, "");
+                       "hits-per-sequence", "hitspersequence", "hits_per_sequence"},
+                       defaults.targetsFile);
 
     opt.showQueryIds = opt.showQueryIds || opt.showHitsPerTargetList;
 
-    opt.showTaxCounts = defaults.showTaxCounts ||
-        args.contains({"taxcounts", "tax-counts", "taxon_counts",
-                       "taxoncounts", "taxon-counts", "taxon_counts"});
+    opt.showTaxAbundances = defaults.showTaxAbundances || args.contains("abundances");
 
-    opt.taxaFile = args.get<string>(
-                      {"taxcounts", "tax-counts", "taxon_counts",
-                       "taxoncounts", "taxon-counts", "taxon_counts"}, "");
+    opt.abundanceFile = args.get<string>("abundances", defaults.abundanceFile);
 
-    opt.showEstimationAtRank = defaults.showEstimationAtRank;
-    auto estimationRank = args.get<string>({"estimate", "estimation"}, "");
+    opt.showAbundanceEstimatesOnRank = defaults.showAbundanceEstimatesOnRank;
+    auto estimationRank = args.get<string>({"abundance-per", "abundances-per",
+                                            "abundance_per", "abundances_per"}, "");
     if(!estimationRank.empty()) {
         auto r = taxonomy::rank_from_name(estimationRank);
-        if(r < taxon_rank::root) opt.showEstimationAtRank = r;
+        if(r < taxon_rank::root) opt.showAbundanceEstimatesOnRank = r;
     }
 
-    if(opt.showTaxCounts || (opt.showEstimationAtRank != taxon_rank::none))
+    if(opt.showTaxAbundances || (opt.showAbundanceEstimatesOnRank != taxon_rank::none))
         opt.makeTaxCounts = true;
 
     opt.showErrors = defaults.showErrors && !args.contains({"-noerr","-noerrors"});
@@ -345,15 +343,16 @@ get_classification_output_options(const args_parser& args,
     opt.splitFiles = defaults.splitFiles ||
                      args.contains({"splitout","split-out"});
 
-    opt.readsFile = args.get<string>("out", defaults.readsFile);
-    if(opt.readsFile.empty()) {
+    opt.queryMappingsFile = args.get<string>("out", defaults.queryMappingsFile);
+    if(opt.queryMappingsFile.empty()) {
         //use string after "splitout" as output filename prefix
-        opt.readsFile = args.get<string>({"splitout","split-out"}, "");
+        opt.queryMappingsFile = args.get<string>({"splitout","split-out"},
+                                                 defaults.queryMappingsFile);
     }
 
-    if(opt.targetsFile == opt.readsFile) opt.targetsFile.clear();
+    if(opt.targetsFile == opt.queryMappingsFile) opt.targetsFile.clear();
 
-    if(opt.taxaFile == opt.readsFile) opt.taxaFile.clear();
+    if(opt.abundanceFile == opt.queryMappingsFile) opt.abundanceFile.clear();
 
     return opt;
 }

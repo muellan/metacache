@@ -82,9 +82,9 @@ void show_summary(const query_options& opt,
  *****************************************************************************/
 void process_input_files(const vector<string>& infiles,
                          const database& db, const query_options& opt,
-                         const string& readsFilename,
+                         const string& queryMappingsFilename,
                          const string& targetsFilename,
-                         const string& taxaFilename)
+                         const string& abundanceFilename)
 {
     std::ostream* perReadOut   = &cout;
     std::ostream* perTargetOut = &cout;
@@ -92,18 +92,18 @@ void process_input_files(const vector<string>& infiles,
     std::ostream* status       = &cerr;
 
     std::ofstream mapFile;
-    if(!readsFilename.empty()) {
-        mapFile.open(readsFilename, std::ios::out);
+    if(!queryMappingsFilename.empty()) {
+        mapFile.open(queryMappingsFilename, std::ios::out);
 
         if(mapFile.good()) {
-            cout << "Per-Read mappings will be written to file: " << readsFilename << endl;
+            cout << "Per-Read mappings will be written to file: " << queryMappingsFilename << endl;
             perReadOut = &mapFile;
             //default: auxiliary output same as mappings output
             perTargetOut = perReadOut;
             perTaxonOut  = perReadOut;
         }
         else {
-            throw file_write_error{"Could not write to file " + readsFilename};
+            throw file_write_error{"Could not write to file " + queryMappingsFilename};
         }
     }
 
@@ -120,13 +120,13 @@ void process_input_files(const vector<string>& infiles,
         }
     }
 
-    std::ofstream taxaFile;
-    if(!taxaFilename.empty()) {
-        taxaFile.open(taxaFilename, std::ios::out);
+    std::ofstream abundanceFile;
+    if(!abundanceFilename.empty()) {
+        abundanceFile.open(abundanceFilename, std::ios::out);
 
-        if(taxaFile.good()) {
-            cout << "Per-Taxon mappings will be written to file: " << taxaFilename << endl;
-            perTaxonOut = &taxaFile;
+        if(abundanceFile.good()) {
+            cout << "Per-Taxon mappings will be written to file: " << abundanceFilename << endl;
+            perTaxonOut = &abundanceFile;
         }
         else {
             throw file_write_error{"Could not write to file " + targetsFilename};
@@ -180,70 +180,70 @@ void process_input_files(const vector<string>& infiles,
 
     //process files / file pairs separately
     if(opt.output.splitFiles) {
-        string readsFile;
+        string queryMappingsFile;
         string targetsFile;
-        string taxaFile;
+        string abundanceFile;
         //process each input file pair separately
         if(opt.process.pairing == pairing_mode::files && infiles.size() > 1) {
             for(std::size_t i = 0; i < infiles.size(); i += 2) {
                 const auto& f1 = infiles[i];
                 const auto& f2 = infiles[i+1];
-                if(!opt.output.readsFile.empty()) {
-                    readsFile = opt.output.readsFile
+                if(!opt.output.queryMappingsFile.empty()) {
+                    queryMappingsFile = opt.output.queryMappingsFile
                             + "_" + extract_filename(f1)
                             + "_" + extract_filename(f2)
                             + ".txt";
                 }
                 if(!opt.output.targetsFile.empty() && 
-                    opt.output.targetsFile != opt.output.readsFile)
+                    opt.output.targetsFile != opt.output.queryMappingsFile)
                 {
                     targetsFile = opt.output.targetsFile
                             + "_" + extract_filename(f1)
                             + "_" + extract_filename(f2)
                             + ".txt";
                 }
-                if(!opt.output.taxaFile.empty() && 
-                    opt.output.taxaFile != opt.output.readsFile)
+                if(!opt.output.abundanceFile.empty() && 
+                    opt.output.abundanceFile != opt.output.queryMappingsFile)
                 {
-                    taxaFile = opt.output.taxaFile
+                    abundanceFile = opt.output.abundanceFile
                             + "_" + extract_filename(f1)
                             + "_" + extract_filename(f2)
                             + ".txt";
                 }
                 process_input_files(vector<string>{f1,f2}, db, opt,
-                                    readsFile, targetsFile, taxaFile);
+                                    queryMappingsFile, targetsFile, abundanceFile);
             }
         }
         //process each input file separately
         else {
             for(const auto& f : infiles) {
-                if(!opt.output.readsFile.empty()) {
-                    readsFile = opt.output.readsFile + "_"
+                if(!opt.output.queryMappingsFile.empty()) {
+                    queryMappingsFile = opt.output.queryMappingsFile + "_"
                             + extract_filename(f) + ".txt";
                 }
                 if(!opt.output.targetsFile.empty() && 
-                    opt.output.targetsFile != opt.output.readsFile)
+                    opt.output.targetsFile != opt.output.queryMappingsFile)
                 {
                     targetsFile = opt.output.targetsFile + "_"
                             + extract_filename(f) + ".txt";
                 }
-                if(!opt.output.taxaFile.empty() && 
-                    opt.output.taxaFile != opt.output.readsFile)
+                if(!opt.output.abundanceFile.empty() && 
+                    opt.output.abundanceFile != opt.output.queryMappingsFile)
                 {
-                    taxaFile = opt.output.taxaFile + "_"
+                    abundanceFile = opt.output.abundanceFile + "_"
                             + extract_filename(f) + ".txt";
                 }
                 process_input_files(vector<string>{f}, db, opt,
-                                    readsFile, targetsFile, taxaFile);
+                                    queryMappingsFile, targetsFile, abundanceFile);
             }
         }
     }
     //process all input files at once
     else {
         process_input_files(infiles, db, opt,
-                            opt.output.readsFile,
+                            opt.output.queryMappingsFile,
                             opt.output.targetsFile,
-                            opt.output.taxaFile);
+                            opt.output.abundanceFile);
     }
 }
 
