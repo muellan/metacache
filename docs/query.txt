@@ -130,11 +130,12 @@ ADVANCED ANALYSIS OPTIONS
 
     -abundance-per     Show absolute and relative abundances for each
     <rank>             taxon on one specific rank.
-                       Classifications on higher ranks will be distributed
-                       down according to the relative abundances of classifi-
-                       cations on or below the given rank.
+                       Classifications on higher ranks will be estimated by 
+                       distributing them down according to the relative 
+                       abundances of classifications on or below the given rank.
                        If '-abundances <file>' was given, this list will
                        be printed to the same file.
+                       default:off
 
 ADVANCED OPTIONS 
 
