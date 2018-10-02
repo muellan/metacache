@@ -228,41 +228,6 @@ make_classification_candidates(const database& db,
 
 /*************************************************************************//**
  *
- * @brief  lowest common ancestral taxon of several candidate taxa
- * @detail only candidates with hit counts close to the best candidate are
- *         considered (see threshold)
- *
- *****************************************************************************/
-const taxon*
-lca_if_above_threshold(const database& db,
-                       const classification_options& opt,
-                       const classification_candidates& cand)
-{
-    if(cand.empty() || !cand[0].tax) return nullptr;
-
-    // begin lca with first candidate
-    const taxon* lca_taxon = cand[0].tax;
-    float threshold = cand[0].hits > opt.hitsMin ? (cand[0].hits - opt.hitsMin) * opt.hitsDiffFraction : 0;
-
-    for(auto i = cand.begin()+1; i != cand.end(); ++i) {
-        // include all candidates with hits above threshold
-        if(i->hits > threshold) {
-            // include candidate in lca
-            lca_taxon = db.ranked_lca(lca_taxon, i->tax);
-            // exit early if lca rank already too high
-            if(!lca_taxon || lca_taxon->rank() > opt.highestRank)
-                return nullptr;
-        } else {
-            break;
-        }
-    }
-    return (lca_taxon->rank() <= opt.highestRank) ? lca_taxon : nullptr;
-}
-
-
-
-/*************************************************************************//**
- *
  * @brief  classify using top matches/candidates
  *
  *****************************************************************************/
@@ -270,12 +235,32 @@ const taxon*
 classify(const database& db, const classification_options& opt,
          const classification_candidates& cand)
 {
-    if(cand.empty()) return nullptr;
+    if(cand.empty() || !cand[0].tax) return nullptr;
 
-    //two times top hit < threshold => considered not classifiable
-    if( (2*cand[0].hits) < opt.hitsMin) return nullptr;
+    //hits below threshold => considered not classifiable
+    if(cand[0].hits < opt.hitsMin) return nullptr;
 
-    return lca_if_above_threshold(db, opt, cand);
+    // begin lca with first candidate
+    const taxon* lca = cand[0].tax;
+
+    // include any candidate in classification that is above threshold
+    const float threshold = cand[0].hits > opt.hitsMin
+                          ? (cand[0].hits - opt.hitsMin) * opt.hitsDiffFraction
+                          : 0;
+    // check 2nd, 3rd, ...
+    for(auto i = cand.begin()+1; i != cand.end(); ++i) {
+        // include all candidates with hits above threshold
+        if(i->hits > threshold) {
+            // include candidate in lca
+            lca = db.ranked_lca(lca, i->tax);
+            // exit early if lca rank already too high
+            if(!lca || lca->rank() > opt.highestRank)
+                return nullptr;
+        } else {
+            break;
+        }
+    }
+    return (lca->rank() <= opt.highestRank) ? lca : nullptr;
 }
 
 
