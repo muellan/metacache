@@ -185,51 +185,6 @@ void prepare_evaluation(const database& db,
 
 /*************************************************************************//**
  *
- * @brief lowest common ancestral taxon of several candidate taxa
- *
- *****************************************************************************/
-const taxon*
-lowest_common_ancestor(const database& db,
-                       const classification_options& opt,
-                       const classification_candidates& cand)
-{
-    if(cand.empty() || !cand[0].tax) return nullptr;
-
-    if(cand.size() == 1) {
-        return (cand[0].tax->rank() <= opt.highestRank) ? cand[0].tax : nullptr;
-    }
-
-    if(cand.size() == 2) {
-        // (cand[1].hits > cand[0].hits - opt.hitsMin)
-        const taxon* tax = db.ranked_lca(cand[0].tax, cand[1].tax);
-
-        //classify if rank is below or at the highest rank of interest
-        return (tax && tax->rank() <= opt.highestRank) ? tax : nullptr;
-    }
-
-    // begin lca with first candidate
-    const taxon* lca_taxon = cand[0].tax;
-    float threshold = cand[0].hits > opt.hitsMin ? (cand[0].hits - opt.hitsMin) * opt.hitsDiffFraction : 0;
-
-    for(auto i = cand.begin()+1; i != cand.end(); ++i) {
-        // include all candidates with hits above threshold
-        if(i->hits > threshold) {
-            // include candidate in lca
-            lca_taxon = db.ranked_lca(lca_taxon, i->tax);
-            // exit early if lca rank already too high
-            if(!lca_taxon || lca_taxon->rank() > opt.highestRank)
-                return nullptr;
-        } else {
-            break;
-        }
-    }
-    return lca_taxon;
-}
-
-
-
-/*************************************************************************//**
- *
  * @brief classification cadidates + derived best classification
  *
  *****************************************************************************/
@@ -273,6 +228,51 @@ make_classification_candidates(const database& db,
 
 /*************************************************************************//**
  *
+ * @brief lowest common ancestral taxon of several candidate taxa
+ *
+ *****************************************************************************/
+const taxon*
+lowest_common_ancestor(const database& db,
+                       const classification_options& opt,
+                       const classification_candidates& cand)
+{
+    if(cand.empty() || !cand[0].tax) return nullptr;
+
+    if(cand.size() == 1) {
+        return (cand[0].tax->rank() <= opt.highestRank) ? cand[0].tax : nullptr;
+    }
+
+    if(cand.size() == 2) {
+        // (cand[1].hits > cand[0].hits - opt.hitsMin)
+        const taxon* tax = db.ranked_lca(cand[0].tax, cand[1].tax);
+
+        //classify if rank is below or at the highest rank of interest
+        return (tax && tax->rank() <= opt.highestRank) ? tax : nullptr;
+    }
+
+    // begin lca with first candidate
+    const taxon* lca_taxon = cand[0].tax;
+    float threshold = cand[0].hits > opt.hitsMin ? (cand[0].hits - opt.hitsMin) * opt.hitsDiffFraction : 0;
+
+    for(auto i = cand.begin()+1; i != cand.end(); ++i) {
+        // include all candidates with hits above threshold
+        if(i->hits > threshold) {
+            // include candidate in lca
+            lca_taxon = db.ranked_lca(lca_taxon, i->tax);
+            // exit early if lca rank already too high
+            if(!lca_taxon || lca_taxon->rank() > opt.highestRank)
+                return nullptr;
+        } else {
+            break;
+        }
+    }
+    return (lca_taxon->rank() <= opt.highestRank) ? lca_taxon : nullptr;
+}
+
+
+
+/*************************************************************************//**
+ *
  * @brief  classify using top matches/candidates
  *
  *****************************************************************************/
@@ -286,8 +286,8 @@ classify(const database& db, const classification_options& opt,
         return (cand[0].hits >= opt.hitsMin) ? cand[0].tax : nullptr;
     }
 
-    //sum of top-2 hits < threshold => considered not classifiable
-    if((cand[0].hits + cand[1].hits) < opt.hitsMin) return nullptr;
+    //two times top hit < threshold => considered not classifiable
+    if((2*cand[0].hits) < opt.hitsMin) return nullptr;
 
     //either top 2 are the same sequences with at least 'hitsMin' many hits
     //(checked before) or hit difference between these top 2 is above threshold
