@@ -127,7 +127,7 @@ struct classification_options
     taxon_rank highestRank = taxon_rank::Domain;
 
     std::uint16_t hitsMin  = 0;  //< 1 : deduced from database parameters
-    float hitsDiffFraction = 0.9;
+    float hitsDiffFraction = 1.0f;
     //maximum range in sequence that read (pair) is expected to be in
     std::size_t insertSizeMax = 0;
 
