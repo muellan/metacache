@@ -212,6 +212,12 @@ struct classification_output_options
     bool showAlignment = false;
     //show list of target -> hit mappings
     bool showHitsPerTargetList = false;
+    //show list of taxon -> number of reads
+    bool showTaxCounts = false;
+    //show estimated number of reads at specific rank
+    taxon_rank showEstimationAtRank = taxon_rank::none;
+    //needed for the two options above
+    bool makeTaxCounts = false;
     //show error messages?
     bool showErrors = true;
 
@@ -220,6 +226,19 @@ struct classification_output_options
     taxon_rank highestRank = taxon_rank::Domain;
 
     formatting_strings format;
+
+    //make a separate output file for each input file
+    bool splitFiles = false;
+    //output filename for mappings per read
+    std::string readsFile;
+    //output filename for mappings per target
+    std::string targetsFile;
+    //output filename for mappings per taxon
+    std::string taxaFile;
+    //show database properties
+    bool showDBproperties = false;
+    bool showQueryParams = true;
+    bool showSummary = true;
 };
 
 
@@ -235,17 +254,6 @@ struct query_options
     classification_options classify;
     evaluation_options evaluate;
     classification_output_options output;
-
-    //make a separate output file for each input file
-    bool splitFiles = false;
-    //output filename for mappings
-    std::string outfile;
-    //output filename for additional analyses
-    std::string auxfile;
-    //show database properties
-    bool showDBproperties = false;
-    bool showQueryParams = true;
-    bool showSummary = true;
 };
 
 

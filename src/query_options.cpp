@@ -143,7 +143,7 @@ get_classification_options(const args_parser& args,
     auto lowestRank = args.get<string>("lowest", "");
     if(!lowestRank.empty()) {
         auto r = taxonomy::rank_from_name(lowestRank);
-        if(r < taxonomy::rank::root) opt.lowestRank = r;
+        if(r < taxon_rank::root) opt.lowestRank = r;
     }
 
     opt.highestRank = defaults.highestRank;
@@ -246,6 +246,12 @@ get_classification_output_options(const args_parser& args,
 
 
     //output formatting
+    opt.showQueryIds = args.contains({"queryids", "query-ids", "query_ids",
+                                      "queryid", "query-id", "query_id"});
+
+    opt.lowestRank  = classify.lowestRank;
+    opt.highestRank = classify.highestRank;
+
     opt.showLineage = defaults.showLineage || args.contains("lineage");
 
     opt.showLocations = defaults.showLocations || args.contains("locations");
@@ -294,6 +300,30 @@ get_classification_output_options(const args_parser& args,
         args.contains({"hits-per-seq", "hitsperseq", "hits_per_seq",
                        "hits-per-sequence", "hitspersequence", "hits_per_sequence"});
 
+    opt.targetsFile = args.get<string>(
+                      {"hits-per-seq", "hitsperseq", "hits_per_seq",
+                       "hits-per-sequence", "hitspersequence", "hits_per_sequence"}, "");
+
+    opt.showQueryIds = opt.showQueryIds || opt.showHitsPerTargetList;
+
+    opt.showTaxCounts = defaults.showTaxCounts ||
+        args.contains({"taxcounts", "tax-counts", "taxon_counts",
+                       "taxoncounts", "taxon-counts", "taxon_counts"});
+
+    opt.taxaFile = args.get<string>(
+                      {"taxcounts", "tax-counts", "taxon_counts",
+                       "taxoncounts", "taxon-counts", "taxon_counts"}, "");
+
+    opt.showEstimationAtRank = defaults.showEstimationAtRank;
+    auto estimationRank = args.get<string>({"estimate", "estimation"}, "");
+    if(!estimationRank.empty()) {
+        auto r = taxonomy::rank_from_name(estimationRank);
+        if(r < taxon_rank::root) opt.showEstimationAtRank = r;
+    }
+
+    if(opt.showTaxCounts || (opt.showEstimationAtRank != taxon_rank::none))
+        opt.makeTaxCounts = true;
+
     opt.showErrors = defaults.showErrors && !args.contains({"-noerr","-noerrors"});
 
     opt.showGroundTruth = evaluate.determineGroundTruth;
@@ -302,12 +332,28 @@ get_classification_output_options(const args_parser& args,
         args.contains({"align", "alignment", "showalignment",
                        "showalign", "show-align", "show_align"});
 
-    opt.lowestRank  = classify.lowestRank;
-    opt.highestRank = classify.highestRank;
+    opt.showDBproperties = defaults.showDBproperties || args.contains("verbose");
 
-    opt.showQueryIds = args.contains({"queryids", "query-ids", "query_ids",
-                                      "queryid", "query-id", "query_id"}) ||
-                       opt.showHitsPerTargetList;
+    opt.showQueryParams = (defaults.showQueryParams || args.contains("verbose"))
+                        && !args.contains({"no-query-params", "noqueryparams",
+                                                          "no_query_params"});
+
+    opt.showSummary = (defaults.showSummary || args.contains("verbose")) &&
+                      !(args.contains({"no-summary", "nosummary", "no_summary"}));
+
+    //output files
+    opt.splitFiles = defaults.splitFiles ||
+                     args.contains({"splitout","split-out"});
+
+    opt.readsFile = args.get<string>("out", defaults.readsFile);
+    if(opt.readsFile.empty()) {
+        //use string after "splitout" as output filename prefix
+        opt.readsFile = args.get<string>({"splitout","split-out"}, "");
+    }
+
+    if(opt.targetsFile == opt.readsFile) opt.targetsFile.clear();
+
+    if(opt.taxaFile == opt.readsFile) opt.taxaFile.clear();
 
     return opt;
 }
@@ -334,29 +380,6 @@ get_query_options(const args_parser& args,
                                                      opt.classify,
                                                      opt.evaluate,
                                                      defaults.output);
-
-    opt.splitFiles = defaults.splitFiles ||
-                     args.contains({"splitout","split-out"});
-
-    opt.outfile = args.get<string>("out", defaults.outfile);
-    if(opt.outfile.empty()) {
-        //use string after "splitout" as output filename prefix
-        opt.outfile = args.get<string>({"splitout","split-out"}, "");
-    }
-
-    opt.auxfile = args.get<string>({"hits-per-seq", "hitsperseq", "hits_per_seq",
-                       "hits-per-sequence", "hitspersequence", "hits_per_sequence"}, "");
-
-    if(opt.auxfile == opt.outfile) opt.auxfile.clear();
-
-    opt.showDBproperties = defaults.showDBproperties || args.contains("verbose");
-
-    opt.showQueryParams = (defaults.showQueryParams || args.contains("verbose"))
-                        && !args.contains({"no-query-params", "noqueryparams",
-                                                          "no_query_params"});
-
-    opt.showSummary = (defaults.showSummary || args.contains("verbose")) &&
-                      !(args.contains({"no-summary", "nosummary", "no_summary"}));
 
     return opt;
 }

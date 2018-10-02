@@ -61,13 +61,13 @@ void show_summary(const query_options& opt,
 
     const auto speed = numQueries / results.time.minutes();
     const auto& comment = opt.output.format.comment;
-    results.mapout
+    results.perReadOut
         << comment << "queries: " << numQueries << '\n'
         << comment << "time:    " << results.time.milliseconds() << " ms\n"
         << comment << "speed:   " << speed << " queries/min\n";
 
     if(statistics.total() > 0) {
-        show_taxon_statistics(results.mapout, statistics, comment);
+        show_taxon_statistics(results.perReadOut, statistics, comment);
     } else {
         results.status << comment << "No valid query sequences found." << endl;
     }
@@ -82,45 +82,61 @@ void show_summary(const query_options& opt,
  *****************************************************************************/
 void process_input_files(const vector<string>& infiles,
                          const database& db, const query_options& opt,
-                         const string& mapFilename,
-                         const string& auxFilename)
+                         const string& readsFilename,
+                         const string& targetsFilename,
+                         const string& taxaFilename)
 {
-    std::ostream* mapout = &cout;
-    std::ostream* auxout = &cout;
-    std::ostream* status = &cerr;
+    std::ostream* perReadOut   = &cout;
+    std::ostream* perTargetOut = &cout;
+    std::ostream* perTaxonOut  = &cout;
+    std::ostream* status       = &cerr;
 
     std::ofstream mapFile;
-    if(!mapFilename.empty()) {
-        mapFile.open(mapFilename, std::ios::out);
+    if(!readsFilename.empty()) {
+        mapFile.open(readsFilename, std::ios::out);
 
         if(mapFile.good()) {
-            cout << "Mappings will be written to file: " << mapFilename << endl;
-            mapout = &mapFile;
+            cout << "Per-Read mappings will be written to file: " << readsFilename << endl;
+            perReadOut = &mapFile;
             //default: auxiliary output same as mappings output
-            auxout = mapout;
+            perTargetOut = perReadOut;
+            perTaxonOut  = perReadOut;
         }
         else {
-            throw file_write_error{"Could not write to file " + mapFilename};
+            throw file_write_error{"Could not write to file " + readsFilename};
         }
     }
 
-    std::ofstream auxFile;
-    if(!auxFilename.empty()) {
-        auxFile.open(auxFilename, std::ios::out);
+    std::ofstream targetsFile;
+    if(!targetsFilename.empty()) {
+        targetsFile.open(targetsFilename, std::ios::out);
 
-        if(auxFile.good()) {
-            cout << "Other output will be written to file: " << auxFilename << endl;
-            auxout = &auxFile;
+        if(targetsFile.good()) {
+            cout << "Per-Target mappings will be written to file: " << targetsFilename << endl;
+            perTargetOut = &targetsFile;
         }
         else {
-            throw file_write_error{"Could not write to file " + auxFilename};
+            throw file_write_error{"Could not write to file " + targetsFilename};
         }
     }
 
-    classification_results results {*mapout,*auxout,*status};
+    std::ofstream taxaFile;
+    if(!taxaFilename.empty()) {
+        taxaFile.open(taxaFilename, std::ios::out);
 
-    if(opt.showQueryParams) {
-        show_query_parameters(results.mapout, opt);
+        if(taxaFile.good()) {
+            cout << "Per-Taxon mappings will be written to file: " << taxaFilename << endl;
+            perTaxonOut = &taxaFile;
+        }
+        else {
+            throw file_write_error{"Could not write to file " + targetsFilename};
+        }
+    }
+
+    classification_results results {*perReadOut,*perTargetOut,*perTaxonOut,*status};
+
+    if(opt.output.showQueryParams) {
+        show_query_parameters(results.perReadOut, opt);
     }
 
     results.flush_all_streams();
@@ -132,7 +148,7 @@ void process_input_files(const vector<string>& infiles,
     clear_current_line(results.status);
     results.status.flush();
 
-    if(opt.showSummary) show_summary(opt, results);
+    if(opt.output.showSummary) show_summary(opt, results);
 
     results.flush_all_streams();
 }
@@ -163,47 +179,71 @@ void process_input_files(const vector<string>& infiles,
     }
 
     //process files / file pairs separately
-    if(opt.splitFiles) {
-        string mapfile;
-        string auxfile;
+    if(opt.output.splitFiles) {
+        string readsFile;
+        string targetsFile;
+        string taxaFile;
         //process each input file pair separately
         if(opt.process.pairing == pairing_mode::files && infiles.size() > 1) {
             for(std::size_t i = 0; i < infiles.size(); i += 2) {
                 const auto& f1 = infiles[i];
                 const auto& f2 = infiles[i+1];
-                if(!opt.outfile.empty()) {
-                    mapfile = opt.outfile
+                if(!opt.output.readsFile.empty()) {
+                    readsFile = opt.output.readsFile
                             + "_" + extract_filename(f1)
                             + "_" + extract_filename(f2)
                             + ".txt";
                 }
-                if(!opt.auxfile.empty() && opt.auxfile != opt.outfile) {
-                    auxfile = opt.auxfile
+                if(!opt.output.targetsFile.empty() && 
+                    opt.output.targetsFile != opt.output.readsFile)
+                {
+                    targetsFile = opt.output.targetsFile
                             + "_" + extract_filename(f1)
                             + "_" + extract_filename(f2)
                             + ".txt";
                 }
-                process_input_files(vector<string>{f1,f2}, db, opt, mapfile, auxfile);
+                if(!opt.output.taxaFile.empty() && 
+                    opt.output.taxaFile != opt.output.readsFile)
+                {
+                    taxaFile = opt.output.taxaFile
+                            + "_" + extract_filename(f1)
+                            + "_" + extract_filename(f2)
+                            + ".txt";
+                }
+                process_input_files(vector<string>{f1,f2}, db, opt,
+                                    readsFile, targetsFile, taxaFile);
             }
         }
         //process each input file separately
         else {
             for(const auto& f : infiles) {
-                if(!opt.outfile.empty()) {
-                    mapfile = opt.outfile + "_"
+                if(!opt.output.readsFile.empty()) {
+                    readsFile = opt.output.readsFile + "_"
                             + extract_filename(f) + ".txt";
                 }
-                if(!opt.auxfile.empty() && opt.auxfile != opt.outfile) {
-                    auxfile = opt.auxfile + "_"
+                if(!opt.output.targetsFile.empty() && 
+                    opt.output.targetsFile != opt.output.readsFile)
+                {
+                    targetsFile = opt.output.targetsFile + "_"
                             + extract_filename(f) + ".txt";
                 }
-                process_input_files(vector<string>{f}, db, opt, mapfile, auxfile);
+                if(!opt.output.taxaFile.empty() && 
+                    opt.output.taxaFile != opt.output.readsFile)
+                {
+                    taxaFile = opt.output.taxaFile + "_"
+                            + extract_filename(f) + ".txt";
+                }
+                process_input_files(vector<string>{f}, db, opt,
+                                    readsFile, targetsFile, taxaFile);
             }
         }
     }
     //process all input files at once
     else {
-        process_input_files(infiles, db, opt, opt.outfile, opt.auxfile);
+        process_input_files(infiles, db, opt,
+                            opt.output.readsFile,
+                            opt.output.targetsFile,
+                            opt.output.taxaFile);
     }
 }
 
@@ -379,7 +419,7 @@ void main_mode_query(const args_parser& args)
 
     auto db = read_database(dbname, get_database_query_options(args));
 
-    if(opt.showDBproperties) {
+    if(opt.output.showDBproperties) {
         print_static_properties(db);
         print_content_properties(db);
     }

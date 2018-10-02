@@ -27,6 +27,7 @@
 #include <iosfwd>
 
 #include "config.h"
+#include "classification.h"
 #include "classification_statistics.h"
 #include "matches_per_target.h"
 #include "query_options.h"
@@ -101,10 +102,31 @@ void show_candidate_ranges(std::ostream&,
  * @brief prints a list of all match locations for each classification target
  *
  *****************************************************************************/
-void show_matches_per_targets(std::ostream& os,
+void show_matches_per_targets(std::ostream&,
                               const database&,
                               const matches_per_target&,
                               const classification_output_options&);
+
+
+/*************************************************************************//**
+ *
+ * @brief prints a list of accumulated read counts per taxon
+ *
+ *****************************************************************************/
+void show_tax_counts(std::ostream&,
+                     const taxon_count_map&,
+                     const classification_output_options&);
+
+
+/*************************************************************************//**
+ *
+ * @brief prints a list of estimated read counts per taxon at specific level
+ *
+ *****************************************************************************/
+void show_estimation(std::ostream&,
+                     const taxon_count_map&,
+                     const classification_statistics::count_t,
+                     const classification_output_options&);
 
 
 /*************************************************************************//**

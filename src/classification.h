@@ -46,23 +46,27 @@ struct query_options;
 struct classification_results
 {
     explicit
-    classification_results(std::ostream& mapOutputTgt = std::cout,
-                           std::ostream& auxOutputTgt = std::cout,
-                           std::ostream& statusTarget = std::cerr)
+    classification_results(std::ostream& readOutputTgt   = std::cout,
+                           std::ostream& targetOutputTgt = std::cout,
+                           std::ostream& taxonOutputTgt  = std::cout,
+                           std::ostream& statusTarget    = std::cerr)
     :
-        mapout(mapOutputTgt),
-        auxout(auxOutputTgt),
+        perReadOut(readOutputTgt),
+        perTargetOut(targetOutputTgt),
+        perTaxonOut(taxonOutputTgt),
         status(statusTarget)
     {}
 
     void flush_all_streams() {
-        mapout.flush();
-        auxout.flush();
+        perReadOut.flush();
+        perTargetOut.flush();
+        perTaxonOut.flush();
         status.flush();
     }
 
-    std::ostream& mapout;
-    std::ostream& auxout;
+    std::ostream& perReadOut;
+    std::ostream& perTargetOut;
+    std::ostream& perTaxonOut;
     std::ostream& status;
     timer time;
     classification_statistics statistics;
@@ -79,6 +83,23 @@ void map_queries_to_targets(
     const std::vector<std::string>& inputFilenames,
     const database&, const query_options&,
     classification_results&);
+
+
+/*************************************************************************//**
+ *
+ * @brief sorting taxa by rank
+ *
+ *****************************************************************************/
+struct sortTaxaByRank {
+    //sort by rank starting with root, then by id
+    bool operator() (const taxon* lhs, const taxon* rhs) {
+        if(lhs->rank() > rhs->rank()) return true;
+        if(lhs->rank() < rhs->rank()) return false;
+        return lhs->id() < rhs->id();
+    }
+};
+using taxon_count_map = std::map<const taxon*, float, sortTaxaByRank>;
+// using taxon_count_map = std::unordered_map<const taxon*, query_id>;
 
 
 } // namespace mc
