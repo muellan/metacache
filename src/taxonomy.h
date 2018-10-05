@@ -742,8 +742,12 @@ public:
         lins_.clear();
         if(highestRank_ != taxon_rank::none) {
             for(const auto& t : taxa_) {
-                if(t.rank() <= highestRank_)
-                    lins_.emplace(&t, taxa_.ranks(t));
+                if(t.rank() <= highestRank_) {
+                    auto& lin = lins_.emplace(&t, taxa_.ranks(t)).first->second;
+                    for(const auto& tax : lin) {
+                        operator[](tax);
+                    }
+                }
             }
         }
     }
