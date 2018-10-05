@@ -48,16 +48,16 @@ database_name(const args_parser& args)
 
 //-------------------------------------------------------------------
 std::vector<std::string>
-sequence_filenames(const args_parser& args)
+input_filenames(const args_parser& args, const std::size_t skip = 2)
 {
-    //first 2 non-prefixed args are mode and database name
+    //first <skip> non-prefixed args are ignored
     //all other non-prefixed args that are not
-    //preceded by options ("-xyz") should be sequence file or folder names
+    //preceded by options ("-xyz") should be file or folder names
     auto n = args.non_prefixed_count();
 
     auto files = std::vector<std::string>{};
     files.reserve(n-1);
-    for(std::size_t i = 2; i < n; ++i) {
+    for(std::size_t i = skip; i < n; ++i) {
         if(!args.is_preceded_by_prefixed_arg(i) && //no option
            !args.is_preceded_by_prefixed_arg(i-1)) //no option value
         {
@@ -75,6 +75,30 @@ sequence_filenames(const args_parser& args)
     }
 
     return files;
+}
+
+
+
+//-------------------------------------------------------------------
+std::vector<std::string>
+sequence_filenames(const args_parser& args)
+{
+    //first 2 non-prefixed args are mode and database name
+    //all other non-prefixed args that are not
+    //preceded by options ("-xyz") should be sequence file or folder names
+    return input_filenames(args, 2);
+}
+
+
+
+//-------------------------------------------------------------------
+std::vector<std::string>
+result_filenames(const args_parser& args)
+{
+    //first non-prefixed arg is mode
+    //all other non-prefixed args that are not
+    //preceded by options ("-xyz") should be result file or folder names
+    return input_filenames(args, 1);
 }
 
 
