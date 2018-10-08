@@ -49,34 +49,6 @@ using std::flush;
 
 /*************************************************************************//**
  *
- * @brief runs classification on input files
- *
- *****************************************************************************/
-void show_summary(const query_options& opt,
-                  const classification_results& results)
-{
-    const auto& statistics = results.statistics;
-    const auto numQueries = (opt.process.pairing == pairing_mode::none)
-                            ? statistics.total() : 2 * statistics.total();
-
-    const auto speed = numQueries / results.time.minutes();
-    const auto& comment = opt.output.format.comment;
-    results.perReadOut
-        << comment << "queries: " << numQueries << '\n'
-        << comment << "time:    " << results.time.milliseconds() << " ms\n"
-        << comment << "speed:   " << speed << " queries/min\n";
-
-    if(statistics.total() > 0) {
-        show_taxon_statistics(results.perReadOut, statistics, comment);
-    } else {
-        results.status << comment << "No valid query sequences found." << endl;
-    }
-}
-
-
-
-/*************************************************************************//**
- *
  * @brief runs classification on input files; sets output target streams
  *
  *****************************************************************************/
