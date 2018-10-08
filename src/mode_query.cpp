@@ -129,7 +129,7 @@ void process_input_files(const vector<string>& infiles,
             perTaxonOut = &abundanceFile;
         }
         else {
-            throw file_write_error{"Could not write to file " + targetsFilename};
+            throw file_write_error{"Could not write to file " + abundanceFilename};
         }
     }
 
