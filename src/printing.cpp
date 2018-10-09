@@ -335,12 +335,15 @@ void show_matches(std::ostream& os,
     else {
         for(size_t i = 0; i < cand.size() && cand[i].hits > 0; ++i) {
             if(i > 0) os << ',';
-            const taxon* tax = db.ancestor(cand[i].tax,lowest);
+            const taxon* tax = (cand[i].tax->rank() < lowest) ?
+                               db.ancestor(cand[i].tax,lowest) :
+                               cand[i].tax;
             if(tax) {
-                os << tax->id() << ':' << cand[i].hits;
+                os << tax->id();
             } else {
-                os << cand[i].tax->name() << ':' << int(cand[i].hits) << ',';
+                os << cand[i].tax->name();
             }
+            os << ':' << cand[i].hits;
         }
     }
 }
