@@ -720,7 +720,7 @@ void map_candidates_to_targets(const vector<string>& queryHeaders,
     taxon_count_map allTaxCounts;
 
     for(size_t i = 0; i < queryHeaders.size(); ++i) {
-        sequence_query query{i, std::move(queryHeaders[i]), {}};
+        sequence_query query{i+1, std::move(queryHeaders[i]), {}};
 
         // prepare_evaluation(db, opt.evaluate, query, allhits);
 

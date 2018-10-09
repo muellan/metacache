@@ -78,6 +78,17 @@ get_merge_options(const args_parser& args)
 
     opt.query = get_query_options(args, {});
 
+    //TODO: get hitsmin from file
+    if(opt.query.classify.hitsMin == 0)
+        opt.query.classify.hitsMin = 5;
+    if(opt.query.classify.lowestRank < taxon_rank::Species)
+        opt.query.classify.lowestRank = taxon_rank::Species;
+    if(opt.query.output.lowestRank < taxon_rank::Species)
+        opt.query.output.lowestRank = taxon_rank::Species;
+    //TODO? multi threading
+    if(opt.query.process.numThreads > 1)
+        opt.query.process.numThreads = 1;
+
     return opt;
 }
 
@@ -98,169 +109,200 @@ forward(std::istream& is, char c)
 
 /*************************************************************************//**
  *
+ * @brief parse classification result file
+ *        extract headers and candidates
+ *
+ *****************************************************************************/
+void parse_result_file(const string& file,
+                       const database& db,
+                       vector<string>& queryHeaders,
+                       vector<classification_candidates>& queryCandidates,
+                       const candidate_generation_rules& rules,
+                       bool getHeaders)
+{
+    std::ifstream ifs(file);
+    string line;
+
+    //check classification rank
+    while(ifs.good()) {
+        getline(ifs, line);
+        if(line[0] != '#') {
+            throw io_format_error("classificaion ranks not found in file "+file);
+        }
+        if(line.compare(0,16,"# Classification") == 0) {
+            auto pos = line.find("sequence");
+            if(pos != string::npos)
+                throw io_format_error("cannot merge results on sequence level");
+            break;
+        }
+    }
+
+    //get layout
+    int colTop = 0;
+    while(ifs.good()) {
+        getline(ifs, line);
+        if(line[0] != '#') {
+            throw io_format_error("TABLE_LAYOUT not found in file "+file);
+        }
+        if(line.compare(0,15,"# TABLE_LAYOUT:") == 0) {
+            // cout << line.c_str() << endl;
+            std::stringstream lineStream(line.substr(15));
+            string column;
+            lineStream >> column;
+            // cout << column << endl;
+            if(column != "query_id") {
+                throw io_format_error("no query_id in file "+file);
+            }
+            int col = 0;
+            while(lineStream.good()) {
+                forward(lineStream, '|');
+                lineStream >> column;
+                ++col;
+                if(column == "top_hits") {
+                    colTop = col;
+                    break;
+                }
+            }
+            break;
+        }
+    }
+    if(!colTop)
+        throw io_format_error("no top_hits in file "+file);
+    // cout << "colTop " << colTop << endl;
+
+    char lineBegin = ifs.peek();
+    //skip comments
+    while(ifs.good() && lineBegin == '#') {
+        forward(ifs, '\n');
+        lineBegin = ifs.peek();
+    }
+    //skip results
+    auto resultsBegin = ifs.tellg();
+    while(ifs.good() && lineBegin != '#') {
+        forward(ifs, '\n');
+        lineBegin = ifs.peek();
+    }
+    auto resultsEnd = ifs.tellg();
+
+    //get number of queries
+    size_t numQueries = 0;
+    while(ifs.good() && numQueries == 0) {
+        if(lineBegin == '#') {
+            getline(ifs, line);
+            if(line.compare(0,10,"# queries:") == 0) {
+                // cout << line.c_str() << endl;
+                std::stringstream lineStream(line.substr(10));
+                lineStream >> numQueries;
+                // cout << numQueries << endl;
+
+                queryHeaders.resize(numQueries);
+                queryCandidates.resize(numQueries);
+            }
+        }
+        else {
+            forward(ifs, '\n');
+        }
+        lineBegin = ifs.peek();
+    }
+
+    //read results
+    //TODO: in parallel
+    ifs.seekg(resultsBegin);
+    lineBegin = ifs.peek();
+    while(ifs.good() && lineBegin != '#') {
+        size_t queryId;
+        ifs >> queryId;
+        // cout << queryId << endl;
+        // if(queryHeaders.size() <= queryId) {
+        //     queryHeaders.resize(queryId+1);
+        //     queryCandidates.resize(queryId+1);
+        // }
+        forward(ifs, '|');
+        if(getHeaders) {
+            string header;
+            ifs >> header;
+            // cout << header << endl;
+            queryHeaders[queryId-1] = std::move(header);
+        }
+
+        //skip to tophits
+        for(int i = 1; i < colTop; ++i)
+            forward(ifs, '|');
+        forward(ifs, '\t');
+
+        //get tophits
+        char nextChar = ifs.peek();
+        while(nextChar != '\t') {
+            taxon_id taxid;
+            ifs >> taxid;
+            // cout << taxid << endl;
+
+            forward(ifs, ':');
+            match_candidate::count_type hits;
+            ifs >> hits;
+            // cout << hits << endl;
+
+            const taxon* tax = db.taxon_with_id(taxid);
+            if(tax)
+                queryCandidates[queryId-1].insert(match_candidate{tax, hits}, db, rules);
+            else
+                cerr << "taxid not found" << endl;
+                //TODO? insert new taxon into taxonomy
+
+            nextChar = ifs.get();
+            //if(nextChar == ',') continue;
+        }
+        //end of tophits
+
+        forward(ifs, '\n');
+        lineBegin = ifs.peek();
+
+        // string dummy;
+        // std::cin >> dummy;
+    }
+}
+
+
+
+/*************************************************************************//**
+ *
  * @brief merge classification result files
  *
  *****************************************************************************/
 void merge_result_files(const vector<string>& infiles,
                         const database& db,
 						const query_options& opt,
-                        classification_results& results) {
-    vector<string> queryNames;
-    //get query headers
-
+                        classification_results& results)
+{
+    vector<string> queryHeaders;
     vector<classification_candidates> queryCandidates;
 
     candidate_generation_rules rules;
 
     rules.mergeBelow    = opt.classify.lowestRank;
-    rules.maxCandidates = opt.classify.maxNumCandidatesPerQuery;
+    if(opt.classify.maxNumCandidatesPerQuery > 0)
+        rules.maxCandidates = opt.classify.maxNumCandidatesPerQuery;
+    //else default to 2
 
-    bool getHeader = true;
+    cout << "max cand: " << rules.maxCandidates << endl;
+
+    bool getHeaders = true;
+
+    cout << "num files: " << infiles.size() << endl;
 
     for(const auto& file : infiles) {
-        std::ifstream ifs(file);
-        string line;
-
-        //check classification rank
-        while(ifs.good()) {
-            getline(ifs, line);
-            if(line[0] != '#') {
-                throw io_format_error("classificaion ranks not found in file "+file);
-            }
-            if(line.compare(0,16,"# Classification") == 0) {
-                auto pos = line.find("sequence");
-                if(pos != string::npos)
-                    throw io_format_error("cannot merge results on sequence level");
-                break;
-            }
-        }
-
-        //get layout
-        int colTop = 0;
-        while(ifs.good()) {
-            getline(ifs, line);
-            if(line[0] != '#') {
-                throw io_format_error("TABLE_LAYOUT not found in file "+file);
-            }
-            if(line.compare(0,15,"# TABLE_LAYOUT:") == 0) {
-                // cout << line.c_str() << endl;
-                std::stringstream lineStream(line.substr(15));
-                string column;
-                lineStream >> column;
-                // cout << column << endl;
-                if(column != "query_id") {
-                    throw io_format_error("no query_id in file "+file);
-                }
-                int col = 0;
-                while(lineStream.good()) {
-                    forward(lineStream, '|');
-                    lineStream >> column;
-                    ++col;
-                    if(column == "top_hits") {
-                        colTop = col;
-                        break;
-                    }
-                }
-                break;
-            }
-        }
-        if(!colTop)
-            throw io_format_error("no top_hits in file "+file);
-        // cout << "colTop " << colTop << endl;
-
-        char lineBegin = ifs.peek();
-        //skip comments
-        while(ifs.good() && lineBegin == '#') {
-            forward(ifs, '\n');
-            lineBegin = ifs.peek();
-        }
-        //skip results
-        auto resultsBegin = ifs.tellg();
-        while(ifs.good() && lineBegin != '#') {
-            forward(ifs, '\n');
-            lineBegin = ifs.peek();
-        }
-        auto resultsEnd = ifs.tellg();
-
-        //get number of queries
-        size_t numQueries = 0;
-        while(ifs.good() && numQueries == 0) {
-            if(lineBegin == '#') {
-                getline(ifs, line);
-                if(line.compare(0,10,"# queries:") == 0) {
-                    // cout << line.c_str() << endl;
-                    std::stringstream lineStream(line.substr(10));
-                    lineStream >> numQueries;
-                    // cout << numQueries << endl;
-
-                    queryNames.resize(numQueries);
-                    queryCandidates.resize(numQueries);
-                }
-            }
-            else {
-                forward(ifs, '\n');
-            }
-            lineBegin = ifs.peek();
-        }
-
-        //read results
-        //TODO: in parallel
-        ifs.seekg(resultsBegin);
-        lineBegin = ifs.peek();
-        while(ifs.good() && lineBegin != '#') {
-            size_t queryId;
-            ifs >> queryId;
-            cout << queryId << endl;
-            // if(queryNames.size() <= queryId) {
-            //     queryNames.resize(queryId+1);
-            //     queryCandidates.resize(queryId+1);
-            // }
-            forward(ifs, '|');
-            if(getHeader) {
-                string header;
-                ifs >> header;
-                cout << header << endl;
-                queryNames[queryId] = std::move(header);
-            }
-
-            //skip to tophits
-            for(int i = 1; i < colTop; ++i)
-                forward(ifs, '|');
-            forward(ifs, '\t');
-
-            //get tophits
-            char nextChar = ifs.peek();
-            while(nextChar != '\t') {
-                taxon_id taxid;
-                ifs >> taxid;
-                cout << taxid << endl;
-                const taxon* tax = db.taxon_with_id(taxid);
-                forward(ifs, ':');
-                match_candidate::count_type hits;
-                ifs >> hits;
-                cout << hits << endl;
-
-                queryCandidates[queryId].insert(match_candidate{tax, hits}, db, rules);
-
-                nextChar = ifs.get();
-                //if(nextChar == ',') continue;
-            }
-            //end of tophits
-
-            forward(ifs, '\n');
-            lineBegin = ifs.peek();
-
-            string dummy;
-            std::cin >> dummy;
-        }
-
-        getHeader = false;
+        parse_result_file(file, db, queryHeaders, queryCandidates, rules, getHeaders);
+        getHeaders = false;
     }
 
-    //for all queries
-    //classify
-    //output
-    map_candidates_to_targets(queryNames, queryCandidates, db, opt, results);
+    float avgCands = 0;
+    for(auto& cand : queryCandidates) {
+        avgCands += cand.size();
+    }
+    avgCands /= queryCandidates.size();
+    cout << "avg cand size: " << avgCands << endl;
+
+    map_candidates_to_targets(queryHeaders, queryCandidates, db, opt, results);
 }
 
 
@@ -270,9 +312,9 @@ void merge_result_files(const vector<string>& infiles,
  *
  *****************************************************************************/
 void process_result_files(const vector<string>& infiles,
-                         const database& db, const query_options& opt,
-                         const string& queryMappingsFilename,
-                         const string& abundanceFilename)
+                          const database& db, const query_options& opt,
+                          const string& queryMappingsFilename,
+                          const string& abundanceFilename)
 {
     std::ostream* perReadOut   = &cout;
     std::ostream* perTargetOut = &cout;
@@ -401,7 +443,7 @@ void main_mode_merge(const args_parser& args)
 {
     const auto nargs = args.non_prefixed_count();
     if(nargs < 2) {
-    	cerr << "no result filenames provided. abort" << endl;
+        cerr << "No result filenames provided. Abort." << endl;
     	return;
     }
     auto infiles = result_filenames(args);
@@ -422,13 +464,17 @@ void main_mode_merge(const args_parser& args)
             cout << "Taxonomy applied to database." << endl;
         }
     }
+    else {
+        cout << "No taxonomy specified. Unable to perform merge." << endl;
+        return;
+    }
 
     //TODO update ranks cache at species level
 
     if(!infiles.empty()) {
         cerr << "Merging result files." << endl;
 
-        process_result_files(infiles, db, opt.query, "", "");
+        process_result_files(infiles, db, opt.query);
     }
     else {
         cout << "No input files provided. Abort." << endl;
