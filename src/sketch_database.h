@@ -496,7 +496,7 @@ public:
 
 
     //---------------------------------------------------------------
-    taxon_id
+    std::uint64_t
     target_count() const noexcept {
         return targets_.size();
     }
