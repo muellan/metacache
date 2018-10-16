@@ -23,6 +23,7 @@
 #include <string>
 #include <sstream>
 
+#include "cmdline_utility.h"
 #include "filesys_utility.h"
 #include "args_handling.h"
 #include "config.h"
@@ -176,34 +177,18 @@ void parse_result_file(const string& file,
         forward(ifs, '\n');
         lineBegin = ifs.peek();
     }
-    //skip results
+    //count query results
     auto resultsBegin = ifs.tellg();
+    size_t numQueries = 0;
     while(ifs.good() && lineBegin != '#') {
+        ++numQueries;
         forward(ifs, '\n');
         lineBegin = ifs.peek();
     }
     auto resultsEnd = ifs.tellg();
 
-    //get number of queries
-    size_t numQueries = 0;
-    while(ifs.good() && numQueries == 0) {
-        if(lineBegin == '#') {
-            getline(ifs, line);
-            if(line.compare(0,10,"# queries:") == 0) {
-                // cout << line.c_str() << endl;
-                std::stringstream lineStream(line.substr(10));
-                lineStream >> numQueries;
-                // cout << numQueries << endl;
-
-                queryHeaders.resize(numQueries);
-                queryCandidates.resize(numQueries);
-            }
-        }
-        else {
-            forward(ifs, '\n');
-        }
-        lineBegin = ifs.peek();
-    }
+    queryHeaders.resize(numQueries);
+    queryCandidates.resize(numQueries);
 
     //read results
     //TODO: in parallel
@@ -284,23 +269,20 @@ void merge_result_files(const vector<string>& infiles,
         rules.maxCandidates = opt.classify.maxNumCandidatesPerQuery;
     //else default to 2
 
-    cout << "max cand: " << rules.maxCandidates << endl;
-
     bool getHeaders = true;
 
-    cout << "num files: " << infiles.size() << endl;
+    results.perReadOut << opt.output.format.comment << "Merging " << infiles.size() << " files:\n";
+    for(size_t i = 0; i < infiles.size(); ++i) {
+        results.perReadOut << opt.output.format.comment << infiles[i] << '\n';
+    }
 
-    for(const auto& file : infiles) {
-        parse_result_file(file, db, queryHeaders, queryCandidates, rules, getHeaders);
+    for(size_t i = 0; i < infiles.size(); ++i) {
+        show_progress_indicator(std::cerr, infiles.size() > 1 ? i/float(infiles.size()) : -1);
+
+        parse_result_file(infiles[i], db, queryHeaders, queryCandidates, rules, getHeaders);
         getHeaders = false;
     }
-
-    float avgCands = 0;
-    for(auto& cand : queryCandidates) {
-        avgCands += cand.size();
-    }
-    avgCands /= queryCandidates.size();
-    cout << "avg cand size: " << avgCands << endl;
+    clear_current_line(std::cerr);
 
     map_candidates_to_targets(queryHeaders, queryCandidates, db, opt, results);
 }
@@ -394,43 +376,10 @@ void process_result_files(const vector<string>& infiles,
         }
     }
 
-    //TODO: group input by pre/suffix
-
-
-    //process files / file pairs separately
-    if(opt.output.splitFiles) {
-        string queryMappingsFile;
-        string abundanceFile;
-        //process each input file pair separately
-        if(opt.process.pairing == pairing_mode::files && infiles.size() > 1) {
-            for(std::size_t i = 0; i < infiles.size(); i += 2) {
-                const auto& f1 = infiles[i];
-                const auto& f2 = infiles[i+1];
-                if(!opt.output.queryMappingsFile.empty()) {
-                    queryMappingsFile = opt.output.queryMappingsFile
-                            + "_" + extract_filename(f1)
-                            + "_" + extract_filename(f2)
-                            + ".txt";
-                }
-                if(!opt.output.abundanceFile.empty() && 
-                    opt.output.abundanceFile != opt.output.queryMappingsFile)
-                {
-                    abundanceFile = opt.output.abundanceFile
-                            + "_" + extract_filename(f1)
-                            + "_" + extract_filename(f2)
-                            + ".txt";
-                }
-                process_result_files(vector<string>{f1,f2}, db, opt,
-                                    queryMappingsFile, abundanceFile);
-            }
-        }
-    }
     //process all input files at once
-    else {
-        process_result_files(infiles, db, opt,
-                            opt.output.queryMappingsFile,
-                            opt.output.abundanceFile);
-    }
+    process_result_files(infiles, db, opt,
+                         opt.output.queryMappingsFile,
+                         opt.output.abundanceFile);
 }
 
 
@@ -471,14 +420,13 @@ void main_mode_merge(const args_parser& args)
 
     //TODO update ranks cache at species level
 
-    if(!infiles.empty()) {
+    if(infiles.size() >= 2) {
         cerr << "Merging result files." << endl;
 
         process_result_files(infiles, db, opt.query);
     }
     else {
-        cout << "No input files provided. Abort." << endl;
-        //interactive mode?
+        cout << "Please provide at least two files to be merged!" << endl;
     }
 }
 
