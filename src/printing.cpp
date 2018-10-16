@@ -97,6 +97,17 @@ void show_query_parameters(std::ostream& os, const query_options& opt)
            << "will be generated after the read mapping.\n";
     }
 
+    if(opt.output.showHitsPerTargetList) {
+        os << comment << "A list of absolute and relative abundances per taxon "
+           << "will be generated after the read mapping.\n";
+    }
+
+    if(opt.output.showAbundanceEstimatesOnRank != taxon_rank::none) {
+        os << comment << "A list of absolute and relative abundances for each '"
+           << taxonomy::rank_name(opt.output.showAbundanceEstimatesOnRank)
+           << "' will be generated after the read mapping.\n";
+    }
+
     os << comment << "Using " << opt.process.numThreads << " threads\n";
 }
 
