@@ -50,8 +50,7 @@ struct window_range
         beg{first}, end{last}
     {}
 
-    constexpr window_id size()  const noexcept { return end - beg; }
-    constexpr window_id empty() const noexcept { return beg == end; }
+    constexpr window_id size()  const noexcept { return end - beg + 1; }
 
     window_id beg = 0;
     window_id end = 0;
