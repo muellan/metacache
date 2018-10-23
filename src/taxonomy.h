@@ -751,6 +751,11 @@ public:
             }
         }
     }
+    //-----------------------------------------------------
+    void update(taxon_rank highestRank) {
+        highestRank_ = highestRank;
+        update();
+    }
 
     //-----------------------------------------------------
     void clear() {
@@ -760,15 +765,15 @@ public:
 
 
     //---------------------------------------------------------------
+    /// @brief not concurrency safe! - call update first if you need concurrent access
     const ranked_lineage&
     operator [] (const taxon* tax) const {
         return tax ? operator[](*tax) : empty_;
     }
     //-----------------------------------------------------
+    /// @brief not concurrency safe! - call update first if you need concurrent access
     const ranked_lineage&
     operator [] (const taxon& tax) const {
-        //not needed for querying
-//        std::lock_guard<std::mutex> lock(mutables_);
         auto i = lins_.find(&tax);
         if(i != lins_.end()) return i->second;
         return lins_.emplace(&tax, taxa_.ranks(tax)).first->second;
