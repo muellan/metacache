@@ -70,6 +70,15 @@ std::vector<std::string> sequence_filenames(const args_parser&);
 
 /*************************************************************************//**
  *
+ * @brief extracts input result filenames from command line arguments
+ *
+ *****************************************************************************/
+std::vector<std::string> result_filenames(const args_parser&);
+
+
+
+/*************************************************************************//**
+ *
  * @brief extracts database config parameters from cmd line args
  *
  *****************************************************************************/

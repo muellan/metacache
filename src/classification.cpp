@@ -704,4 +704,50 @@ void map_queries_to_targets(const vector<string>& infiles,
     map_queries_to_targets_default(infiles, db, opt, results);
 }
 
+
+/*************************************************************************//**
+ *
+ * @brief default classification scheme & output
+ *        try to map candidates to a taxon with the lowest possible rank
+ *
+ *****************************************************************************/
+void map_candidates_to_targets(const vector<string>& queryHeaders,
+                               const vector<classification_candidates>& queryCandidates,
+                               const database& db, const query_options& opt,
+                               classification_results& results)
+{
+    //taxon -> read count
+    taxon_count_map allTaxCounts;
+
+    for(size_t i = 0; i < queryHeaders.size(); ++i) {
+        sequence_query query{i+1, std::move(queryHeaders[i]), {}};
+
+        // prepare_evaluation(db, opt.evaluate, query, allhits);
+
+        classification cls { queryCandidates[i] };
+        cls.best = classify(db, opt.classify, cls.candidates);
+
+        if(opt.output.makeTaxCounts && cls.best) {
+            ++allTaxCounts[cls.best];
+        }
+
+        evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
+
+        show_query_mapping(results.perReadOut, db, opt.output, query, cls, match_locations{});
+    }
+
+    if(opt.output.showTaxAbundances) {
+        show_abundances(results.perTaxonOut, allTaxCounts,
+                        results.statistics.total(), opt.output);
+    }
+
+    if(opt.output.showAbundanceEstimatesOnRank != taxonomy::rank::none) {
+        estimate_abundance(db, allTaxCounts, opt.output.showAbundanceEstimatesOnRank);
+
+        show_abundance_estimates(results.perTaxonOut, allTaxCounts,
+                                 results.statistics.total(), opt.output);
+    }
+}
+
+
 } // namespace mc

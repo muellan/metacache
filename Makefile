@@ -63,6 +63,7 @@ SOURCES = \
           src/mode_build.cpp \
           src/mode_help.cpp \
           src/mode_info.cpp \
+          src/mode_merge.cpp \
           src/mode_query.cpp \
           src/printing.cpp \
           src/query_options.cpp \
@@ -141,6 +142,9 @@ $(REL_DIR)/mode_build.o : src/mode_build.cpp $(HEADERS)
 $(REL_DIR)/mode_info.o : src/mode_info.cpp $(HEADERS)
 	$(REL_COMPILE)
 
+$(REL_DIR)/mode_merge.o : src/mode_merge.cpp $(HEADERS)
+	$(REL_COMPILE)
+
 $(REL_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 	$(REL_COMPILE)
 
@@ -193,6 +197,9 @@ $(DBG_DIR)/mode_build.o : src/mode_build.cpp $(HEADERS)
 $(DBG_DIR)/mode_info.o : src/mode_info.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
+$(DBG_DIR)/mode_merge.o : src/mode_merge.cpp $(HEADERS)
+	$(DBG_COMPILE)
+
 $(DBG_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
@@ -243,6 +250,9 @@ $(PRF_DIR)/mode_build.o : src/mode_build.cpp $(HEADERS)
 	$(PRF_COMPILE)
 	
 $(PRF_DIR)/mode_info.o : src/mode_info.cpp $(HEADERS)
+	$(PRF_COMPILE)
+
+$(PRF_DIR)/mode_merge.o : src/mode_merge.cpp $(HEADERS)
 	$(PRF_COMPILE)
 
 $(PRF_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)

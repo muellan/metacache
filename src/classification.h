@@ -30,6 +30,7 @@
 #include "timer.h"
 #include "config.h"
 #include "query_options.h"
+#include "querying.h"
 
 
 namespace mc {
@@ -81,6 +82,19 @@ struct classification_results
  *****************************************************************************/
 void map_queries_to_targets(
     const std::vector<std::string>& inputFilenames,
+    const database&, const query_options&,
+    classification_results&);
+
+
+/*************************************************************************//**
+ *
+ * @brief try to map candidates to a taxon
+ *        according to the query options
+ *
+ *****************************************************************************/
+void map_candidates_to_targets(
+    const std::vector<std::string>& queryHeaders,
+    const std::vector<classification_candidates>&,
     const database&, const query_options&,
     classification_results&);
 

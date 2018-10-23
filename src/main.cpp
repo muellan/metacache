@@ -63,6 +63,9 @@ int main(int argc, char* argv[])
         else if(modestr == "annotate") {
             main_mode_annotate(args);
         }
+        else if(modestr == "merge") {
+            main_mode_merge(args);
+        }
         else {
             nomode = true;
         }

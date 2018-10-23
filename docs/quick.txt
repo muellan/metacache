@@ -1,4 +1,4 @@
-MetaCache  Copyright (C) 2016-2017  André Müller
+MetaCache  Copyright (C) 2016-2018  André Müller & Robin Kobus
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it
 under certain conditions. See the file 'LICENSE' for details.
@@ -9,6 +9,7 @@ You need to specify one of the following modes:
     build       build new database from reference sequences (usually genomes)
     add         add reference sequences and/or taxonomy to existing database
     info        show database and reference sequence properties
+    merge       merge classification results of independent queries
     annotate    annotate sequences with taxonomic information 
 
 EXAMPLES:

@@ -137,8 +137,17 @@ void show_abundance_estimates(std::ostream&,
  *
  *****************************************************************************/
 void show_taxon_statistics(std::ostream&,
-                                    const classification_statistics&,
-                                    const std::string& prefix = "");
+                           const classification_statistics&,
+                           const std::string& prefix = "");
+
+
+/*************************************************************************//**
+ *
+ * @brief show summary and statistics of classification
+ *
+ *****************************************************************************/
+void show_summary(const query_options& opt,
+                  const classification_results& results);
 
 
 } // namespace mc
