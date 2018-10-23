@@ -657,9 +657,7 @@ void map_queries_to_targets_default(
 
     //runs if something needs to be appended to the output
     const auto appendToOutput = [&] (const std::string& msg) {
-        if(opt.output.mapViewMode != map_view_mode::none) {
-            results.perReadOut << opt.output.format.comment << msg << '\n';
-        }
+        results.perReadOut << opt.output.format.comment << msg << '\n';
     };
 
     //run (parallel) database queries according to processing options
