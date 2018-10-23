@@ -13,6 +13,12 @@ DESCRIPTION
     different parameters or by querying different databases with different 
     reference targets or build options.
 
+    IMPORTANT: In order to be mergable, independent queries 
+    need to be run with options:
+        -tophits -queryids -lowest species
+    and must NOT be run with options that suppress or alter default output 
+    like, e.g.: -nomap, -no-summary, -separator, etc.
+
     Possible Use Case:
     In case your system has not enough memory for one large database, you could
     split up the reference genomes into several databases and query these
