@@ -21,11 +21,9 @@ DESCRIPTION
 
     Possible Use Case:
     In case your system has not enough memory for one large database, you could
-    split up the reference genomes into several databases and query these
+    split up the set of reference genomes into several databases and query these
     in succession. The results of these independent query runs can then be 
-    merged to obtain a classification based on all reference genomes from the 
-    partial databases.
-
+    merged to obtain a classification based on the whole set of genomes
 
 NON-OPTIONAL PARAMETERS
     -taxonomy <path>   directory with taxonomic hierarchy data 
@@ -119,8 +117,8 @@ ADVANCED ANALYSIS OPTIONS
 
 EXAMPLES
     Classify reads based on the three different databases:
-        ./metacache query mydatabase1 myreads.fa -out res1.txt
-        ./metacache query mydatabase2 myreads.fa -out res2.txt
-        ./metacache query mydatabase3 myreads.fa -out res3.txt
+        ./metacache query 1.db reads.fa -tophits -queryids -lowest species -out res1.txt 
+        ./metacache query 2.db reads.fa -tophits -queryids -lowest species -out res2.txt
+        ./metacache query 3.db reads.fa -tophits -queryids -lowest species -out res3.txt
         ./metacache merge res1.txt res2.txt res3.txt -taxonomy ncbi_taxonomy
 
