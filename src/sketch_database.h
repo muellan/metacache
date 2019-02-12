@@ -1085,7 +1085,7 @@ void print_static_properties(const sketch_database<S,K,H,G,W,L>& db)
     std::cout
         << "------------------------------------------------\n"
         << "MetaCache version    " << MC_VERSION_STRING << " (" << MC_VERSION << ")\n"
-        << "database verion      " << MC_DB_VERSION << '\n'
+        << "database version     " << MC_DB_VERSION << '\n'
         << "------------------------------------------------\n"
         << "sequence type        " << type_name<typename db_t::sequence>() << '\n'
         << "target id type       " << type_name<target_id>() << " " << (sizeof(target_id)*CHAR_BIT) << " bits\n"
