@@ -75,9 +75,18 @@ write_binary(std::ostream& os, const std::array<T,n>& a)
     //dummy
     std::uint64_t l = n;
     os.write(reinterpret_cast<const char*>(&l), sizeof(l));
-    for(const auto& x : a) {
-        write_binary(os, x);
-    }
+    if(l > 0)
+        os.write(reinterpret_cast<const char*>(a.data()), l * sizeof(T));
+}
+
+
+//-------------------------------------------------------------------
+template<class T>
+inline void
+write_binary(std::ostream& os, const T* a, std::uint64_t n)
+{
+    if(n > 0)
+        os.write(reinterpret_cast<const char*>(a), n * sizeof(T));
 }
 
 
@@ -131,9 +140,19 @@ read_binary(std::istream& is, std::array<T,n>& a)
     //dummy
     std::uint64_t l = 0;
     is.read(reinterpret_cast<char*>(&l), sizeof(l));
-    for(auto& x : a) {
-        read_binary(is, x);
-    }
+    //what if l > n?
+    if(l > 0 && l <= n)
+        is.read(reinterpret_cast<char*>(a.data()), l * sizeof(T));
+}
+
+
+//-------------------------------------------------------------------
+template<class T>
+inline void
+read_binary(std::istream& is, T* a, std::uint64_t n)
+{
+    if(n > 0)
+        is.read(reinterpret_cast<char*>(a), n * sizeof(T));
 }
 
 
