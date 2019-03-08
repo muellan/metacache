@@ -529,7 +529,8 @@ void show_taxon_statistics(std::ostream& os,
           taxon_rank::Species,    taxon_rank::Genus,
           taxon_rank::Family,     taxon_rank::Order,
           taxon_rank::Class,      taxon_rank::Phylum,
-          taxon_rank::Kingdom,    taxon_rank::Domain
+          taxon_rank::Kingdom,    taxon_rank::Domain,
+          taxon_rank::root
     };
 
     if(stats.assigned() < 1) {
