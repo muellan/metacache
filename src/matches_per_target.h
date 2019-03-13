@@ -47,7 +47,7 @@ public:
     //---------------------------------------------------------------
     using window_id        = database::window_id;
     using match_count_type = database::match_count_type;
-    using location_matches = database::location_matches;
+    using location         = database::match_locations::value_type;
     using taxon            = database::taxon;
     using taxon_rank       = database::taxon_rank;
 
@@ -115,7 +115,7 @@ public:
 
     //---------------------------------------------------------------
     void insert(query_id qid,
-                const matches_per_location& matches,
+                const match_locations& matches,
                 const classification_candidates& candidates,
                 match_count_type minHitsPerCandidate = 0)
     {
@@ -129,8 +129,14 @@ public:
                 cand.hits > minHitsPerCandidate)
             {
                 // find candidate in matches
-                location_matches lm({cand.tax, cand.pos.beg},0);
-                auto it = std::lower_bound(matches.begin(), matches.end(), lm);
+                location lm{cand.tax, cand.pos.beg};
+                auto it = std::lower_bound(matches.begin(), matches.end(), lm,
+                    [] (const location& a, const location& b) {
+                        //assumes that sequence level taxa have negative taxids
+                        if(a.tax->id() < b.tax->id()) return false;
+                        if(a.tax->id() > b.tax->id()) return true;
+                        return (a.win < b.win);
+                    });
                 // fill window vector
                 if(it == matches.end()) return;
 
@@ -138,10 +144,14 @@ public:
                 matches_per_window mpw;
                 mpw.reserve(cand.pos.end - cand.pos.beg + 1);
 
-                while(it != matches.end() && it->loc.win <= cand.pos.end &&
-                    it->loc.tax == cand.tax)
+                while(it != matches.end() &&
+                      it->tax == cand.tax &&
+                      it->win <= cand.pos.end)
                 {
-                    mpw.emplace_back(it->loc.win, it->hits);
+                    if(mpw.size() > 0 && mpw.back().win == it->win)
+                        mpw.back().hits++;
+                    else
+                        mpw.emplace_back(it->win, 1);
                     ++it;
                 }
                 // insert into map

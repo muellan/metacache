@@ -25,6 +25,7 @@
 #include <utility>
 
 #include "candidates.h"
+#include "classification.h"
 #include "classification_statistics.h"
 #include "matches_per_target.h"
 #include "sketch_database.h"
@@ -95,6 +96,17 @@ void show_query_parameters(std::ostream& os, const query_options& opt)
     if(opt.output.showHitsPerTargetList) {
         os << comment << "A list of hits per reference sequence "
            << "will be generated after the read mapping.\n";
+    }
+
+    if(opt.output.showHitsPerTargetList) {
+        os << comment << "A list of absolute and relative abundances per taxon "
+           << "will be generated after the read mapping.\n";
+    }
+
+    if(opt.output.showAbundanceEstimatesOnRank != taxon_rank::none) {
+        os << comment << "A list of absolute and relative abundances for each '"
+           << taxonomy::rank_name(opt.output.showAbundanceEstimatesOnRank)
+           << "' will be generated after the read mapping.\n";
     }
 
     os << comment << "Using " << opt.process.numThreads << " threads\n";
@@ -335,12 +347,15 @@ void show_matches(std::ostream& os,
     else {
         for(size_t i = 0; i < cand.size() && cand[i].hits > 0; ++i) {
             if(i > 0) os << ',';
-            const taxon* tax = db.ancestor(cand[i].tax,lowest);
+            const taxon* tax = (cand[i].tax->rank() < lowest) ?
+                               db.ancestor(cand[i].tax,lowest) :
+                               cand[i].tax;
             if(tax) {
-                os << tax->id() << ':' << cand[i].hits;
+                os << tax->id();
             } else {
-                os << cand[i].tax->name() << ':' << int(cand[i].hits) << ',';
+                os << cand[i].tax->name();
             }
+            os << ':' << cand[i].hits;
         }
     }
 }
@@ -350,27 +365,53 @@ void show_matches(std::ostream& os,
 //-------------------------------------------------------------------
 void show_matches(std::ostream& os,
                   const database& db,
-                  const matches_per_location& matches,
+                  const match_locations& matches,
                   taxon_rank lowest)
 {
     if(matches.empty()) return;
 
     if(lowest == taxon_rank::Sequence) {
-        for(const auto& r : matches) {
-            const taxon* tax = r.loc.tax;
-            if(tax) os << tax->name()
-                       << '/' << int(r.loc.win)
-                       << ':' << int(r.hits) << ',';
+        auto cur = matches.begin();
+        int count = 1;
+        for(auto it = matches.begin()+1; it != matches.end(); ++it) {
+            if(*cur == *it)
+                ++count;
+            else {
+                const taxon* tax = cur->tax;
+                if(tax) os << tax->name()
+                           << '/' << int(cur->win)
+                           << ':' << count << ',';
+                cur = it;
+                count = 1;
+            }
         }
+        const taxon* tax = cur->tax;
+        if(tax) os << tax->name()
+                   << '/' << int(cur->win)
+                   << ':' << count << ',';
     }
     else {
-        for(const auto& r : matches) {
-            const taxon* tax = db.ancestor(r.loc.tax, lowest);
-            if(tax) {
-                os << tax->name() << ':' << int(r.hits) << ',';
-            } else {
-                os << r.loc.tax->name() << ':' << int(r.hits) << ',';
+        auto cur = matches.begin();
+        int count = 1;
+        for(auto it = matches.begin()+1; it != matches.end(); ++it) {
+            if(*cur == *it)
+                ++count;
+            else {
+                const taxon* tax = db.ancestor(cur->tax, lowest);
+                if(tax) {
+                    os << tax->name() << ':' << count << ',';
+                } else {
+                    os << cur->tax->name() << ':' << count << ',';
+                }
+                cur = it;
+                count = 1;
             }
+        }
+        const taxon* tax = db.ancestor(cur->tax, lowest);
+        if(tax) {
+            os << tax->name() << ':' << count << ',';
+        } else {
+            os << cur->tax->name() << ':' << count << ',';
         }
     }
 }
@@ -399,10 +440,16 @@ void show_matches_per_targets(std::ostream& os,
                               const matches_per_target& tgtMatches,
                               const classification_output_options& opt)
 {
+    os << opt.format.comment
+       << "--- list of hits for each reference sequence ---\n"
+       << opt.format.comment
+       << "window start position within sequence = window_index * window_stride(="
+       << db.query_window_stride() << ")\n";
+
     os << opt.format.comment << "TABLE_LAYOUT: "
-        << " sequence " << opt.format.column
-        << " windows_in_sequence " << opt.format.column
-        << " queryid/window_index:hits/window_index:hits/...,queryid/...\n";
+       << " sequence " << opt.format.column
+       << " windows_in_sequence " << opt.format.column
+       << " queryid/window_index:hits/window_index:hits/...,queryid/...\n";
 
     for(const auto& mapping : tgtMatches) {
         show_taxon(os, db, opt, mapping.first);
@@ -484,6 +531,54 @@ void show_features_of_targets(std::ostream& os,
            << opt.format.column << longestGapSize
            << '\n';
     }
+}
+
+
+
+//-------------------------------------------------------------------
+void show_abundance_table(std::ostream& os,
+                          const taxon_count_map& allTaxCounts,
+                          const classification_statistics::count_t totalCount,
+                          const classification_output_options&  opt)
+{
+    for(const auto& tc : allTaxCounts) {
+        if(tc.first) {
+            os << tc.first->rank_name() << opt.format.rankSuffix
+               << tc.first->name();
+        } else {
+            os << "none";
+        }
+        os << opt.format.column << tc.second << opt.format.column
+           << (tc.second / double(totalCount) * 100) << "%\n";
+    }
+}
+
+
+
+//-------------------------------------------------------------------
+void show_abundances(std::ostream& os,
+                     const taxon_count_map& allTaxCounts,
+                     const classification_statistics::count_t totalCount,
+                     const classification_output_options& opt)
+{
+    os << opt.format.comment
+        << "query summary: number of queries mapped per taxon\n";
+    show_abundance_table(os, allTaxCounts, totalCount, opt);
+}
+
+
+
+//-------------------------------------------------------------------
+void show_abundance_estimates(std::ostream& os,
+                              const taxon_count_map& allTaxCounts,
+                              const classification_statistics::count_t totalCount,
+                              const classification_output_options& opt)
+{
+    os << opt.format.comment
+       << "estimated abundance (number of queries) per "
+       << taxonomy::rank_name(opt.showAbundanceEstimatesOnRank) << "\n";
+
+    show_abundance_table(os, allTaxCounts, totalCount, opt);
 }
 
 
@@ -582,5 +677,31 @@ void show_taxon_statistics(std::ostream& os,
 
 }
 
+
+/*************************************************************************//**
+ *
+ * @brief show summary and statistics of classification
+ *
+ *****************************************************************************/
+void show_summary(const query_options& opt,
+                  const classification_results& results)
+{
+    const auto& statistics = results.statistics;
+    const auto numQueries = (opt.process.pairing == pairing_mode::none)
+                            ? statistics.total() : 2 * statistics.total();
+
+    const auto speed = numQueries / results.time.minutes();
+    const auto& comment = opt.output.format.comment;
+    results.perReadOut
+        << comment << "queries: " << numQueries << '\n'
+        << comment << "time:    " << results.time.milliseconds() << " ms\n"
+        << comment << "speed:   " << speed << " queries/min\n";
+
+    if(statistics.total() > 0) {
+        show_taxon_statistics(results.perReadOut, statistics, comment);
+    } else {
+        results.status << comment << "No valid query sequences found.\n";
+    }
+}
 
 } // namespace mc

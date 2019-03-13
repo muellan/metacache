@@ -49,78 +49,66 @@ using std::flush;
 
 /*************************************************************************//**
  *
- * @brief runs classification on input files
- *
- *****************************************************************************/
-void show_summary(const query_options& opt,
-                  const classification_results& results)
-{
-    const auto& statistics = results.statistics;
-    const auto numQueries = (opt.process.pairing == pairing_mode::none)
-                            ? statistics.total() : 2 * statistics.total();
-
-    const auto speed = numQueries / results.time.minutes();
-    const auto& comment = opt.output.format.comment;
-    results.mapout
-        << comment << "queries: " << numQueries << '\n'
-        << comment << "time:    " << results.time.milliseconds() << " ms\n"
-        << comment << "speed:   " << speed << " queries/min\n";
-
-    if(statistics.total() > 0) {
-        show_taxon_statistics(results.mapout, statistics, comment);
-    } else {
-        results.status << comment << "No valid query sequences found." << endl;
-    }
-}
-
-
-
-/*************************************************************************//**
- *
  * @brief runs classification on input files; sets output target streams
  *
  *****************************************************************************/
 void process_input_files(const vector<string>& infiles,
                          const database& db, const query_options& opt,
-                         const string& mapFilename,
-                         const string& auxFilename)
+                         const string& queryMappingsFilename,
+                         const string& targetsFilename,
+                         const string& abundanceFilename)
 {
-    std::ostream* mapout = &cout;
-    std::ostream* auxout = &cout;
-    std::ostream* status = &cerr;
+    std::ostream* perReadOut   = &cout;
+    std::ostream* perTargetOut = &cout;
+    std::ostream* perTaxonOut  = &cout;
+    std::ostream* status       = &cerr;
 
     std::ofstream mapFile;
-    if(!mapFilename.empty()) {
-        mapFile.open(mapFilename, std::ios::out);
+    if(!queryMappingsFilename.empty()) {
+        mapFile.open(queryMappingsFilename, std::ios::out);
 
         if(mapFile.good()) {
-            cout << "Mappings will be written to file: " << mapFilename << endl;
-            mapout = &mapFile;
+            cout << "Per-Read mappings will be written to file: " << queryMappingsFilename << endl;
+            perReadOut = &mapFile;
             //default: auxiliary output same as mappings output
-            auxout = mapout;
+            perTargetOut = perReadOut;
+            perTaxonOut  = perReadOut;
         }
         else {
-            throw file_write_error{"Could not write to file " + mapFilename};
+            throw file_write_error{"Could not write to file " + queryMappingsFilename};
         }
     }
 
-    std::ofstream auxFile;
-    if(!auxFilename.empty()) {
-        auxFile.open(auxFilename, std::ios::out);
+    std::ofstream targetsFile;
+    if(!targetsFilename.empty()) {
+        targetsFile.open(targetsFilename, std::ios::out);
 
-        if(auxFile.good()) {
-            cout << "Other output will be written to file: " << auxFilename << endl;
-            auxout = &auxFile;
+        if(targetsFile.good()) {
+            cout << "Per-Target mappings will be written to file: " << targetsFilename << endl;
+            perTargetOut = &targetsFile;
         }
         else {
-            throw file_write_error{"Could not write to file " + auxFilename};
+            throw file_write_error{"Could not write to file " + targetsFilename};
         }
     }
 
-    classification_results results {*mapout,*auxout,*status};
+    std::ofstream abundanceFile;
+    if(!abundanceFilename.empty()) {
+        abundanceFile.open(abundanceFilename, std::ios::out);
 
-    if(opt.showQueryParams) {
-        show_query_parameters(results.mapout, opt);
+        if(abundanceFile.good()) {
+            cout << "Per-Taxon mappings will be written to file: " << abundanceFilename << endl;
+            perTaxonOut = &abundanceFile;
+        }
+        else {
+            throw file_write_error{"Could not write to file " + abundanceFilename};
+        }
+    }
+
+    classification_results results {*perReadOut,*perTargetOut,*perTaxonOut,*status};
+
+    if(opt.output.showQueryParams) {
+        show_query_parameters(results.perReadOut, opt);
     }
 
     results.flush_all_streams();
@@ -132,7 +120,7 @@ void process_input_files(const vector<string>& infiles,
     clear_current_line(results.status);
     results.status.flush();
 
-    if(opt.showSummary) show_summary(opt, results);
+    if(opt.output.showSummary) show_summary(opt, results);
 
     results.flush_all_streams();
 }
@@ -154,58 +142,80 @@ void process_input_files(const vector<string>& infiles,
         return;
     }
     else {
-        bool anyreadable = false;
-        for(const auto& f : infiles) {
-            if(file_readable(f)) { anyreadable = true; break; }
-        }
-        if(!anyreadable) {
+        bool noneReadable = std::none_of(infiles.begin(), infiles.end(),
+                           [](const auto& f) { return file_readable(f); });
+        if(noneReadable) {
             throw std::runtime_error{
                         "None of the query sequence files could be opened"};
         }
     }
 
     //process files / file pairs separately
-    if(opt.splitFiles) {
-        string mapfile;
-        string auxfile;
+    if(opt.output.splitFiles) {
+        string queryMappingsFile;
+        string targetsFile;
+        string abundanceFile;
         //process each input file pair separately
         if(opt.process.pairing == pairing_mode::files && infiles.size() > 1) {
             for(std::size_t i = 0; i < infiles.size(); i += 2) {
                 const auto& f1 = infiles[i];
                 const auto& f2 = infiles[i+1];
-                if(!opt.outfile.empty()) {
-                    mapfile = opt.outfile
+                if(!opt.output.queryMappingsFile.empty()) {
+                    queryMappingsFile = opt.output.queryMappingsFile
                             + "_" + extract_filename(f1)
                             + "_" + extract_filename(f2)
                             + ".txt";
                 }
-                if(!opt.auxfile.empty() && opt.auxfile != opt.outfile) {
-                    auxfile = opt.auxfile
+                if(!opt.output.targetsFile.empty() && 
+                    opt.output.targetsFile != opt.output.queryMappingsFile)
+                {
+                    targetsFile = opt.output.targetsFile
                             + "_" + extract_filename(f1)
                             + "_" + extract_filename(f2)
                             + ".txt";
                 }
-                process_input_files(vector<string>{f1,f2}, db, opt, mapfile, auxfile);
+                if(!opt.output.abundanceFile.empty() && 
+                    opt.output.abundanceFile != opt.output.queryMappingsFile)
+                {
+                    abundanceFile = opt.output.abundanceFile
+                            + "_" + extract_filename(f1)
+                            + "_" + extract_filename(f2)
+                            + ".txt";
+                }
+                process_input_files(vector<string>{f1,f2}, db, opt,
+                                    queryMappingsFile, targetsFile, abundanceFile);
             }
         }
         //process each input file separately
         else {
             for(const auto& f : infiles) {
-                if(!opt.outfile.empty()) {
-                    mapfile = opt.outfile + "_"
+                if(!opt.output.queryMappingsFile.empty()) {
+                    queryMappingsFile = opt.output.queryMappingsFile + "_"
                             + extract_filename(f) + ".txt";
                 }
-                if(!opt.auxfile.empty() && opt.auxfile != opt.outfile) {
-                    auxfile = opt.auxfile + "_"
+                if(!opt.output.targetsFile.empty() && 
+                    opt.output.targetsFile != opt.output.queryMappingsFile)
+                {
+                    targetsFile = opt.output.targetsFile + "_"
                             + extract_filename(f) + ".txt";
                 }
-                process_input_files(vector<string>{f}, db, opt, mapfile, auxfile);
+                if(!opt.output.abundanceFile.empty() && 
+                    opt.output.abundanceFile != opt.output.queryMappingsFile)
+                {
+                    abundanceFile = opt.output.abundanceFile + "_"
+                            + extract_filename(f) + ".txt";
+                }
+                process_input_files(vector<string>{f}, db, opt,
+                                    queryMappingsFile, targetsFile, abundanceFile);
             }
         }
     }
     //process all input files at once
     else {
-        process_input_files(infiles, db, opt, opt.outfile, opt.auxfile);
+        process_input_files(infiles, db, opt,
+                            opt.output.queryMappingsFile,
+                            opt.output.targetsFile,
+                            opt.output.abundanceFile);
     }
 }
 
@@ -381,7 +391,7 @@ void main_mode_query(const args_parser& args)
 
     auto db = read_database(dbname, get_database_query_options(args));
 
-    if(opt.showDBproperties) {
+    if(opt.output.showDBproperties) {
         print_static_properties(db);
         print_content_properties(db);
     }

@@ -36,15 +36,6 @@ SAMPLING OPTIONS
                           default: 113
 
 ADVANCED OPTIONS
-    -max-window-similarity <ratio>   
-            Window sketches of new targets are only inserted into the database
-            if they are dissimilar to the already inserted window sketches,
-            i.e., they score at most (ratio * sketchsize) many hits. This
-            will improve the precision to database size ratio but will also
-            lead to significantly longer build times. Good ratio settings
-            are in the range of 0.85 to 0.95.
-            default: off (ratio = 1.00)
-
     -max-locations-per-feature
             maximum number of target locations to be stored per feature
             This should not be too high in order to not impact querying speed.

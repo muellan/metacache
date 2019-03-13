@@ -63,7 +63,6 @@ template<class Sequence>
 inline auto
 make_view_from_window_range(const Sequence& s, const window_range& range,
                             int size, int stride)
-    -> decltype(make_view(s.begin(),s.end()))
 {
     auto end = s.begin() + (stride * range.end) + size;
     if(end > s.end()) end = s.end();
@@ -120,7 +119,7 @@ ground_truth(const database& db, const string& header)
     tax = db.taxon_with_name(extract_ncbi_accession_version_number(header));
     if(tax) return db.next_ranked_ancestor(tax);
 
-    tax = db.taxon_with_name(extract_ncbi_accession_number(header));
+    tax = db.taxon_with_similar_name(extract_ncbi_accession_number(header));
     if(tax) return db.next_ranked_ancestor(tax);
 
     //try to extract id from header
@@ -144,15 +143,16 @@ ground_truth(const database& db, const string& header)
  *****************************************************************************/
 void remove_hits_on_rank(const database& db,
                          const taxon& tax, taxon_rank rank,
-                         matches_per_location& hits)
+                         match_locations& hits)
 {
     const taxon* excl = db.ancestor(tax,rank);
 
-    matches_per_location maskedHits;
+    match_locations maskedHits;
     for(const auto& hit : hits) {
-        auto t = db.ancestor(hit.loc.tax, rank);
+        auto t = db.ancestor(hit.tax, rank);
         if(t != excl) {
-            maskedHits.push_back(hit);
+            // maskedHits.push_back(hit);
+            maskedHits.insert(maskedHits.end(),hit);
         }
     }
 
@@ -170,7 +170,7 @@ void remove_hits_on_rank(const database& db,
 void prepare_evaluation(const database& db,
                         const evaluation_options& opt,
                         sequence_query& query,
-                        matches_per_location& allhits)
+                        match_locations& allhits)
 {
     if(opt.precision ||
        (opt.determineGroundTruth) ||
@@ -183,53 +183,6 @@ void prepare_evaluation(const database& db,
     if(opt.excludeRank != taxon_rank::none && query.groundTruth) {
         remove_hits_on_rank(db, *query.groundTruth, opt.excludeRank, allhits);
     }
-}
-
-
-
-/*************************************************************************//**
- *
- * @brief lowest common ancestral taxon of several candidate taxa
- *
- *****************************************************************************/
-const taxon*
-lowest_common_ancestor(const database& db,
-                       const classification_options& opt,
-                       const classification_candidates& cand)
-{
-    using hit_count = match_candidate::count_type;
-
-    if(cand.empty() || !cand[0].tax) return nullptr;
-
-    if(cand.size() == 1) {
-        return (cand[0].tax->rank() <= opt.highestRank) ? cand[0].tax : nullptr;
-    }
-
-    if(cand.size() == 2) {
-        // (cand[1].hits > cand[0].hits - opt.hitsMin)
-        const taxon* tax = db.ranked_lca(cand[0].tax, cand[1].tax);
-
-        //classify if rank is below or at the highest rank of interest
-        return (tax && tax->rank() <= opt.highestRank) ? tax : nullptr;
-    }
-
-    // begin lca with first candidate
-    const taxon* lca_taxon = cand[0].tax;
-    hit_count threshold = (cand[0].hits - opt.hitsMin) * opt.hitsDiffFraction;
-
-    for(auto i = cand.begin()+1; i != cand.end(); ++i) {
-        // include all candidates with hits above threshold
-        if(i->hits > threshold) {
-            // include candidate in lca
-            lca_taxon = db.ranked_lca(lca_taxon, i->tax);
-            // exit early if lca rank already too high
-            if(!lca_taxon || lca_taxon->rank() > opt.highestRank)
-                return nullptr;
-        } else {
-            break;
-        }
-    }
-    return lca_taxon;
 }
 
 
@@ -264,7 +217,7 @@ classification_candidates
 make_classification_candidates(const database& db,
                                const classification_options& opt,
                                const sequence_query& query,
-                               const matches_per_location& allhits)
+                               const match_locations& allhits)
 {
     candidate_generation_rules rules;
 
@@ -290,25 +243,32 @@ const taxon*
 classify(const database& db, const classification_options& opt,
          const classification_candidates& cand)
 {
-    if(cand.empty()) return nullptr;
+    if(cand.empty() || !cand[0].tax) return nullptr;
 
-    if(cand.size() == 1) {
-        return (cand[0].hits >= opt.hitsMin) ? cand[0].tax : nullptr;
+    //hits below threshold => considered not classifiable
+    if(cand[0].hits < opt.hitsMin) return nullptr;
+
+    // begin lca with first candidate
+    const taxon* lca = cand[0].tax;
+
+    // include any candidate in classification that is above threshold
+    const float threshold = cand[0].hits > opt.hitsMin
+                          ? (cand[0].hits - opt.hitsMin) * opt.hitsDiffFraction
+                          : 0;
+    // check 2nd, 3rd, ...
+    for(auto i = cand.begin()+1; i != cand.end(); ++i) {
+        // include all candidates with hits above threshold
+        if(i->hits > threshold) {
+            // include candidate in lca
+            lca = db.ranked_lca(lca, i->tax);
+            // exit early if lca rank already too high
+            if(!lca || lca->rank() > opt.highestRank)
+                return nullptr;
+        } else {
+            break;
+        }
     }
-
-    //sum of top-2 hits < threshold => considered not classifiable
-    if((cand[0].hits + cand[1].hits) < opt.hitsMin) return nullptr;
-
-    //either top 2 are the same sequences with at least 'hitsMin' many hits
-    //(checked before) or hit difference between these top 2 is above threshold
-    if( (cand[0].tax == cand[1].tax)
-        || (cand[0].hits - cand[1].hits >= opt.hitsMin) )
-    {
-        //return top candidate
-        return cand[0].tax;
-    }
-
-    return lowest_common_ancestor(db, opt, cand);
+    return (lca->rank() <= opt.highestRank) ? lca : nullptr;
 }
 
 
@@ -322,7 +282,7 @@ classification
 classify(const database& db,
          const classification_options& opt,
          const sequence_query& query,
-         const matches_per_location& allhits)
+         const match_locations& allhits)
 {
     classification cls { make_classification_candidates(db, opt, query, allhits) };
 
@@ -450,7 +410,7 @@ classification
 classify_best(const database& db,
               const classification_options& opt,
               const sequence_query& query,
-              const matches_per_location& allhits)
+              const match_locations& allhits)
 {
     classification cls { make_classification_candidates(db, opt, query, allhits) };
 
@@ -524,6 +484,81 @@ void evaluate_classification(
     } else {
         statistics.assign(cls.best ? cls.best->rank() : taxon_rank::none);
     }
+}
+
+
+
+/*************************************************************************//**
+ *
+ * @brief estimate read counts per taxon at specific level
+ *
+ *****************************************************************************/
+void estimate_abundance(const database& db, taxon_count_map& allTaxCounts, const taxon_rank rank) {
+    if(rank != taxon_rank::Sequence) {
+        //prune taxon below estimation rank
+        taxon t{0,0,"",rank-1};
+        auto begin = allTaxCounts.lower_bound(&t);
+        for(auto taxCount = begin; taxCount != allTaxCounts.end();) {
+            auto lineage = db.ranks(taxCount->first);
+            const taxon* ancestor = nullptr;
+            unsigned index = static_cast<unsigned>(rank);
+            while(!ancestor && index < lineage.size())
+                ancestor = lineage[index++];
+            if(ancestor) {
+                allTaxCounts[ancestor] += taxCount->second;
+                taxCount = allTaxCounts.erase(taxCount);
+            } else {
+                ++taxCount;
+            }
+        }
+    }
+
+    std::unordered_map<const taxon*, std::vector<const taxon*> > taxChildren;
+    std::unordered_map<const taxon*, query_id > taxWeights;
+    taxWeights.reserve(allTaxCounts.size());
+
+    //initialize weigths for fast lookup
+    for(const auto& taxCount : allTaxCounts) {
+        taxWeights[taxCount.first] = 0;
+    }
+
+    //for every taxon find its parent and add to their count
+    //traverse allTaxCounts from leafs to root
+    for(auto taxCount = allTaxCounts.rbegin(); taxCount != allTaxCounts.rend(); ++taxCount) {
+        //find closest parent
+        auto lineage = db.ranks(taxCount->first);
+        const taxon* parent = nullptr;
+        auto index = static_cast<std::uint8_t>(taxCount->first->rank()+1);
+        while(index < lineage.size()) {
+            parent = lineage[index++];
+            if(parent && taxWeights.count(parent)) {
+                //add own count to parent
+                taxWeights[parent] += taxWeights[taxCount->first] + taxCount->second;
+                //link from parent to child
+                taxChildren[parent].emplace_back(taxCount->first);
+                break;
+            }
+        }
+    }
+
+    //distribute counts to children and erase parents
+    //traverse allTaxCounts from root to leafs
+    for(auto taxCount = allTaxCounts.begin(); taxCount != allTaxCounts.end();) {
+        auto children = taxChildren.find(taxCount->first);
+        if(children != taxChildren.end()) {
+            query_id sumChildren = taxWeights[taxCount->first];
+
+            //distribute proportionally
+            for(const auto& child : children->second) {
+                allTaxCounts[child] += taxCount->second * (allTaxCounts[child]+taxWeights[child]) / sumChildren;
+            }
+            taxCount = allTaxCounts.erase(taxCount);
+        }
+        else {
+            ++taxCount;
+        }
+    }
+    //remaining tax counts are leafs
 }
 
 
@@ -623,7 +658,7 @@ void show_query_mapping(
     const classification_output_options& opt,
     const sequence_query& query,
     const classification& cls,
-    const matches_per_location& allhits)
+    const match_locations& allhits)
 {
     if(opt.mapViewMode == map_view_mode::none ||
         (opt.mapViewMode == map_view_mode::mapped_only && !cls.best))
@@ -880,6 +915,7 @@ struct mappings_buffer
     std::unordered_map<query_id, query_mapping> queryMappings;
     matches_per_target hitsPerTarget;
     matches_per_target uniqueHitsPerTarget;
+    taxon_count_map taxCounts;
 };
 
 /*************************************************************************//**
@@ -897,15 +933,24 @@ void map_queries_to_targets_default(
     //global target -> query_id/win:hits... list
     matches_per_target uniqueTgtMatches;
     matches_per_target tgtMatches;
+
     std::unordered_map<query_id, query_mapping> queryMappings;
 
-    //makes an empty batch buffer
-    //(each batch might be processed by a different thread)
+    //global taxon -> read count
+    taxon_count_map allTaxCounts;
+
+    //input queries are divided into batches;
+    //each batch might be processed by a different thread;
+    //the following 4 lambdas define actions that should be performed
+    //on such a batch and its associated buffer;
+    //the batch buffer can be used to cache intermediate results
+
+    //creates an empty batch buffer
     const auto makeBatchBuffer = [] { return mappings_buffer(); };
 
     //updates buffer with the database answer of a single query
     const auto processQuery = [&] (mappings_buffer& buf,
-        sequence_query&& query, matches_per_location& allhits)
+        sequence_query&& query, match_locations& allhits)
     {
         if(query.empty()) return;
 
@@ -933,6 +978,10 @@ void map_queries_to_targets_default(
             // evaluate_candidates(db, opt.evaluate, opt.classify, query, cls, results.statistics);
 
             show_query_mapping(buf.out, db, opt.output, query, cls, allhits);
+
+            if(opt.output.makeTaxCounts && cls.best) {
+                ++buf.taxCounts[cls.best];
+            }
         }
 
         sequence().swap(query.seq1);
@@ -944,7 +993,7 @@ void map_queries_to_targets_default(
         buf.queryMappings.emplace(query.id, query_mapping{std::move(query), std::move(cls)});
     };
 
-
+    //runs before a batch buffer is discarded
     const auto finalizeBatch = [&] (mappings_buffer&& buf) {
         if(opt.output.showHitsPerTargetList) {
             queryMappings.insert(std::make_move_iterator(buf.queryMappings.begin()),
@@ -953,24 +1002,24 @@ void map_queries_to_targets_default(
             uniqueTgtMatches.merge(std::move(buf.uniqueHitsPerTarget));
             tgtMatches.merge(std::move(buf.hitsPerTarget));
         }
+        if(opt.output.makeTaxCounts) {
+            //add batch (taxon->read count) to global counts
+            for(const auto& taxCount : buf.taxCounts)
+                allTaxCounts[taxCount.first] += taxCount.second;
+        }
         //write output buffer to output stream when batch is finished
-        results.mapout << buf.out.str();
+        results.perReadOut << buf.out.str();
     };
 
-
-    const auto showStatus = [&] (const std::string& msg, float progress) {
-        if(opt.output.mapViewMode != map_view_mode::none) {
-            results.mapout << opt.output.format.comment << msg << '\n';
-        }
-        if(progress >= 0.0f) {
-            show_progress_indicator(results.status, progress);
-        }
+    //runs if something needs to be appended to the output
+    const auto appendToOutput = [&] (const std::string& msg) {
+        results.perReadOut << opt.output.format.comment << msg << '\n';
     };
 
     //run (parallel) database queries according to processing options
     query_database(infiles, db, opt.process,
                    makeBatchBuffer, processQuery, finalizeBatch,
-                   showStatus);
+                   appendToOutput);
 
     //target -> hits list?
     if(tgtMatches.empty()) return;
@@ -1009,34 +1058,50 @@ void map_queries_to_targets_default(
     // }
 
     //parallel
-    parallel_queue queue(opt.process.numThreads);
-    const auto load = 32 * queue.concurrency();
+    std::vector<std::future<void>> threads;
+    std::atomic<std::unordered_map<query_id, query_mapping>::iterator> globalMappingIterator;
+    globalMappingIterator.store(queryMappings.begin());
     std::mutex mtx;
 
-    auto it = queryMappings.begin();
-    while(it != queryMappings.end()) {
-        if(queue.unsafe_waiting() < load) {
-            auto batchEnd = size_t(std::distance(it, queryMappings.end())) > opt.process.batchSize ?
-                            std::next(it, opt.process.batchSize) : queryMappings.end();
-            queue.enqueue([&, it, batchEnd] {
-                std::ostringstream bufout;
-                for(auto i = it; i != batchEnd; ++i) {
-                    // classify using only targets left in tgtMatches
-                    update_classification(db, opt.classify, i->second.cls, tgtMatches);
+    for(int threadId = 0; threadId < opt.process.numThreads; ++threadId) {
+        threads.emplace_back(std::async(std::launch::async, [&, threadId] {
+            auto localMappingIterator = globalMappingIterator.load();
+            while(localMappingIterator != queryMappings.end()) {
+                auto batchEnd = size_t(std::distance(localMappingIterator, queryMappings.end())) > opt.process.batchSize ?
+                            std::next(localMappingIterator, opt.process.batchSize) : queryMappings.end();
+                bool success = globalMappingIterator.compare_exchange_weak(localMappingIterator, batchEnd);
+                if(success) {
+                    std::ostringstream bufout;
+                    taxon_count_map taxCounts;
 
-                    evaluate_classification(db, opt.evaluate, i->second.query, i->second.cls, results.statistics);
+                    for(auto it = localMappingIterator; it != batchEnd; ++it) {
+                        // classify using only targets left in tgtMatches
+                        update_classification(db, opt.classify, it->second.cls, tgtMatches);
 
-                    show_query_mapping(bufout, db, opt.output, i->second.query, i->second.cls, matches_per_location{});
+                        evaluate_classification(db, opt.evaluate, it->second.query, it->second.cls, results.statistics);
+
+                        show_query_mapping(bufout, db, opt.output, it->second.query, it->second.cls, match_locations{});
+
+                        if(opt.output.makeTaxCounts && it->second.cls.best) {
+                            ++taxCounts[it->second.cls.best];
+                        }
+                    }
+                    std::lock_guard<std::mutex> lock(mtx);
+                    if(opt.output.makeTaxCounts) {
+                        //add batch (taxon->read count) to global counts
+                        for(const auto& taxCount : taxCounts)
+                            allTaxCounts[taxCount.first] += taxCount.second;
+                    }
+                    results.perReadOut << bufout.str();
                 }
-                std::lock_guard<std::mutex> lock(mtx);
-                results.mapout << bufout.str();
-            }); //enqueue
-            it = batchEnd;
-        }
+            }
+        }));
     }
-    //wait for all enqueued tasks to finish
-    queue.wait(); 
 
+    //wait for all threads to finish
+    for(auto& thread : threads) {
+        thread.get();
+    }
 
     // results.auxout
     //     << opt.output.format.comment
@@ -1046,9 +1111,21 @@ void map_queries_to_targets_default(
     //     << db.query_window_stride() << ")\n";
 
     // tgtMatches.sort_match_lists();
-    show_matches_per_targets(results.auxout, db, tgtMatches, opt.output);
+    show_matches_per_targets(results.perTargetOut, db, tgtMatches, opt.output);
     // show_num_matches_per_targets(results.auxout, db, tgtMatches, opt.output);
     // show_features_of_targets(results.auxout, db, tgtMatches, opt.output);
+
+    if(opt.output.showTaxAbundances) {
+        show_abundances(results.perTaxonOut, allTaxCounts,
+                        results.statistics.total(), opt.output);
+    }
+
+    if(opt.output.showAbundanceEstimatesOnRank != taxonomy::rank::none) {
+        estimate_abundance(db, allTaxCounts, opt.output.showAbundanceEstimatesOnRank);
+
+        show_abundance_estimates(results.perTaxonOut, allTaxCounts,
+                                 results.statistics.total(), opt.output);
+    }
 }
 
 
@@ -1064,10 +1141,56 @@ void map_queries_to_targets(const vector<string>& infiles,
                             classification_results& results)
 {
     if(opt.output.mapViewMode != map_view_mode::none) {
-        show_query_mapping_header(results.mapout, opt.output);
+        show_query_mapping_header(results.perReadOut, opt.output);
     }
 
     map_queries_to_targets_default(infiles, db, opt, results);
 }
+
+
+/*************************************************************************//**
+ *
+ * @brief default classification scheme & output
+ *        try to map candidates to a taxon with the lowest possible rank
+ *
+ *****************************************************************************/
+void map_candidates_to_targets(const vector<string>& queryHeaders,
+                               const vector<classification_candidates>& queryCandidates,
+                               const database& db, const query_options& opt,
+                               classification_results& results)
+{
+    //taxon -> read count
+    taxon_count_map allTaxCounts;
+
+    for(size_t i = 0; i < queryHeaders.size(); ++i) {
+        sequence_query query{i+1, std::move(queryHeaders[i]), {}};
+
+        // prepare_evaluation(db, opt.evaluate, query, allhits);
+
+        classification cls { queryCandidates[i] };
+        cls.best = classify(db, opt.classify, cls.candidates);
+
+        if(opt.output.makeTaxCounts && cls.best) {
+            ++allTaxCounts[cls.best];
+        }
+
+        evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
+
+        show_query_mapping(results.perReadOut, db, opt.output, query, cls, match_locations{});
+    }
+
+    if(opt.output.showTaxAbundances) {
+        show_abundances(results.perTaxonOut, allTaxCounts,
+                        results.statistics.total(), opt.output);
+    }
+
+    if(opt.output.showAbundanceEstimatesOnRank != taxonomy::rank::none) {
+        estimate_abundance(db, allTaxCounts, opt.output.showAbundanceEstimatesOnRank);
+
+        show_abundance_estimates(results.perTaxonOut, allTaxCounts,
+                                 results.statistics.total(), opt.output);
+    }
+}
+
 
 } // namespace mc

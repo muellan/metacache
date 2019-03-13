@@ -100,8 +100,8 @@ using sketcher = single_function_unique_min_hasher<kmer_type,sketching_hash>;
  *        note: std::hash<SomeUnsignedIntegerType>
  *              is mostly implemented as the identity function
  */
-using feature_hash = std::hash<typename sketcher::feature_type>;
-//using feature_hash = same_size_hash<typename sketcher::feature_type>;
+//using feature_hash = std::hash<typename sketcher::feature_type>;
+using feature_hash = same_size_hash<typename sketcher::feature_type>;
 
 
 /**************************************************************************
@@ -112,17 +112,18 @@ using database = sketch_database<sequence,sketcher,feature_hash,
                                  target_id,window_id,loclist_size_t>;
 
 /** @brief pull some types from database into global namespace */
-using taxon                = database::taxon;
-using taxon_rank           = database::taxon_rank;
-using taxon_id             = database::taxon_id;
-using ranked_lineage       = database::ranked_lineage;
-using matches_per_location = database::matches_per_location;
+using taxon                  = database::taxon;
+using taxon_rank             = database::taxon_rank;
+using taxon_id               = database::taxon_id;
+using ranked_lineage         = database::ranked_lineage;
+using match_locations        = database::match_locations;
+using match_target_locations = database::match_target_locations;
 
 
 /**************************************************************************
  * @brief controls how a classification is derived from a location hit list;
  *        default is a top 2 voting scheme;
- *        forward declarations (break cycle "config.h" <-> "candidates.h")
+ *        forward declarations (breaks cycle "config.h" <-> "candidates.h")
  */
 
 class distinct_matches_in_contiguous_window_ranges;

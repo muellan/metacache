@@ -23,9 +23,10 @@ OPTIONS
                           as alternative source in a post processing step
                           default: 'nucl_(gb|wgs|est|gss).accession2taxid'
 
-    -reset-parents        clear all parents of reference genomes
+    -reset-parents        clear parent taxa of all reference genomes
                           default: off, which means only reference genomes 
-                          that don't have a parent taxon yet will be considered 
+                          that don't have a parent taxon yet will be re-mapped
+                          when a new taxonomy is applied
 
 EXAMPLES
     Add reference sequence 'penicillium.fna' to database 'fungi'

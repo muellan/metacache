@@ -144,6 +144,7 @@ public:
     };
 
 
+    const taxon* taxon_of_target(target_id id) const {return targets_[id]; }
 private:
     //use negative numbers for sequence level taxon ids
     static constexpr taxon_id
@@ -158,6 +159,9 @@ private:
     //avoid padding bits
     struct target_location
     {
+        using target_id_t = target_id;
+        using window_id_t = window_id;
+
         constexpr
         target_location(target_id g = 0, window_id w = 0) noexcept :
             tgt{g}, win{w}
@@ -236,24 +240,8 @@ public:
         }
     };
 
-    //-------------------------------------------------------------------
-    struct location_matches {
-        location_matches() = default;
-        constexpr
-        location_matches(location l, match_count_type c) noexcept :
-            loc{l}, hits{c}
-        {}
-
-        location loc;
-        match_count_type hits = 0;
-
-        friend bool
-        operator < (const location_matches& a, const location_matches& b) noexcept {
-            return (a.loc < b.loc);
-        }
-    };
-    //location (= target window) -> number of features
-    using matches_per_location = std::vector<location_matches>;
+    using match_locations = std::vector<location>;
+    using match_target_locations = std::vector<target_location>;
 
 
     //---------------------------------------------------------------
@@ -271,14 +259,13 @@ public:
         queryWindowSize_(targetWindowSize_),
         queryWindowStride_(targetWindowStride_),
         maxLocsPerFeature_(max_supported_locations_per_feature()),
-        maxNewWindowSimilarity_{1.0f},
         features_{},
         targets_{},
         taxa_{},
         ranksCache_{taxa_, taxon_rank::Sequence},
         name2tax_{}
     {
-        features_.max_load_factor(0.8);
+        features_.max_load_factor(default_max_load_factor());
     }
 
     sketch_database(const sketch_database&) = delete;
@@ -395,6 +382,9 @@ public:
     feature_count_type
     remove_features_with_more_locations_than(bucket_size_type n)
     {
+        //note that features are not really removed, because the hashmap
+        //does not support erasing keys; instead all values belonging to
+        //the key are cleared and the key is kept without values
         feature_count_type rem = 0;
         for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
             if(i->size() > n) {
@@ -403,26 +393,6 @@ public:
             }
         }
         return rem;
-    }
-
-
-    //---------------------------------------------------------------
-    /**
-     * @brief if new targets are added to the database,
-     *        only features of windows with a sketch similarity smaller or equal
-     *        to 'ratio' are added to the database
-     *        default is 1.0 which means that this is turned off
-     */
-    void max_new_window_similarity(float ratio)
-    {
-        if(ratio > 1.0f) ratio = 1.0f;
-        if(ratio < 0.0f) ratio = 0.0f;
-        maxNewWindowSimilarity_ = ratio;
-    }
-    //-----------------------------------------------------
-    float max_new_window_similarity() const noexcept
-    {
-        return maxNewWindowSimilarity_;
     }
 
 
@@ -501,12 +471,7 @@ public:
         const auto taxid = taxon_id_of_target(targetCount);
 
         //sketch sequence -> insert features
-        if(max_new_window_similarity() < 0.99f) {
-            source.windows = add_dissimilar_window_sketches(seq,
-                                 targetCount, max_new_window_similarity());
-        } else {
-            source.windows = add_all_window_sketches(seq, targetCount);
-        }
+        source.windows = add_all_window_sketches(seq, targetCount);
 
         //insert sequence metadata as a new taxon
         if(parentTaxid < 1) parentTaxid = 0;
@@ -531,7 +496,7 @@ public:
 
 
     //---------------------------------------------------------------
-    taxon_id
+    std::uint64_t
     target_count() const noexcept {
         return targets_.size();
     }
@@ -589,6 +554,19 @@ public:
         if(name.empty()) return nullptr;
         auto i = name2tax_.find(name);
         if(i == name2tax_.end()) return nullptr;
+        return i->second;
+    }
+    //-----------------------------------------------------
+    /**
+     * @brief will find sequence-level taxon names with different versions
+     */
+    const taxon*
+    taxon_with_similar_name(const taxon_name& name) const noexcept {
+        if(name.empty()) return nullptr;
+        auto i = name2tax_.upper_bound(name);
+        if(i == name2tax_.end()) return nullptr;
+        const auto s = name.size();
+        if(0 != i->first.compare(0,s,name)) return nullptr;
         return i->second;
     }
 
@@ -755,76 +733,23 @@ public:
 
 
     //---------------------------------------------------------------
-    template<class Consumer>
-    void
-    for_each_match(const sequence& query, Consumer&& consume) const
-    {
-        if(query.empty()) return;
-
-        using std::begin;
-        using std::end;
-        for_each_match(begin(query), end(query),
-                             std::forward<Consumer>(consume));
-    }
-
-    //-----------------------------------------------------
-    template<class InputIterator, class Consumer>
-    void
-    for_each_match(InputIterator queryBegin, InputIterator queryEnd,
-                   Consumer&& consume) const
-    {
-        for_each_window(queryBegin, queryEnd, queryWindowSize_, queryWindowStride_,
-            [this, &consume] (InputIterator b, InputIterator e) {
-                auto sk = querySketcher_(b,e);
-                for(auto f : sk) {
-                    auto locs = features_.find(f);
-                    if(locs != features_.end()) {
-                        for(const auto& loc : *locs) {
-                            consume(location{targets_[loc.tgt], loc.win});
-                        }
-                    }
-                }
-            });
-    }
-
-
-    //---------------------------------------------------------------
-    matches_per_location
-    matches(const sequence& query) const
-    {
-        auto res = matches_per_location{};
-        using std::begin;
-        using std::end;
-        accumulate_matches(begin(query), end(query), res);
-        return res;
-    }
-    //---------------------------------------------------------------
-    template<class InputIterator>
-    matches_per_location
-    matches(InputIterator first, InputIterator last) const
-    {
-        auto res = matches_per_location{};
-        accumulate_matches(first, last, res);
-        return res;
-    }
-    //---------------------------------------------------------------
     template<class InputIterator>
     void
     accumulate_matches(InputIterator queryBegin, InputIterator queryEnd,
-                       matches_per_location& res) const
+                       match_target_locations& res, std::vector<size_t>& offsets) const
     {
-        for_each_match(queryBegin, queryEnd,
-            [&res] (const location& loc) {
-                auto it = std::lower_bound(begin(res), end(res), loc,
-                    [](const location_matches& lc, const location& l) {
-                        return lc.loc < l;
-                    });
+        for_each_window(queryBegin, queryEnd, queryWindowSize_, queryWindowStride_,
+            [this, &res, &offsets] (InputIterator b, InputIterator e) {
+                auto sk = querySketcher_(b,e);
 
-                if(it != end(res) && it->loc == loc) {
-                    ++(it->hits);
-                }
-                else {
-                    res.insert(it, {loc, match_count_type(1)});
+                offsets.reserve(offsets.size() + sk.size());
+
+                for(auto f : sk) {
+                    auto locs = features_.find(f);
+                    if(locs != features_.end() && locs->size() > 0) {
+                        res.insert(res.end(), locs->begin(), locs->end());
+                        offsets.emplace_back(res.size());
+                    }
                 }
             });
     }
@@ -832,11 +757,11 @@ public:
     //---------------------------------------------------------------
     void
     accumulate_matches(const sequence& query,
-                       matches_per_location& res) const
+                       match_target_locations& res, std::vector<size_t>& offsets) const
     {
         using std::begin;
         using std::end;
-        accumulate_matches(begin(query), end(query), res);
+        accumulate_matches(begin(query), end(query), res, offsets);
     }
 
 
@@ -927,7 +852,6 @@ public:
 
         //target insertion parameters
         read_binary(is, maxLocsPerFeature_);
-        read_binary(is, maxNewWindowSimilarity_);
 
         //taxon metadata
         read_binary(is, taxa_);
@@ -997,7 +921,6 @@ public:
 
         //target insertion parameters
         write_binary(os, maxLocsPerFeature_);
-        write_binary(os, maxNewWindowSimilarity_);
 
         //taxon & target metadata
         write_binary(os, taxa_);
@@ -1069,49 +992,6 @@ public:
 
 private:
     //---------------------------------------------------------------
-    window_id add_dissimilar_window_sketches(const sequence& seq, target_id tgt,
-                                             float maxSimilarity)
-    {
-        using iter_t = typename sequence::const_iterator;
-
-        window_id win = 0;
-        for_each_window(seq, targetWindowSize_, targetWindowStride_,
-            [&, this] (iter_t b, iter_t e) {
-                auto tgtSketch = targetSketcher_(b,e);
-
-                //query sketch against current database content
-                std::map<target_location,match_count_type> matches;
-                for(auto f : querySketcher_(b,e)) {
-                    auto locs = features_.find(f);
-                    if(locs != features_.end()) {
-                        for(const auto& loc : *locs) {
-                            auto it = matches.find(loc);
-                            if(it != matches.end())
-                                ++(it->second);
-                            else
-                                matches.insert(it, {loc, 1});
-                        }
-                    }
-                }
-                auto sim = max_hits_in_neighboring_windows(matches) /
-                           float(tgtSketch.size());
-
-                if(sim <= maxSimilarity) {
-                    //insert features from sketch into database
-                    for(const auto& f : tgtSketch) {
-                        auto it = features_.insert(f, target_location{tgt, win});
-                        if(it->size() > maxLocsPerFeature_) {
-                            features_.shrink(it, maxLocsPerFeature_);
-                        }
-                    }
-                }
-                ++win;
-            });
-        return win;
-    }
-
-
-    //---------------------------------------------------------------
     window_id add_all_window_sketches(const sequence& seq, target_id tgt)
     {
         using iter_t = typename sequence::const_iterator;
@@ -1132,54 +1012,6 @@ private:
         return win;
     }
 
-    /****************************************************************
-     * @brief
-     */
-    match_count_type
-    max_hits_in_neighboring_windows(
-        const std::map<target_location,match_count_type>& matches)
-    {
-        if(matches.empty()) return 0;
-
-        target_id tgt = std::numeric_limits<target_id>::max();
-        match_count_type hits = 0;
-        match_count_type curBest = 0;
-        match_count_type overallBest = 0;
-
-        //check hits per query sequence
-        auto fst = begin(matches);
-        auto lst = fst;
-        while(lst != end(matches)) {
-            //look for neighboring windows with the highest total hit count
-            //as long as we are in the same target and the windows are in a
-            //contiguous range of at most 3 windows
-            if(lst->first.tgt == tgt) {
-                //add new hits to the right
-                hits += lst->second;
-                //subtract hits to the left that fall out of range
-                while(fst != lst &&
-                     (lst->first.win - fst->first.win) >= 3)
-                {
-                    hits -= fst->second;
-                    //move left side of range
-                    ++fst;
-                }
-                //track best of the local sub-ranges
-                if(hits > curBest) curBest = hits;
-            }
-            else { //end of current target
-                if(curBest > overallBest) overallBest = curBest;
-                //reset to new target
-                hits = lst->second;
-                tgt  = lst->first.tgt;
-                curBest = hits;
-                fst = lst;
-            }
-            ++lst;
-        }
-        return (curBest > overallBest) ? curBest : overallBest;
-    }
-
 
     //---------------------------------------------------------------
     sketcher targetSketcher_;
@@ -1189,13 +1021,12 @@ private:
     std::uint64_t queryWindowSize_;
     std::uint64_t queryWindowStride_;
     std::uint64_t maxLocsPerFeature_;
-    float maxNewWindowSimilarity_;
     target_id targetCount_;
     feature_store features_;
     std::vector<const taxon*> targets_;
     taxonomy taxa_;
     ranked_lineages_cache ranksCache_;
-    std::unordered_map<taxon_name,const taxon*> name2tax_;
+    std::map<taxon_name,const taxon*> name2tax_;
 };
 
 
@@ -1254,7 +1085,7 @@ void print_static_properties(const sketch_database<S,K,H,G,W,L>& db)
     std::cout
         << "------------------------------------------------\n"
         << "MetaCache version    " << MC_VERSION_STRING << " (" << MC_VERSION << ")\n"
-        << "database verion      " << MC_DB_VERSION << '\n'
+        << "database version     " << MC_DB_VERSION << '\n'
         << "------------------------------------------------\n"
         << "sequence type        " << type_name<typename db_t::sequence>() << '\n'
         << "target id type       " << type_name<target_id>() << " " << (sizeof(target_id)*CHAR_BIT) << " bits\n"
@@ -1264,7 +1095,6 @@ void print_static_properties(const sketch_database<S,K,H,G,W,L>& db)
         << "window limit         " << std::uint64_t(db.max_windows_per_target()) << '\n'
         << "window length        " << db.target_window_size() << '\n'
         << "window stride        " << db.target_window_stride() << '\n'
-        << "window similarity <= " << (100 * db.max_new_window_similarity()) << "%\n"
         << "------------------------------------------------\n"
         << "sketcher type        " << type_name<typename db_t::sketcher>() << '\n'
         << "feature type         " << type_name<feature_t>() << " " << (sizeof(feature_t)*CHAR_BIT) << " bits\n"

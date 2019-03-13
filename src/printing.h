@@ -27,6 +27,7 @@
 #include <iosfwd>
 
 #include "config.h"
+#include "classification.h"
 #include "classification_statistics.h"
 #include "matches_per_target.h"
 #include "query_options.h"
@@ -82,7 +83,7 @@ void show_matches(std::ostream&,
  *****************************************************************************/
 void show_matches(std::ostream&,
                   const database&,
-                  const matches_per_location&,
+                  const match_locations&,
                   taxon_rank lowest = taxon_rank::Sequence);
 
 
@@ -101,7 +102,7 @@ void show_candidate_ranges(std::ostream&,
  * @brief prints a list of all match locations for each classification target
  *
  *****************************************************************************/
-void show_matches_per_targets(std::ostream& os,
+void show_matches_per_targets(std::ostream&,
                               const database&,
                               const matches_per_target&,
                               const classification_output_options&);
@@ -131,12 +132,44 @@ void show_features_of_targets(std::ostream& os,
 
 /*************************************************************************//**
  *
+ * @brief prints a list of accumulated read counts per taxon
+ *
+ *****************************************************************************/
+void show_abundances(std::ostream&,
+                     const taxon_count_map&,
+                     const classification_statistics::count_t,
+                     const classification_output_options&);
+
+
+/*************************************************************************//**
+ *
+ * @brief prints a list of accumulated read counts per taxon
+ * @pre   all taxa are assumed to have the same rank
+ *
+ *****************************************************************************/
+void show_abundance_estimates(std::ostream&,
+                              const taxon_count_map&,
+                              const classification_statistics::count_t,
+                              const classification_output_options&);
+
+
+/*************************************************************************//**
+ *
  * @brief prints per-rank classification statistics
  *
  *****************************************************************************/
 void show_taxon_statistics(std::ostream&,
-                                    const classification_statistics&,
-                                    const std::string& prefix = "");
+                           const classification_statistics&,
+                           const std::string& prefix = "");
+
+
+/*************************************************************************//**
+ *
+ * @brief show summary and statistics of classification
+ *
+ *****************************************************************************/
+void show_summary(const query_options& opt,
+                  const classification_results& results);
 
 
 } // namespace mc

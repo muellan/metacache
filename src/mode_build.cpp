@@ -68,8 +68,6 @@ struct build_options
     int maxLocationsPerFeature = database::max_supported_locations_per_feature();
     bool removeOverpopulatedFeatures = true;
 
-    float maxWindowSimilarity = 1.0f; //insert everything
-
     taxon_rank removeAmbigFeaturesOnRank = taxon_rank::none;
     int maxTaxaPerFeature = 1;
 
@@ -129,14 +127,6 @@ get_build_options(const args_parser& args, const build_options& defaults = {})
                                            "max_ambig_per_feature"},
                                             defaults.maxTaxaPerFeature);
 
-    opt.maxWindowSimilarity = args.get<float>({"max-window-similarity",
-                                               "max_new_window_similarity"},
-                                               defaults.maxWindowSimilarity);
-
-    //interpret numbers > 1 as percentage
-    if(opt.maxWindowSimilarity > 1.0f) opt.maxWindowSimilarity *= 0.01f;
-    if(opt.maxWindowSimilarity < 0.0f) opt.maxWindowSimilarity = 0.0f;
-
     opt.resetParents = args.contains({"reset-parents", "reset_parents"});
 
     opt.taxonomy = get_taxonomy_options(args);
@@ -164,8 +154,6 @@ get_build_options_from_db(const database& db)
     opt.maxLoadFactor = db.max_load_factor();
 
     opt.maxLocationsPerFeature = db.max_locations_per_feature();
-
-    opt.maxWindowSimilarity = db.max_new_window_similarity();
 
     return opt;
 }
@@ -215,7 +203,7 @@ void rank_targets_with_mapping_file(database& db,
         const taxon* tax = db.taxon_with_name(accver);
 
         if(!tax) {
-            tax = db.taxon_with_name(acc);
+            tax = db.taxon_with_similar_name(acc);
             if(!tax) tax = db.taxon_with_name(gi);
         }
 
@@ -320,15 +308,42 @@ void try_to_rank_unranked_targets(database& db, const build_options& opt)
 
 
 
+/*************************************************************************//**
+ *
+ * @brief look up taxon id based on an identifier (accession number etc.)
+ *
+ *****************************************************************************/
+taxon_id find_taxon_id(
+    const std::map<string,taxon_id>& name2tax, 
+    const string& name)
+{
+    if(name2tax.empty()) return taxonomy::none_id();
+    if(name.empty()) return taxonomy::none_id();
+
+    //try to find exact match
+    auto i = name2tax.find(name);
+    if(i != name2tax.end()) return i->second;
+
+    //find nearest match
+    i = name2tax.upper_bound(name);
+    if(i == name2tax.end()) return taxonomy::none_id();
+
+    //if nearest match contains 'name' as prefix -> good enough
+    //e.g. accession vs. accession.version
+    if(i->first.compare(0,name.size(),name) != 0) return taxonomy::none_id();
+    return i->second;
+}
+
+
 
 /*************************************************************************//**
  *
- * @brief adds reference sequences to database
+ * @brief adds reference sequences from *several* files to database
  *
  *****************************************************************************/
 void add_targets_to_database(database& db,
     const std::vector<string>& infiles,
-    const std::map<string,database::taxon_id>& sequ2taxid,
+    const std::map<string,taxon_id>& sequ2taxid,
     info_level infoLvl = info_level::moderate)
 {
     int n = infiles.size();
@@ -355,20 +370,13 @@ void add_targets_to_database(database& db,
                     //use entire header if neccessary
                     if(seqId.empty()) seqId = sequ.header;
 
-                    //targets need to have a sequence id
-                    //look up taxon id
-                    taxon_id parentTaxId = 0;
-                    if(!sequ2taxid.empty()) {
-                        auto it = sequ2taxid.find(seqId);
-                        if(it != sequ2taxid.end()) {
-                            parentTaxId = it->second;
-                        } else {
-                            it = sequ2taxid.find(fileId);
-                            if(it != sequ2taxid.end()) parentTaxId = it->second;
-                        }
-                    }
-                    //no valid taxid assigned -> try to find one in annotation
-                    if(parentTaxId < 1) parentTaxId = extract_taxon_id(sequ.header);
+                    taxon_id parentTaxId = find_taxon_id(sequ2taxid, seqId);
+
+                    if(parentTaxId == taxonomy::none_id())
+                        parentTaxId = find_taxon_id(sequ2taxid, fileId);
+
+                    if(parentTaxId == taxonomy::none_id())
+                        parentTaxId = extract_taxon_id(sequ.header);
 
                     if(infoLvl == info_level::verbose) {
                         cout << "[" << seqId;
@@ -427,8 +435,6 @@ void prepare_database(database& db, const build_options& opt)
         cerr << "Using custom hash table load factor of "
              << opt.maxLoadFactor << endl;
     }
-
-    db.max_new_window_similarity(opt.maxWindowSimilarity);
 
     if(!opt.taxonomy.path.empty()) {
         db.reset_taxa_above_sequence_level(

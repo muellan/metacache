@@ -86,10 +86,10 @@ void main_mode_query(const args_parser&);
 
 /*************************************************************************//**
  *
- * @brief evaluate classification results against ground truth
+ * @brief merge classification result files
  *
  *****************************************************************************/
-void main_mode_evaluate(const args_parser&);
+void main_mode_merge(const args_parser&);
 
 
 } // namespace mc

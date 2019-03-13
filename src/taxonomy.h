@@ -156,10 +156,17 @@ public:
 
     //---------------------------------------------------------------
     inline friend rank& operator ++ (rank& r) {
-        return int(r) < num_ranks ? (r = rank(int(r) + 1)) : r;
+        return std::uint8_t(r) < num_ranks ? (r = rank(std::uint8_t(r) + 1)) : r;
     }
     inline friend rank& operator -- (rank& r) {
-        return int(r) > 1 ? (r = rank(int(r) - 1)) : r;
+        return std::uint8_t(r) > 0 ? (r = rank(std::uint8_t(r) - 1)) : r;
+    }
+
+    inline friend rank operator + (rank r, std::uint8_t offset) {
+        return std::uint8_t(r) < num_ranks ? rank(std::uint8_t(r) + offset) : rank::root;
+    }
+    inline friend rank operator - (rank r, std::uint8_t offset) {
+        return std::uint8_t(r) >= offset ? rank(std::uint8_t(r) - offset) : rank::Sequence;
     }
 
 
@@ -735,10 +742,19 @@ public:
         lins_.clear();
         if(highestRank_ != taxon_rank::none) {
             for(const auto& t : taxa_) {
-                if(t.rank() <= highestRank_)
-                    lins_.emplace(&t, taxa_.ranks(t));
+                if(t.rank() <= highestRank_) {
+                    auto& lin = lins_.emplace(&t, taxa_.ranks(t)).first->second;
+                    for(const auto& tax : lin) {
+                        operator[](tax);
+                    }
+                }
             }
         }
+    }
+    //-----------------------------------------------------
+    void update(taxon_rank highestRank) {
+        highestRank_ = highestRank;
+        update();
     }
 
     //-----------------------------------------------------
@@ -749,14 +765,15 @@ public:
 
 
     //---------------------------------------------------------------
+    /// @brief not concurrency safe! - call update first if you need concurrent access
     const ranked_lineage&
     operator [] (const taxon* tax) const {
         return tax ? operator[](*tax) : empty_;
     }
     //-----------------------------------------------------
+    /// @brief not concurrency safe! - call update first if you need concurrent access
     const ranked_lineage&
     operator [] (const taxon& tax) const {
-        std::lock_guard<std::mutex> lock(mutables_);
         auto i = lins_.find(&tax);
         if(i != lins_.end()) return i->second;
         return lins_.emplace(&tax, taxa_.ranks(tax)).first->second;

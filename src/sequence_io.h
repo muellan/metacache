@@ -43,7 +43,7 @@ namespace mc {
 
 /*************************************************************************//**
  *
- * @brief polymorphic file reader for bio-sequences
+ * @brief polymorphic file reader for (pairs of) bio-sequences
  *        base class handles concurrency safety
  *
  *****************************************************************************/
@@ -53,10 +53,11 @@ public:
     using index_type = std::uint_least64_t;
 
     struct sequence {
+        using data_type = std::string;
         index_type  index;       //number of sequence in file (+ offset)
         std::string header;      //meta information (FASTA >, FASTQ @)
-        std::string data;        //actual sequence
-        std::string qualities;   //quality scores (FASTQ)
+        data_type   data;        //actual sequence data
+        data_type   qualities;   //quality scores (FASTQ)
     };
 
     sequence_reader(): index_{0}, valid_{true} {}
@@ -79,11 +80,20 @@ public:
 
     void index_offset(index_type index) { index_.store(index); }
 
+    void seek(std::streampos pos) { do_seek(pos); }
+    std::streampos tell()         { return do_tell(); }
+
 protected:
     void invalidate() { valid_.store(false); }
 
+    virtual std::streampos do_tell() = 0;
+
+    virtual void do_seek(std::streampos) = 0;
+
     //derived readers have to implement this
     virtual void read_next(sequence&) = 0;
+
+    virtual void skip_next() = 0;
 
 private:
     mutable std::mutex mutables_;
@@ -104,14 +114,18 @@ class fasta_reader :
 {
 public:
     explicit
-    fasta_reader(std::string filename);
+    fasta_reader(const std::string& filename);
 
 protected:
+    std::streampos do_tell() override;
+    void do_seek(std::streampos) override;
     void read_next(sequence&) override;
+    void skip_next() override;
 
 private:
     std::ifstream file_;
     std::string linebuffer_;
+    std::streampos pos_;
 };
 
 
@@ -127,10 +141,13 @@ class fastq_reader :
 {
 public:
     explicit
-    fastq_reader(std::string filename);
+    fastq_reader(const std::string& filename);
 
 protected:
+    std::streampos do_tell() override;
+    void do_seek(std::streampos) override;
     void read_next(sequence&) override;
+    void skip_next() override;
 
 private:
     std::ifstream file_;
@@ -149,13 +166,70 @@ class sequence_header_reader :
 {
 public:
     explicit
-    sequence_header_reader(std::string filename);
+    sequence_header_reader(const std::string& filename);
 
 protected:
+    std::streampos do_tell() override;
+    void do_seek(std::streampos) override;
     void read_next(sequence&) override;
+    void skip_next() override;
 
 private:
     std::ifstream file_;
+};
+
+
+
+
+
+/*************************************************************************//**
+ *
+ * @brief file reader for (pairs of) bio-sequences
+ *
+ *****************************************************************************/
+class sequence_pair_reader
+{
+public:
+    using index_type       = std::uint_least64_t;
+    using string_type      = std::string;
+    using stream_positions = std::pair<std::streampos,std::streampos>;
+    using sequence         = sequence_reader::sequence;
+    using sequence_pair    = std::pair<sequence,sequence>;
+
+    /** @brief if filename2 empty : single sequence mode
+     *         if filename1 == filename2 : read consecutive pairs in one file
+     *         else : read from 2 files in lockstep
+     */
+    sequence_pair_reader(const std::string& filename1,
+                         const std::string& filename2);
+
+    sequence_pair_reader(const sequence_pair_reader&) = delete;
+    sequence_pair_reader& operator = (const sequence_pair_reader&) = delete;
+    sequence_pair_reader& operator = (sequence_pair_reader&&) = delete;
+
+    ~sequence_pair_reader() = default;
+
+    /** @brief read & return next sequence */
+    sequence_pair next();
+
+    /** @brief skip n sequences */
+    void skip(index_type n);
+
+    bool has_next() const noexcept;
+
+    index_type index() const noexcept;
+
+    void index_offset(index_type index);
+
+    void seek(const stream_positions& pos);
+    stream_positions tell();
+
+
+private:
+    mutable std::mutex mutables_;
+    std::unique_ptr<sequence_reader> reader1_;
+    std::unique_ptr<sequence_reader> reader2_;
+    bool singleMode_;
 };
 
 
@@ -180,6 +254,7 @@ enum class sequence_id_type {
  *****************************************************************************/
 std::unique_ptr<sequence_reader>
 make_sequence_reader(const std::string& filename);
+
 
 
 

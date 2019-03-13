@@ -141,7 +141,7 @@ void hash_multimap_check_book_keeping(
     const std::vector<std::pair<K,V>>& kvpairs,
     const std::string& message = "")
 {
-    using key_t = typename std::decay<HashMultiMap>::type::key_type;
+    using key_t = std::decay_t<HashMultiMap>::key_type;
 
     if(kvpairs.size() != hm.value_count()) {
         std::cout << kvpairs.size() << " != " << hm.value_count() << std::endl;
@@ -248,8 +248,8 @@ void hash_multimap_correctness(HashMultiMap&& hm, std::size_t n, KeyValGen&& key
     //erase
 /*
 //    std::cout << "erase & query" << std::endl;
-    using key_t = typename std::decay<HashMultiMap>::type::key_type;
-    using val_t = typename std::decay<HashMultiMap>::type::value_type;
+    using key_t = std::decay_t<HashMultiMap>::key_type;
+    using val_t = std::decay_t<HashMultiMap>::value_type;
 
     auto m = std::size_t(kvpairs.size() / 3);
     std::vector<key_t> erased;
@@ -292,7 +292,7 @@ void hash_multimap_correctness(HashMultiMap&& hm, std::size_t n, KeyValGen&& key
 template<class HashMultiMap, class KeyValGen>
 void hash_multimap_performance(HashMultiMap&& hm, std::size_t n, KeyValGen&& keyValGen)
 {
-    using value_t = typename std::decay<HashMultiMap>::type::value_type;
+    using value_t = std::decay_t<HashMultiMap>::value_type;
 
     //insert
     timer time;

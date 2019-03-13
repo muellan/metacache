@@ -108,8 +108,10 @@ struct query_processing_options
 
     std::size_t batchSize = 4096 * std::thread::hardware_concurrency();
 
+    int perThreadSequentialQueries = 4;
+
     //limits number of reads per sequence source (file)
-    std::uint_least64_t queryLimit = std::numeric_limits<std::uint_least64_t>::max();
+    std::int_least64_t queryLimit = std::numeric_limits<std::int_least64_t>::max();
 };
 
 
@@ -126,7 +128,7 @@ struct classification_options
     taxon_rank highestRank = taxon_rank::Domain;
 
     std::uint16_t hitsMin  = 0;  //< 1 : deduced from database parameters
-    float hitsDiffFraction = 1;
+    float hitsDiffFraction = 1.0f;
     //maximum range in sequence that read (pair) is expected to be in
     std::size_t insertSizeMax = 0;
 
@@ -215,6 +217,12 @@ struct classification_output_options
     bool showAlignment = false;
     //show list of target -> hit mappings
     bool showHitsPerTargetList = false;
+    //show list of taxon -> number of reads
+    bool showTaxAbundances = false;
+    //show estimated number of reads at specific rank
+    taxon_rank showAbundanceEstimatesOnRank = taxon_rank::none;
+    //needed for the two options above
+    bool makeTaxCounts = false;
     //show error messages?
     bool showErrors = true;
 
@@ -223,6 +231,19 @@ struct classification_output_options
     taxon_rank highestRank = taxon_rank::Domain;
 
     formatting_strings format;
+
+    //make a separate output file for each input file
+    bool splitFiles = false;
+    //output filename for mappings per read
+    std::string queryMappingsFile;
+    //output filename for mappings per target
+    std::string targetsFile;
+    //output filename for mappings per taxon
+    std::string abundanceFile;
+    //show database properties
+    bool showDBproperties = false;
+    bool showQueryParams = true;
+    bool showSummary = true;
 };
 
 
@@ -238,17 +259,6 @@ struct query_options
     classification_options classify;
     evaluation_options evaluate;
     classification_output_options output;
-
-    //make a separate output file for each input file
-    bool splitFiles = false;
-    //output filename for mappings
-    std::string outfile;
-    //output filename for additional analyses
-    std::string auxfile;
-    //show database properties
-    bool showDBproperties = false;
-    bool showQueryParams = true;
-    bool showSummary = true;
 };
 
 

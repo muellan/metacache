@@ -109,9 +109,10 @@ fi
 # ---------------------------------------------------------
 # classification tests
 # ---------------------------------------------------------
-common="-noqueryparams -mapped-only -precision -ground-truth -tophits -allhits -hits-per-seq"
+common="-noqueryparams -mapped-only -precision -ground-truth -tophits -allhits -hits-per-seq -abundances -abundance-per species"
 tests=""
 tests="${tests} data/single.fa ${common}\n"
+tests="${tests} data/pairs.fa -pairseq ${common}\n"
 tests="${tests} data/pair.1.fa data/pair.2.fa -pairfiles ${common}\n"
 
 echo -e ${tests} | ../metacache query bacteria1 | grep "|\|#" | grep -v "time\|speed\|list\|ignore" > results/classified.out

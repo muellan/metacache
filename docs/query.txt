@@ -122,6 +122,20 @@ ADVANCED ANALYSIS OPTIONS
                        This will activate "-queryids" and set the lowest 
                        classification rank to "sequence".
                        default:off
+    
+    -abundances        Show absolute and relative abundance of each taxon.
+     [<filename>]      If a valid filename is given after '-abundances',
+                       the list will be written to a separate file.
+                       default:off
+
+    -abundance-per     Show absolute and relative abundances for each
+    <rank>             taxon on one specific rank.
+                       Classifications on higher ranks will be estimated by 
+                       distributing them down according to the relative 
+                       abundances of classifications on or below the given rank.
+                       If '-abundances <file>' was given, this list will
+                       be printed to the same file.
+                       default:off
 
 ADVANCED OPTIONS 
 

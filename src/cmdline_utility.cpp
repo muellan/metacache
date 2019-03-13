@@ -30,6 +30,7 @@ namespace mc {
 //-------------------------------------------------------------------
 void show_progress_indicator(std::ostream& os, float done, int totalLength)
 {
+    if(done < 0.f) done = 0.f;
     auto m = int((totalLength - 7) * done);
     os << "\r[";
     for(int j = 0; j < m; ++j) os << '=';

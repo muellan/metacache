@@ -1,0 +1,124 @@
+Documentation for MetaCache mode "merge"
+
+SYNOPSIS
+    metacache merge <results_file>... -taxonomy <path> OPTIONS
+
+DESCRIPTION
+    You can also provide names of directories that contain
+    results files instead of single filenames. MetaCache will
+    search at most 10 levels down in the file hierarchy.
+
+    This mode classifies reads by merging the results of multiple, independent 
+    queries. These might have been obtained by querying one database with 
+    different parameters or by querying different databases with different 
+    reference targets or build options.
+
+    IMPORTANT: In order to be mergable, independent queries 
+    need to be run with options:
+        -tophits -queryids -lowest species
+    and must NOT be run with options that suppress or alter default output 
+    like, e.g.: -nomap, -no-summary, -separator, etc.
+
+    Possible Use Case:
+    In case your system has not enough memory for one large database, you could
+    split up the set of reference genomes into several databases and query these
+    in succession. The results of these independent query runs can then be 
+    merged to obtain a classification based on the whole set of genomes
+
+NON-OPTIONAL PARAMETERS
+    -taxonomy <path>   directory with taxonomic hierarchy data 
+                       (see NCBI's taxonomic data files)
+
+BASIC OPTIONS
+
+    -out <file>        Redirect output to file <file>.
+                       If not specified, output will be written to stdout.
+                       If more than one input file was given all output
+                       will be concatenated into one file.
+
+    -lowest  <rank>    Do not classify on ranks below <rank>.
+                       default: sequence
+
+    -highest <rank>    Do not classify on ranks above <rank>.
+                       default: domain
+
+    -hitmin <t>        Sets classification threshhold to <t>.
+                       A read will not be classified if less than t features
+                       from the database are found in it.
+                       Higher values will increase precision at the expense of
+                       lower sensitivity.
+
+    -max-cand <no>     maximum number of reference taxon candidates to 
+                       consider for each query; A large value can significantly 
+                       decrease the querying speed!
+                       default: 2
+
+OUTPUT FORMATTING OPTIONS
+
+    -nomap             Don't report classification for each individual query
+                       sequence; show summaries only (useful for quick tests).
+                       default: off (= print per-read mappings)
+
+    -mapped-only       Don't list unclassified queries.
+                       default: off (= print all mappings)
+
+    -taxids            Print taxon ids in addition to taxon names.
+                       default: off
+
+    -taxids-only       Print taxon ids instead of taxon names.
+                       default: off
+
+    -omit-ranks        Don't print taxon ranks.
+                       default: off (= do print taxon ranks)
+
+    -separate-cols     Prints *all* mapping information (rank, taxon name, taxon ids)
+                       in separate columns (see option "-separator").
+                       default: off (= print rank:taxon_name in one column)
+
+    -separator <text>  string that separates output fields (sequence name, 
+                       classification result, etc.)
+                       default: "\t|\t"
+
+    -queryids          Show a unique id for each query.
+                       Note that in paired-end mode a query is a pair of two 
+                       read sequences. This option will always be activated if 
+                       "-hits-per-seq" is given.
+                       default: off
+
+    -lineage           Report complete lineage for per-read classification
+                       starting with the lowest rank found or allowed and
+                       ending with the highest rank allowed. See also
+                       options '-lowest' and '-highest'.
+                       default: off
+
+    -no-query-params   don't show query settings at the beginning of the
+                       mapping output
+                       default: do show query settings
+
+    -no-summary        don't show result summary & mapping statistics at the
+                       end of the mapping output
+                       default: do show the summary
+
+ADVANCED ANALYSIS OPTIONS
+    
+    -abundances        Show absolute and relative abundance of each taxon.
+     [<filename>]      If a valid filename is given after '-abundances',
+                       the list will be written to a separate file.
+                       default:off
+
+    -abundance-per     Show absolute and relative abundances for each
+    <rank>             taxon on one specific rank.
+                       Classifications on higher ranks will be estimated by 
+                       distributing them down according to the relative 
+                       abundances of classifications on or below the given rank.
+                       If '-abundances <file>' was given, this list will
+                       be printed to the same file.
+                       default:off
+
+EXAMPLES
+    Classify reads based on the three different databases:
+        ./metacache query 1.db reads.fa -tophits -queryids -lowest species -out res1.txt 
+        ./metacache query 2.db reads.fa -tophits -queryids -lowest species -out res2.txt
+        ./metacache query 3.db reads.fa -tophits -queryids -lowest species -out res3.txt
+        ./metacache merge res1.txt res2.txt res3.txt -taxonomy ncbi_taxonomy
+

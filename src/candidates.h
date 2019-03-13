@@ -50,8 +50,7 @@ struct window_range
         beg{first}, end{last}
     {}
 
-    constexpr window_id size()  const noexcept { return end - beg; }
-    constexpr window_id empty() const noexcept { return beg == end; }
+    constexpr window_id size()  const noexcept { return end - beg + 1; }
 
     window_id beg = 0;
     window_id end = 0;
@@ -73,6 +72,8 @@ struct match_candidate
 
     constexpr
     match_candidate() noexcept = default;
+
+    match_candidate(const taxon* tax, count_type hits) : tax(tax), hits(hits) {};
 
     const taxon* tax = nullptr;
     count_type   hits = 0;
@@ -115,7 +116,7 @@ struct candidate_generation_rules
  *
  *****************************************************************************/
 template<class Consumer>
-void for_all_contiguous_window_ranges(const matches_per_location& matches,
+void for_all_contiguous_window_ranges(const match_locations& matches,
                                       window_id numWindows,
                                       Consumer&& consume)
 {
@@ -130,12 +131,12 @@ void for_all_contiguous_window_ranges(const matches_per_location& matches,
     if(fst == end(matches)) return;
 
     //first entry in list
-    hit_count hits = fst->hits;
+    hit_count hits = 1;
     match_candidate curBest;
-    curBest.tax = fst->loc.tax;
+    curBest.tax = fst->tax;
     curBest.hits = hits;
-    curBest.pos.beg = fst->loc.win;
-    curBest.pos.end = fst->loc.win;
+    curBest.pos.beg = fst->win;
+    curBest.pos.end = fst->win;
     auto lst = fst;
     ++lst;
 
@@ -144,33 +145,33 @@ void for_all_contiguous_window_ranges(const matches_per_location& matches,
         //look for neighboring windows with the highest total hit count
         //as long as we are in the same target and the windows are in a
         //contiguous range
-        if(lst->loc.tax == curBest.tax) {
+        if(lst->tax == curBest.tax) {
             //add new hits to the right
-            hits += lst->hits;
+            hits++;
             //subtract hits to the left that fall out of range
             while(fst != lst &&
-                (lst->loc.win - fst->loc.win) >= numWindows)
+                (lst->win - fst->win) >= numWindows)
             {
-                hits -= fst->hits;
+                hits--;
                 //move left side of range
                 ++fst;
             }
             //track best of the local sub-ranges
             if(hits > curBest.hits) {
                 curBest.hits = hits;
-                curBest.pos.beg = fst->loc.win;
-                curBest.pos.end = lst->loc.win;
+                curBest.pos.beg = fst->win;
+                curBest.pos.end = lst->win;
             }
         }
         else { //end of current target
             if(!consume(curBest)) return;
             //reset to new target
             fst = lst;
-            hits = fst->hits;
-            curBest.tax  = fst->loc.tax;
+            hits = 1;
+            curBest.tax  = fst->tax;
             curBest.hits = hits;
-            curBest.pos.beg = fst->loc.win;
-            curBest.pos.end = fst->loc.win;
+            curBest.pos.beg = fst->win;
+            curBest.pos.end = fst->win;
         }
 
         ++lst;
@@ -198,71 +199,24 @@ public:
 
 
     /****************************************************************
+     */
+    best_distinct_matches_in_contiguous_window_ranges() = default;
+
+    /****************************************************************
      * @pre matches must be sorted by taxon (first) and window (second)
      */
     best_distinct_matches_in_contiguous_window_ranges(
         const database& db,
-        const matches_per_location& matches,
+        const match_locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
     :
         top_{}
     {
-        using hit_count = match_candidate::count_type;
-
         for_all_contiguous_window_ranges(matches, rules.maxWindowsInRange,
-            [&,this] (match_candidate cand)
-        {
-            if(!cand.tax) return true;
-
-            if(rules.mergeBelow > taxon_rank::Sequence) {
-                auto ancestor = db.ancestor(cand.tax, rules.mergeBelow);
-                if(ancestor) cand.tax = ancestor;
-            }
-
-            if(cand.tax->rank() == taxon_rank::Sequence) {
-                auto i = std::lower_bound(top_.begin(), top_.end(), cand.hits,
-                    [&] (const match_candidate& c, hit_count h) {
-                        return c.hits > h;
-                    });
-
-                if(i != top_.end() || top_.size() < rules.maxCandidates) {
-                    top_.insert(i, cand);
-                    if(top_.size() > rules.maxCandidates)
-                        top_.resize(rules.maxCandidates);
-                }
-            }
-            //above sequence level, taxa can occur more than once
-            else {
-                auto i = std::find_if(top_.begin(), top_.end(),
-                    [&] (const match_candidate& c) {
-                        return c.tax == cand.tax;
-                    });
-
-                if(i != top_.end()) {
-                    //taxon already in list, update, if more hits
-                    if(cand.hits > i->hits) *i = cand;
-                    std::sort(top_.begin(), i+1,
-                        [] (const match_candidate& a, const match_candidate& b) {
-                            return a.hits > b.hits;
-                        });
-                }
-                //taxon not in list yet
-                else  {
-                    auto j = std::lower_bound(top_.begin(), top_.end(), cand.hits,
-                        [&] (const match_candidate& c, hit_count h) {
-                            return c.hits > h;
-                        });
-
-                    if(j != top_.end() || top_.size() < rules.maxCandidates) {
-                        top_.insert(j, cand);
-                        if(top_.size() > rules.maxCandidates)
-                            top_.resize(rules.maxCandidates);
-                    }
-                }
-
-            }
-            return true;
-        });
+            [&,this] (match_candidate& cand)
+            {
+                return insert(cand, db, rules);
+            });
     }
 
 
@@ -270,13 +224,67 @@ public:
     const_iterator begin() const noexcept { return top_.begin(); }
     const_iterator end()   const noexcept { return top_.end(); }
 
-    bool empty()       const noexcept { return top_.empty(); }
+    bool empty()     const noexcept { return top_.empty(); }
     size_type size() const noexcept { return top_.size(); }
 
     const match_candidate&
     operator [] (size_type i) const noexcept { return top_[i]; }
 
     iterator erase(const_iterator pos) { return top_.erase(pos); }
+
+    /****************************************************************
+     * @brief insert candidate and keep list sorted
+     */
+    bool insert(match_candidate cand,
+                const database& db,
+                const candidate_generation_rules& rules = candidate_generation_rules{})
+    {
+        if(!cand.tax) return true;
+
+        if(rules.mergeBelow > taxon_rank::Sequence) {
+            auto ancestor = db.ancestor(cand.tax, rules.mergeBelow);
+            if(ancestor) cand.tax = ancestor;
+        }
+
+        auto greater = [] (const match_candidate& a, const match_candidate& b) {
+                           return a.hits > b.hits;
+                       };
+
+        if(cand.tax->rank() == taxon_rank::Sequence) {
+            auto i = std::upper_bound(top_.begin(), top_.end(), cand, greater);
+
+            if(i != top_.end() || top_.size() < rules.maxCandidates) {
+                top_.insert(i, cand);
+                if(top_.size() > rules.maxCandidates)
+                    top_.resize(rules.maxCandidates);
+            }
+        }
+        //above sequence level, taxa can occur more than once
+        else {
+            auto i = std::find_if(top_.begin(), top_.end(),
+                [&] (const match_candidate& c) {
+                    return c.tax == cand.tax;
+                });
+
+            if(i != top_.end()) {
+                //taxon already in list, update, if more hits
+                if(cand.hits > i->hits) *i = cand;
+                std::sort(top_.begin(), i+1, greater);
+            }
+            //taxon not in list yet
+            else  {
+                auto j = std::upper_bound(top_.begin(), top_.end(), cand, greater);
+
+                if(j != top_.end() || top_.size() < rules.maxCandidates) {
+                    top_.insert(j, cand);
+                    if(top_.size() > rules.maxCandidates)
+                        top_.resize(rules.maxCandidates);
+                }
+            }
+
+        }
+        return true;
+    };
 
 private:
     candidates_list top_;
@@ -305,7 +313,7 @@ public:
      */
     distinct_matches_in_contiguous_window_ranges(
         const database&, //not needed here
-        const matches_per_location& matches,
+        const match_locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
     :
         cand_{}
