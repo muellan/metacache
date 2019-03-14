@@ -256,7 +256,7 @@ get_classification_output_options(const args_parser& args,
 
     opt.showLocations = defaults.showLocations || args.contains("locations");
 
-    opt.showTopHits = defaults.showTopHits ||
+    opt.showTopHits = defaults.showTopHits || opt.showLocations ||
                       args.contains({"tophits", "top-hits"});
 
     opt.showAllHits = defaults.showAllHits ||
