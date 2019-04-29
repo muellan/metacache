@@ -113,45 +113,51 @@ public:
                 const classification_candidates& candidates,
                 match_count_type minHitsPerCandidate = 0)
     {
+        auto linIt = candidates.begin_lineages();
+
         for(const auto& cand : candidates) {
-            // TODO at the moment only sequence-level candidates will
-            // be handled properly, because 'matches' does only contain
-            // sequence-level taxa, whereas candidates can also contain
-            // taxa of higher levels if the "-lowest" command line option
-            // is set to a rank higher than "sequence"
-            if(cand.tax && cand.tax->rank() == taxon_rank::Sequence &&
-                cand.hits >= minHitsPerCandidate)
-            {
-                // find candidate in matches
-                location lm{cand.tax, cand.pos.beg};
-                auto it = std::lower_bound(matches.begin(), matches.end(), lm,
-                    [] (const location& a, const location& b) {
-                        //assumes that sequence level taxa have negative taxids
-                        if(a.tax->id() < b.tax->id()) return false;
-                        if(a.tax->id() > b.tax->id()) return true;
-                        return (a.win < b.win);
-                    });
-                // fill window vector
-                if(it == matches.end()) return;
 
-                // create new window vector
-                matches_per_window mpw;
-                mpw.reserve(cand.pos.end - cand.pos.beg + 1);
+            if(cand.tax && cand.hits >= minHitsPerCandidate) {
 
-                while(it != matches.end() &&
-                      it->tax == cand.tax &&
-                      it->win <= cand.pos.end)
-                {
-                    if(mpw.size() > 0 && mpw.back().win == it->win)
-                        mpw.back().hits++;
-                    else
-                        mpw.emplace_back(it->win, 1);
-                    ++it;
+                auto tax = cand.tax;
+                // get sequence-level taxon from lineage if neccessary
+                if(tax->rank() != taxon_rank::Sequence) {
+                    tax = (*linIt)[int(taxon_rank::Sequence)];
                 }
-                // insert into map
-                hitsPerTarget_[cand.tax].emplace_back(qid, std::move(mpw));
+
+                if(tax->rank() == taxon_rank::Sequence) {
+                    // find candidate in matches
+                    location lm{tax, cand.pos.beg};
+                    auto it = std::lower_bound(matches.begin(), matches.end(), lm,
+                        [] (const location& a, const location& b) {
+                            //assumes that sequence level taxa have negative taxids
+                            if(a.tax->id() < b.tax->id()) return false;
+                            if(a.tax->id() > b.tax->id()) return true;
+                            return (a.win < b.win);
+                        });
+                    // fill window vector
+                    if(it == matches.end()) return;
+
+                    // create new window vector
+                    matches_per_window mpw;
+                    mpw.reserve(cand.pos.end - cand.pos.beg + 1);
+
+                    while(it != matches.end() &&
+                          it->tax == tax &&
+                          it->win <= cand.pos.end)
+                    {
+                        if(mpw.size() > 0 && mpw.back().win == it->win)
+                            mpw.back().hits++;
+                        else
+                            mpw.emplace_back(it->win, 1);
+                        ++it;
+                    }
+                    // insert into map
+                    hitsPerTarget_[tax].emplace_back(qid, std::move(mpw));
+                }
             }
         }
+        ++linIt;
     }
 
     //---------------------------------------------------------------
