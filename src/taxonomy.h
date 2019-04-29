@@ -467,6 +467,17 @@ public:
 
 
     //---------------------------------------------------------------
+    bool reset_rank(taxon_id id, rank rank)
+    {
+        if(id == none_id()) return false;
+        auto i = taxa_.find(taxon{id});
+        if(i == taxa_.end()) return false;
+        const_cast<taxon*>(&*i)->rank_ = rank;
+        return true;
+    }
+
+
+    //---------------------------------------------------------------
     const_iterator
     find(taxon_id id) const {
         return taxa_.find(taxon{id});
@@ -519,7 +530,7 @@ public:
     const taxon*
     ranked_lca(const ranked_lineage& lina, const ranked_lineage& linb) const
     {
-        for(int i = 0; i < int(rank::root); ++i) {
+        for(int i = 0; i <= static_cast<int>(rank::root); ++i) {
             if(lina[i] && (lina[i] == linb[i])) return lina[i];
         }
         return nullptr;
