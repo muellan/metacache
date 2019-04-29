@@ -733,7 +733,12 @@ public:
     {}
 
     ranked_lineages_cache& operator = (const ranked_lineages_cache&) = delete;
-    ranked_lineages_cache& operator = (ranked_lineages_cache&&) = delete;
+
+    ranked_lineages_cache& operator = (ranked_lineages_cache&& src) {
+        highestRank_ = src.highestRank_;
+        lins_ = std::move(src.lins_);
+        return *this;
+    }
 
 
     //---------------------------------------------------------------
