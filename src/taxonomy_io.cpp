@@ -171,6 +171,9 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
         return tax;
     }
 
+    //set rank of root
+    tax.reset_rank(1, taxonomy::rank::root);
+
     //make sure every taxon has a rank designation
 //    tax.rank_all_unranked();
 

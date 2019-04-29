@@ -150,7 +150,7 @@ get_classification_options(const args_parser& args,
     auto highestRank = args.get<string>("highest", "");
     if(!highestRank.empty()) {
         auto r = taxonomy::rank_from_name(highestRank);
-        if(r < taxon_rank::root) opt.highestRank = r;
+        if(r <= taxon_rank::root) opt.highestRank = r;
     }
 
     if(opt.lowestRank  > opt.highestRank) {
