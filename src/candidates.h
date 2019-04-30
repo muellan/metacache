@@ -191,8 +191,8 @@ void for_all_contiguous_window_ranges(const match_locations& matches,
 *****************************************************************************/
 class best_distinct_matches_in_contiguous_window_ranges
 {
-    using candidates_list = std::vector<match_candidate>;
-    using ranked_lineages_list = std::vector<database::ranked_lineage>;
+    using candidates_list  = std::vector<match_candidate>;
+    using taxon_list = std::vector<const taxon*>;
 
 public:
     using size_type      = std::size_t;
@@ -231,8 +231,8 @@ public:
     const match_candidate&
     operator [] (size_type i) const noexcept { return top_[i]; }
 
-    auto begin_lineages() const noexcept { return lineages_.begin(); }
-    auto end_lineages()   const noexcept { return lineages_.end(); }
+    auto begin_lowest_taxa() const noexcept { return lowestTaxa_.begin(); }
+    auto end_lowest_taxa()   const noexcept { return lowestTaxa_.end(); }
 
 
     /****************************************************************
@@ -244,8 +244,8 @@ public:
     {
         if(!cand.tax) return true;
 
-        //remember candidate taxon before merging
-        const auto cand_tax = cand.tax;
+        //remember candidate taxon before merging on higher levels
+        const auto orig_tax = cand.tax;
 
         if(rules.mergeBelow > taxon_rank::Sequence) {
             auto ancestor = db.ancestor(cand.tax, rules.mergeBelow);
@@ -262,12 +262,12 @@ public:
             if(i != top_.end() || top_.size() < rules.maxCandidates) {
                 top_.insert(i, cand);
 
-                // remember ranked lineage
+                // remember lowest taxon in separate list
                 const auto idx = std::size_t(std::distance(top_.begin(), i));
-                if(idx >= lineages_.size()) {
-                    lineages_.push_back(db.ranks(cand_tax));
+                if(idx >= lowestTaxa_.size()) {
+                    lowestTaxa_.push_back(orig_tax);
                 } else {
-                    lineages_.insert(lineages_.begin() + idx, db.ranks(cand_tax));
+                    lowestTaxa_.insert(lowestTaxa_.begin() + idx, orig_tax);
                 }
 
                 if(top_.size() > rules.maxCandidates)
@@ -293,12 +293,12 @@ public:
                 if(j != top_.end() || top_.size() < rules.maxCandidates) {
                     top_.insert(j, cand);
 
-                    // remember ranked lineage of original candidate
+                    // remember lowest taxon in separate list
                     const auto idx = std::size_t(std::distance(top_.begin(), j));
-                    if(idx >= lineages_.size()) {
-                        lineages_.push_back(db.ranks(cand_tax));
+                    if(idx >= lowestTaxa_.size()) {
+                        lowestTaxa_.push_back(orig_tax);
                     } else {
-                        lineages_.insert(lineages_.begin() + idx, db.ranks(cand_tax));
+                        lowestTaxa_.insert(lowestTaxa_.begin() + idx, orig_tax);
                     }
 
                     if(top_.size() > rules.maxCandidates)
@@ -313,7 +313,7 @@ public:
 
 private:
     candidates_list top_;
-    ranked_lineages_list lineages_;
+    taxon_list lowestTaxa_;
 };
 
 
@@ -327,8 +327,8 @@ private:
 *****************************************************************************/
 class distinct_matches_in_contiguous_window_ranges
 {
-    using candidates_list = std::vector<match_candidate>;
-    using ranked_lineages_list = std::vector<database::ranked_lineage>;
+    using candidates_list  = std::vector<match_candidate>;
+    using taxon_list = std::vector<const taxon*>;
 
 public:
     using size_type      = std::size_t;
@@ -339,7 +339,7 @@ public:
      * @pre matches must be sorted by taxon (first) and window (second)
      */
     distinct_matches_in_contiguous_window_ranges(
-        const database& db,
+        const database&,
         const match_locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
     :
@@ -348,7 +348,7 @@ public:
         for_all_contiguous_window_ranges(matches, rules.maxWindowsInRange,
             [&,this] (const match_candidate& cand) {
                 cand_.push_back(cand);
-                lineages_.push_back(db.ranks(cand.tax));
+                lowestTaxa_.push_back(cand.tax);
                 return true;
             });
     }
@@ -365,12 +365,12 @@ public:
     const match_candidate&
     operator [] (size_type i) const noexcept { return cand_[i]; }
 
-    auto begin_lineages() const noexcept { return lineages_.begin(); }
-    auto end_lineages()   const noexcept { return lineages_.end(); }
+    auto begin_lowest_taxa() const noexcept { return lowestTaxa_.begin(); }
+    auto end_lowest_taxa()   const noexcept { return lowestTaxa_.end(); }
 
 private:
     candidates_list cand_;
-    ranked_lineages_list lineages_;
+    taxon_list lowestTaxa_;
 };
 
 
