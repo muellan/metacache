@@ -181,6 +181,7 @@ void for_all_contiguous_window_ranges(const match_locations& matches,
 
 
 
+
 /*************************************************************************//**
 *
 * @brief processes a database match list and
@@ -190,7 +191,8 @@ void for_all_contiguous_window_ranges(const match_locations& matches,
 *****************************************************************************/
 class best_distinct_matches_in_contiguous_window_ranges
 {
-    using candidates_list = std::vector<match_candidate>;
+    using candidates_list  = std::vector<match_candidate>;
+    using taxon_list = std::vector<const taxon*>;
 
 public:
     using size_type      = std::size_t;
@@ -220,14 +222,17 @@ public:
 
 
     //---------------------------------------------------------------
-    const_iterator begin() const noexcept { return top_.begin(); }
-    const_iterator end()   const noexcept { return top_.end(); }
+    auto begin() const noexcept { return top_.begin(); }
+    auto end()   const noexcept { return top_.end(); }
 
     bool empty()     const noexcept { return top_.empty(); }
     size_type size() const noexcept { return top_.size(); }
 
     const match_candidate&
     operator [] (size_type i) const noexcept { return top_[i]; }
+
+    auto begin_lowest_taxa() const noexcept { return lowestTaxa_.begin(); }
+    auto end_lowest_taxa()   const noexcept { return lowestTaxa_.end(); }
 
 
     /****************************************************************
@@ -238,6 +243,9 @@ public:
                 const candidate_generation_rules& rules = candidate_generation_rules{})
     {
         if(!cand.tax) return true;
+
+        //remember candidate taxon before merging on higher levels
+        const auto orig_tax = cand.tax;
 
         if(rules.mergeBelow > taxon_rank::Sequence) {
             auto ancestor = db.ancestor(cand.tax, rules.mergeBelow);
@@ -253,6 +261,15 @@ public:
 
             if(i != top_.end() || top_.size() < rules.maxCandidates) {
                 top_.insert(i, cand);
+
+                // remember lowest taxon in separate list
+                const auto idx = std::size_t(std::distance(top_.begin(), i));
+                if(idx >= lowestTaxa_.size()) {
+                    lowestTaxa_.push_back(orig_tax);
+                } else {
+                    lowestTaxa_.insert(lowestTaxa_.begin() + idx, orig_tax);
+                }
+
                 if(top_.size() > rules.maxCandidates)
                     top_.resize(rules.maxCandidates);
             }
@@ -275,6 +292,15 @@ public:
 
                 if(j != top_.end() || top_.size() < rules.maxCandidates) {
                     top_.insert(j, cand);
+
+                    // remember lowest taxon in separate list
+                    const auto idx = std::size_t(std::distance(top_.begin(), j));
+                    if(idx >= lowestTaxa_.size()) {
+                        lowestTaxa_.push_back(orig_tax);
+                    } else {
+                        lowestTaxa_.insert(lowestTaxa_.begin() + idx, orig_tax);
+                    }
+
                     if(top_.size() > rules.maxCandidates)
                         top_.resize(rules.maxCandidates);
                 }
@@ -284,8 +310,10 @@ public:
         return true;
     };
 
+
 private:
     candidates_list top_;
+    taxon_list lowestTaxa_;
 };
 
 
@@ -299,7 +327,8 @@ private:
 *****************************************************************************/
 class distinct_matches_in_contiguous_window_ranges
 {
-    using candidates_list = std::vector<match_candidate>;
+    using candidates_list  = std::vector<match_candidate>;
+    using taxon_list = std::vector<const taxon*>;
 
 public:
     using size_type      = std::size_t;
@@ -310,7 +339,7 @@ public:
      * @pre matches must be sorted by taxon (first) and window (second)
      */
     distinct_matches_in_contiguous_window_ranges(
-        const database&, //not needed here
+        const database&,
         const match_locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
     :
@@ -319,14 +348,15 @@ public:
         for_all_contiguous_window_ranges(matches, rules.maxWindowsInRange,
             [&,this] (const match_candidate& cand) {
                 cand_.push_back(cand);
+                lowestTaxa_.push_back(cand.tax);
                 return true;
             });
     }
 
 
     //---------------------------------------------------------------
-    const_iterator begin() const noexcept { return cand_.begin(); }
-    const_iterator end()   const noexcept { return cand_.end(); }
+    auto begin() const noexcept { return cand_.begin(); }
+    auto end()   const noexcept { return cand_.end(); }
 
     bool empty() const noexcept { return cand_.empty(); }
 
@@ -335,9 +365,12 @@ public:
     const match_candidate&
     operator [] (size_type i) const noexcept { return cand_[i]; }
 
+    auto begin_lowest_taxa() const noexcept { return lowestTaxa_.begin(); }
+    auto end_lowest_taxa()   const noexcept { return lowestTaxa_.end(); }
 
 private:
     candidates_list cand_;
+    taxon_list lowestTaxa_;
 };
 
 
