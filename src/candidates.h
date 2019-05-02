@@ -73,9 +73,12 @@ struct match_candidate
     constexpr
     match_candidate() noexcept = default;
 
-    match_candidate(const taxon* tax, count_type hits) : tax(tax), hits(hits) {};
+    match_candidate(const taxon* tax, count_type hits) :
+        tax{tax}, origtax{tax}, hits{hits}, pos{}
+    {};
 
     const taxon* tax = nullptr;
+    const taxon* origtax = nullptr;
     count_type   hits = 0;
     window_range pos;
 };
@@ -231,9 +234,6 @@ public:
     const match_candidate&
     operator [] (size_type i) const noexcept { return top_[i]; }
 
-    auto begin_lowest_taxa() const noexcept { return lowestTaxa_.begin(); }
-    auto end_lowest_taxa()   const noexcept { return lowestTaxa_.end(); }
-
 
     /****************************************************************
      * @brief insert candidate and keep list sorted
@@ -243,9 +243,6 @@ public:
                 const candidate_generation_rules& rules = candidate_generation_rules{})
     {
         if(!cand.tax) return true;
-
-        //remember candidate taxon before merging on higher levels
-        const auto orig_tax = cand.tax;
 
         if(rules.mergeBelow > taxon_rank::Sequence) {
             auto ancestor = db.ancestor(cand.tax, rules.mergeBelow);
@@ -261,14 +258,6 @@ public:
 
             if(i != top_.end() || top_.size() < rules.maxCandidates) {
                 top_.insert(i, cand);
-
-                // remember lowest taxon in separate list
-                const auto idx = std::size_t(std::distance(top_.begin(), i));
-                if(idx >= lowestTaxa_.size()) {
-                    lowestTaxa_.push_back(orig_tax);
-                } else {
-                    lowestTaxa_.insert(lowestTaxa_.begin() + idx, orig_tax);
-                }
 
                 if(top_.size() > rules.maxCandidates)
                     top_.resize(rules.maxCandidates);
@@ -293,14 +282,6 @@ public:
                 if(j != top_.end() || top_.size() < rules.maxCandidates) {
                     top_.insert(j, cand);
 
-                    // remember lowest taxon in separate list
-                    const auto idx = std::size_t(std::distance(top_.begin(), j));
-                    if(idx >= lowestTaxa_.size()) {
-                        lowestTaxa_.push_back(orig_tax);
-                    } else {
-                        lowestTaxa_.insert(lowestTaxa_.begin() + idx, orig_tax);
-                    }
-
                     if(top_.size() > rules.maxCandidates)
                         top_.resize(rules.maxCandidates);
                 }
@@ -313,7 +294,6 @@ public:
 
 private:
     candidates_list top_;
-    taxon_list lowestTaxa_;
 };
 
 
@@ -348,7 +328,6 @@ public:
         for_all_contiguous_window_ranges(matches, rules.maxWindowsInRange,
             [&,this] (const match_candidate& cand) {
                 cand_.push_back(cand);
-                lowestTaxa_.push_back(cand.tax);
                 return true;
             });
     }
@@ -365,12 +344,8 @@ public:
     const match_candidate&
     operator [] (size_type i) const noexcept { return cand_[i]; }
 
-    auto begin_lowest_taxa() const noexcept { return lowestTaxa_.begin(); }
-    auto end_lowest_taxa()   const noexcept { return lowestTaxa_.end(); }
-
 private:
     candidates_list cand_;
-    taxon_list lowestTaxa_;
 };
 
 

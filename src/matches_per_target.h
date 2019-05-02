@@ -113,15 +113,13 @@ public:
                 const classification_candidates& candidates,
                 match_count_type minHitsPerCandidate = 0)
     {
-        auto lowTaxIter = candidates.begin_lowest_taxa();
-
         for(const auto& cand : candidates) {
 
             if(cand.tax && cand.hits >= minHitsPerCandidate) {
 
                 auto tax = cand.tax;
                 // try to get sequence-level taxon if neccessary
-                if(tax->rank() != taxon_rank::Sequence) tax = *lowTaxIter;
+                if(tax->rank() != taxon_rank::Sequence) tax = cand.origtax;
 
                 if(tax->rank() == taxon_rank::Sequence) {
                     // find candidate in matches
@@ -155,7 +153,6 @@ public:
                 }
             }
         }
-        ++lowTaxIter;
     }
 
     //---------------------------------------------------------------
