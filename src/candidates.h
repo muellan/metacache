@@ -136,8 +136,9 @@ void for_all_contiguous_window_ranges(const match_locations& matches,
     //first entry in list
     hit_count hits = 1;
     match_candidate curBest;
-    curBest.tax = fst->tax;
-    curBest.hits = hits;
+    curBest.tax     = fst->tax;
+    curBest.origtax = fst->tax;
+    curBest.hits    = hits;
     curBest.pos.beg = fst->win;
     curBest.pos.end = fst->win;
     auto lst = fst;
@@ -171,8 +172,9 @@ void for_all_contiguous_window_ranges(const match_locations& matches,
             //reset to new target
             fst = lst;
             hits = 1;
-            curBest.tax  = fst->tax;
-            curBest.hits = hits;
+            curBest.tax     = fst->tax;
+            curBest.origtax = fst->tax;
+            curBest.hits    = hits;
             curBest.pos.beg = fst->win;
             curBest.pos.end = fst->win;
         }

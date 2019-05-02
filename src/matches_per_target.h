@@ -121,7 +121,7 @@ public:
                 // try to get sequence-level taxon if neccessary
                 if(tax->rank() != taxon_rank::Sequence) tax = cand.origtax;
 
-                if(tax->rank() == taxon_rank::Sequence) {
+                if(tax && tax->rank() == taxon_rank::Sequence) {
                     // find candidate in matches
                     location lm{tax, cand.pos.beg};
                     auto it = std::lower_bound(matches.begin(), matches.end(), lm,
