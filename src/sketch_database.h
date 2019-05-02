@@ -241,7 +241,58 @@ public:
     };
 
     using match_locations = std::vector<location>;
-    using match_target_locations = std::vector<target_location>;
+
+
+    //---------------------------------------------------------------
+    /** @brief used for query result storage/accumulation
+     */
+    class match_target_locations {
+        friend class sketch_database;
+
+    public:
+        void sort() {
+            merge_sort(locs_, offsets_, temp_);
+        }
+
+        void clear() {
+            locs_.clear();
+            offsets_.clear();
+            offsets_.resize(1, 0);
+        }
+
+        void empty() const noexcept { return locs_.empty(); }
+        auto size()  const noexcept { return locs_.size(); }
+
+        auto begin() const noexcept { return locs_.begin(); }
+        auto end()   const noexcept { return locs_.end(); }
+
+    private:
+        static void
+        merge_sort(std::vector<target_location>& inout,
+                   std::vector<size_t>& offsets,
+                   std::vector<target_location>& temp)
+        {
+            if(offsets.size() < 3) return;
+            temp.resize(inout.size());
+
+            int numChunks = offsets.size()-1;
+            for(int s = 1; s < numChunks; s *= 2) {
+                for(int i = 0; i < numChunks; i += 2*s) {
+                    auto begin = offsets[i];
+                    auto mid = i + s <= numChunks ? offsets[i + s] : offsets[numChunks];
+                    auto end = i + 2*s <= numChunks ? offsets[i + 2*s] : offsets[numChunks];
+                    std::merge(inout.begin()+begin, inout.begin()+mid,
+                               inout.begin()+mid, inout.begin()+end,
+                               temp.begin()+begin);
+                }
+                std::swap(inout, temp);
+            }
+        }
+
+        std::vector<target_location> locs_; // match locations from hashmap
+        std::vector<std::size_t> offsets_;  // bucket sizes for merge sort
+        std::vector<target_location> temp_; // temp buffer for merge sort
+    };
 
 
     //---------------------------------------------------------------
@@ -736,19 +787,19 @@ public:
     template<class InputIterator>
     void
     accumulate_matches(InputIterator queryBegin, InputIterator queryEnd,
-                       match_target_locations& res, std::vector<size_t>& offsets) const
+                       match_target_locations& res) const
     {
         for_each_window(queryBegin, queryEnd, queryWindowSize_, queryWindowStride_,
-            [this, &res, &offsets] (InputIterator b, InputIterator e) {
+            [this, &res] (InputIterator b, InputIterator e) {
                 auto sk = querySketcher_(b,e);
 
-                offsets.reserve(offsets.size() + sk.size());
+                res.offsets_.reserve(res.offsets_.size() + sk.size());
 
                 for(auto f : sk) {
                     auto locs = features_.find(f);
                     if(locs != features_.end() && locs->size() > 0) {
-                        res.insert(res.end(), locs->begin(), locs->end());
-                        offsets.emplace_back(res.size());
+                        res.locs_.insert(res.locs_.end(), locs->begin(), locs->end());
+                        res.offsets_.emplace_back(res.locs_.size());
                     }
                 }
             });
@@ -757,11 +808,11 @@ public:
     //---------------------------------------------------------------
     void
     accumulate_matches(const sequence& query,
-                       match_target_locations& res, std::vector<size_t>& offsets) const
+                       match_target_locations& res) const
     {
         using std::begin;
         using std::end;
-        accumulate_matches(begin(query), end(query), res, offsets);
+        accumulate_matches(begin(query), end(query), res);
     }
 
 
