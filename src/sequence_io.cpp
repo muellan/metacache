@@ -26,9 +26,6 @@
 #include <sstream>
 #include <stdexcept>
 
-//TODO remove next line
-#include <iostream>
-
 #include "io_error.h"
 #include "sequence_io.h"
 #include "string_utils.h"
@@ -40,6 +37,7 @@ using std::string;
 
 
 //-------------------------------------------------------------------
+// orderered by priority from highest to lowest
 constexpr const char* accession_prefix[]
 {
     "GCF_",
@@ -57,6 +55,11 @@ constexpr const char* accession_prefix[]
     "JH"
 };
 
+// orderered by priority from highest to lowest
+constexpr const char end_of_accession_chars[]
+{
+    '|', ' ', '-', '_', ',', ':', '+', ';'
+};
 
 
 
@@ -569,20 +572,10 @@ end_of_accession_number(const string& text,
 {
     if(start >= text.size()) return text.size();
 
-    auto k = text.find('|', start);
-    if(k != string::npos) return k;
-
-    k = text.find(' ', start);
-    if(k != string::npos) return k;
-
-    k = text.find('-', start);
-    if(k != string::npos) return k;
-
-    k = text.find('_', start);
-    if(k != string::npos) return k;
-
-    k = text.find(',', start);
-    if(k != string::npos) return k;
+    for(auto eoac : end_of_accession_chars) {
+        auto k = text.find(eoac, start);
+        if(k != string::npos) return k;
+    }
 
     return text.size();
 }
