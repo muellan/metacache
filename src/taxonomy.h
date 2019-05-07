@@ -305,6 +305,8 @@ public:
             return taxonomy::rank_name(rank_);
         }
 
+        taxon_id parent_id() const noexcept { return parent_; }
+
         bool has_parent() const noexcept {
             return parent_ != taxonomy::none_id();
         }
