@@ -703,9 +703,10 @@ void map_queries_to_targets(const vector<string>& infiles,
 }
 
 
+
 /*************************************************************************//**
  *
- * @brief default classification scheme & output
+ * @brief needed for 'merge' mode: default classification scheme & output
  *        try to map candidates to a taxon with the lowest possible rank
  *
  *****************************************************************************/

@@ -88,7 +88,7 @@ void map_queries_to_targets(
 
 /*************************************************************************//**
  *
- * @brief try to map candidates to a taxon
+ * @brief needed for 'merge' mode: try to map candidates to a taxon
  *        according to the query options
  *
  *****************************************************************************/
