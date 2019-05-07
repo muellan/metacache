@@ -101,18 +101,19 @@ void map_candidates_to_targets(
 
 /*************************************************************************//**
  *
- * @brief sorting taxa by rank
+ * @brief Compare taxa by rank in descending order; root > ... > species.
+ *        If ranks are equal, compare using sequence ids.
  *
  *****************************************************************************/
-struct sortTaxaByRank {
-    //sort by rank starting with root, then by id
-    bool operator() (const taxon* lhs, const taxon* rhs) {
+struct rank_higher {
+    bool operator() (const taxon* lhs, const taxon* rhs) const noexcept {
         if(lhs->rank() > rhs->rank()) return true;
         if(lhs->rank() < rhs->rank()) return false;
         return lhs->id() < rhs->id();
     }
 };
-using taxon_count_map = std::map<const taxon*, float, sortTaxaByRank>;
+
+using taxon_count_map = std::map<const taxon*, float, rank_higher>;
 // using taxon_count_map = std::unordered_map<const taxon*, query_id>;
 
 

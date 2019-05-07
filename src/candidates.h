@@ -219,8 +219,7 @@ public:
         top_{}
     {
         for_all_contiguous_window_ranges(matches, rules.maxWindowsInRange,
-            [&,this] (match_candidate& cand)
-            {
+            [&,this] (match_candidate& cand) {
                 return insert(cand, db, rules);
             });
     }
@@ -317,21 +316,35 @@ public:
     using const_iterator = candidates_list::const_iterator;
 
 
+    distinct_matches_in_contiguous_window_ranges() = default;
+
+
     /****************************************************************
      * @pre matches must be sorted by taxon (first) and window (second)
      */
     distinct_matches_in_contiguous_window_ranges(
-        const database&,
+        const database& db,
         const match_locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
     :
         cand_{}
     {
         for_all_contiguous_window_ranges(matches, rules.maxWindowsInRange,
-            [&,this] (const match_candidate& cand) {
-                cand_.push_back(cand);
-                return true;
+            [&,this] (match_candidate& cand) {
+                return insert(cand, db, rules);
             });
+    }
+
+
+    /****************************************************************
+     * @brief insert candidate and keep list sorted
+     */
+    bool insert(match_candidate cand,
+                const database&, // not needed here
+                const candidate_generation_rules& = candidate_generation_rules{})
+    {
+        cand_.push_back(cand);
+        return true;
     }
 
 
