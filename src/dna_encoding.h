@@ -45,7 +45,7 @@ namespace detail {
 template<numk_t k>
 struct dna_2bit_encoding {
     static_assert(k > 0,  "k must be at least 1");
-    static_assert(k < 65, "k can be at most 64");
+    static_assert(k < 33, "k can be at most 32");
 };
 
 template<> struct dna_2bit_encoding< 1> { using type = std::uint8_t; };
