@@ -31,12 +31,113 @@
 
 namespace mc {
 
+
+/** @brief kmer size type */
 using numk_t = std::uint8_t;
 
 
 
 /*************************************************************************//**
  *
+ *
+ *****************************************************************************/
+template<class CharT>
+inline void
+reverse_complement(std::basic_string<CharT>& str)
+{
+    std::reverse(begin(str), end(str));
+
+    for(auto& c : str) {
+        switch(c) {
+            case 'A': c = 'T'; break;
+            case 'a': c = 't'; break;
+            case 'C': c = 'G'; break;
+            case 'c': c = 'g'; break;
+            case 'G': c = 'C'; break;
+            case 'g': c = 'c'; break;
+            case 'T': c = 'A'; break;
+            case 't': c = 'a'; break;
+            default: break;
+        }
+    }
+}
+
+//-------------------------------------------------------------------
+template<class CharT>
+inline std::basic_string<CharT>
+make_reverse_complement(std::basic_string<CharT> str)
+{
+    reverse_complement(str);
+    return str;
+}
+
+//-------------------------------------------------------------------
+// disable all other overloads
+template<class T1, class T2>
+T1 make_reverse_complement(T1,T2) = delete;
+
+
+
+/*************************************************************************//**
+ * @return number of kmers in a squence
+ *****************************************************************************/
+inline constexpr size_t
+num_kmers(size_t k, size_t sequenceLen)
+{
+    return (sequenceLen - k) + 1;
+}
+
+
+
+/*************************************************************************//**
+ * @brief loops through all subranges of [first,last) of lenght 'len' with a
+ *        stride of 'stride'
+ *
+ * @param first    iterator to start of range
+ * @param last     iterator to one after end of range
+ * @param len      length of windows (subranges)
+ * @param stride   distance between first elements of two subsequent windows
+ * @param consume  function object / lambda consuming one window
+ *****************************************************************************/
+template<class RAIterator, class Consumer>
+inline void
+for_each_window(RAIterator first, RAIterator last,
+                const size_t len, const size_t stride,
+                Consumer&& consume)
+{
+    using std::distance;
+    //sequence not longer than window?
+    if(size_t(distance(first,last)) <= len) {
+        consume(first,last);
+    }
+    else {
+        for(auto wend = first + len; wend <= last; first += stride, wend += stride) {
+            consume(first, wend);
+        }
+        if(first < last) consume(first, last);
+    }
+}
+
+//-------------------------------------------------------------------
+template<class RAInputRange, class Consumer>
+inline void
+for_each_window(RAInputRange range,
+                const size_t len, const size_t stride,
+                Consumer&& consume)
+{
+    using std::begin;
+    using std::end;
+    for_each_window(begin(range), end(range), len, stride,
+                    std::forward<Consumer>(consume));
+}
+
+
+
+
+/*************************************************************************//**
+ *
+ *
+ * facilities for creating/manipulating 2bit encoding of DNA
  *
  *
  *****************************************************************************/
@@ -148,44 +249,6 @@ T1 make_reverse_complement_2bit(T1,T2) = delete;
 
 
 
-//-------------------------------------------------------------------
-template<class CharT>
-inline void
-reverse_complement(std::basic_string<CharT>& str)
-{
-    std::reverse(begin(str), end(str));
-
-    for(auto& c : str) {
-        switch(c) {
-            case 'A': c = 'T'; break;
-            case 'a': c = 't'; break;
-            case 'C': c = 'G'; break;
-            case 'c': c = 'g'; break;
-            case 'G': c = 'C'; break;
-            case 'g': c = 'c'; break;
-            case 'T': c = 'A'; break;
-            case 't': c = 'a'; break;
-            default: break;
-        }
-    }
-}
-
-//-------------------------------------------------------------------
-template<class CharT>
-inline std::basic_string<CharT>
-make_reverse_complement(std::basic_string<CharT> str)
-{
-    reverse_complement(str);
-    return str;
-}
-
-//-------------------------------------------------------------------
-// disable all other overloads
-template<class T1, class T2>
-T1 make_reverse_complement(T1,T2) = delete;
-
-
-
 /*************************************************************************//**
  * @param  k : length to consider (in 2-bit letters!, so #bits = 2*k)
  * @return lexicographically smallest of k-mer and reverse complement of k-mer
@@ -240,61 +303,6 @@ struct canonical_2bit_less
 private:
     numk_t k_;
 };
-
-
-
-/*************************************************************************//**
- * @return number of kmers in a squence
- *****************************************************************************/
-inline constexpr size_t
-num_kmers(size_t k, size_t sequenceLen)
-{
-    return (sequenceLen - k) + 1;
-}
-
-
-
-/*************************************************************************//**
- * @brief loops through all subranges of [first,last) of lenght 'len' with a
- *        stride of 'stride'
- *
- * @param first    iterator to start of range
- * @param last     iterator to one after end of range
- * @param len      length of windows (subranges)
- * @param stride   distance between first elements of two subsequent windows
- * @param consume  function object / lambda consuming one window
- *****************************************************************************/
-template<class RAIterator, class Consumer>
-inline void
-for_each_window(RAIterator first, RAIterator last,
-                const size_t len, const size_t stride,
-                Consumer&& consume)
-{
-    using std::distance;
-    //sequence not longer than window?
-    if(size_t(distance(first,last)) <= len) {
-        consume(first,last);
-    }
-    else {
-        for(auto wend = first + len; wend <= last; first += stride, wend += stride) {
-            consume(first, wend);
-        }
-        if(first < last) consume(first, last);
-    }
-}
-
-//-------------------------------------------------------------------
-template<class RAInputRange, class Consumer>
-inline void
-for_each_window(RAInputRange range,
-                const size_t len, const size_t stride,
-                Consumer&& consume)
-{
-    using std::begin;
-    using std::end;
-    for_each_window(begin(range), end(range), len, stride,
-                    std::forward<Consumer>(consume));
-}
 
 
 
@@ -484,7 +492,6 @@ for_each_unambiguous_canonical_kmer_2bit(
     for_each_unambiguous_canonical_kmer_2bit<UInt>(
         k, begin(input), end(input), std::forward<Consumer>(consume));
 }
-
 
 } // namespace mc
 
