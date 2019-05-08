@@ -98,8 +98,8 @@ namespace { //internal linkage
  * @return reverse complement of kmer
  * original code from Kraken source
  *****************************************************************************/
-inline std::uint64_t
-make_reverse_complement(std::uint64_t s, numk_t k) noexcept
+inline constexpr std::uint64_t
+make_reverse_complement_2bit(std::uint64_t s, numk_t k) noexcept
 {
     s = ((s >> 2)  & 0x3333333333333333ul) | ((s & 0x3333333333333333ul) << 2);
     s = ((s >> 4)  & 0x0F0F0F0F0F0F0F0Ful) | ((s & 0x0F0F0F0F0F0F0F0Ful) << 4);
@@ -110,8 +110,8 @@ make_reverse_complement(std::uint64_t s, numk_t k) noexcept
 }
 
 //-------------------------------------------------------------------
-inline std::uint32_t
-make_reverse_complement(std::uint32_t s, numk_t k) noexcept
+inline constexpr std::uint32_t
+make_reverse_complement_2bit(std::uint32_t s, numk_t k) noexcept
 {
     s = ((s >> 2)  & 0x33333333u) | ((s & 0x33333333u) << 2);
     s = ((s >> 4)  & 0x0F0F0F0Fu) | ((s & 0x0F0F0F0Fu) << 4);
@@ -121,8 +121,8 @@ make_reverse_complement(std::uint32_t s, numk_t k) noexcept
 }
 
 //-------------------------------------------------------------------
-inline std::uint16_t
-make_reverse_complement(std::uint16_t s, numk_t k) noexcept
+inline constexpr std::uint16_t
+make_reverse_complement_2bit(std::uint16_t s, numk_t k) noexcept
 {
     s = ((s >> 2)  & 0x3333u) | ((s & 0x3333u) << 2);
     s = ((s >> 4)  & 0x0F0Fu) | ((s & 0x0F0Fu) << 4);
@@ -131,8 +131,8 @@ make_reverse_complement(std::uint16_t s, numk_t k) noexcept
 }
 
 //-------------------------------------------------------------------
-inline std::uint8_t
-make_reverse_complement(std::uint8_t s, numk_t k) noexcept
+inline constexpr std::uint8_t
+make_reverse_complement_2bit(std::uint8_t s, numk_t k) noexcept
 {
     s = ((s >> 2)  & 0x3333u) | ((s & 0x3333u) << 2);
     s = ((s >> 4)  & 0x0F0Fu) | ((s & 0x0F0Fu) << 4);
@@ -140,6 +140,12 @@ make_reverse_complement(std::uint8_t s, numk_t k) noexcept
 }
 
 } // internal linkage
+
+
+// disable all other overloads
+template<class T1, class T2>
+T1 make_reverse_complement_2bit(T1,T2) = delete;
+
 
 
 //-------------------------------------------------------------------
@@ -174,7 +180,7 @@ make_reverse_complement(std::basic_string<CharT> str)
 }
 
 //-------------------------------------------------------------------
-//prohibit all other overloads
+// disable all other overloads
 template<class T1, class T2>
 T1 make_reverse_complement(T1,T2) = delete;
 
@@ -185,27 +191,27 @@ T1 make_reverse_complement(T1,T2) = delete;
  * @return lexicographically smallest of k-mer and reverse complement of k-mer
  *****************************************************************************/
 template<class UInt>
-inline UInt
-make_canonical(UInt s, numk_t k) noexcept
+inline constexpr UInt
+make_canonical_2bit(UInt s, numk_t k) noexcept
 {
     static_assert(std::is_integral<UInt>::value &&
                   std::is_unsigned<UInt>::value,
                   "only unsigned integer types are supported");
 
-    auto revcom = make_reverse_complement(s, k);
+    auto revcom = make_reverse_complement_2bit(s, k);
     return s < revcom ? s : revcom;
 }
 
 //-------------------------------------------------------------------
 template<class UInt>
-inline UInt
-make_canonical(UInt s) noexcept
+inline constexpr UInt
+make_canonical_2bit(UInt s) noexcept
 {
     static_assert(std::is_integral<UInt>::value &&
                   std::is_unsigned<UInt>::value,
                   "only unsigned integer types are supported");
 
-    auto revcom = make_reverse_complement(s, numk_t(sizeof(UInt) * 4));
+    auto revcom = make_reverse_complement_2bit(s, numk_t(sizeof(UInt) * 4));
     return s < revcom ? s : revcom;
 }
 
@@ -214,19 +220,21 @@ make_canonical(UInt s) noexcept
 /*************************************************************************//**
  * @brief canonical kmer comparator
  *****************************************************************************/
-struct canonical_less
+struct canonical_2bit_less
 {
     using result_type = bool;
 
     explicit
-    canonical_less(numk_t k) : k_(k) {}
+    canonical_2bit_less(numk_t k) : k_(k) {}
 
-    bool operator () (std::uint64_t a, std::uint64_t b) const noexcept {
-        return (make_canonical(a,k_) < make_canonical(b,k_));
+    constexpr bool
+    operator () (std::uint64_t a, std::uint64_t b) const noexcept {
+        return (make_canonical_2bit(a,k_) < make_canonical_2bit(b,k_));
     }
 
-    bool operator () (std::uint32_t a, std::uint32_t b) const noexcept {
-        return (make_canonical(a,k_) < make_canonical(b,k_));
+    constexpr bool
+    operator () (std::uint32_t a, std::uint32_t b) const noexcept {
+        return (make_canonical_2bit(a,k_) < make_canonical_2bit(b,k_));
     }
 
 private:
@@ -425,7 +433,7 @@ for_each_canonical_kmer_2bit(const numk_t k,
 {
     for_each_kmer_2bit<UInt>(k, first, last,
         [&] (UInt kmer, half_size_t<UInt> ambig) {
-            consume(make_canonical(kmer, k), ambig);
+            consume(make_canonical_2bit(kmer, k), ambig);
         });
 }
 
@@ -461,7 +469,7 @@ for_each_unambiguous_canonical_kmer_2bit(
 {
     for_each_kmer_2bit<UInt>(k, first, last,
         [&] (UInt kmer, half_size_t<UInt> ambig) {
-            if(!ambig) consume(make_canonical(kmer, k));
+            if(!ambig) consume(make_canonical_2bit(kmer, k));
         });
 }
 
