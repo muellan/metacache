@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2018 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1117,14 +1117,14 @@ void map_queries_to_targets_default(
 
     if(opt.output.showTaxAbundances) {
         show_abundances(results.perTaxonOut, allTaxCounts,
-                        results.statistics.total(), opt.output);
+                        results.statistics, opt.output);
     }
 
     if(opt.output.showAbundanceEstimatesOnRank != taxonomy::rank::none) {
         estimate_abundance(db, allTaxCounts, opt.output.showAbundanceEstimatesOnRank);
 
         show_abundance_estimates(results.perTaxonOut, allTaxCounts,
-                                 results.statistics.total(), opt.output);
+                                 results.statistics, opt.output);
     }
 }
 
@@ -1148,9 +1148,10 @@ void map_queries_to_targets(const vector<string>& infiles,
 }
 
 
+
 /*************************************************************************//**
  *
- * @brief default classification scheme & output
+ * @brief needed for 'merge' mode: default classification scheme & output
  *        try to map candidates to a taxon with the lowest possible rank
  *
  *****************************************************************************/
@@ -1159,6 +1160,10 @@ void map_candidates_to_targets(const vector<string>& queryHeaders,
                                const database& db, const query_options& opt,
                                classification_results& results)
 {
+    if(opt.output.mapViewMode != map_view_mode::none) {
+        show_query_mapping_header(results.perReadOut, opt.output);
+    }
+    
     //taxon -> read count
     taxon_count_map allTaxCounts;
 
@@ -1181,14 +1186,14 @@ void map_candidates_to_targets(const vector<string>& queryHeaders,
 
     if(opt.output.showTaxAbundances) {
         show_abundances(results.perTaxonOut, allTaxCounts,
-                        results.statistics.total(), opt.output);
+                        results.statistics, opt.output);
     }
 
     if(opt.output.showAbundanceEstimatesOnRank != taxonomy::rank::none) {
         estimate_abundance(db, allTaxCounts, opt.output.showAbundanceEstimatesOnRank);
 
         show_abundance_estimates(results.perTaxonOut, allTaxCounts,
-                                 results.statistics.total(), opt.output);
+                                 results.statistics, opt.output);
     }
 }
 

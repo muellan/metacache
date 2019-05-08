@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2018 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (rkobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -538,19 +538,34 @@ void show_features_of_targets(std::ostream& os,
 //-------------------------------------------------------------------
 void show_abundance_table(std::ostream& os,
                           const taxon_count_map& allTaxCounts,
-                          const classification_statistics::count_t totalCount,
+                          const classification_statistics& statistics,
                           const classification_output_options&  opt)
 {
+    os << opt.format.comment
+       << "rank" << opt.format.rankSuffix
+       << "name" << opt.format.column
+       << "taxid" << opt.format.column
+       << "number of reads" << opt.format.column
+       << "abundance\n"; 
+
     for(const auto& tc : allTaxCounts) {
         if(tc.first) {
             os << tc.first->rank_name() << opt.format.rankSuffix
-               << tc.first->name();
+               << tc.first->name() << opt.format.column;
+            if(tc.first->rank() == taxon_rank::Sequence)
+               os << tc.first->parent_id();
+            else
+               os << tc.first->id();
         } else {
             os << "none";
         }
         os << opt.format.column << tc.second << opt.format.column
-           << (tc.second / double(totalCount) * 100) << "%\n";
+           << (tc.second / double(statistics.total()) * 100) << "%\n";
     }
+    os << "unclassified" << opt.format.column
+       << '0' << opt.format.column
+       << statistics.unassigned() << opt.format.column
+       << statistics.unclassified_rate() * 100 << "%\n";
 }
 
 
@@ -558,12 +573,12 @@ void show_abundance_table(std::ostream& os,
 //-------------------------------------------------------------------
 void show_abundances(std::ostream& os,
                      const taxon_count_map& allTaxCounts,
-                     const classification_statistics::count_t totalCount,
+                     const classification_statistics& statistics,
                      const classification_output_options& opt)
 {
     os << opt.format.comment
-        << "query summary: number of queries mapped per taxon\n";
-    show_abundance_table(os, allTaxCounts, totalCount, opt);
+       << "query summary: number of queries mapped per taxon\n";
+    show_abundance_table(os, allTaxCounts, statistics, opt);
 }
 
 
@@ -571,14 +586,14 @@ void show_abundances(std::ostream& os,
 //-------------------------------------------------------------------
 void show_abundance_estimates(std::ostream& os,
                               const taxon_count_map& allTaxCounts,
-                              const classification_statistics::count_t totalCount,
+                              const classification_statistics& statistics,
                               const classification_output_options& opt)
 {
     os << opt.format.comment
        << "estimated abundance (number of queries) per "
        << taxonomy::rank_name(opt.showAbundanceEstimatesOnRank) << "\n";
 
-    show_abundance_table(os, allTaxCounts, totalCount, opt);
+    show_abundance_table(os, allTaxCounts, statistics, opt);
 }
 
 
@@ -594,7 +609,8 @@ void show_taxon_statistics(std::ostream& os,
           taxon_rank::Species,    taxon_rank::Genus,
           taxon_rank::Family,     taxon_rank::Order,
           taxon_rank::Class,      taxon_rank::Phylum,
-          taxon_rank::Kingdom,    taxon_rank::Domain
+          taxon_rank::Kingdom,    taxon_rank::Domain,
+          taxon_rank::root
     };
 
     if(stats.assigned() < 1) {

@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2018 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -244,6 +244,11 @@ void read_results(const results_source& res,
             while(nextChar != '\t') {
                 taxon_id taxid;
                 ifs >> taxid;
+                if(ifs.fail()) {
+                    cerr << "Query " << queryId+1 << ": Could not read taxid." << endl;
+                    ifs.clear();
+                }
+
                 forward(ifs, ':');
                 match_candidate::count_type hits;
                 ifs >> hits;
@@ -252,7 +257,7 @@ void read_results(const results_source& res,
                 if(tax) {
                     queryCandidates[queryId].insert(match_candidate{tax, hits}, db, rules);
                 } else {
-                    cerr << "taxid not found" << endl;
+                    cerr << "Query " << queryId+1 << ": taxid not found. Skipping hit." << endl;
                 }
                 nextChar = ifs.get();
             }

@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2018 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -305,6 +305,8 @@ public:
             return taxonomy::rank_name(rank_);
         }
 
+        taxon_id parent_id() const noexcept { return parent_; }
+
         bool has_parent() const noexcept {
             return parent_ != taxonomy::none_id();
         }
@@ -467,6 +469,17 @@ public:
 
 
     //---------------------------------------------------------------
+    bool reset_rank(taxon_id id, rank rank)
+    {
+        if(id == none_id()) return false;
+        auto i = taxa_.find(taxon{id});
+        if(i == taxa_.end()) return false;
+        const_cast<taxon*>(&*i)->rank_ = rank;
+        return true;
+    }
+
+
+    //---------------------------------------------------------------
     const_iterator
     find(taxon_id id) const {
         return taxa_.find(taxon{id});
@@ -519,7 +532,7 @@ public:
     const taxon*
     ranked_lca(const ranked_lineage& lina, const ranked_lineage& linb) const
     {
-        for(int i = 0; i < int(rank::root); ++i) {
+        for(int i = 0; i <= static_cast<int>(rank::root); ++i) {
             if(lina[i] && (lina[i] == linb[i])) return lina[i];
         }
         return nullptr;
@@ -722,7 +735,12 @@ public:
     {}
 
     ranked_lineages_cache& operator = (const ranked_lineages_cache&) = delete;
-    ranked_lineages_cache& operator = (ranked_lineages_cache&&) = delete;
+
+    ranked_lineages_cache& operator = (ranked_lineages_cache&& src) {
+        highestRank_ = src.highestRank_;
+        lins_ = std::move(src.lins_);
+        return *this;
+    }
 
 
     //---------------------------------------------------------------

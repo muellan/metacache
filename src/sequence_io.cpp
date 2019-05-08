@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2018 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (rkobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -26,9 +26,6 @@
 #include <sstream>
 #include <stdexcept>
 
-//TODO remove next line
-#include <iostream>
-
 #include "io_error.h"
 #include "sequence_io.h"
 #include "string_utils.h"
@@ -40,19 +37,29 @@ using std::string;
 
 
 //-------------------------------------------------------------------
+// orderered by priority from highest to lowest
 constexpr const char* accession_prefix[]
 {
     "GCF_",
     "AC_", 
-    "NC_", "NG_", "NS_", "NT_", "NW_", "NZ_", 
+    "NC_", "NG_", "NS_", "NT_", "NW_", "NZ_",
+    // "AEMK",
+    // "CCMK",
+    // "FPKY",
+    "MKHE",
     "AE", "AJ", "AL", "AM", "AP", "AY",
     "BA", "BK", "BX",
-    "CM", "CP", "CR", "CT", "CU",
+    "CC", "CM", "CP", "CR", "CT", "CU",
     "FM", "FN", "FO", "FP", "FQ", "FR",
     "HE", 
     "JH"
 };
 
+// orderered by priority from highest to lowest
+constexpr const char end_of_accession_chars[]
+{
+    '|', ' ', '-', '_', ',', ':', '+', ';'
+};
 
 
 
@@ -565,20 +572,10 @@ end_of_accession_number(const string& text,
 {
     if(start >= text.size()) return text.size();
 
-    auto k = text.find('|', start);
-    if(k != string::npos) return k;
-
-    k = text.find(' ', start);
-    if(k != string::npos) return k;
-
-    k = text.find('-', start);
-    if(k != string::npos) return k;
-
-    k = text.find('_', start);
-    if(k != string::npos) return k;
-
-    k = text.find(',', start);
-    if(k != string::npos) return k;
+    for(auto eoac : end_of_accession_chars) {
+        auto k = text.find(eoac, start);
+        if(k != string::npos) return k;
+    }
 
     return text.size();
 }

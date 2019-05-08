@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2018 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (rkobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -120,42 +120,43 @@ public:
                 match_count_type minHitsPerCandidate = 0)
     {
         for(const auto& cand : candidates) {
-            // TODO at the moment only sequence-level candidates will
-            // be handled properly, because 'matches' does only contain
-            // sequence-level taxa, whereas candidates can also contain
-            // taxa of higher levels if the "-lowest" command line option
-            // is set to a rank higher than "sequence"
-            if(cand.tax && cand.tax->rank() == taxon_rank::Sequence &&
-                cand.hits > minHitsPerCandidate)
-            {
-                // find candidate in matches
-                location lm{cand.tax, cand.pos.beg};
-                auto it = std::lower_bound(matches.begin(), matches.end(), lm,
-                    [] (const location& a, const location& b) {
-                        //assumes that sequence level taxa have negative taxids
-                        if(a.tax->id() < b.tax->id()) return false;
-                        if(a.tax->id() > b.tax->id()) return true;
-                        return (a.win < b.win);
-                    });
-                // fill window vector
-                if(it == matches.end()) return;
 
-                // create new window vector
-                matches_per_window mpw;
-                mpw.reserve(cand.pos.end - cand.pos.beg + 1);
+            if(cand.tax && cand.hits >= minHitsPerCandidate) {
 
-                while(it != matches.end() &&
-                      it->tax == cand.tax &&
-                      it->win <= cand.pos.end)
-                {
-                    if(mpw.size() > 0 && mpw.back().win == it->win)
-                        mpw.back().hits++;
-                    else
-                        mpw.emplace_back(it->win, 1);
-                    ++it;
+                auto tax = cand.tax;
+                // try to get sequence-level taxon if neccessary
+                if(tax->rank() != taxon_rank::Sequence) tax = cand.origtax;
+
+                if(tax && tax->rank() == taxon_rank::Sequence) {
+                    // find candidate in matches
+                    location lm{tax, cand.pos.beg};
+                    auto it = std::lower_bound(matches.begin(), matches.end(), lm,
+                        [] (const location& a, const location& b) {
+                            //assumes that sequence level taxa have negative taxids
+                            if(a.tax->id() < b.tax->id()) return false;
+                            if(a.tax->id() > b.tax->id()) return true;
+                            return (a.win < b.win);
+                        });
+                    // fill window vector
+                    if(it == matches.end()) return;
+
+                    // create new window vector
+                    matches_per_window mpw;
+                    mpw.reserve(cand.pos.end - cand.pos.beg + 1);
+
+                    while(it != matches.end() &&
+                          it->tax == tax &&
+                          it->win <= cand.pos.end)
+                    {
+                        if(mpw.size() > 0 && mpw.back().win == it->win)
+                            mpw.back().hits++;
+                        else
+                            mpw.emplace_back(it->win, 1);
+                        ++it;
+                    }
+                    // insert into map
+                    hitsPerTarget_[tax].emplace_back(qid, std::move(mpw));
                 }
-                // insert into map
-                hitsPerTarget_[cand.tax].emplace_back(qid, std::move(mpw));
             }
         }
     }

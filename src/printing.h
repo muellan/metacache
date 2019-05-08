@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2018 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (rkobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -137,7 +137,7 @@ void show_features_of_targets(std::ostream& os,
  *****************************************************************************/
 void show_abundances(std::ostream&,
                      const taxon_count_map&,
-                     const classification_statistics::count_t,
+                     const classification_statistics&,
                      const classification_output_options&);
 
 
@@ -149,7 +149,7 @@ void show_abundances(std::ostream&,
  *****************************************************************************/
 void show_abundance_estimates(std::ostream&,
                               const taxon_count_map&,
-                              const classification_statistics::count_t,
+                              const classification_statistics&,
                               const classification_output_options&);
 
 

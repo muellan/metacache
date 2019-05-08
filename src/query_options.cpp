@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2018 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -150,7 +150,7 @@ get_classification_options(const args_parser& args,
     auto highestRank = args.get<string>("highest", "");
     if(!highestRank.empty()) {
         auto r = taxonomy::rank_from_name(highestRank);
-        if(r < taxon_rank::root) opt.highestRank = r;
+        if(r <= taxon_rank::root) opt.highestRank = r;
     }
 
     if(opt.lowestRank  > opt.highestRank) {
@@ -262,7 +262,7 @@ get_classification_output_options(const args_parser& args,
 
     opt.showLocations = defaults.showLocations || args.contains("locations");
 
-    opt.showTopHits = defaults.showTopHits ||
+    opt.showTopHits = defaults.showTopHits || opt.showLocations ||
                       args.contains({"tophits", "top-hits"});
 
     opt.showAllHits = defaults.showAllHits ||

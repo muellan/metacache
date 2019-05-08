@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2018 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (rkobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -73,9 +73,12 @@ struct match_candidate
     constexpr
     match_candidate() noexcept = default;
 
-    match_candidate(const taxon* tax, count_type hits) : tax(tax), hits(hits) {};
+    match_candidate(const taxon* tax, count_type hits) :
+        tax{tax}, origtax{tax}, hits{hits}, pos{}
+    {};
 
     const taxon* tax = nullptr;
+    const taxon* origtax = nullptr;
     count_type   hits = 0;
     window_range pos;
 };
@@ -133,8 +136,9 @@ void for_all_contiguous_window_ranges(const match_locations& matches,
     //first entry in list
     hit_count hits = 1;
     match_candidate curBest;
-    curBest.tax = fst->tax;
-    curBest.hits = hits;
+    curBest.tax     = fst->tax;
+    curBest.origtax = fst->tax;
+    curBest.hits    = hits;
     curBest.pos.beg = fst->win;
     curBest.pos.end = fst->win;
     auto lst = fst;
@@ -168,8 +172,9 @@ void for_all_contiguous_window_ranges(const match_locations& matches,
             //reset to new target
             fst = lst;
             hits = 1;
-            curBest.tax  = fst->tax;
-            curBest.hits = hits;
+            curBest.tax     = fst->tax;
+            curBest.origtax = fst->tax;
+            curBest.hits    = hits;
             curBest.pos.beg = fst->win;
             curBest.pos.end = fst->win;
         }
@@ -178,6 +183,7 @@ void for_all_contiguous_window_ranges(const match_locations& matches,
     }
     if(!consume(curBest)) return;
 }
+
 
 
 
@@ -190,7 +196,8 @@ void for_all_contiguous_window_ranges(const match_locations& matches,
 *****************************************************************************/
 class best_distinct_matches_in_contiguous_window_ranges
 {
-    using candidates_list = std::vector<match_candidate>;
+    using candidates_list  = std::vector<match_candidate>;
+    using taxon_list = std::vector<const taxon*>;
 
 public:
     using size_type      = std::size_t;
@@ -213,16 +220,15 @@ public:
         top_{}
     {
         for_all_contiguous_window_ranges(matches, rules.maxWindowsInRange,
-            [&,this] (match_candidate& cand)
-            {
+            [&,this] (match_candidate& cand) {
                 return insert(cand, db, rules);
             });
     }
 
 
     //---------------------------------------------------------------
-    const_iterator begin() const noexcept { return top_.begin(); }
-    const_iterator end()   const noexcept { return top_.end(); }
+    auto begin() const noexcept { return top_.begin(); }
+    auto end()   const noexcept { return top_.end(); }
 
     bool empty()     const noexcept { return top_.empty(); }
     size_type size() const noexcept { return top_.size(); }
@@ -255,6 +261,7 @@ public:
 
             if(i != top_.end() || top_.size() < rules.maxCandidates) {
                 top_.insert(i, cand);
+
                 if(top_.size() > rules.maxCandidates)
                     top_.resize(rules.maxCandidates);
             }
@@ -277,6 +284,7 @@ public:
 
                 if(j != top_.end() || top_.size() < rules.maxCandidates) {
                     top_.insert(j, cand);
+
                     if(top_.size() > rules.maxCandidates)
                         top_.resize(rules.maxCandidates);
                 }
@@ -285,6 +293,7 @@ public:
         }
         return true;
     };
+
 
 private:
     candidates_list top_;
@@ -301,34 +310,49 @@ private:
 *****************************************************************************/
 class distinct_matches_in_contiguous_window_ranges
 {
-    using candidates_list = std::vector<match_candidate>;
+    using candidates_list  = std::vector<match_candidate>;
+    using taxon_list = std::vector<const taxon*>;
 
 public:
     using size_type      = std::size_t;
     using const_iterator = candidates_list::const_iterator;
 
 
+    distinct_matches_in_contiguous_window_ranges() = default;
+
+
     /****************************************************************
      * @pre matches must be sorted by taxon (first) and window (second)
      */
     distinct_matches_in_contiguous_window_ranges(
-        const database&, //not needed here
+        const database& db,
         const match_locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
     :
         cand_{}
     {
         for_all_contiguous_window_ranges(matches, rules.maxWindowsInRange,
-            [&,this] (const match_candidate& cand) {
-                cand_.push_back(cand);
-                return true;
+            [&,this] (match_candidate& cand) {
+                return insert(cand, db, rules);
             });
     }
 
 
+    /****************************************************************
+     * @brief insert candidate and keep list sorted
+     */
+    bool insert(match_candidate cand,
+                const database&, // not needed here
+                const candidate_generation_rules& = candidate_generation_rules{})
+    {
+        cand_.push_back(cand);
+        return true;
+    }
+
+
     //---------------------------------------------------------------
-    const_iterator begin() const noexcept { return cand_.begin(); }
-    const_iterator end()   const noexcept { return cand_.end(); }
+    auto begin() const noexcept { return cand_.begin(); }
+    auto end()   const noexcept { return cand_.end(); }
 
     bool empty() const noexcept { return cand_.empty(); }
 
@@ -336,7 +360,6 @@ public:
 
     const match_candidate&
     operator [] (size_type i) const noexcept { return cand_[i]; }
-
 
 private:
     candidates_list cand_;

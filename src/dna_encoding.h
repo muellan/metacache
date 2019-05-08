@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2018 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -45,7 +45,7 @@ namespace detail {
 template<numk_t k>
 struct dna_2bit_encoding {
     static_assert(k > 0,  "k must be at least 1");
-    static_assert(k < 65, "k can be at most 64");
+    static_assert(k < 33, "k can be at most 32");
 };
 
 template<> struct dna_2bit_encoding< 1> { using type = std::uint8_t; };
