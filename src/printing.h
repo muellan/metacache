@@ -110,28 +110,6 @@ void show_matches_per_targets(std::ostream&,
 
 /*************************************************************************//**
  *
- * @brief prints the number of matches for each classification target
- *
- *****************************************************************************/
-void show_num_matches_per_targets(std::ostream& os,
-                                  const database&,
-                                  const matches_per_target&,
-                                  const classification_output_options&);
-
-
-/*************************************************************************//**
- *
- * @brief prints the number of matches for each classification target
- *
- *****************************************************************************/
-void show_features_of_targets(std::ostream& os,
-                                  const database&,
-                                  const matches_per_target&,
-                                  const classification_output_options&);
-
-
-/*************************************************************************//**
- *
  * @brief prints a list of accumulated read counts per taxon
  *
  *****************************************************************************/

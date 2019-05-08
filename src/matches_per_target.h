@@ -108,7 +108,7 @@ public:
     const_iterator end()   const noexcept { return hitsPerTarget_.end(); }
 
     iterator erase(const_iterator pos) { return hitsPerTarget_.erase(pos); }
-    
+
     hits_per_target::size_type erase(const hits_per_target::key_type& key) {
         return hitsPerTarget_.erase(key);
     }

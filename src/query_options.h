@@ -36,9 +36,6 @@
 namespace mc {
 
 
-// using taxon_rank = taxonomy::rank;
-
-
 /*************************************************************************//**
  * @brief pairing of queries
  *****************************************************************************/
@@ -135,8 +132,6 @@ struct classification_options
     std::size_t maxNumCandidatesPerQuery = 2;
 
     float covPercentile = 0.0f;
-
-    window_id maxGapSize = std::numeric_limits<window_id>::max();
 };
 
 

@@ -180,9 +180,6 @@ get_classification_options(const args_parser& args,
     opt.covPercentile = args.get<float>({"percentile", "coverage-percentile"},
                                         defaults.covPercentile);
 
-    opt.maxGapSize = args.get<window_id>({"max-gap-size", "maxgapsize"},
-                                         defaults.maxGapSize);
-
     return opt;
 }
 
