@@ -300,7 +300,7 @@ update_classification(const database& db,
                       const matches_per_target& tgtMatches)
 {
     for(auto it = cls.candidates.begin(); it != cls.candidates.end();) {
-        if(tgtMatches.find(it->tax) == tgtMatches.end())
+        if(tgtMatches.find(it->origtax) == tgtMatches.end())
             it = cls.candidates.erase(it);
         else
             ++it;
@@ -677,51 +677,51 @@ void redo_classification_batched(
     classification_results& results,
     taxon_count_map& allTaxCounts)
 {
-        //parallel
-        std::vector<std::future<void>> threads;
-        std::atomic<std::unordered_map<query_id, query_mapping>::iterator> globalMappingIterator;
-        globalMappingIterator.store(queryMappings.begin());
-        std::mutex mtx;
+    //parallel
+    std::vector<std::future<void>> threads;
+    std::atomic<std::unordered_map<query_id, query_mapping>::iterator> globalMappingIterator;
+    globalMappingIterator.store(queryMappings.begin());
+    std::mutex mtx;
 
-        for(int threadId = 0; threadId < opt.process.numThreads; ++threadId) {
-            threads.emplace_back(std::async(std::launch::async, [&, threadId] {
-                auto localMappingIterator = globalMappingIterator.load();
-                while(localMappingIterator != queryMappings.end()) {
-                    auto batchEnd = size_t(std::distance(localMappingIterator, queryMappings.end())) > opt.process.batchSize ?
-                                std::next(localMappingIterator, opt.process.batchSize) : queryMappings.end();
-                    bool success = globalMappingIterator.compare_exchange_weak(localMappingIterator, batchEnd);
-                    if(success) {
-                        std::ostringstream bufout;
-                        taxon_count_map taxCounts;
+    for(int threadId = 0; threadId < opt.process.numThreads; ++threadId) {
+        threads.emplace_back(std::async(std::launch::async, [&, threadId] {
+            auto localMappingIterator = globalMappingIterator.load();
+            while(localMappingIterator != queryMappings.end()) {
+                auto batchEnd = size_t(std::distance(localMappingIterator, queryMappings.end())) > opt.process.batchSize ?
+                            std::next(localMappingIterator, opt.process.batchSize) : queryMappings.end();
+                bool success = globalMappingIterator.compare_exchange_weak(localMappingIterator, batchEnd);
+                if(success) {
+                    std::ostringstream bufout;
+                    taxon_count_map taxCounts;
 
-                        for(auto it = localMappingIterator; it != batchEnd; ++it) {
-                            // classify using only targets left in tgtMatches
-                            update_classification(db, opt.classify, it->second.cls, tgtMatches);
+                    for(auto it = localMappingIterator; it != batchEnd; ++it) {
+                        // classify using only targets left in tgtMatches
+                        update_classification(db, opt.classify, it->second.cls, tgtMatches);
 
-                            evaluate_classification(db, opt.evaluate, it->second.query, it->second.cls, results.statistics);
+                        evaluate_classification(db, opt.evaluate, it->second.query, it->second.cls, results.statistics);
 
-                            show_query_mapping(bufout, db, opt.output, it->second.query, it->second.cls, match_locations{});
+                        show_query_mapping(bufout, db, opt.output, it->second.query, it->second.cls, match_locations{});
 
-                            if(opt.output.makeTaxCounts && it->second.cls.best) {
-                                ++taxCounts[it->second.cls.best];
-                            }
+                        if(opt.output.makeTaxCounts && it->second.cls.best) {
+                            ++taxCounts[it->second.cls.best];
                         }
-                        std::lock_guard<std::mutex> lock(mtx);
-                        if(opt.output.makeTaxCounts) {
-                            //add batch (taxon->read count) to global counts
-                            for(const auto& taxCount : taxCounts)
-                                allTaxCounts[taxCount.first] += taxCount.second;
-                        }
-                        results.perReadOut << bufout.str();
                     }
+                    std::lock_guard<std::mutex> lock(mtx);
+                    if(opt.output.makeTaxCounts) {
+                        //add batch (taxon->read count) to global counts
+                        for(const auto& taxCount : taxCounts)
+                            allTaxCounts[taxCount.first] += taxCount.second;
+                    }
+                    results.perReadOut << bufout.str();
                 }
-            }));
-        }
+            }
+        }));
+    }
 
-        //wait for all threads to finish
-        for(auto& thread : threads) {
-            thread.get();
-        }
+    //wait for all threads to finish
+    for(auto& thread : threads) {
+        thread.get();
+    }
 }
 
 
@@ -786,6 +786,7 @@ void map_queries_to_targets_default(
         }
 
         if(opt.classify.covPercentile < 1e-8) {
+            //use classification as is
             if(opt.output.makeTaxCounts && cls.best) {
                 ++buf.taxCounts[cls.best];
             }
@@ -795,32 +796,36 @@ void map_queries_to_targets_default(
             show_query_mapping(buf.out, db, opt.output, query, cls, allhits);
         }
         else {
-            //save query mapping for post processing
-
             //delete sequence strings
             sequence().swap(query.seq1);
             if(query.seq2.size())
                 sequence().swap(query.seq2);
 
+            //save query mapping for post processing
             buf.queryMappings.emplace(query.id, query_mapping{std::move(query), std::move(cls)});
         }
     };
 
     //runs before a batch buffer is discarded
     const auto finalizeBatch = [&] (mappings_buffer&& buf) {
-        if(opt.output.showHitsPerTargetList) {
-            queryMappings.insert(std::make_move_iterator(buf.queryMappings.begin()),
-                                 std::make_move_iterator(buf.queryMappings.end()) );
+        if(opt.output.showHitsPerTargetList || opt.classify.covPercentile > 0) {
             //merge batch (target->hits) lists into global one
             tgtMatches.merge(std::move(buf.hitsPerTarget));
         }
-        if(opt.output.makeTaxCounts) {
-            //add batch (taxon->read count) to global counts
-            for(const auto& taxCount : buf.taxCounts)
-                allTaxCounts[taxCount.first] += taxCount.second;
+        if(opt.classify.covPercentile > 0) {
+            //move mappings to global map
+            queryMappings.insert(std::make_move_iterator(buf.queryMappings.begin()),
+                                 std::make_move_iterator(buf.queryMappings.end()) );
         }
-        //write output buffer to output stream when batch is finished
-        results.perReadOut << buf.out.str();
+        else {
+            if(opt.output.makeTaxCounts) {
+                //add batch (taxon->read count) to global counts
+                for(const auto& taxCount : buf.taxCounts)
+                    allTaxCounts[taxCount.first] += taxCount.second;
+            }
+            //write output buffer to output stream when batch is finished
+            results.perReadOut << buf.out.str();
+        }
     };
 
     //runs if something needs to be appended to the output
