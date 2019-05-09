@@ -115,7 +115,7 @@ void show_matches_per_targets(std::ostream&,
  *****************************************************************************/
 void show_abundances(std::ostream&,
                      const taxon_count_map&,
-                     const classification_statistics::count_t,
+                     const classification_statistics&,
                      const classification_output_options&);
 
 
@@ -127,7 +127,7 @@ void show_abundances(std::ostream&,
  *****************************************************************************/
 void show_abundance_estimates(std::ostream&,
                               const taxon_count_map&,
-                              const classification_statistics::count_t,
+                              const classification_statistics&,
                               const classification_output_options&);
 
 
