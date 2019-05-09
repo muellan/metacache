@@ -4,6 +4,8 @@
 
 MetaCache is a classification system for mapping short reads from metagenomic samples to their most likely taxon of origin. MetaCache aims to reduce the memory requirement usually associated with k-mer based methods while retaining their speed. It uses locality sensitive hashing to quickly identify candidate regions within one or multiple reference genomes. A read is then classified based on the similarity to those regions.
 
+For an independend comparison to other tools in terms of classification accuracy, speed and memory consumption, see the [LEMMI](https://lemmi.ezlab.org) benchmarking site.
+
 
 ## Quick Installation & Usage
 This will download MetaCache, compile it, download the complete bacterial, viral and archaea genomes from the latest NCBI RefSeq release (this can take some time) and build a classification database from them:
