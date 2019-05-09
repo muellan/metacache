@@ -287,7 +287,7 @@ struct canonical_2bit_less
 {
     using result_type = bool;
 
-    explicit
+    explicit constexpr
     canonical_2bit_less(numk_t k) : k_(k) {}
 
     constexpr bool
