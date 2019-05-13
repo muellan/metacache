@@ -197,7 +197,6 @@ void for_all_contiguous_window_ranges(const match_locations& matches,
 class best_distinct_matches_in_contiguous_window_ranges
 {
     using candidates_list  = std::vector<match_candidate>;
-    using taxon_list = std::vector<const taxon*>;
 
 public:
     using size_type      = std::size_t;
@@ -309,7 +308,6 @@ private:
 class distinct_matches_in_contiguous_window_ranges
 {
     using candidates_list  = std::vector<match_candidate>;
-    using taxon_list = std::vector<const taxon*>;
 
 public:
     using size_type      = std::size_t;
