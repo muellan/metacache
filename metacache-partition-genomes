@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# Copyright 2016, André Müller <muellan@uni-mainz.de>
+#
+# This file is part of the MetaCache taxonomic sequence classification tool.
+#
+# MetaCache is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# MetaCache is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with MetaCache.  If not, see <http://www.gnu.org/licenses/>.
+
+# This script will partition genome files contained in <path to genome files>
+# into separate directories <path to genome files>_## for partioned database construction.
+
+set -u  # Protect against uninitialized vars.
+set -e  # Stop on error
+
+if [ $# -lt 2 ]; then
+  echo "Partition genome files into separate directories for partioned database construction."
+  echo "Usage:    $0 <path to genomes> <partition size in MB>"
+  exit
+fi
+
+directory=$1
+sizelimit=$(expr $2 \* 1024 \* 1024)
+
+sizesofar=0
+dircount=1
+
+while read -r size file
+do
+  if ((sizesofar + size > sizelimit))
+  then
+    (( dircount++ ))
+    sizesofar=0
+  fi
+  (( sizesofar += size ))
+  if [ ! -e  "${directory}_$dircount" ]
+  then
+    echo "Creating folder ${directory}_$dircount"
+    mkdir -p -- "${directory}_$dircount"
+  fi
+  filepath=$(realpath $file)
+  ln -s -- "$filepath" "${directory}_$dircount"
+done < <(find "$directory" -type f -printf "%s %p\n")
+
+echo "Created" "$dircount" "directories. You can now run metacache build for each one."
