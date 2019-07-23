@@ -1,12 +1,16 @@
 Documentation for MetaCache mode "merge"
 
+
 SYNOPSIS
+
     metacache merge <results_file>... -taxonomy <path> OPTIONS
 
+
 DESCRIPTION
+
     You can also provide names of directories that contain
     results files instead of single filenames. MetaCache will
-    search at most 10 levels down in the file hierarchy.
+    search at most 10 levels deep in the file hierarchy.
 
     This mode classifies reads by merging the results of multiple, independent 
     queries. These might have been obtained by querying one database with 
@@ -25,9 +29,12 @@ DESCRIPTION
     in succession. The results of these independent query runs can then be 
     merged to obtain a classification based on the whole set of genomes
 
+
 NON-OPTIONAL PARAMETERS
+
     -taxonomy <path>   directory with taxonomic hierarchy data 
                        (see NCBI's taxonomic data files)
+
 
 BASIC OPTIONS
 
@@ -52,6 +59,7 @@ BASIC OPTIONS
                        consider for each query; A large value can significantly 
                        decrease the querying speed!
                        default: 2
+
 
 OUTPUT FORMATTING OPTIONS
 
@@ -99,6 +107,7 @@ OUTPUT FORMATTING OPTIONS
                        end of the mapping output
                        default: do show the summary
 
+
 ADVANCED ANALYSIS OPTIONS
     
     -abundances        Show absolute and relative abundance of each taxon.
@@ -115,7 +124,9 @@ ADVANCED ANALYSIS OPTIONS
                        be printed to the same file.
                        default:off
 
+
 EXAMPLES
+
     Classify reads based on the three different databases:
         ./metacache query 1.db reads.fa -tophits -queryids -lowest species -out res1.txt 
         ./metacache query 2.db reads.fa -tophits -queryids -lowest species -out res2.txt

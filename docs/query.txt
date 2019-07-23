@@ -1,21 +1,26 @@
 Documentation for MetaCache mode "query"
 
 SYNOPSIS
+
     metacache query <database name> [<query sequence>...] OPTIONS
 
+
 DESCRIPTION
+
     Map sequences (short reads) to their most likely origin.
 
     You can also provide names of directories that contain
     sequence files instead of single filenames. MetaCache will
-    search at most 10 levels down in the file hierarchy.
+    search at most 10 levels deep in the file hierarchy.
 
     If no input sequence filenames or directories are given, MetaCache will
     run in interactive query mode. This can be used to load the database into
     memory only once and then query it multiple times with different
     query options.
 
+
 BASIC OPTIONS
+
     -out <file>        Redirect output to file <file>.
                        If not specified, output will be written to stdout.
                        If more than one input file was given all output
@@ -55,6 +60,7 @@ BASIC OPTIONS
                        consider for each query; A large value can significantly 
                        decrease the querying speed!
                        default: 2
+
 
 OUTPUT FORMATTING OPTIONS
 
@@ -106,6 +112,7 @@ OUTPUT FORMATTING OPTIONS
                        end of the mapping output
                        default: do show the summary
 
+
 ADVANCED ANALYSIS OPTIONS
 
     -tophits           For each query, print top feature hits in database.
@@ -136,6 +143,7 @@ ADVANCED ANALYSIS OPTIONS
                        If '-abundances <file>' was given, this list will
                        be printed to the same file.
                        default:off
+
 
 ADVANCED OPTIONS 
 
@@ -191,7 +199,9 @@ ADVANCED OPTIONS
                        efficiency. 
                        default: 0.8
 
+
 EXAMPLES
+
     Query all sequences in 'myreads.fna' against pre-built database 'refseq':
         ./metacache query refseq myreads.fna -out results.txt
 
@@ -213,7 +223,9 @@ EXAMPLES
         reads3.fa -pairseq -insertsize 300
         reads4.fa -lineage
 
+
 OUTPUT FORMAT
+
     MetaCache's default read mapping output format is: 
     read_header | rank:taxon_name
 

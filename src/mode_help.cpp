@@ -46,21 +46,25 @@ void show_available_help_topics()
 
     std::cout << "Available topics are:\n";
     for(const auto& name : files) {
+
         auto i = name.find(".txt");
-        auto topic = name.substr(5,i-5);
-        auto spc = std::string(10 - topic.size(), ' ');
-        auto synopsis = std::string("");
+        if(i != std::string::npos) {
+            auto topic = name.substr(5,i-5);
+            auto spc = std::string(10 - topic.size(), ' ');
 
-        std::ifstream is{name};
-        if(is.good()) {
-            //forward to synopsis
-            while(is.good() && synopsis.find("SYNOPSIS:") == std::string::npos) {
-                getline(is, synopsis);
+            std::ifstream is{name};
+            auto descr = std::string("");
+            if(is.good()) {
+                //forward to descr
+                while(is.good() && descr.find("DESCRIPTION") == std::string::npos) {
+                    getline(is, descr);
+                }
+                getline(is, descr);
+                getline(is, descr);
             }
-            getline(is, synopsis);
-        }
 
-        std::cout << "    " << topic << spc << synopsis << '\n';
+            std::cout << "    " << topic << spc << descr << '\n';
+        }
     }
     std::cout.flush();
 }

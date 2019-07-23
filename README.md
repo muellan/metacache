@@ -7,7 +7,7 @@ MetaCache is a classification system for mapping short reads from metagenomic sa
 For an independend comparison to other tools in terms of classification accuracy, speed and memory consumption, see the [LEMMI](https://lemmi.ezlab.org) benchmarking site.
 
 
-## Quick Installation & Usage
+## Quick Start with NCBI RefSeq
 This will download MetaCache, compile it, download the complete bacterial, viral and archaea genomes from the latest NCBI RefSeq release (this can take some time) and build a classification database from them:
 
 ```
@@ -45,7 +45,7 @@ MetaCache was successfully tested on the following platforms (all 64 bit + 64 bi
 - Windows 10.1709 64bit running Ubuntu 16.04 inside WSL and g++ 7.2
 
 In order to be able to build the default database (based on NCBI RefSeq Release 86 as of 2018-03-05) with default settings your system should have around 48GB of RAM (note that the NCBI RefSeq will still be growing in the near future).
-
+If you don't have enough RAM, you can use [database partitioning](docs/partitioning.md).
 
 #### Get The Latest Sources
 Visit MetaCache's github [repository].
@@ -106,31 +106,24 @@ You can of course combine these options (don't forget the surrounding quotes):
 
 **Note that a database can only be queried with the same variant of MetaCache (regarding data type sizes) that it was built with.**
 
+In rare cases databases built on one platform might not work with MetaCache on other platforms due to bit-endianness and data type width differences. Especially mixing MetaCache executables compiled with 32-bit and 64-bit compilers might be probelematic.
 
-## Usage
+
+
+
+## Building Databases
    
-#### Build a Reference Database
-
-##### Building the Default RefSeq Database
+   
+#### Building the Default RefSeq Database
 Use the ```metacache-build-refseq``` script to build a MetaCache database based on complete bacterial, viral and archaea genomes from the latest NCBI RefSeq release. Note that the genomes will be downloaded first, which can take some time. 
 
-##### Custom Builds
-Metacache has different modes. The 'build' mode is used for creating databases. See its documentation for more information:
-```
-./metacache help build
-```
-
-MetaCache also comes with these helper scripts:
-* ```download-ncbi-genomes``` downloads NCBI reference genomes.
-* ```download-ncbi-taxonomy``` downloads NCBI taxonomy.
-* ```download-ncbi-taxmaps``` downloads NCBI accession to taxon ID maps.
-     Note that these maps are not needed for the latest NCBI RefSeq releases.
-
-Note: In rare cases databases built on one platform might not work with MetaCache on other platforms due to bit-endianness and data type width differences. Especially mixing MetaCache executables compiled with 32-bit and 64-bit compilers might be probelematic.
+### [Building Custom Databases...](docs/building.md)
 
 
-#### Classification 
-Metacache has different modes, one of them is the 'query' mode. Once a database (e.g. the standard 'refseq'), is built you can classify reads.
+
+
+## Classification 
+Metacache has different modes, one of them is the [query mode](docs/query.txt). Once a database (e.g. the standard 'refseq'), is built you can classify reads.
 * a single FASTA file containing some reads:
   ```
   ./metacache query refseq my_reads.fa -out results.txt
@@ -148,46 +141,36 @@ Metacache has different modes, one of them is the 'query' mode. Once a database 
   ./metacache query refseq my_paired_reads.fa -pairseq -out results.txt
   ```
 
-#### Output Format
-
-MetaCache's default read mapping output format is: 
-```read_header | taxon_rank:taxon_name```
-
-This will not be changed in the future to avoid breaking anyone's pipelines. Command line options won't change in the near future for the same reason. 
-
-The following tables show some of the possible mapping layouts with their associated command line arguments.
-
-| mapping layout                                   | command line arguments                   |
-| -----------------------------------------------  | ---------------------------------------- |
-| ```read_header │ rank:taxon_name```              |                                          |
-| ```read_header │ rank:taxon_name(taxon_id)```    | ```-taxids```                            |
-| ```read_header │ rank │ taxon_id```              | ```-taxids-only -separate-cols```        |
-| ```read_header │ rank │ taxon_name```            | ```-separate-cols```                     |
-| ```read_header │ rank │ taxon_name │ taxon_id``` | ```-taxids -separate-cols```             |
-| ```read_header │ taxon_id```                     | ```-taxids-only -omit-ranks```           |
-| ```read_header │ taxon_name```                   | ```-omit-ranks```                        |
-| ```read_header │ taxon_name(taxon_id)```         | ```-taxids -omit-ranks```                |
-| ```read_header │ taxon_name │ taxon_id```        | ```-taxids -omit-ranks -separate-cols``` |
-| ```read_header │ rank:taxon_id```                | ```-taxids-only```                       |
 
 
-Note that the default lowest taxon rank is "sequence". Sequence-level taxon ids have negative numbers in order to not interfere with NCBI taxon ids. Each target sequence (reference genome) is added as its own taxon below the lowest known NCBI taxon for that sequence. If you do not want to classify at sequence-level, you can set a higher rank as lowest classification rank with the ```-lowest``` command line option: ```-lowest species``` or ```-lowest subspecies``` or ```-lowest genus```, etc.
+
+## [Output Formatting Options...](docs/output.md)
 
 
-#### View Documentation
-The operating manual consists of several text files (one for each mode) located in the 'docs' directory.
-Once MetaCache is installed you can also view the documentation with 
+## Documentation of Command Line Options
+
+* [for mode `build`](docs/build.txt): build database(s) from reference genomes
+* [for mode `query`](docs/query.txt): query reads against databases
+* [for mode `merge`](docs/merge.txt): merge results of independent queries
+* [for mode `modify`](docs/modify.txt): add reference genomes to database or update taxonomy
+* [for mode `info`](docs/info.txt): get information about a database
+
+
+#### View options documentation from the command line
+List available modes:
 ```
 ./metacache help
 ```
-or jump directly to specific topics with
+or jump directly to a mode's man page with:
 ```
 ./metacache help build
 ./metacache help query
 ...
 ```
 
-MetaCache Copyright (C) 2016-2018 [André Müller](https://github.com/muellan) & [Robin Kobus](https://github.com/Funatiq)
+
+
+MetaCache Copyright (C) 2016-2019 [André Müller](https://github.com/muellan) & [Robin Kobus](https://github.com/Funatiq)
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain
 conditions. See the file 'LICENSE' for details.

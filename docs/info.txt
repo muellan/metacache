@@ -1,6 +1,7 @@
 Documentation for MetaCache mode "info"
 
 SYNOPSIS
+
     metacache info 
     metacache info <database>
     metacache info <database> target [<sequence_id>...] 
@@ -9,10 +10,14 @@ SYNOPSIS
     metacache info <database> statistics
     metacache info <database> (featuremap|featurecounts)
 
+
 DESCRIPTION
+
     Display (meta-)information stored in a database.
 
+
 SUB-MODES
+
     metacache info
         show basic properties of MetaCache executable (data type widths, etc.)
 
@@ -43,7 +48,9 @@ SUB-MODES
     metacache info <database> featurecounts
         prints (feature -> target count) map
 
+
 EXAMPLES
+
     List metadata for all reference sequences in database 'refseq':
         metacache info refseq.db target
 

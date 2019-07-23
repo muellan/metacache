@@ -1,16 +1,21 @@
 Documentation for MetaCache mode "modify"
 
 SYNOPSIS
+
     metacache modify <database name> <reference sequence>... OPTIONS
 
+
 DESCRIPTION
+
     Add reference sequence and/or taxonomic information to an existing database.
 
     You can also provide names of directories that contain
     sequence files instead of single filenames. MetaCache will
-    search at most 10 levels down in the file hierarchy.
+    search at most 10 levels deep in the file hierarchy.
+
 
 OPTIONS
+
     -verbose              show detailed status information during build
 
     -taxonomy <path>      directory with taxonomic hierarchy data 
@@ -28,7 +33,9 @@ OPTIONS
                           that don't have a parent taxon yet will be re-mapped
                           when a new taxonomy is applied
 
+
 EXAMPLES
+
     Add reference sequence 'penicillium.fna' to database 'fungi'
         ./metacache modify fungi penicillium.fna
 

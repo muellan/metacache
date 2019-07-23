@@ -4,6 +4,7 @@ This is free software, and you are welcome to redistribute it
 under certain conditions. See the file 'LICENSE' for details.
 
 You need to specify one of the following modes:
+
     help        shows documentation 
     query       classify read sequences using pre-built database
     build       build new database from reference sequences (usually genomes)
@@ -12,7 +13,9 @@ You need to specify one of the following modes:
     merge       merge classification results of independent queries
     annotate    annotate sequences with taxonomic information 
 
+
 EXAMPLES:
+
     Query single FASTA file 'myreads.fna' against pre-built database 'refseq':
         ./metacache query refseq myreads.fna -out results.txt
         with output to the console:
