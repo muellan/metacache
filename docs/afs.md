@@ -3,7 +3,6 @@
 MetaCache is a classification system for mapping short reads from metagenomic samples to their most likely taxon of origin. It uses locality sensitive hashing to quickly identify candidate regions within one or multiple reference genomes. A read is then classified based on the similarity to those regions. 
 
 
-* [MetaCache Home Page](index.md)
 * [MetaCache Github Repository](https://github.com/muellan/metacache)
 * [**MetaCacheSpark**: Apache Spark&trade; implementation of MetaCache for big data clusters](https://github.com/jmabuin/MetaCacheSpark)
 
@@ -54,9 +53,12 @@ It is important that you supply the option `-remove-overpopulated-features` if y
 
 This queries all reads in all FASTA and FASTQ files in `myreads_folder` against database `afs.db`. The individual read mappings are written to `read_mappings.txt` and the abundance analysis to `abund.txt`.
 ```
-./metacache query afs myreads_folder -max-cand 4 -hitmin 4 -hitdiff 80 \
+./metacache query afs myreads_folder -pairfiles \
+            -max-cand 4 -hitmin 4 -hitdiff 80 \
             -out read_mappings.txt -abundances abund.txt -abundance-per species
 ```
+
+The option `pairfiles` means that each mate of a read pair will be read from a separate file (e.g., `fileA_1.fa` + `fileA_2.fa`, `fileB_1.fa` + `fileB_2.fa`, ...). If both mates of your paired-end reads are in one file (1+2, 3+4, ...) then use the option `-pairseq` instead.
 
 **Important:** For abundance analysis tasks involving large eukaryotic genomes, make sure to supply options 
 ```
