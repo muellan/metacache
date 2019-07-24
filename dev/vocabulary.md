@@ -6,7 +6,7 @@ MetaCache Vocabulary
  taxon       node in the tree of life
  rank        named level in the tree of life (species, genus, family , ...)
 
- query       short read or pair of short reads to be classified
+ query       read or pair of reads to be classified
  target      (genomic) reference sequence
 
  window      sequence of w consecutive characters used for constructing a sketch

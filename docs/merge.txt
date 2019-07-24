@@ -128,8 +128,8 @@ ADVANCED ANALYSIS OPTIONS
 EXAMPLES
 
     Classify reads based on the three different databases:
-        ./metacache query 1.db reads.fa -tophits -queryids -lowest species -out res1.txt 
-        ./metacache query 2.db reads.fa -tophits -queryids -lowest species -out res2.txt
-        ./metacache query 3.db reads.fa -tophits -queryids -lowest species -out res3.txt
-        ./metacache merge res1.txt res2.txt res3.txt -taxonomy ncbi_taxonomy
+        metacache query 1.db reads.fa -tophits -queryids -lowest species -out res1.txt 
+        metacache query 2.db reads.fa -tophits -queryids -lowest species -out res2.txt
+        metacache query 3.db reads.fa -tophits -queryids -lowest species -out res3.txt
+        metacache merge res1.txt res2.txt res3.txt -taxonomy ncbi_taxonomy
 

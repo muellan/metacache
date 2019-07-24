@@ -18,11 +18,11 @@ Then run `metacache build` for each of the partition directories.
 ### Example
 Create 16 GB partitions from 40 GB of reference genomes (which results in 3 partitions) and build databases from them:
 ```
-./metacache-partition-genomes path/to/mygenomes 16000
+metacache-partition-genomes path/to/mygenomes 16000
 
-./metacache build mydb_1 path/to/mygenomes_1
-./metacache build mydb_2 path/to/mygenomes_2
-./metacache build mydb_3 path/to/mygenomes_3
+metacache build mydb_1 path/to/mygenomes_1 ...
+metacache build mydb_2 path/to/mygenomes_2 ...
+metacache build mydb_3 path/to/mygenomes_3 ...
 ```
 
 ### See also
@@ -41,11 +41,11 @@ After database construction
 
 ### Example
 ```
-  ./metacache query mydb_1 myreads.fa -tophits -queryids -lowest species -out res1.txt 
-  ./metacache query mydb_2 myreads.fa -tophits -queryids -lowest species -out res2.txt
-  ./metacache query mydb_3 myreads.fa -tophits -queryids -lowest species -out res3.txt
+  metacache query mydb_1 myreads.fa -tophits -queryids -lowest species -out res1.txt 
+  metacache query mydb_2 myreads.fa -tophits -queryids -lowest species -out res2.txt
+  metacache query mydb_3 myreads.fa -tophits -queryids -lowest species -out res3.txt
 
-  ./metacache merge res1.txt res2.txt res3.txt -taxonomy ncbi_taxonomy
+  metacache merge res1.txt res2.txt res3.txt -taxonomy ncbi_taxonomy
 ```
 
 ### Important!

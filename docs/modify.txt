@@ -37,8 +37,8 @@ OPTIONS
 EXAMPLES
 
     Add reference sequence 'penicillium.fna' to database 'fungi'
-        ./metacache modify fungi penicillium.fna
+        metacache modify fungi penicillium.fna
 
     Add taxonomic information from NCBI to database 'myBacteria'
-        ./download_ncbi_taxonomy myTaxo
-        ./metacache modify myBacteria -taxonomy myTaxo
+        download_ncbi_taxonomy myTaxo
+        metacache modify myBacteria -taxonomy myTaxo

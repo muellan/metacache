@@ -1,4 +1,4 @@
-Documentation for MetaCache mode "build"
+ocumentation for MetaCache mode "build"
 
 SYNOPSIS
 
@@ -81,16 +81,16 @@ ADVANCED OPTIONS
 EXAMPLES
 
     Build database 'mydb' from sequence file 'genomes.fna':
-        ./metacache build mydb genomes.fna
+        metacache build mydb genomes.fna
 
     Build database with latest complete genomes from the NCBI RefSeq
-        ./download-ncbi-genomes refseq/bacteria myfolder
-        ./download-ncbi-genomes refseq/viruses myfolder
-        ./download-ncbi-taxonomy myfolder
-        ./metacache build myRefseq myfolder -taxonomy myfolder
+        download-ncbi-genomes refseq/bacteria myfolder
+        download-ncbi-genomes refseq/viruses myfolder
+        download-ncbi-taxonomy myfolder
+        metacache build myRefseq myfolder -taxonomy myfolder
 
     Build database 'mydb' from two sequence files:
-        ./metacache build mydb mrsa.fna ecoli.fna
+        metacache build mydb mrsa.fna ecoli.fna
 
     Build database 'myBacteria' from folder containing sequence files:
-        ./metacache build myBacteria all_bacteria
+        metacache build myBacteria all_bacteria
