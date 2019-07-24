@@ -1,6 +1,6 @@
 # AFS-MetaCache: Food Ingredient Detection & Abundance Analysis
 
-MetaCache is a classification system for mapping short reads from metagenomic samples to their most likely taxon of origin. It uses locality sensitive hashing to quickly identify candidate regions within one or multiple reference genomes. A read is then classified based on the similarity to those regions. 
+MetaCache is a classification system for mapping (short or long) reads from metagenomic samples to their most likely taxon of origin. It uses locality sensitive hashing to quickly identify candidate regions within one or multiple reference genomes. A read is then classified based on the similarity to those regions. 
 
 
 * [MetaCache Github Repository](https://github.com/muellan/metacache)
@@ -42,8 +42,8 @@ It is important that you supply the option `-remove-overpopulated-features` if y
 
 
 #### For more information see
-* [Building custom databases...](building.md)
-* [Using partitioned databases...](partitioning.md)
+* [Building custom databases](building.md)
+* [Using partitioned databases](partitioning.md)
 
 
 

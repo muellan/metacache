@@ -31,7 +31,7 @@ This will download the taxonomy and put it in a folder called `ncbi_taxonomy`
 
 
 ## Reference Genome Files
-in (uncompressed) FASTA or FASTQ format
+Must be in (uncompressed) FASTA or FASTQ format.
 
 You can either specify all input genome files separately:
 ```
@@ -107,10 +107,4 @@ filename2	198804
   ```
 
   The NCBI's default accession to taxon mappings can be downloaded with the included helper script `download-ncbi-taxmaps`.
-
-
-
-## Notes
-In rare cases databases built on one platform might not work with MetaCache on other platforms due to bit-endianness and data type width differences. Especially mixing MetaCache executables compiled with 32-bit and 64-bit compilers might be probelematic.
-
 

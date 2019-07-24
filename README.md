@@ -2,7 +2,7 @@
 
 [![Linux build status](https://travis-ci.org/muellan/metacache.svg?branch=master)](https://travis-ci.org/muellan/metacache) 
 
-MetaCache is a classification system for mapping short reads from metagenomic samples to their most likely taxon of origin. MetaCache aims to reduce the memory requirement usually associated with k-mer based methods while retaining their speed. It uses locality sensitive hashing to quickly identify candidate regions within one or multiple reference genomes. A read is then classified based on the similarity to those regions.
+MetaCache is a classification system for mapping (short or long) reads from metagenomic samples to their most likely taxon of origin. MetaCache aims to reduce the memory requirement usually associated with k-mer based methods while retaining their speed. It uses locality sensitive hashing to quickly identify candidate regions within one or multiple reference genomes. A read is then classified based on the similarity to those regions.
 
 For an independend comparison to other tools in terms of classification accuracy, speed and memory consumption, see the [LEMMI](https://lemmi.ezlab.org) benchmarking site.
 
@@ -123,7 +123,7 @@ Use the ```metacache-build-refseq``` script to build a MetaCache database based 
 
 
 ## Classification 
-Metacache has different modes, one of them is the [query mode](docs/query.txt). Once a database (e.g. the standard 'refseq'), is built you can classify reads.
+Once a database (e.g. the standard 'refseq'), is built you can classify reads.
 * a single FASTA file containing some reads:
   ```
   ./metacache query refseq my_reads.fa -out results.txt

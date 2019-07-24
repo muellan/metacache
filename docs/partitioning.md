@@ -20,9 +20,9 @@ Create 16 GB partitions from 40 GB of reference genomes (which results in 3 part
 ```
 ./metacache-partition-genomes path/to/mygenomes 16000
 
-./metacache build mydb_1 path/to/mygenomes_1
-./metacache build mydb_2 path/to/mygenomes_2
-./metacache build mydb_3 path/to/mygenomes_3
+./metacache build mydb_1 path/to/mygenomes_1 ...
+./metacache build mydb_2 path/to/mygenomes_2 ...
+./metacache build mydb_3 path/to/mygenomes_3 ...
 ```
 
 ### See also

@@ -7,7 +7,7 @@ SYNOPSIS
 
 DESCRIPTION
 
-    Map sequences (short reads) to their most likely origin.
+    Map sequences (short or long reads) to their most likely origin.
 
     You can also provide names of directories that contain
     sequence files instead of single filenames. MetaCache will
