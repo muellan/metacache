@@ -84,9 +84,9 @@ MetaCache looks for such annotations by default, so this will automatically work
 
 
 
-### 3. NCBI-style `accession2taxid` tab-separated files that look like this:
+### 3. NCBI-style `accession2taxid` tab-separated files
 
-#### Use the NCBI' mapping files
+#### Use the NCBI mapping files
 The NCBI's default accession to taxon mappings can be downloaded with the included helper script `download-ncbi-taxmaps`.
 You should put them into the same folder as the taxonomy: 
 ```
@@ -95,6 +95,7 @@ download-ncbi-taxmaps taxonomy_folder
 MetaCache will automatically look in the taxonomy folder (determined by build option `-taxonomy`) for them. They will be used at the end of the database build phase for all reference sequences that don't have a taxid assigned yet (by any of the other methods).
 
 #### Use custom mapping files
+`accession2taxid` files contain 5 tab-separated columns:
 ```tsv
   accession	accession	version	taxid	gid
   A00002	A00002.1	9913	2
