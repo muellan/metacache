@@ -94,7 +94,6 @@ download-ncbi-taxmaps taxonomy_folder
 ```
 MetaCache will automatically look in the taxonomy folder (determined by build option `-taxonomy`) for them. They will be used at the end of the database build phase for all reference sequences that don't have a taxid assigned yet (by any of the other methods).
 
-
 #### Use custom mapping files
 ```tsv
   accession	accession	version	taxid	gid
