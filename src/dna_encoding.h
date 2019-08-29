@@ -321,6 +321,90 @@ for_each_kmer_2bit(numk_t k,
 
 
 /*************************************************************************//**
+ * @brief loops through consecutive 2-bit encoded substrings in a sequence of
+ * characters
+ *
+ * @tparam UInt    result type, must be an unsigned integer type
+ *
+ * @param first    iterator to the first character of the input sequence
+ * @param last     iterator to one after the last character of the input sequence
+ * @param consume  function object lambda consuming the k-mers
+ *****************************************************************************/
+template<class UInt, class InputIterator, class Consumer>
+inline void
+for_each_consecutive_substring_2bit(InputIterator first, InputIterator last,
+                                    Consumer&& consume)
+{
+    static_assert(std::is_integral<UInt>::value &&
+                  std::is_unsigned<UInt>::value,
+                  "only unsigned integer types are supported");
+
+    using std::next;
+
+    using ambig_t = half_size_t<UInt>;
+
+    const numk_t kmax = sizeof(ambig_t) * CHAR_BIT;
+    numk_t k          = 0;
+
+    auto kmer  = UInt(0);
+    auto ambig = ambig_t(0);  //bitfield marking ambiguous nucleotides
+
+    ++last;
+    for(auto ssend = next(first); ssend != last; ++first, ++ssend) {
+        //encode next letter
+        kmer <<= 2;
+        ambig <<= 1;
+        switch(*first) {
+            case 'A': case 'a': break;
+            case 'C': case 'c': kmer |= 1; break;
+            case 'G': case 'g': kmer |= 2; break;
+            case 'T': case 't': kmer |= 3; break;
+            default: ambig |= 1; break;
+        }
+        ++k;
+        //make sure we load kmax letters
+        if(k == kmax) {
+            //do something with the kmer (and the ambiguous letters flag)
+            consume(kmer, ambig);
+            k = 0; //reset letter counter
+        }
+    }
+    //handle tail
+    //shift kmer to highest bits
+    kmer <<= (sizeof(kmer) * CHAR_BIT) - (k * 2);
+    ambig <<= (sizeof(ambig) * CHAR_BIT) - k;
+    //mark lower bits ambiguous
+    ambig |= ambig_t(~0) >> k;
+    //do something with the kmer (and the ambiguous letters flag)
+    consume(kmer, ambig);
+}
+
+
+
+/*************************************************************************//**
+ * @brief loops through consecutive 2-bit encoded substrings in a sequence of
+ * characters
+ *
+ * @tparam UInt    result type, must be an unsigned integer type
+ *
+ * @param input    input sequence
+ * @param consume  function object/lambda consuming (k-mer, ambiguity bitmask)
+ *****************************************************************************/
+template<class UInt, class InputRange, class Consumer>
+inline void
+for_each_consecutive_substring_2bit(InputRange input,
+                                    Consumer&& consume)
+{
+    using std::begin;
+    using std::end;
+    for_each_consecutive_substring_2bit<UInt>(
+        begin(input), end(input),
+        std::forward<Consumer>(consume));
+}
+
+
+
+/*************************************************************************//**
  * @brief loops through all 2-bit encoded k-mers in a sequence of characters
  *
  * @tparam UInt    result type, must be an unsigned integer type
