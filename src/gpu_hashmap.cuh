@@ -4,6 +4,8 @@
 #include <functional>
 #include <limits>
 
+#include "config.h"
+
 namespace mc {
 
 /*************************************************************************//**
@@ -88,6 +90,10 @@ public:
     float max_load_factor() const noexcept {
         return maxLoadFactor_;
     }
+
+    //---------------------------------------------------------------
+    void insert(target_id tgt, std::vector<encodedseq_t> encodedSeq, std::vector<encodedambig_t> encodedAmbig);
+
 
     //---------------------------------------------------------------
     size_type numKeys_;

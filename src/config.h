@@ -53,7 +53,7 @@ namespace mc {
 #ifdef MC_TARGET_ID_TYPE
     using target_id = MC_TARGET_ID_TYPE ;
 #else
-    using target_id = std::uint16_t;
+    using target_id = std::uint32_t;
 #endif
 
 
@@ -82,6 +82,8 @@ namespace mc {
  */
 using sequence = std::string;
 using query_id = std::uint_least64_t;
+using encodedseq_t   = uint32_t;
+using encodedambig_t = half_size_t<encodedseq_t>;
 
 
 /**************************************************************************

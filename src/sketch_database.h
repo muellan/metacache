@@ -192,7 +192,7 @@ private:
                               bucket_size_type>;          //location list size
 
     //-----------------------------------------------------
-    //"heart of the database": maps features to target locations
+    /// @brief "heart of the database": maps features to target locations
     using feature_store_gpu = gpu_hashmap<feature, //key
                                 // target_location,   //value
                                 uint64_t,          //value
@@ -1053,8 +1053,7 @@ private:
         using std::end;
         using std::distance;
 
-        using encodedseq_t   = uint32_t;
-        using encodedambig_t = mc::half_size_t<encodedseq_t>;
+
 
         const auto seqLen = distance(begin(seq), end(seq));
         const auto lettersPerBlock = sizeof(encodedseq_t)*CHAR_BIT;
@@ -1075,7 +1074,7 @@ private:
                 encodedAmbig.emplace_back(ambig);
             });
 
-        // features_gpu_.insert(tgt, encodedSeq, encodedAmbig);
+        features_gpu_.insert(tgt, encodedSeq, encodedAmbig);
 
         return numWindows;
     }
