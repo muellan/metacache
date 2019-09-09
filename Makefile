@@ -2,19 +2,25 @@ REL_ARTIFACT  = metacache
 DBG_ARTIFACT  = metacache_debug
 PRF_ARTIFACT  = metacache_prf
 
-COMPILER     = $(CXX)
+COMPILER     = nvcc
 DIALECT      = -std=c++14
-WARNINGS     = -Wall -Wextra -Wpedantic
+WARNINGS     = -Xcompiler="-Wall -Wextra -Wpedantic"
+WARNINGS_NP  = -Xcompiler="-Wall -Wextra"
 OPTIMIZATION = -O3
 #-march native -fomit-frame-pointer
+NVCC_FLAGS  = -arch=sm_70 -lineinfo
 
-REL_FLAGS   = $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) $(WARNINGS)
-DBG_FLAGS   = $(INCLUDES) $(MACROS) $(DIALECT) -O0 -g $(WARNINGS)
-PRF_FLAGS   = $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) -g $(WARNINGS)
+REL_FLAGS   = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) $(WARNINGS)
+DBG_FLAGS   = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) -O0 -g $(WARNINGS)
+PRF_FLAGS   = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) -g $(WARNINGS)
 
-REL_LDFLAGS  = -pthread -s
-DBG_LDFLAGS  = -pthread
-PRF_LDFLAGS  = -pthread
+REL_FLAGS_NP = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) $(WARNINGS_NP)
+DBG_FLAGS_NP = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) -O0 -g $(WARNINGS_NP)
+PRF_FLAGS_NP = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) -g $(WARNINGS_NP)
+
+REL_LDFLAGS  = -Xcompiler="-pthread -s"
+DBG_LDFLAGS  = -Xcompiler="-pthread"
+PRF_LDFLAGS  = -Xcompiler="-pthread"
 
 
 #--------------------------------------------------------------------
@@ -34,6 +40,7 @@ HEADERS = \
           src/filesys_utility.h \
           src/hash_dna.h \
           src/hash_int.h \
+          src/gpu_hashmap.cuh \
           src/hash_multimap.h \
           src/io_error.h \
           src/io_options.h \
@@ -70,7 +77,8 @@ SOURCES = \
           src/query_options.cpp \
           src/sequence_io.cpp \
           src/sketch_database.cpp \
-          src/taxonomy_io.cpp
+          src/taxonomy_io.cpp \
+		  src/gpu_hashmap.cu
 
 
 #--------------------------------------------------------------------
@@ -79,7 +87,8 @@ DBG_DIR  = build_debug
 PRF_DIR  = build_profile
 
 PLAIN_SRCS = $(notdir $(SOURCES))
-PLAIN_OBJS = $(PLAIN_SRCS:%.cpp=%.o)
+PLAIN_OBJS_TMP = $(PLAIN_SRCS:%.cpp=%.o)
+PLAIN_OBJS = $(PLAIN_OBJS_TMP:%.cu=%.o)
 
 #--------------------------------------------------------------------
 REL_OBJS  = $(PLAIN_OBJS:%=$(REL_DIR)/%)
@@ -90,6 +99,9 @@ REL_COMPILE  = $(COMPILER) $(REL_FLAGS) -c $< -o $@
 DBG_COMPILE  = $(COMPILER) $(DBG_FLAGS) -c $< -o $@
 PRF_COMPILE  = $(COMPILER) $(PRF_FLAGS) -c $< -o $@
 
+REL_COMPILE_NP  = $(COMPILER) $(REL_FLAGS_NP) -c $< -o $@
+DBG_COMPILE_NP  = $(COMPILER) $(DBG_FLAGS_NP) -c $< -o $@
+PRF_COMPILE_NP  = $(COMPILER) $(PRF_FLAGS_NP) -c $< -o $@
 
 
 #--------------------------------------------------------------------
@@ -170,6 +182,9 @@ $(REL_DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.h
 
 $(REL_DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.h
 	$(REL_COMPILE)
+
+$(REL_DIR)/gpu_hashmap.o : src/gpu_hashmap.cu src/gpu_hashmap.cuh
+	$(REL_COMPILE_NP)
 
 
 #--------------------------------------------------------------------

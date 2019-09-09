@@ -1,11 +1,10 @@
 #ifndef MC_GPU_HASH_MAP_H_
 #define MC_GPU_HASH_MAP_H_
 
-#include <cuda.h>
-
+#include <functional>
+#include <limits>
 
 namespace mc {
-
 
 /*************************************************************************//**
  *
@@ -55,34 +54,16 @@ public:
 public:
     //---------------------------------------------------------------
     explicit
-    gpu_hashmap()
-    :
-        numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
-        hash_{}, keyEqual_{}
-    {
-        cudaSetDevice(0);
-    }
+    gpu_hashmap();
 
     //-----------------------------------------------------
     explicit
-    gpu_hashmap(const key_equal& keyComp)
-    :
-        numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
-        hash_{}, keyEqual_{keyComp}
-    {
-        cudaSetDevice(0);
-    }
+    gpu_hashmap(const key_equal& keyComp);
 
     //-----------------------------------------------------
     explicit
     gpu_hashmap(const hasher& hash,
-                  const key_equal& keyComp = key_equal{})
-    :
-        numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
-        hash_{hash}, keyEqual_{keyComp}
-    {
-        cudaSetDevice(0);
-    }
+                const key_equal& keyComp = key_equal{});
 
 
     //---------------------------------------------------------------

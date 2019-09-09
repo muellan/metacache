@@ -47,6 +47,7 @@
 #include "stat_combined.h"
 #include "taxonomy.h"
 #include "hash_multimap.h"
+#include "gpu_hashmap.cuh"
 #include "dna_encoding.h"
 #include "typename.h"
 
@@ -190,6 +191,15 @@ private:
                               std::allocator<feature>,    //bucket+key allocator
                               bucket_size_type>;          //location list size
 
+    //-----------------------------------------------------
+    //"heart of the database": maps features to target locations
+    using feature_store_gpu = gpu_hashmap<feature, //key
+                                // target_location,   //value
+                                uint64_t,          //value
+                                feature_hash,               //key hasher
+                                std::equal_to<feature>,     //key comparator
+                                bucket_size_type>;          //location list size
+
 
     //-----------------------------------------------------
     /// @brief needed for batched, asynchonous insertion into feature_store
@@ -282,6 +292,7 @@ public:
         maxLocsPerFeature_(max_supported_locations_per_feature()),
         targetCount_{0},
         features_{},
+        features_gpu_{},
         targets_{},
         taxa_{},
         ranksCache_{taxa_, taxon_rank::Sequence},
@@ -1036,6 +1047,41 @@ public:
 
 private:
     //---------------------------------------------------------------
+    window_id add_all_window_sketches_gpu(const sequence& seq, target_id tgt)
+    {
+        using std::begin;
+        using std::end;
+        using std::distance;
+
+        using encodedseq_t   = uint32_t;
+        using encodedambig_t = mc::half_size_t<encodedseq_t>;
+
+        const auto seqLen = distance(begin(seq), end(seq));
+        const auto lettersPerBlock = sizeof(encodedseq_t)*CHAR_BIT;
+        const auto encodedSeqLen =
+            (seqLen + lettersPerBlock - 1) / lettersPerBlock;
+        const window_id numWindows =
+            (seqLen + targetSketcher_.window_stride() - 1) / targetSketcher_.window_stride();
+
+        //todo: use pinned mem for encoded sequence and ambig
+        std::vector<encodedseq_t> encodedSeq{};
+        encodedSeq.reserve(encodedSeqLen);
+        std::vector<encodedambig_t> encodedAmbig{};
+        encodedAmbig.reserve(encodedSeqLen);
+
+        for_each_consecutive_substring_2bit<encodedseq_t>(seq,
+            [&, this] (encodedseq_t substring, encodedambig_t ambig) {
+                encodedSeq.emplace_back(substring);
+                encodedAmbig.emplace_back(ambig);
+            });
+
+        // features_gpu_.insert(tgt, encodedSeq, encodedAmbig);
+
+        return numWindows;
+    }
+
+
+    //---------------------------------------------------------------
     window_id add_all_window_sketches(const sequence& seq, target_id tgt)
     {
         window_id win = 0;
@@ -1191,6 +1237,7 @@ private:
     std::uint64_t maxLocsPerFeature_;
     target_id targetCount_;
     feature_store features_;
+    feature_store_gpu features_gpu_;
     std::vector<const taxon*> targets_;
     taxonomy taxa_;
     mutable ranked_lineages_cache ranksCache_;
