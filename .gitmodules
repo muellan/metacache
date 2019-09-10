@@ -1,3 +1,6 @@
 # [submodule "dep/queue"]
 # 	path = dep/queue
 # 	url = https://github.com/cameron314/readerwriterqueue
+[submodule "cudahelpers"]
+	path = dep/cudahelpers
+	url = https://github.com/gravitino/cudahelpers

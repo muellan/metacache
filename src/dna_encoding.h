@@ -27,6 +27,7 @@
 #include <algorithm>
 
 #include "bitmanip.h"
+#include "../dep/cudahelpers/cuda_helpers.cuh"
 
 
 namespace mc {
@@ -154,7 +155,8 @@ namespace { //internal linkage
  * @return reverse complement of kmer
  * original code from Kraken source
  *****************************************************************************/
-inline constexpr std::uint64_t
+HOSTDEVICEQUALIFIER INLINEQUALIFIER
+constexpr std::uint64_t
 make_reverse_complement_2bit(std::uint64_t s, numk_t k) noexcept
 {
     s = ((s >> 2)  & 0x3333333333333333ul) | ((s & 0x3333333333333333ul) << 2);
@@ -166,7 +168,8 @@ make_reverse_complement_2bit(std::uint64_t s, numk_t k) noexcept
 }
 
 //-------------------------------------------------------------------
-inline constexpr std::uint32_t
+HOSTDEVICEQUALIFIER INLINEQUALIFIER
+constexpr std::uint32_t
 make_reverse_complement_2bit(std::uint32_t s, numk_t k) noexcept
 {
     s = ((s >> 2)  & 0x33333333u) | ((s & 0x33333333u) << 2);
@@ -177,7 +180,8 @@ make_reverse_complement_2bit(std::uint32_t s, numk_t k) noexcept
 }
 
 //-------------------------------------------------------------------
-inline constexpr std::uint16_t
+HOSTDEVICEQUALIFIER INLINEQUALIFIER
+constexpr std::uint16_t
 make_reverse_complement_2bit(std::uint16_t s, numk_t k) noexcept
 {
     s = ((s >> 2)  & 0x3333u) | ((s & 0x3333u) << 2);
@@ -187,7 +191,8 @@ make_reverse_complement_2bit(std::uint16_t s, numk_t k) noexcept
 }
 
 //-------------------------------------------------------------------
-inline constexpr std::uint8_t
+HOSTDEVICEQUALIFIER INLINEQUALIFIER
+constexpr std::uint8_t
 make_reverse_complement_2bit(std::uint8_t s, numk_t k) noexcept
 {
     s = ((s >> 2)  & 0x3333u) | ((s & 0x3333u) << 2);
@@ -209,7 +214,8 @@ T1 make_reverse_complement_2bit(T1,T2) = delete;
  * @return lexicographically smallest of k-mer and reverse complement of k-mer
  *****************************************************************************/
 template<class UInt>
-inline constexpr UInt
+HOSTDEVICEQUALIFIER INLINEQUALIFIER
+constexpr UInt
 make_canonical_2bit(UInt s, numk_t k) noexcept
 {
     static_assert(std::is_integral<UInt>::value &&
@@ -222,7 +228,8 @@ make_canonical_2bit(UInt s, numk_t k) noexcept
 
 //-------------------------------------------------------------------
 template<class UInt>
-inline constexpr UInt
+HOSTDEVICEQUALIFIER INLINEQUALIFIER
+constexpr UInt
 make_canonical_2bit(UInt s) noexcept
 {
     static_assert(std::is_integral<UInt>::value &&
