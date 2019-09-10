@@ -1083,17 +1083,25 @@ private:
     //---------------------------------------------------------------
     window_id add_all_window_sketches(const sequence& seq, target_id tgt)
     {
+        std::cout << "Target ID: " << tgt << '\n';
+
         window_id win = 0;
         targetSketcher_.for_each_sketch(seq,
             [&, this] (auto sk) {
-                //insert sketch into batch
-                batch_.emplace_back(tgt, win, std::move(sk));
+                // //insert sketch into batch
+                // batch_.emplace_back(tgt, win, std::move(sk));
 
-                //enqueue full batch and reset
-                if(batch_.size() >= insert_batch_size()) {
-                    this->enqueue_insertion_of_sketch_batch();
-                    batch_.clear();
+                // //enqueue full batch and reset
+                // if(batch_.size() >= insert_batch_size()) {
+                //     this->enqueue_insertion_of_sketch_batch();
+                //     batch_.clear();
+                // }
+
+                //print kmers
+                for(const auto& f : sk) {
+                    std::cout << f << ' ';
                 }
+                std::cout << std::endl;
 
                 ++win;
             });
@@ -1112,6 +1120,7 @@ private:
                     features_.shrink(it, maxLocsPerFeature_);
                 }
             }
+
         }
     }
 
