@@ -55,19 +55,38 @@ public:
 
 public:
     //---------------------------------------------------------------
-    explicit
-    gpu_hashmap();
+    gpu_hashmap()
+    :
+        numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
+        hash_{}, keyEqual_{}
+    {
+        init();
+    }
 
     //-----------------------------------------------------
-    explicit
-    gpu_hashmap(const key_equal& keyComp);
+    gpu_hashmap(const key_equal& keyComp)
+    :
+        numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
+        hash_{}, keyEqual_{keyComp}
+    {
+        init();
+    }
 
     //-----------------------------------------------------
-    explicit
-    gpu_hashmap(const hasher& hash,
-                const key_equal& keyComp = key_equal{});
+    gpu_hashmap(
+        const hasher& hash,
+        const key_equal& keyComp)
+    :
+        numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
+        hash_{hash}, keyEqual_{keyComp}
+    {
+        init();
+    }
 
+private:
+    void init();
 
+public:
     //---------------------------------------------------------------
     size_type key_count() const noexcept {
         return numKeys_;
@@ -92,7 +111,10 @@ public:
     }
 
     //---------------------------------------------------------------
-    void insert(target_id tgt, std::vector<encodedseq_t> encodedSeq, std::vector<encodedambig_t> encodedAmbig);
+    void insert(target_id tgt,
+                std::vector<encodedseq_t> encodedSeq,
+                std::vector<encodedambig_t> encodedAmbig,
+                numk_t k);
 
 
     //---------------------------------------------------------------

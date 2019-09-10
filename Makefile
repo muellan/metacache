@@ -38,9 +38,10 @@ HEADERS = \
           src/config.h \
           src/dna_encoding.h \
           src/filesys_utility.h \
+          src/gpu_engine.cuh \
+          src/gpu_hashmap.cuh \
           src/hash_dna.h \
           src/hash_int.h \
-          src/gpu_hashmap.cuh \
           src/hash_multimap.h \
           src/io_error.h \
           src/io_options.h \

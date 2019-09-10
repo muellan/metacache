@@ -1074,7 +1074,7 @@ private:
                 encodedAmbig.emplace_back(ambig);
             });
 
-        features_gpu_.insert(tgt, encodedSeq, encodedAmbig);
+        features_gpu_.insert(tgt, encodedSeq, encodedAmbig, target_sketcher().kmer_size());
 
         return numWindows;
     }
