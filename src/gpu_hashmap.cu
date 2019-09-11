@@ -41,7 +41,7 @@ namespace mc {
         std::vector<encodedseq_t> encodedSeq,
         std::vector<encodedambig_t> encodedAmbig,
         size_t seqLength,
-        numk_t k, size_t windowStride)
+        numk_t k, size_t windowStride, sketch_size_type sketchSize)
     {
         encodedseq_t * d_encodedSeq;
         encodedambig_t * d_encodedAmbig;
@@ -55,6 +55,7 @@ namespace mc {
         kmer_type * d_kmers;
         size_t numKmers = seqLength-k+1;
         uint64_t * d_kmerCounter;
+        uint64_t h_kmerCounter = 0;
 
         std::vector<kmer_type> h_kmers(numKmers);
 
@@ -76,22 +77,22 @@ namespace mc {
 
         extract_features<32,4><<<1,32>>>(
             d_encodedSeq, d_encodedAmbig, seqLength,
-            k, windowStride,
+            k, windowStride, sketchSize,
             d_kmers, d_kmerCounter);
         cudaDeviceSynchronize();
         CUERR
 
         cudaMemcpy(h_kmers.data(), d_kmers, numKmers*sizeof(kmer_type), cudaMemcpyDeviceToHost);
+        cudaMemcpy(&h_kmerCounter, d_kmerCounter, sizeof(uint64_t), cudaMemcpyDeviceToHost);
         CUERR
 
         std::cout << "Target ID: " << tgt << '\n';
         //sort kmers
         // std::sort(h_kmers.begin(), h_kmers.end());
         //print kmers
-        size_t kmerCounter = 0;
-        for(const auto& kmer : h_kmers) {
-            std:: cout << kmer << ' ';
-            if(++kmerCounter % windowStride == 0)
+        for(size_t i=0; i<h_kmerCounter; ++i) {
+            std:: cout << h_kmers[i] << ' ';
+            if((i+1) % sketchSize == 0)
                 std::cout << '\n';
         }
         std::cout << std::endl;

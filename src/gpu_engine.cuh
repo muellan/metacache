@@ -108,6 +108,7 @@ void extract_features(
     size_t length,
     numk_t k,
     size_t windowStride,
+    sketch_size_type sketch_size,
     kmer_type* kmers_out,
     uint64_t* size_out)
 {
@@ -124,7 +125,7 @@ void extract_features(
     const encodedseq_t   kmerMask  = encodedseq_t(~0) << (encBits - 2*k);
     const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - k);
 
-    const size_t numWindows = (length + windowStride-1) / windowStride;
+    const size_t numWindows = (length-k-1 + windowStride-1) / windowStride;
 
     //each block processes one window
     for(size_t bid = blockIdx.x; bid < numWindows; bid += gridDim.x)
@@ -176,12 +177,12 @@ void extract_features(
         //todo: unique-ify features
 
         // cub::StoreDirectStriped<BLOCK_THREADS>(threadIdx.x, kmers_out + offset, items, windowStride);
-        for(int i=0; i*BLOCK_THREADS+threadIdx.x<windowStride; ++i)
+        for(int i=0; i*BLOCK_THREADS+threadIdx.x<sketch_size; ++i)
         {
             uint64_t pos = atomicAggInc(size_out);
             if(pos < length-k+1)
                 kmers_out[pos] = items[i];
-            //todo: write value=(tgt,win)
+            //todo: write value=(win,tgt)
         }
     }
 }

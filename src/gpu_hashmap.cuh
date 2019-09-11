@@ -116,7 +116,8 @@ public:
                 std::vector<encodedambig_t> encodedAmbig,
                 size_t seqLength,
                 numk_t k,
-                size_t windowStride);
+                size_t windowStride,
+                sketch_size_type sketchSize);
 
 
     //---------------------------------------------------------------
