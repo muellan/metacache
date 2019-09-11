@@ -26,6 +26,8 @@
 #include <cstdint>
 #include <utility>
 
+#include "../dep/cudahelpers/cuda_helpers.cuh"
+
 
 namespace mc {
 
@@ -36,7 +38,8 @@ namespace mc {
  *        http://stackoverflow.com/users/382763/thomas-mueller
  *
  *****************************************************************************/
-inline std::uint32_t
+HOSTDEVICEQUALIFIER INLINEQUALIFIER
+std::uint32_t
 thomas_mueller_hash(std::uint32_t x) noexcept {
     x = ((x >> 16) ^ x) * 0x45d9f3b;
     x = ((x >> 16) ^ x) * 0x45d9f3b;
@@ -54,7 +57,8 @@ template<class T> void thomas_mueller_hash(T) = delete;
  * @brief integer hash: 32 bits -> 32 bits
  *
  *****************************************************************************/
-inline std::uint32_t
+HOSTDEVICEQUALIFIER INLINEQUALIFIER
+std::uint32_t
 nvidia_hash(std::uint32_t x) noexcept {
     x = (x + 0x7ed55d16) + (x << 12);
     x = (x ^ 0xc761c23c) ^ (x >> 19);
@@ -75,7 +79,8 @@ template<class T> void nvidia_hash(T) = delete;
  * @brief integer hash: 64 bits -> 64 bits
  *
  *****************************************************************************/
-inline std::uint64_t
+HOSTDEVICEQUALIFIER INLINEQUALIFIER
+std::uint64_t
 murmur3_fmix(std::uint64_t x) noexcept {
     x ^= x >> 33;
     x *= 0xff51afd7ed558ccd;
@@ -85,7 +90,8 @@ murmur3_fmix(std::uint64_t x) noexcept {
     return x;
 }
 
-inline std::uint32_t
+HOSTDEVICEQUALIFIER INLINEQUALIFIER
+std::uint32_t
 murmur3_fmix(std::uint32_t x) noexcept {
     x ^= x >> 16;
     x *= 0x85ebca6b;
@@ -106,7 +112,8 @@ template<class T> void murmur3_fmix(T) = delete;
  *        based on splitmix64 by Sebastiano Vigna (vigna@acm.org)
  *
  *****************************************************************************/
-inline std::uint64_t
+HOSTDEVICEQUALIFIER INLINEQUALIFIER
+std::uint64_t
 splitmix64_hash(std::uint64_t x) noexcept
 {
     x = (x ^ (x >> 30)) * std::uint64_t(0xbf58476d1ce4e5b9);
@@ -125,7 +132,8 @@ template<class T> void splitmix64_hash(T) = delete;
  * @brief integer "down" hash: 64 bits -> 32 bits
  *
  *****************************************************************************/
-inline std::uint32_t
+HOSTDEVICEQUALIFIER INLINEQUALIFIER
+std::uint32_t
 halve_size_hash(std::uint64_t x) noexcept
 {
     x = (~x) + (x << 18);
@@ -150,6 +158,7 @@ template<class T> void halve_size_hash(T) = delete;
 struct identity_hash
 {
     template<class T>
+    HOSTDEVICEQUALIFIER
     T&& operator () (T&& x) const noexcept {
         return std::forward<T>(x);
     }
@@ -167,6 +176,7 @@ struct same_size_hash;
 
 template<>
 struct same_size_hash<std::uint32_t> {
+    HOSTDEVICEQUALIFIER
     std::uint32_t operator () (std::uint32_t x) const noexcept {
         return thomas_mueller_hash(x);
     }
@@ -174,6 +184,7 @@ struct same_size_hash<std::uint32_t> {
 
 template<>
 struct same_size_hash<std::uint64_t> {
+    HOSTDEVICEQUALIFIER
     std::uint64_t operator () (std::uint64_t x) const noexcept {
         return murmur3_fmix(x);
     }
@@ -191,6 +202,7 @@ struct to32bits_hash;
 
 template<>
 struct to32bits_hash<std::uint32_t> {
+    HOSTDEVICEQUALIFIER
     std::uint32_t operator () (std::uint32_t x) const noexcept {
         return thomas_mueller_hash(x);
     }
@@ -198,6 +210,7 @@ struct to32bits_hash<std::uint32_t> {
 
 template<>
 struct to32bits_hash<std::uint64_t> {
+    HOSTDEVICEQUALIFIER
     std::uint32_t operator () (std::uint64_t x) const noexcept {
         return halve_size_hash(murmur3_fmix(x));
     }

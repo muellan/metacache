@@ -38,6 +38,7 @@ namespace mc {
         target_id tgt,
         std::vector<encodedseq_t> encodedSeq,
         std::vector<encodedambig_t> encodedAmbig,
+        size_t seqLength,
         numk_t k)
     {
         encodedseq_t * d_encodedSeq;
@@ -46,32 +47,44 @@ namespace mc {
 
         cudaMalloc(&d_encodedSeq, encodedLength*sizeof(encodedseq_t));
         cudaMalloc(&d_encodedAmbig, encodedLength*sizeof(encodedambig_t));
+        CUERR
 
-        kmer_type * h_kmers, * d_kmers;
-        size_t numKmers = encodedLength*sizeof(encodedambig_t)*CHAR_BIT-k+1;
+        // kmer_type * h_kmers;
+        kmer_type * d_kmers;
+        size_t numKmers = seqLength-k+1;
         uint64_t * d_kmerCounter;
 
-        cudaMallocHost(&h_kmers, numKmers*sizeof(kmer_type));
+        std::vector<kmer_type> h_kmers(numKmers);
+
+        // cudaMallocHost(&h_kmers, numKmers*sizeof(kmer_type));
         cudaMalloc(&d_kmers, numKmers*sizeof(kmer_type));
+        CUERR
         cudaMalloc(&d_kmerCounter, sizeof(uint64_t));
+        cudaMemset(d_kmerCounter, 0, sizeof(uint64_t));
+        CUERR
 
         cudaMemcpy(d_encodedSeq, encodedSeq.data(),
                    encodedLength*sizeof(encodedseq_t), cudaMemcpyHostToDevice);
         cudaMemcpy(d_encodedAmbig, encodedAmbig.data(),
                    encodedLength*sizeof(encodedambig_t), cudaMemcpyHostToDevice);
+        CUERR
 
         // insert_kernel<<<1,1>>>(tgt, d_encodedSeq, d_encodedAmbig);
 
-        extract_kmers<<<1024,1024>>>(d_encodedSeq, d_encodedAmbig, encodedLength,
+        extract_features<<<1,32>>>(d_encodedSeq, d_encodedAmbig, seqLength,
                                      k, d_kmers, d_kmerCounter);
+        cudaDeviceSynchronize();
+        CUERR
 
-        cudaMemcpy(h_kmers, d_kmers, numKmers*sizeof(kmer_type), cudaMemcpyDeviceToHost);
+        cudaMemcpy(h_kmers.data(), d_kmers, numKmers*sizeof(kmer_type), cudaMemcpyDeviceToHost);
+        CUERR
 
         std::cout << "Target ID: " << tgt << '\n';
-
+        //sort kmers
+        // std::sort(h_kmers.begin(), h_kmers.end());
         //print kmers
-        for(size_t i=0; i<numKmers; ++i) {
-            std:: cout << h_kmers[i] << ' ';
+        for(const auto& kmer : h_kmers) {
+            std:: cout << kmer << ' ';
         }
         std::cout << std::endl;
     }

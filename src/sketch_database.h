@@ -483,7 +483,11 @@ public:
         const auto taxid = taxon_id_of_target(targetCount);
 
         //sketch sequence -> insert features
+        std::cout << "baseline target " << targetCount << "\n";
         source.windows = add_all_window_sketches(seq, targetCount);
+        std::cout << "encoded\n";
+        source.windows = add_all_window_sketches_gpu(seq, targetCount);
+        std::cout << "\n";
 
         //insert sequence metadata as a new taxon
         if(parentTaxid < 1) parentTaxid = 0;
@@ -1047,6 +1051,57 @@ public:
 
 private:
     //---------------------------------------------------------------
+    void extract_features(
+        std::vector<encodedseq_t>& seq_in,
+        std::vector<encodedambig_t>& ambig_in,
+        size_t length_in,
+        numk_t k)
+    {
+        const uint8_t encBits = sizeof(encodedseq_t)*CHAR_BIT;
+        const uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
+
+        //bases stored from high to low bits
+        //masks get highest bits
+        const encodedseq_t   kmer_mask  = encodedseq_t(~0) << (encBits - 2*k);
+        const encodedambig_t ambig_mask = encodedambig_t(~0) << (ambigBits - k);
+
+        for (size_t i  = 0;
+                    i  < (length_in-k+1);
+                    ++i)
+        {
+            const std::uint32_t  seq_slot    = i / (ambigBits);
+            const std::uint8_t   kmer_slot   = i & (ambigBits-1);
+            const encodedseq_t   seq_left    = seq_in[seq_slot] << (2*kmer_slot);
+            const encodedseq_t   seq_right   = kmer_slot ? seq_in[seq_slot+1] >> (encBits-(2*kmer_slot)) : 0;
+            const encodedambig_t ambig_left  = ambig_in[seq_slot] << kmer_slot;
+            const encodedambig_t ambig_right = kmer_slot ? ambig_in[seq_slot+1] >> (ambigBits-kmer_slot) : 0;
+
+            //continue only if no bases ambiguous
+            if(!((ambig_left+ambig_right) & ambig_mask))
+            {
+                if(seq_left&seq_right)
+                    std::cout << "error\n";
+                //get highest bits
+                kmer_type kmer = (seq_left+seq_right) & kmer_mask;
+                //shift kmer to lowest bits
+                kmer >>= (encBits - 2*k);
+
+                kmer = make_canonical_2bit(kmer);
+
+                kmer = sketching_hash{}(kmer);
+
+                std::cout << kmer << ' ';
+            }
+            else
+            {
+                std::cout << "ambiguous ";
+            }
+        }
+        std::cout << std::endl;
+    }
+
+
+    //---------------------------------------------------------------
     window_id add_all_window_sketches_gpu(const sequence& seq, target_id tgt)
     {
         using std::begin;
@@ -1055,18 +1110,18 @@ private:
 
 
 
-        const auto seqLen = distance(begin(seq), end(seq));
+        const auto seqLength = distance(begin(seq), end(seq));
         const auto lettersPerBlock = sizeof(encodedseq_t)*CHAR_BIT;
-        const auto encodedSeqLen =
-            (seqLen + lettersPerBlock - 1) / lettersPerBlock;
+        const auto encodedSeqLength =
+            (seqLength + lettersPerBlock - 1) / lettersPerBlock;
         const window_id numWindows =
-            (seqLen + targetSketcher_.window_stride() - 1) / targetSketcher_.window_stride();
+            (seqLength + targetSketcher_.window_stride() - 1) / targetSketcher_.window_stride();
 
         //todo: use pinned mem for encoded sequence and ambig
         std::vector<encodedseq_t> encodedSeq{};
-        encodedSeq.reserve(encodedSeqLen);
+        encodedSeq.reserve(encodedSeqLength);
         std::vector<encodedambig_t> encodedAmbig{};
-        encodedAmbig.reserve(encodedSeqLen);
+        encodedAmbig.reserve(encodedSeqLength);
 
         for_each_consecutive_substring_2bit<encodedseq_t>(seq,
             [&, this] (encodedseq_t substring, encodedambig_t ambig) {
@@ -1074,7 +1129,11 @@ private:
                 encodedAmbig.emplace_back(ambig);
             });
 
-        features_gpu_.insert(tgt, encodedSeq, encodedAmbig, target_sketcher().kmer_size());
+        std::cout << "CPU: " << '\n';
+        extract_features(encodedSeq, encodedAmbig, seqLength, target_sketcher().kmer_size());
+
+        std::cout << "GPU: " << '\n';
+        features_gpu_.insert(tgt, encodedSeq, encodedAmbig, seqLength, target_sketcher().kmer_size());
 
         return numWindows;
     }

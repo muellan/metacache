@@ -8,7 +8,7 @@ WARNINGS     = -Xcompiler="-Wall -Wextra -Wpedantic"
 WARNINGS_NP  = -Xcompiler="-Wall -Wextra"
 OPTIMIZATION = -O3
 #-march native -fomit-frame-pointer
-NVCC_FLAGS  = -arch=sm_70 -lineinfo
+NVCC_FLAGS  = -arch=sm_61 -lineinfo
 
 REL_FLAGS   = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) $(WARNINGS)
 DBG_FLAGS   = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) -O0 -g $(WARNINGS)
@@ -184,7 +184,7 @@ $(REL_DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.h
 $(REL_DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.h
 	$(REL_COMPILE)
 
-$(REL_DIR)/gpu_hashmap.o : src/gpu_hashmap.cu src/gpu_hashmap.cuh
+$(REL_DIR)/gpu_hashmap.o : src/gpu_hashmap.cu $(HEADERS)
 	$(REL_COMPILE_NP)
 
 

@@ -98,29 +98,32 @@ namespace mc {
 
 template<bool CanonicalKmers = true>
 __global__
-void extract_kmers(
+void extract_features(
     encodedseq_t* seq_in,
     encodedambig_t* ambig_in,
-    size_t size_in,
+    size_t length_in,
     numk_t k,
     kmer_type* kmers_out,
     uint64_t* size_out)
 {
+    const uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
+    const uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
+
     //bases stored from high to low bits
     //masks get highest bits
-    const encodedseq_t   kmer_mask  = encodedseq_t(~0) << (sizeof(encodedseq_t)*CHAR_BIT - 2*k);
-    const encodedambig_t ambig_mask = encodedambig_t(~0) << (sizeof(encodedambig_t)*CHAR_BIT - k);
+    const encodedseq_t   kmer_mask  = encodedseq_t(~0) << (encBits - 2*k);
+    const encodedambig_t ambig_mask = encodedambig_t(~0) << (ambigBits - k);
 
     for (size_t tid  = blockIdx.x * blockDim.x + threadIdx.x;
-                tid  < ((size_in*sizeof(encodedambig_t)*CHAR_BIT)-k+1);
+                tid  < (length_in-k+1);
                 tid += blockDim.x * gridDim.x)
     {
-        const std::uint32_t  seq_slot    = tid / sizeof(encodedambig_t)*CHAR_BIT;
-        const std::uint8_t   kmer_slot   = tid & (sizeof(encodedambig_t)*CHAR_BIT-1);
+        const std::uint32_t  seq_slot    = tid / (ambigBits);
+        const std::uint8_t   kmer_slot   = tid & (ambigBits-1);
         const encodedseq_t   seq_left    = seq_in[seq_slot] << (2*kmer_slot);
-        const encodedseq_t   seq_right   = seq_in[seq_slot+1] >> (sizeof(encodedseq_t)*CHAR_BIT-(2*kmer_slot));
+        const encodedseq_t   seq_right   = seq_in[seq_slot+1] >> (encBits-(2*kmer_slot));
         const encodedambig_t ambig_left  = ambig_in[seq_slot] << kmer_slot;
-        const encodedambig_t ambig_right = ambig_in[seq_slot+1] >> (sizeof(encodedambig_t)*CHAR_BIT-kmer_slot);
+        const encodedambig_t ambig_right = ambig_in[seq_slot+1] >> (ambigBits-kmer_slot);
 
         //continue only if no bases ambiguous
         if(!((ambig_left+ambig_right) & ambig_mask))
@@ -128,14 +131,18 @@ void extract_kmers(
             //get highest bits
             kmer_type kmer = (seq_left+seq_right) & kmer_mask;
             //shift kmer to lowest bits
-            kmer >>= (sizeof(encodedseq_t)*CHAR_BIT - 2*k);
+            kmer >>= (encBits - 2*k);
 
             if(CanonicalKmers)
             {
                 kmer = make_canonical_2bit(kmer);
             }
 
-            kmers_out[atomicAggInc(size_out)] = kmer;
+            kmers_out[atomicAggInc(size_out)] = sketching_hash{}(kmer);
+        }
+        else
+        {
+            printf("ambiguous\n");
         }
     }
 }
