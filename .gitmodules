@@ -4,3 +4,6 @@
 [submodule "cudahelpers"]
 	path = dep/cudahelpers
 	url = https://github.com/gravitino/cudahelpers
+[submodule "cub"]
+	path = dep/cub
+	url = https://github.com/NVlabs/cub.git

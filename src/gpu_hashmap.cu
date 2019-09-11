@@ -1,3 +1,5 @@
+#include <limits>
+
 #include "gpu_hashmap.cuh"
 #include "hash_dna.h"
 #include "hash_int.h"
@@ -71,9 +73,11 @@ namespace mc {
 
         // insert_kernel<<<1,1>>>(tgt, d_encodedSeq, d_encodedAmbig);
 
-        extract_features<<<1,32>>>(d_encodedSeq, d_encodedAmbig, seqLength,
-                                   k, windowStride,
-                                   d_kmers, d_kmerCounter);
+
+        extract_features<32,4><<<1,32>>>(
+            d_encodedSeq, d_encodedAmbig, seqLength,
+            k, windowStride,
+            d_kmers, d_kmerCounter);
         cudaDeviceSynchronize();
         CUERR
 
@@ -84,8 +88,11 @@ namespace mc {
         //sort kmers
         // std::sort(h_kmers.begin(), h_kmers.end());
         //print kmers
+        size_t kmerCounter = 0;
         for(const auto& kmer : h_kmers) {
             std:: cout << kmer << ' ';
+            if(++kmerCounter % windowStride == 0)
+                std::cout << '\n';
         }
         std::cout << std::endl;
     }

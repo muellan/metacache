@@ -1157,6 +1157,8 @@ private:
                 //     batch_.clear();
                 // }
 
+                //sort kmers
+                std::sort(sk.begin(), sk.end());
                 //print kmers
                 for(const auto& f : sk) {
                     std::cout << f << ' ';

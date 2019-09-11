@@ -96,6 +96,8 @@ using sketching_hash = same_size_hash<kmer_type>;
 // using sketcher = single_function_unique_min_hasher<kmer_type,sketching_hash>;
 using sketcher = single_function_hasher<kmer_type,sketching_hash>;
 
+using sketch_size_type = typename sketcher::sketch_type::size_type;
+
 
 /**************************************************************************
  * @brief hash function for database hash multi-map (called "h_2" in the paper)

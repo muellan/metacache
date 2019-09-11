@@ -4,6 +4,8 @@
 #include "config.h"
 #include "dna_encoding.h"
 #include "../dep/cudahelpers/cuda_helpers.cuh"
+#include "../dep/cub/cub/block/block_radix_sort.cuh"
+#include "../dep/cub/cub/block/block_store.cuh"
 
 namespace mc {
 
@@ -96,6 +98,9 @@ namespace mc {
 // }
 
 
+template<
+    int BLOCK_THREADS,
+    int ITEMS_PER_THREAD>
 __global__
 void extract_features(
     encodedseq_t* seq,
@@ -106,6 +111,11 @@ void extract_features(
     kmer_type* kmers_out,
     uint64_t* size_out)
 {
+    typedef cub::BlockRadixSort<kmer_type, BLOCK_THREADS, ITEMS_PER_THREAD> BlockRadixSortT;
+
+    __shared__ typename BlockRadixSortT::TempStorage temp_storage;
+    kmer_type items[ITEMS_PER_THREAD];
+
     constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
     constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
 
@@ -119,6 +129,12 @@ void extract_features(
     //each block processes one window
     for(size_t bid = blockIdx.x; bid < numWindows; bid += gridDim.x)
     {
+        uint8_t numItems = 0;
+        for(int i=0; i<ITEMS_PER_THREAD; ++i)
+        {
+            items[i] = encodedseq_t(~0);
+        }
+
         //each thread extracts one feature
         const size_t offset = bid * windowStride;
         for(size_t tid  = offset + threadIdx.x;
@@ -143,12 +159,29 @@ void extract_features(
 
                 kmer = make_canonical_2bit(kmer);
 
-                kmers_out[atomicAggInc(size_out)] = sketching_hash{}(kmer);
+                items[numItems++] = sketching_hash{}(kmer);
+
+                // kmers_out[atomicAggInc(size_out)] = sketching_hash{}(kmer);
             }
             else
             {
                 printf("ambiguous\n");
             }
+        }
+        printf("%d ",numItems);
+        __syncthreads();
+
+        BlockRadixSortT(temp_storage).SortBlockedToStriped(items);
+
+        //todo: unique-ify features
+
+        // cub::StoreDirectStriped<BLOCK_THREADS>(threadIdx.x, kmers_out + offset, items, windowStride);
+        for(int i=0; i*BLOCK_THREADS+threadIdx.x<windowStride; ++i)
+        {
+            uint64_t pos = atomicAggInc(size_out);
+            if(pos < length-k+1)
+                kmers_out[pos] = items[i];
+            //todo: write value=(tgt,win)
         }
     }
 }
