@@ -1133,7 +1133,8 @@ private:
         extract_features(encodedSeq, encodedAmbig, seqLength, target_sketcher().kmer_size());
 
         std::cout << "GPU: " << '\n';
-        features_gpu_.insert(tgt, encodedSeq, encodedAmbig, seqLength, target_sketcher().kmer_size());
+        features_gpu_.insert(tgt, encodedSeq, encodedAmbig, seqLength,
+                             target_sketcher().kmer_size(), target_sketcher().window_stride());
 
         return numWindows;
     }

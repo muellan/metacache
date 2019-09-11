@@ -96,53 +96,59 @@ namespace mc {
 // }
 
 
-template<bool CanonicalKmers = true>
 __global__
 void extract_features(
-    encodedseq_t* seq_in,
-    encodedambig_t* ambig_in,
-    size_t length_in,
+    encodedseq_t* seq,
+    encodedambig_t* ambig,
+    size_t length,
     numk_t k,
+    size_t windowStride,
     kmer_type* kmers_out,
     uint64_t* size_out)
 {
-    const uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
-    const uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
+    constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
+    constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
 
-    //bases stored from high to low bits
+    //letters stored from high to low bits
     //masks get highest bits
-    const encodedseq_t   kmer_mask  = encodedseq_t(~0) << (encBits - 2*k);
-    const encodedambig_t ambig_mask = encodedambig_t(~0) << (ambigBits - k);
+    const encodedseq_t   kmerMask  = encodedseq_t(~0) << (encBits - 2*k);
+    const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - k);
 
-    for (size_t tid  = blockIdx.x * blockDim.x + threadIdx.x;
-                tid  < (length_in-k+1);
-                tid += blockDim.x * gridDim.x)
+    const size_t numWindows = (length + windowStride-1) / windowStride;
+
+    //each block processes one window
+    for(size_t bid = blockIdx.x; bid < numWindows; bid += gridDim.x)
     {
-        const std::uint32_t  seq_slot    = tid / (ambigBits);
-        const std::uint8_t   kmer_slot   = tid & (ambigBits-1);
-        const encodedseq_t   seq_left    = seq_in[seq_slot] << (2*kmer_slot);
-        const encodedseq_t   seq_right   = seq_in[seq_slot+1] >> (encBits-(2*kmer_slot));
-        const encodedambig_t ambig_left  = ambig_in[seq_slot] << kmer_slot;
-        const encodedambig_t ambig_right = ambig_in[seq_slot+1] >> (ambigBits-kmer_slot);
-
-        //continue only if no bases ambiguous
-        if(!((ambig_left+ambig_right) & ambig_mask))
+        //each thread extracts one feature
+        const size_t offset = bid * windowStride;
+        for(size_t tid  = offset + threadIdx.x;
+                   tid  < min(offset + windowStride, length-k+1);
+                   tid += blockDim.x)
         {
-            //get highest bits
-            kmer_type kmer = (seq_left+seq_right) & kmer_mask;
-            //shift kmer to lowest bits
-            kmer >>= (encBits - 2*k);
+            const std::uint32_t  seq_slot    = tid / (ambigBits);
+            const std::uint8_t   kmer_slot   = tid & (ambigBits-1);
+            const encodedambig_t ambig_left  = ambig[seq_slot] << kmer_slot;
+            const encodedambig_t ambig_right = ambig[seq_slot+1] >> (ambigBits-kmer_slot);
 
-            if(CanonicalKmers)
+            //continue only if no bases ambiguous
+            if(!((ambig_left+ambig_right) & ambigMask))
             {
-                kmer = make_canonical_2bit(kmer);
-            }
+                const encodedseq_t   seq_left    = seq[seq_slot] << (2*kmer_slot);
+                const encodedseq_t   seq_right   = seq[seq_slot+1] >> (encBits-(2*kmer_slot));
 
-            kmers_out[atomicAggInc(size_out)] = sketching_hash{}(kmer);
-        }
-        else
-        {
-            printf("ambiguous\n");
+                //get highest bits
+                kmer_type kmer = (seq_left+seq_right) & kmerMask;
+                //shift kmer to lowest bits
+                kmer >>= (encBits - 2*k);
+
+                kmer = make_canonical_2bit(kmer);
+
+                kmers_out[atomicAggInc(size_out)] = sketching_hash{}(kmer);
+            }
+            else
+            {
+                printf("ambiguous\n");
+            }
         }
     }
 }

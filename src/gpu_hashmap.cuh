@@ -115,7 +115,8 @@ public:
                 std::vector<encodedseq_t> encodedSeq,
                 std::vector<encodedambig_t> encodedAmbig,
                 size_t seqLength,
-                numk_t k);
+                numk_t k,
+                size_t windowStride);
 
 
     //---------------------------------------------------------------

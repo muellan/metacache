@@ -82,7 +82,7 @@ namespace mc {
  */
 using sequence = std::string;
 using query_id = std::uint_least64_t;
-using encodedseq_t   = uint32_t;
+using encodedseq_t   = kmer_type;
 using encodedambig_t = half_size_t<encodedseq_t>;
 
 

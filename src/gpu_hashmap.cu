@@ -39,7 +39,7 @@ namespace mc {
         std::vector<encodedseq_t> encodedSeq,
         std::vector<encodedambig_t> encodedAmbig,
         size_t seqLength,
-        numk_t k)
+        numk_t k, size_t windowStride)
     {
         encodedseq_t * d_encodedSeq;
         encodedambig_t * d_encodedAmbig;
@@ -72,7 +72,8 @@ namespace mc {
         // insert_kernel<<<1,1>>>(tgt, d_encodedSeq, d_encodedAmbig);
 
         extract_features<<<1,32>>>(d_encodedSeq, d_encodedAmbig, seqLength,
-                                     k, d_kmers, d_kmerCounter);
+                                   k, windowStride,
+                                   d_kmers, d_kmerCounter);
         cudaDeviceSynchronize();
         CUERR
 
