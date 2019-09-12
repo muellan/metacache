@@ -105,19 +105,25 @@ template<
 __global__
 void extract_features(
     target_id tgt,
+    window_id winOffset,
     encodedseq_t* seq,
     encodedambig_t* ambig,
     size_t seqLength,
     numk_t k,
     size_t windowStride,
-    sketch_size_type sketch_size,
+    uint32_t sketchSize,
     kmer_type* features_out,
     location* locations_out,
     uint64_t* size_out)
 {
     typedef cub::BlockRadixSort<kmer_type, BLOCK_THREADS, ITEMS_PER_THREAD> BlockRadixSortT;
 
-    __shared__ typename BlockRadixSortT::TempStorage temp_storage;
+    __shared__ union TempStorage
+    {
+        typename BlockRadixSortT::TempStorage sort;
+        kmer_type kmers[BLOCK_THREADS*ITEMS_PER_THREAD];
+    } temp_storage;
+
     kmer_type items[ITEMS_PER_THREAD];
 
     constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
@@ -136,7 +142,7 @@ void extract_features(
         uint8_t numItems = 0;
         for(int i=0; i<ITEMS_PER_THREAD; ++i)
         {
-            items[i] = encodedseq_t(~0);
+            items[i] = kmer_type(~0);
         }
 
         //each thread extracts one feature
@@ -164,8 +170,6 @@ void extract_features(
                 kmer = make_canonical_2bit(kmer);
 
                 items[numItems++] = sketching_hash{}(kmer);
-
-                // features_out[atomicAggInc(size_out)] = sketching_hash{}(kmer);
             }
             else
             {
@@ -175,20 +179,52 @@ void extract_features(
         // printf("%d ",numItems);
         // __syncthreads();
 
-        BlockRadixSortT(temp_storage).SortBlockedToStriped(items);
+        BlockRadixSortT(temp_storage.sort).SortBlockedToStriped(items);
 
         //todo: unique-ify features
+        cub::StoreDirectStriped<BLOCK_THREADS>(threadIdx.x, temp_storage.kmers, items, windowStride);
+        // __syncthreads();
+        if(threadIdx.x < WARPSIZE) { //single warp to keep sorted order
+            uint32_t kmerCounter = 0;
 
-        // cub::StoreDirectStriped<BLOCK_THREADS>(threadIdx.x, features_out + offset, items, windowStride);
-        for(int i=0; i*BLOCK_THREADS+threadIdx.x<sketch_size; ++i)
-        {
-            const uint64_t pos = atomicAggInc(size_out);
-            if(pos < seqLength-k+1)
-            {
-                features_out[pos]  = items[i];
-                locations_out[pos] = location{bid, tgt};
+            for(int i=0; i<windowStride && kmerCounter<sketchSize; i+=WARPSIZE) {
+
+                const kmer_type kmer     = temp_storage.kmers[i+threadIdx.x];
+                const kmer_type nextKmer = temp_storage.kmers[i+threadIdx.x+1];
+
+                const bool pred =
+                   (kmer != kmer_type(~0)) && (kmer != nextKmer);
+
+                const uint32_t mask = __ballot_sync(0xFFFFFFFF, pred);
+                const uint32_t count = __popc(mask);
+
+                uint64_t pos;
+                if (threadIdx.x == 0) {
+                    const uint32_t capped = min(sketchSize-kmerCounter, count);
+                    // printf("kmerCounter: %d count: %d capped: %d\n", kmerCounter, count, capped);
+                    pos = atomicAdd(size_out, capped);
+                }
+                const uint32_t numPre = __popc(mask & ((1 << threadIdx.x) -1));
+                pos = __shfl_sync(0xFFFFFFFF, pos, 0) + numPre;
+
+                if(pred && (numPre < sketchSize-kmerCounter)) {
+                    features_out[pos]  = kmer;
+                    locations_out[pos] = location{winOffset+bid, tgt};
+                }
+                kmerCounter += count;
             }
         }
+
+        // cub::StoreDirectStriped<BLOCK_THREADS>(threadIdx.x, features_out + offset, items, windowStride);
+        // for(int i=0; i*BLOCK_THREADS+threadIdx.x<sketchSize; ++i)
+        // {
+        //     const uint64_t pos = atomicAggInc(size_out);
+        //     if(pos < seqLength-k+1)
+        //     {
+        //         features_out[pos]  = items[i];
+        //         locations_out[pos] = location{bid, tgt};
+        //     }
+        // }
     }
 }
 

@@ -54,7 +54,8 @@ namespace mc {
         // kmer_type * h_kmers;
         Key * d_kmers;
         ValueT * d_values;
-        const size_t numWindows = (seqLength-k-1 + windowStride-1) / windowStride;
+        const size_t numWindows = (seqLength-k + windowStride) / windowStride;
+        std::cout << "Target ID: " << tgt << " Length: " << seqLength << " Windows: " << numWindows << '\n';
         const size_t numFeatures = numWindows * sketchSize;
         uint64_t * d_kmerCounter;
         uint64_t h_kmerCounter = 0;
@@ -76,12 +77,12 @@ namespace mc {
                    encodedLength*sizeof(encodedambig_t), cudaMemcpyHostToDevice);
         CUERR
 
-        // insert_kernel<<<1,1>>>(tgt, d_encodedSeq, d_encodedAmbig);
+        #define BLOCK_THREADS 32
 
-        #define BLOCK_THREADS 64
+        window_id winOffset = 0;
 
         extract_features<BLOCK_THREADS,4><<<1,BLOCK_THREADS>>>(
-            tgt,
+            tgt, winOffset,
             d_encodedSeq, d_encodedAmbig, seqLength,
             k, windowStride, sketchSize,
             d_kmers,
@@ -91,11 +92,11 @@ namespace mc {
         CUERR
 
         cudaMemcpy(&h_kmerCounter, d_kmerCounter, sizeof(uint64_t), cudaMemcpyDeviceToHost);
+        // std::cout << "Counter: " << h_kmerCounter << '\n';
         cudaMemcpy(h_kmers.data(), d_kmers, h_kmerCounter*sizeof(Key), cudaMemcpyDeviceToHost);
         cudaMemcpy(h_values.data(), d_values, h_kmerCounter*sizeof(ValueT), cudaMemcpyDeviceToHost);
         CUERR
 
-        std::cout << "Target ID: " << tgt << '\n';
         //print kmers
         // for(size_t i=0; i<h_kmerCounter; ++i) {
         //     std:: cout << h_kmers[i] << ' ';
@@ -109,7 +110,7 @@ namespace mc {
         //     if((i+1) % sketchSize == 0)
         //         std::cout << '\n';
         // }
-        // std::cout << std::endl;
+        std::cout << std::endl;
 
         return h_kmers;
     }
