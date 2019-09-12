@@ -93,6 +93,8 @@ namespace mc {
 
         cudaMemcpy(&h_kmerCounter, d_kmerCounter, sizeof(uint64_t), cudaMemcpyDeviceToHost);
         // std::cout << "Counter: " << h_kmerCounter << '\n';
+        h_kmers.resize(h_kmerCounter);
+        h_values.resize(h_kmerCounter);
         cudaMemcpy(h_kmers.data(), d_kmers, h_kmerCounter*sizeof(Key), cudaMemcpyDeviceToHost);
         cudaMemcpy(h_values.data(), d_values, h_kmerCounter*sizeof(ValueT), cudaMemcpyDeviceToHost);
         CUERR

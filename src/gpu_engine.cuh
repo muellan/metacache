@@ -99,9 +99,12 @@ namespace mc {
 // }
 
 
+
+//---------------------------------------------------------------
+// BLOCK_THREADS has to be 32
 template<
-    int BLOCK_THREADS,
-    int ITEMS_PER_THREAD>
+    int BLOCK_THREADS = 32,
+    int ITEMS_PER_THREAD = 4>
 __global__
 void extract_features(
     target_id tgt,
@@ -118,11 +121,7 @@ void extract_features(
 {
     typedef cub::BlockRadixSort<kmer_type, BLOCK_THREADS, ITEMS_PER_THREAD> BlockRadixSortT;
 
-    __shared__ union TempStorage
-    {
-        typename BlockRadixSortT::TempStorage sort;
-        kmer_type kmers[BLOCK_THREADS*ITEMS_PER_THREAD];
-    } temp_storage;
+    __shared__ typename BlockRadixSortT::TempStorage temp_storage;
 
     kmer_type items[ITEMS_PER_THREAD];
 
@@ -179,52 +178,41 @@ void extract_features(
         // printf("%d ",numItems);
         // __syncthreads();
 
-        BlockRadixSortT(temp_storage.sort).SortBlockedToStriped(items);
+        BlockRadixSortT(temp_storage).SortBlockedToStriped(items);
 
-        //todo: unique-ify features
-        cub::StoreDirectStriped<BLOCK_THREADS>(threadIdx.x, temp_storage.kmers, items, windowStride);
-        // __syncthreads();
-        if(threadIdx.x < WARPSIZE) { //single warp to keep sorted order
-            uint32_t kmerCounter = 0;
+        //output <sketchSize> unique features
+        uint32_t kmerCounter = 0;
+        for(int i=0; i*BLOCK_THREADS<windowStride && kmerCounter<sketchSize; ++i)
+        {
+            //load candidate and successor
+            const kmer_type kmer = items[i];
+            kmer_type nextKmer = threadIdx.x ? items[i] : items[i+1];
+            nextKmer = __shfl_sync(0xFFFFFFFF, nextKmer, threadIdx.x+1);
 
-            for(int i=0; i<windowStride && kmerCounter<sketchSize; i+=WARPSIZE) {
+            //find valid candidates
+            const bool predicate = (kmer != kmer_type(~0)) && (kmer != nextKmer);
 
-                const kmer_type kmer     = temp_storage.kmers[i+threadIdx.x];
-                const kmer_type nextKmer = temp_storage.kmers[i+threadIdx.x+1];
+            const uint32_t mask = __ballot_sync(0xFFFFFFFF, predicate);
+            const uint32_t count = __popc(mask);
+            const uint32_t capped = min(sketchSize-kmerCounter, count);
 
-                const bool pred =
-                   (kmer != kmer_type(~0)) && (kmer != nextKmer);
-
-                const uint32_t mask = __ballot_sync(0xFFFFFFFF, pred);
-                const uint32_t count = __popc(mask);
-
-                uint64_t pos;
-                if (threadIdx.x == 0) {
-                    const uint32_t capped = min(sketchSize-kmerCounter, count);
-                    // printf("kmerCounter: %d count: %d capped: %d\n", kmerCounter, count, capped);
-                    pos = atomicAdd(size_out, capped);
-                }
-                const uint32_t numPre = __popc(mask & ((1 << threadIdx.x) -1));
-                pos = __shfl_sync(0xFFFFFFFF, pos, 0) + numPre;
-
-                if(pred && (numPre < sketchSize-kmerCounter)) {
-                    features_out[pos]  = kmer;
-                    locations_out[pos] = location{winOffset+bid, tgt};
-                }
-                kmerCounter += count;
+            //get output position in global memory
+            uint64_t pos;
+            if (threadIdx.x == 0) {
+                // printf("kmerCounter: %d count: %d capped: %d\n", kmerCounter, count, capped);
+                pos = atomicAdd(size_out, capped);
             }
-        }
+            const uint32_t numPre = __popc(mask & ((1 << threadIdx.x) -1));
+            pos = __shfl_sync(0xFFFFFFFF, pos, 0) + numPre;
 
-        // cub::StoreDirectStriped<BLOCK_THREADS>(threadIdx.x, features_out + offset, items, windowStride);
-        // for(int i=0; i*BLOCK_THREADS+threadIdx.x<sketchSize; ++i)
-        // {
-        //     const uint64_t pos = atomicAggInc(size_out);
-        //     if(pos < seqLength-k+1)
-        //     {
-        //         features_out[pos]  = items[i];
-        //         locations_out[pos] = location{bid, tgt};
-        //     }
-        // }
+            //write to global memory
+            if(predicate && (numPre < capped)) {
+                features_out[pos]  = kmer;
+                locations_out[pos] = location{winOffset+bid, tgt};
+            }
+
+            kmerCounter += capped;
+        }
     }
 }
 
