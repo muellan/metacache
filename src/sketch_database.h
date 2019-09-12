@@ -50,6 +50,7 @@
 #include "gpu_hashmap.cuh"
 #include "dna_encoding.h"
 #include "typename.h"
+#include "../dep/cudahelpers/cuda_helpers.cuh"
 
 #include "../dep/queue/readerwriterqueue.h"
 
@@ -140,6 +141,7 @@ public:
 
     const taxon* taxon_of_target(target_id id) const {return targets_[id]; }
 
+public:
     //-----------------------------------------------------
     /** @brief internal location representation = (window index, target index)
      *         these are stored in the in-memory database and on disk
@@ -194,8 +196,8 @@ private:
     //-----------------------------------------------------
     /// @brief "heart of the database": maps features to target locations
     using feature_store_gpu = gpu_hashmap<feature, //key
-                                // target_location,   //value
-                                uint64_t,          //value
+                                location,          //value
+                                // uint64_t,          //value
                                 feature_hash,               //key hasher
                                 std::equal_to<feature>,     //key comparator
                                 bucket_size_type>;          //location list size
@@ -483,11 +485,31 @@ public:
         const auto taxid = taxon_id_of_target(targetCount);
 
         //sketch sequence -> insert features
-        std::cout << "baseline target " << targetCount << "\n";
-        source.windows = add_all_window_sketches(seq, targetCount);
-        std::cout << "encoded\n";
-        source.windows = add_all_window_sketches_gpu(seq, targetCount);
-        std::cout << "\n";
+        // source.windows = add_all_window_sketches(seq, targetCount);
+        std::vector<kmer_type> features = add_all_window_sketches(seq, targetCount);
+        // source.windows = add_all_window_sketches_gpu(seq, targetCount);
+        std::vector<kmer_type> features_gpu = add_all_window_sketches_gpu(seq, targetCount);
+        //compare results
+        auto result = std::equal(features.begin(), features.end(), features_gpu.begin());
+        if(result) {
+            std::cout << "results are equal\n";
+        }
+        else {
+            std::cout << "results are different:\n";
+            std::cout << "CPU:\n";
+            for(size_t i=0; i<features.size(); ++i) {
+                std:: cout << features[i] << ' ';
+                if((i+1) % target_sketcher().sketch_size() == 0)
+                    std::cout << '\n';
+            }
+            std::cout << "\nGPU:\n";
+            for(size_t i=0; i<features_gpu.size(); ++i) {
+                std:: cout << features_gpu[i] << ' ';
+                if((i+1) % target_sketcher().sketch_size() == 0)
+                    std::cout << '\n';
+            }
+        }
+        std::cout << std::endl;
 
         //insert sequence metadata as a new taxon
         if(parentTaxid < 1) parentTaxid = 0;
@@ -1051,7 +1073,7 @@ public:
 
 private:
     //---------------------------------------------------------------
-    window_id add_all_window_sketches_gpu(const sequence& seq, target_id tgt)
+    std::vector<kmer_type> add_all_window_sketches_gpu(const sequence& seq, target_id tgt)
     {
         using std::begin;
         using std::end;
@@ -1061,8 +1083,9 @@ private:
         const auto lettersPerBlock = sizeof(encodedseq_t)*CHAR_BIT;
         const auto encodedSeqLength =
             (seqLength + lettersPerBlock - 1) / lettersPerBlock;
-        const window_id numWindows =
-            (seqLength-targetSketcher_.kmer_size()-1 + targetSketcher_.window_stride() - 1) / targetSketcher_.window_stride();
+        // const window_id numWindows =
+        //     (seqLength-targetSketcher_.kmer_size() + targetSketcher_.window_stride())
+        //     / targetSketcher_.window_stride();
 
         //todo: use pinned mem for encoded sequence and ambig
         std::vector<encodedseq_t> encodedSeq{};
@@ -1076,22 +1099,25 @@ private:
                 encodedAmbig.emplace_back(ambig);
             });
 
-        std::cout << "GPU: " << '\n';
-        features_gpu_.insert(tgt, encodedSeq, encodedAmbig, seqLength,
-                             target_sketcher().kmer_size(),
-                             target_sketcher().window_stride(),
-                             target_sketcher().sketch_size());
+        std::vector<kmer_type> features = features_gpu_.insert(
+            tgt, encodedSeq, encodedAmbig, seqLength,
+            target_sketcher().kmer_size(),
+            target_sketcher().window_stride(),
+            target_sketcher().sketch_size());
 
-        return numWindows;
+        // return numWindows;
+        return features;
     }
 
 
     //---------------------------------------------------------------
-    window_id add_all_window_sketches(const sequence& seq, target_id tgt)
+    std::vector<kmer_type> add_all_window_sketches(const sequence& seq, target_id tgt)
     {
         std::cout << "Target ID: " << tgt << '\n';
 
         window_id win = 0;
+        std::vector<kmer_type> features{};
+
         targetSketcher_.for_each_sketch(seq,
             [&, this] (auto sk) {
                 // //insert sketch into batch
@@ -1103,17 +1129,12 @@ private:
                 //     batch_.clear();
                 // }
 
-                //sort kmers
-                std::sort(sk.begin(), sk.end());
-                //print kmers
-                for(const auto& f : sk) {
-                    std::cout << f << ' ';
-                }
-                std::cout << std::endl;
+                features.insert(features.end(), sk.begin(), sk.end());
 
                 ++win;
             });
-        return win;
+        // return win;
+        return features;
     }
 
 
@@ -1275,6 +1296,7 @@ private:
  *
  *****************************************************************************/
 using match_locations = database::match_locations;
+using location        = database::location;
 
 
 

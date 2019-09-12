@@ -3,6 +3,7 @@
 
 #include "config.h"
 #include "dna_encoding.h"
+#include "sketch_database.h"
 #include "../dep/cudahelpers/cuda_helpers.cuh"
 #include "../dep/cub/cub/block/block_radix_sort.cuh"
 #include "../dep/cub/cub/block/block_store.cuh"
@@ -103,13 +104,15 @@ template<
     int ITEMS_PER_THREAD>
 __global__
 void extract_features(
+    target_id tgt,
     encodedseq_t* seq,
     encodedambig_t* ambig,
-    size_t length,
+    size_t seqLength,
     numk_t k,
     size_t windowStride,
     sketch_size_type sketch_size,
-    kmer_type* kmers_out,
+    kmer_type* features_out,
+    location* locations_out,
     uint64_t* size_out)
 {
     typedef cub::BlockRadixSort<kmer_type, BLOCK_THREADS, ITEMS_PER_THREAD> BlockRadixSortT;
@@ -125,10 +128,10 @@ void extract_features(
     const encodedseq_t   kmerMask  = encodedseq_t(~0) << (encBits - 2*k);
     const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - k);
 
-    const size_t numWindows = (length-k-1 + windowStride-1) / windowStride;
+    const window_id numWindows = (seqLength-k + windowStride) / windowStride;
 
     //each block processes one window
-    for(size_t bid = blockIdx.x; bid < numWindows; bid += gridDim.x)
+    for(window_id bid = blockIdx.x; bid < numWindows; bid += gridDim.x)
     {
         uint8_t numItems = 0;
         for(int i=0; i<ITEMS_PER_THREAD; ++i)
@@ -139,7 +142,7 @@ void extract_features(
         //each thread extracts one feature
         const size_t offset = bid * windowStride;
         for(size_t tid  = offset + threadIdx.x;
-                   tid  < min(offset + windowStride, length-k+1);
+                   tid  < min(offset + windowStride, seqLength-k+1);
                    tid += blockDim.x)
         {
             const std::uint32_t  seq_slot    = tid / (ambigBits);
@@ -162,27 +165,29 @@ void extract_features(
 
                 items[numItems++] = sketching_hash{}(kmer);
 
-                // kmers_out[atomicAggInc(size_out)] = sketching_hash{}(kmer);
+                // features_out[atomicAggInc(size_out)] = sketching_hash{}(kmer);
             }
             else
             {
                 printf("ambiguous\n");
             }
         }
-        printf("%d ",numItems);
-        __syncthreads();
+        // printf("%d ",numItems);
+        // __syncthreads();
 
         BlockRadixSortT(temp_storage).SortBlockedToStriped(items);
 
         //todo: unique-ify features
 
-        // cub::StoreDirectStriped<BLOCK_THREADS>(threadIdx.x, kmers_out + offset, items, windowStride);
+        // cub::StoreDirectStriped<BLOCK_THREADS>(threadIdx.x, features_out + offset, items, windowStride);
         for(int i=0; i*BLOCK_THREADS+threadIdx.x<sketch_size; ++i)
         {
-            uint64_t pos = atomicAggInc(size_out);
-            if(pos < length-k+1)
-                kmers_out[pos] = items[i];
-            //todo: write value=(win,tgt)
+            const uint64_t pos = atomicAggInc(size_out);
+            if(pos < seqLength-k+1)
+            {
+                features_out[pos]  = items[i];
+                locations_out[pos] = location{bid, tgt};
+            }
         }
     }
 }

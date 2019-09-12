@@ -36,7 +36,7 @@ namespace mc {
         class KeyEqual,
         class BucketSizeT
     >
-    void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
+    std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
         target_id tgt,
         std::vector<encodedseq_t> encodedSeq,
         std::vector<encodedambig_t> encodedAmbig,
@@ -52,15 +52,19 @@ namespace mc {
         CUERR
 
         // kmer_type * h_kmers;
-        kmer_type * d_kmers;
-        size_t numKmers = seqLength-k+1;
+        Key * d_kmers;
+        ValueT * d_values;
+        const size_t numWindows = (seqLength-k-1 + windowStride-1) / windowStride;
+        const size_t numFeatures = numWindows * sketchSize;
         uint64_t * d_kmerCounter;
         uint64_t h_kmerCounter = 0;
 
-        std::vector<kmer_type> h_kmers(numKmers);
+        std::vector<Key> h_kmers(numFeatures);
+        std::vector<ValueT> h_values(numFeatures);
 
-        // cudaMallocHost(&h_kmers, numKmers*sizeof(kmer_type));
-        cudaMalloc(&d_kmers, numKmers*sizeof(kmer_type));
+        // cudaMallocHost(&h_kmers, numFeatures*sizeof(Key));
+        cudaMalloc(&d_kmers, numFeatures*sizeof(Key));
+        cudaMalloc(&d_values, numFeatures*sizeof(ValueT));
         CUERR
         cudaMalloc(&d_kmerCounter, sizeof(uint64_t));
         cudaMemset(d_kmerCounter, 0, sizeof(uint64_t));
@@ -74,28 +78,40 @@ namespace mc {
 
         // insert_kernel<<<1,1>>>(tgt, d_encodedSeq, d_encodedAmbig);
 
+        #define BLOCK_THREADS 64
 
-        extract_features<32,4><<<1,32>>>(
+        extract_features<BLOCK_THREADS,4><<<1,BLOCK_THREADS>>>(
+            tgt,
             d_encodedSeq, d_encodedAmbig, seqLength,
             k, windowStride, sketchSize,
-            d_kmers, d_kmerCounter);
+            d_kmers,
+            d_values,
+            d_kmerCounter);
         cudaDeviceSynchronize();
         CUERR
 
-        cudaMemcpy(h_kmers.data(), d_kmers, numKmers*sizeof(kmer_type), cudaMemcpyDeviceToHost);
         cudaMemcpy(&h_kmerCounter, d_kmerCounter, sizeof(uint64_t), cudaMemcpyDeviceToHost);
+        cudaMemcpy(h_kmers.data(), d_kmers, h_kmerCounter*sizeof(Key), cudaMemcpyDeviceToHost);
+        cudaMemcpy(h_values.data(), d_values, h_kmerCounter*sizeof(ValueT), cudaMemcpyDeviceToHost);
         CUERR
 
         std::cout << "Target ID: " << tgt << '\n';
-        //sort kmers
-        // std::sort(h_kmers.begin(), h_kmers.end());
         //print kmers
-        for(size_t i=0; i<h_kmerCounter; ++i) {
-            std:: cout << h_kmers[i] << ' ';
-            if((i+1) % sketchSize == 0)
-                std::cout << '\n';
-        }
-        std::cout << std::endl;
+        // for(size_t i=0; i<h_kmerCounter; ++i) {
+        //     std:: cout << h_kmers[i] << ' ';
+        //     if((i+1) % sketchSize == 0)
+        //         std::cout << '\n';
+        // }
+        // std::cout << std::endl;
+
+        // for(size_t i=0; i<h_kmerCounter; ++i) {
+        //     std:: cout << '(' << h_values[i].tgt << ',' << h_values[i].win << ") " ;
+        //     if((i+1) % sketchSize == 0)
+        //         std::cout << '\n';
+        // }
+        // std::cout << std::endl;
+
+        return h_kmers;
     }
 
 
@@ -104,22 +120,11 @@ namespace mc {
 
     //-----------------------------------------------------
     template class gpu_hashmap<
-            unsigned int,
-            // sketch_database<
-            //     std::__cxx11::basic_string<
-            //         char,
-            //         std::char_traits<char>,
-            //         std::allocator<char> >,
-            //     single_function_unique_min_hasher<
-            //         unsigned int, same_size_hash<unsigned int> >,
-            //     same_size_hash<unsigned int>,
-            //     unsigned short,
-            //     unsigned int,
-            //     unsigned char
-            //     >::target_location,
-            uint64_t,
-            same_size_hash<unsigned int>,
-            std::equal_to<unsigned int>,
+            kmer_type,
+            location,
+            // uint64_t,
+            same_size_hash<kmer_type>,
+            std::equal_to<kmer_type>,
             unsigned char
             >;
 
