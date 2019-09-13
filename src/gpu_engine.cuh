@@ -107,11 +107,11 @@ template<
     int ITEMS_PER_THREAD = 4>
 __global__
 void extract_features(
-    target_id tgt,
-    window_id winOffset,
+    target_id * targetIds,
+    window_id * winOffsets,
+    uint32_t  * encodedSeq,
     encodedseq_t* seq,
     encodedambig_t* ambig,
-    size_t seqLength,
     numk_t k,
     size_t windowStride,
     uint32_t sketchSize,
@@ -119,11 +119,13 @@ void extract_features(
     location* locations_out,
     uint64_t* size_out)
 {
+    const target_id tgt = targetIds[blockIdx.y];
+    const window_id winOffset = winOffsets[blockIdx.y];
+    const uint32_t encodedLength = encodedSeq[blockIdx.y+1] - encodedSeq[blockIdx.y];
+
     typedef cub::BlockRadixSort<kmer_type, BLOCK_THREADS, ITEMS_PER_THREAD> BlockRadixSortT;
 
     __shared__ typename BlockRadixSortT::TempStorage temp_storage;
-
-    kmer_type items[ITEMS_PER_THREAD];
 
     constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
     constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
@@ -133,11 +135,13 @@ void extract_features(
     const encodedseq_t   kmerMask  = encodedseq_t(~0) << (encBits - 2*k);
     const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - k);
 
+    const size_t seqLength = encodedLength * ambigBits;
     const window_id numWindows = (seqLength-k + windowStride) / windowStride;
 
     //each block processes one window
     for(window_id bid = blockIdx.x; bid < numWindows; bid += gridDim.x)
     {
+        kmer_type items[ITEMS_PER_THREAD];
         uint8_t numItems = 0;
         for(int i=0; i<ITEMS_PER_THREAD; ++i)
         {
@@ -170,13 +174,11 @@ void extract_features(
 
                 items[numItems++] = sketching_hash{}(kmer);
             }
-            else
-            {
-                printf("ambiguous\n");
-            }
+            // else
+            // {
+            //     printf("ambiguous\n");
+            // }
         }
-        // printf("%d ",numItems);
-        // __syncthreads();
 
         BlockRadixSortT(temp_storage).SortBlockedToStriped(items);
 

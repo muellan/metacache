@@ -53,6 +53,18 @@ public:
         return std::numeric_limits<bucket_size_type>::max();
     }
 
+    //-----------------------------------------------------
+    struct sequence_batch {
+        target_id * targetIds;
+        window_id * windowOffsets;
+        uint32_t * encodeOffsets;
+        encodedseq_t * encodedSeq;
+        encodedambig_t * encodedAmbig;
+        Key * features;
+        ValueT * values;
+        size_t * featureCounter;
+   };
+
 public:
     //---------------------------------------------------------------
     gpu_hashmap()
@@ -84,7 +96,10 @@ public:
     }
 
 private:
-    void init();
+    void init(
+        numk_t kmerLength = 16,
+        size_t windowStride = 113,
+        sketch_size_type sketchSize = 16);
 
 public:
     //---------------------------------------------------------------
@@ -115,7 +130,6 @@ public:
         target_id tgt,
         std::vector<encodedseq_t> encodedSeq,
         std::vector<encodedambig_t> encodedAmbig,
-        size_t seqLength,
         numk_t k,
         size_t windowStride,
         sketch_size_type sketchSize);
@@ -127,6 +141,7 @@ public:
     float maxLoadFactor_;
     hasher hash_;
     key_equal keyEqual_;
+    sequence_batch seqBatch_;
 };
 
 

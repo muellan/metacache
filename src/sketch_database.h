@@ -1100,7 +1100,7 @@ private:
             });
 
         std::vector<kmer_type> features = features_gpu_.insert(
-            tgt, encodedSeq, encodedAmbig, seqLength,
+            tgt, encodedSeq, encodedAmbig,
             target_sketcher().kmer_size(),
             target_sketcher().window_stride(),
             target_sketcher().sketch_size());
