@@ -98,8 +98,9 @@ public:
 private:
     void init(
         numk_t kmerLength = 16,
+        sketch_size_type sketchSize = 16,
         size_t windowStride = 113,
-        sketch_size_type sketchSize = 16);
+        size_t windowSize = 128);
 
 public:
     //---------------------------------------------------------------
@@ -139,6 +140,7 @@ public:
     key_equal keyEqual_;
 
     numk_t kmerLength_;
+    size_t windowSize_;
     size_t windowStride_;
     sketch_size_type sketchSize_;
     sequence_batch seqBatch_;

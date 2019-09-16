@@ -113,8 +113,9 @@ void extract_features(
     encodedseq_t* seq,
     encodedambig_t* ambig,
     numk_t k,
-    size_t windowStride,
     uint32_t sketchSize,
+    size_t windowStride,
+    size_t windowSize,
     kmer_type* features_out,
     location* locations_out,
     uint64_t* size_out)
@@ -135,8 +136,8 @@ void extract_features(
     const encodedseq_t   kmerMask  = encodedseq_t(~0) << (encBits - 2*k);
     const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - k);
 
-    const size_t seqLength = encodedLength * ambigBits;
-    const window_id numWindows = (seqLength-k + windowStride) / windowStride;
+    const size_t last = encodedLength * ambigBits - k + 1;
+    const window_id numWindows = (last + windowStride - 1) / windowStride;
 
     //each block processes one window
     for(window_id bid = blockIdx.x; bid < numWindows; bid += gridDim.x)
@@ -149,9 +150,9 @@ void extract_features(
         }
 
         //each thread extracts one feature
-        const size_t offset = bid * windowStride;
-        for(size_t tid  = offset + threadIdx.x;
-                   tid  < min(offset + windowStride, seqLength-k+1);
+        const size_t first = bid * windowStride;
+        for(size_t tid  = first + threadIdx.x;
+                   tid  < min(first + windowSize - k + 1, last);
                    tid += blockDim.x)
         {
             const std::uint32_t  seq_slot    = tid / (ambigBits);

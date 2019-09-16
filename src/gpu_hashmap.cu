@@ -18,13 +18,15 @@ namespace mc {
     >
     void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::init(
         numk_t kmerLength,
+        sketch_size_type sketchSize,
         size_t windowStride,
-        sketch_size_type sketchSize
+        size_t windowSize
     )
     {
         kmerLength_ = kmerLength;
-        windowStride_ = windowStride;
         sketchSize_ = sketchSize;
+        windowStride_ = windowStride;
+        windowSize_ = windowSize;
 
         cudaSetDevice(0);
         size_t maxTargets = 1;
@@ -99,7 +101,7 @@ namespace mc {
             seqBatch_.encodeOffsets,
             seqBatch_.encodedSeq,
             seqBatch_.encodedAmbig,
-            kmerLength_, windowStride_, sketchSize_,
+            kmerLength_, sketchSize_, windowStride_, windowSize_,
             seqBatch_.features,
             seqBatch_.values,
             seqBatch_.featureCounter);
