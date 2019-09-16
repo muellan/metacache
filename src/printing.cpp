@@ -423,11 +423,11 @@ void show_candidate_ranges(std::ostream& os,
                            const database& db,
                            const classification_candidates& cand)
 {
-    const auto w = db.target_window_stride();
+    const auto w = db.target_sketcher().window_stride();
 
     for(const auto& c : cand) {
         os << '[' << (w * c.pos.beg)
-           << ',' << (w * c.pos.end + db.target_window_size()) << "] ";
+           << ',' << (w * c.pos.end + db.target_sketcher().window_size()) << "] ";
     }
 }
 
@@ -443,7 +443,7 @@ void show_matches_per_targets(std::ostream& os,
        << "--- list of hits for each reference sequence ---\n"
        << opt.format.comment
        << "window start position within sequence = window_index * window_stride(="
-       << db.query_window_stride() << ")\n";
+       << db.query_sketcher().window_stride() << ")\n";
 
     os << opt.format.comment << "TABLE_LAYOUT: "
        << " sequence " << opt.format.column
@@ -481,7 +481,7 @@ void show_abundance_table(std::ostream& os,
        << "name" << opt.format.column
        << "taxid" << opt.format.column
        << "number of reads" << opt.format.column
-       << "abundance\n"; 
+       << "abundance\n";
 
     for(const auto& tc : allTaxCounts) {
         if(tc.first) {

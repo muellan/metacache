@@ -148,8 +148,8 @@ get_build_options_from_db(const database& db)
 
     opt.kmerlen   = db.target_sketcher().kmer_size();
     opt.sketchlen = db.target_sketcher().sketch_size();
-    opt.winlen    = db.target_window_size();
-    opt.winstride = db.target_window_stride();
+    opt.winlen    = db.target_sketcher().window_size();
+    opt.winstride = db.target_sketcher().window_stride();
 
     opt.maxLoadFactor = db.max_load_factor();
 
@@ -314,7 +314,7 @@ void try_to_rank_unranked_targets(database& db, const build_options& opt)
  *
  *****************************************************************************/
 taxon_id find_taxon_id(
-    const std::map<string,taxon_id>& name2tax, 
+    const std::map<string,taxon_id>& name2tax,
     const string& name)
 {
     if(name2tax.empty()) return taxonomy::none_id();
@@ -638,10 +638,10 @@ void main_mode_build(const args_parser& args)
     auto sketcher = database::sketcher{};
     sketcher.kmer_size(opt.kmerlen);
     sketcher.sketch_size(opt.sketchlen);
+    sketcher.window_size(opt.winlen);
+    sketcher.window_stride(opt.winstride);
 
     auto db = database{sketcher};
-    db.target_window_size(opt.winlen);
-    db.target_window_stride(opt.winstride);
 
     add_to_database(db, opt);
 }
