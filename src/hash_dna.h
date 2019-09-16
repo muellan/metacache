@@ -40,6 +40,52 @@
 namespace mc {
 
 /*************************************************************************//**
+* @brief loops through all subranges of [first,last) of lenght 'len' with a
+*        stride of 'stride'
+*
+* @param first    iterator to start of range
+* @param last     iterator to one after end of range
+* @param len      length of windows (subranges)
+* @param stride   distance between first elements of two subsequent windows
+* @param consume  function object / lambda consuming one window
+*****************************************************************************/
+template<class InputIterator, class Consumer>
+inline void
+for_each_window(InputIterator first, InputIterator last,
+                const size_t len, const size_t stride,
+                Consumer&& consume)
+{
+    using std::distance;
+    //sequence not longer than window?
+    if(size_t(distance(first,last)) <= len) {
+        consume(first,last);
+    }
+    else {
+        for(auto wend = first + len;
+            wend <= last;
+            first += stride, wend += stride)
+        {
+            consume(first, wend);
+        }
+        if(first < last) consume(first, last);
+    }
+}
+//-------------------------------------------------------------------
+template<class Sequence, class Consumer>
+inline void
+for_each_window(const Sequence& s,
+                const size_t len, const size_t stride,
+                Consumer&& consume)
+{
+    using std::begin;
+    using std::end;
+    for_each_window(begin(s), end(s), len, stride,
+                    std::forward<Consumer>(consume));
+}
+
+
+
+/*************************************************************************//**
  *
  * @brief default min-hasher that uses the 'sketch_size' lexicographically
  *
@@ -89,6 +135,7 @@ public:
     kmer_size() const noexcept {
         return k_;
     }
+    //-----------------------------------------------------
     void
     kmer_size(kmer_size_type k) noexcept {
         if(k < 1) k = 1;
@@ -101,6 +148,7 @@ public:
     sketch_size() const noexcept {
         return sketchSize_;
     }
+    //-----------------------------------------------------
     void
     sketch_size(sketch_size_type s) noexcept {
         if(s < 1) s = 1;
@@ -108,13 +156,13 @@ public:
         sketchSize_ = s;
     }
 
-    //-----------------------------------------------------
+    //---------------------------------------------------------------
     /** @return size of windows that are fed to the sketcher */
     window_size_type
     window_size() const noexcept {
         return windowSize_;
     }
-    //---------------------------------------------------------------
+    //-----------------------------------------------------
     /** @brief set size of windows that are fed to the sketcher */
     void
     window_size(window_size_type s) {
@@ -123,13 +171,13 @@ public:
         windowSize_ = s;
     }
 
-    //-----------------------------------------------------
+    //---------------------------------------------------------------
     /** @return window stride for sketching */
     window_size_type
     window_stride() const noexcept {
         return windowStride_;
     }
-    //---------------------------------------------------------------
+    //-----------------------------------------------------
     /** @brief set window stride for sketching */
     void window_stride(window_size_type s) {
         if(s < 1) s = 1;
@@ -137,65 +185,40 @@ public:
         windowStride_ = s;
     }
 
-private:
-    /*************************************************************************//**
-    * @brief loops through all subranges of [first,last) of lenght 'len' with a
-    *        stride of 'stride'
-    *
-    * @param first    iterator to start of range
-    * @param last     iterator to one after end of range
-    * @param consume  function object / lambda consuming one window
-    *****************************************************************************/
-    template<class InputIterator, class Consumer>
-    inline void
-    for_each_window(InputIterator first, InputIterator last,
-                    Consumer&& consume) const
-    {
-        using std::distance;
-        //sequence not longer than window?
-        if(size_t(distance(first,last)) <= windowSize_) {
-            consume(first,last);
-        }
-        else {
-            for(auto wend = first + windowSize_;
-                wend <= last;
-                first += windowStride_, wend += windowStride_
-            ) {
-                consume(first, wend);
-            }
-            if(first < last) consume(first, last);
-        }
-    }
-
-    //-------------------------------------------------------------------
+    //---------------------------------------------------------------
     template<class Sequence, class Consumer>
-    inline void
-    for_each_window(const Sequence& s,
+    void
+    for_each_sketch(const Sequence& s,
                     Consumer&& consume) const
     {
         using std::begin;
         using std::end;
-        for_each_window(begin(s), end(s),
-                        std::forward<Consumer>(consume));
+        for_each_sketch(begin(s), end(s),
+                               std::forward<Consumer>(consume));
     }
 
-public:
     //-----------------------------------------------------
     template<class InputIterator, class Consumer>
     void
     for_each_sketch(InputIterator first, InputIterator last,
                     Consumer&& consume) const
     {
-        for_each_window(first, last,
+        for_each_window(first, last, windowSize_, windowStride_,
             [&] (InputIterator first, InputIterator last) {
                 using std::distance;
                 using std::begin;
                 using std::end;
 
                 const auto n = distance(first,last);
-                if(n < k_) consume(sketch_type{});
+                if(n < k_) {
+                    consume(sketch_type{});
+                    return;
+                }
                 const auto s = std::min(sketchSize_, sketch_size_type(n - k_ + 1));
-                if(s < 1) consume(sketch_type{});
+                if(s < 1) {
+                    consume(sketch_type{});
+                    return;
+                }
 
                 auto sketch = sketch_type(s, feature_type(~0));
 
@@ -224,18 +247,6 @@ public:
 
                 consume(sketch);
             });
-    }
-
-    //---------------------------------------------------------------
-    template<class Sequence, class Consumer>
-    void
-    for_each_sketch(const Sequence& s,
-                    Consumer&& consume) const
-    {
-        using std::begin;
-        using std::end;
-        for_each_sketch(begin(s), end(s),
-                               std::forward<Consumer>(consume));
     }
 
     //---------------------------------------------------------------
