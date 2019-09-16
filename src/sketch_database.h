@@ -1080,6 +1080,9 @@ private:
         using std::distance;
 
         const auto seqLength = distance(begin(seq), end(seq));
+
+        if(seqLength < targetSketcher_.kmer_size()) return std::vector<kmer_type>{};
+
         const auto lettersPerBlock = sizeof(encodedseq_t)*CHAR_BIT;
         const auto encodedSeqLength =
             (seqLength + lettersPerBlock - 1) / lettersPerBlock;
