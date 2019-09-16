@@ -1100,10 +1100,7 @@ private:
             });
 
         std::vector<kmer_type> features = features_gpu_.insert(
-            tgt, encodedSeq, encodedAmbig,
-            target_sketcher().kmer_size(),
-            target_sketcher().window_stride(),
-            target_sketcher().sketch_size());
+            tgt, encodedSeq, encodedAmbig);
 
         // return numWindows;
         return features;
@@ -1118,6 +1115,8 @@ private:
         window_id win = 0;
         std::vector<kmer_type> features{};
 
+        std::cout << "Target ID: " << tgt << '\n';
+
         targetSketcher_.for_each_sketch(seq,
             [&, this] (auto sk) {
                 // //insert sketch into batch
@@ -1129,9 +1128,9 @@ private:
                 //     batch_.clear();
                 // }
 
-                features.insert(features.end(), sk.begin(), sk.end());
-
                 ++win;
+
+                features.insert(features.end(), sk.begin(), sk.end());
             });
         // return win;
         return features;
@@ -1149,7 +1148,6 @@ private:
                     features_.shrink(it, maxLocsPerFeature_);
                 }
             }
-
         }
     }
 

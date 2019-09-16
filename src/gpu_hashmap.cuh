@@ -129,11 +129,7 @@ public:
     std::vector<Key> insert(
         target_id tgt,
         std::vector<encodedseq_t> encodedSeq,
-        std::vector<encodedambig_t> encodedAmbig,
-        numk_t k,
-        size_t windowStride,
-        sketch_size_type sketchSize);
-
+        std::vector<encodedambig_t> encodedAmbig);
 
     //---------------------------------------------------------------
     size_type numKeys_;
@@ -141,6 +137,10 @@ public:
     float maxLoadFactor_;
     hasher hash_;
     key_equal keyEqual_;
+
+    numk_t kmerLength_;
+    size_t windowStride_;
+    sketch_size_type sketchSize_;
     sequence_batch seqBatch_;
 };
 
