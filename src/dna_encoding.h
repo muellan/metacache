@@ -90,51 +90,6 @@ num_kmers(size_t k, size_t sequenceLen)
 
 
 /*************************************************************************//**
- * @brief loops through all subranges of [first,last) of lenght 'len' with a
- *        stride of 'stride'
- *
- * @param first    iterator to start of range
- * @param last     iterator to one after end of range
- * @param len      length of windows (subranges)
- * @param stride   distance between first elements of two subsequent windows
- * @param consume  function object / lambda consuming one window
- *****************************************************************************/
-template<class RAIterator, class Consumer>
-inline void
-for_each_window(RAIterator first, RAIterator last,
-                const size_t len, const size_t stride,
-                Consumer&& consume)
-{
-    using std::distance;
-    //sequence not longer than window?
-    if(size_t(distance(first,last)) <= len) {
-        consume(first,last);
-    }
-    else {
-        for(auto wend = first + len; wend <= last; first += stride, wend += stride) {
-            consume(first, wend);
-        }
-        if(first < last) consume(first, last);
-    }
-}
-
-//-------------------------------------------------------------------
-template<class RAInputRange, class Consumer>
-inline void
-for_each_window(RAInputRange range,
-                const size_t len, const size_t stride,
-                Consumer&& consume)
-{
-    using std::begin;
-    using std::end;
-    for_each_window(begin(range), end(range), len, stride,
-                    std::forward<Consumer>(consume));
-}
-
-
-
-
-/*************************************************************************//**
  *
  *
  * facilities for creating/manipulating 2bit encoding of DNA

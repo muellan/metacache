@@ -215,7 +215,7 @@ make_classification_candidates(const database& db,
 
     rules.maxWindowsInRange = window_id( 2 + (
         std::max(query.seq1.size() + query.seq2.size(), opt.insertSizeMax) /
-        db.target_window_stride() ));
+        db.target_sketcher().window_stride() ));
 
     rules.mergeBelow    = opt.lowestRank;
     rules.maxCandidates = opt.maxNumCandidatesPerQuery;
@@ -452,13 +452,13 @@ void show_alignment(std::ostream& os,
                 auto tgtSequ = reader->next().data;
                 auto subject = make_view_from_window_range(
                                tgtSequ, tophits[0].pos,
-                               db.target_window_size(),
-                               db.target_window_stride());
+                               db.target_sketcher().window_size(),
+                               db.target_sketcher().window_stride());
 
                 auto align = make_semi_global_alignment(query, subject);
 
                 //print alignment to top candidate
-                const auto w = db.target_window_stride();
+                const auto w = db.target_sketcher().window_stride();
                 os  << '\n'
                     << opt.format.comment << "  score  " << align.score
                     << "  aligned to "
@@ -718,7 +718,7 @@ void map_candidates_to_targets(const vector<string>& queryHeaders,
     if(opt.output.mapViewMode != map_view_mode::none) {
         show_query_mapping_header(results.perReadOut, opt.output);
     }
-    
+
     //taxon -> read count
     taxon_count_map allTaxCounts;
 

@@ -166,7 +166,7 @@ void process_input_files(const vector<string>& infiles,
                             + "_" + extract_filename(f2)
                             + ".txt";
                 }
-                if(!opt.output.targetsFile.empty() && 
+                if(!opt.output.targetsFile.empty() &&
                     opt.output.targetsFile != opt.output.queryMappingsFile)
                 {
                     targetsFile = opt.output.targetsFile
@@ -174,7 +174,7 @@ void process_input_files(const vector<string>& infiles,
                             + "_" + extract_filename(f2)
                             + ".txt";
                 }
-                if(!opt.output.abundanceFile.empty() && 
+                if(!opt.output.abundanceFile.empty() &&
                     opt.output.abundanceFile != opt.output.queryMappingsFile)
                 {
                     abundanceFile = opt.output.abundanceFile
@@ -193,13 +193,13 @@ void process_input_files(const vector<string>& infiles,
                     queryMappingsFile = opt.output.queryMappingsFile + "_"
                             + extract_filename(f) + ".txt";
                 }
-                if(!opt.output.targetsFile.empty() && 
+                if(!opt.output.targetsFile.empty() &&
                     opt.output.targetsFile != opt.output.queryMappingsFile)
                 {
                     targetsFile = opt.output.targetsFile + "_"
                             + extract_filename(f) + ".txt";
                 }
-                if(!opt.output.abundanceFile.empty() && 
+                if(!opt.output.abundanceFile.empty() &&
                     opt.output.abundanceFile != opt.output.queryMappingsFile)
                 {
                     abundanceFile = opt.output.abundanceFile + "_"
@@ -353,12 +353,11 @@ read_database(const string& filename, const database_query_options& opt)
     }
 
     //use a different sketching scheme for querying?
-    if(opt.winlen > 0)    db.query_window_size(opt.winlen);
-    if(opt.winstride > 0) db.query_window_stride(opt.winstride);
-
-    if(opt.sketchlen > 0) {
+    if((opt.sketchlen > 0) || (opt.winlen > 0) || (opt.winstride > 0)) {
         auto s = db.query_sketcher();
-        s.sketch_size(opt.sketchlen);
+        if(opt.sketchlen > 0) s.sketch_size(opt.sketchlen);
+        if(opt.winstride > 0) s.window_size(opt.winlen);
+        if(opt.winlen    > 0) s.window_stride(opt.winstride);
         db.query_sketcher(std::move(s));
     }
 

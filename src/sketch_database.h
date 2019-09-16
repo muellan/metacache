@@ -305,10 +305,6 @@ public:
     sketch_database(sketcher targetSketcher, sketcher querySketcher) :
         targetSketcher_{std::move(targetSketcher)},
         querySketcher_{std::move(querySketcher)},
-        targetWindowSize_(128),
-        targetWindowStride_(128-15),
-        queryWindowSize_(targetWindowSize_),
-        queryWindowStride_(targetWindowStride_),
         maxLocsPerFeature_(max_supported_locations_per_feature()),
         features_{},
         targets_{},
@@ -354,53 +350,6 @@ public:
     }
     void query_sketcher(sketcher&& s) {
         querySketcher_ = std::move(s);
-    }
-
-
-    //---------------------------------------------------------------
-    /** @brief set size of target windows that are fed to the target sketcher */
-    void target_window_size(std::size_t s) {
-        targetWindowSize_ = s;
-    }
-    //-----------------------------------------------------
-    /** @return size of target windows that are fed to the target sketcher */
-    size_t target_window_size() const noexcept {
-        return targetWindowSize_;
-    }
-
-    //---------------------------------------------------------------
-    /** @brief set target window stride for target sketching */
-    void target_window_stride(std::size_t s) {
-        if(s < 1) s = 1;
-        targetWindowStride_ = s;
-    }
-    //-----------------------------------------------------
-    /** @return target window stride for target sketching */
-    size_t target_window_stride() const noexcept {
-        return targetWindowStride_;
-    }
-
-
-    //---------------------------------------------------------------
-    /** @brief set size of query windows that are fed to the query sketcher */
-    void query_window_size(std::size_t s) {
-        queryWindowSize_ = s;
-    }
-    //-----------------------------------------------------
-    /** @return size of query windows that are fed to the query sketcher */
-    size_t query_window_size() const noexcept {
-        return queryWindowSize_;
-    }
-    //---------------------------------------------------------------
-    /** @brief set query window stride for query sketching */
-    void query_window_stride(std::size_t s) {
-        if(s < 1) s = 1;
-        queryWindowStride_ = s;
-    }
-    //-----------------------------------------------------
-    /** @return query window stride for query sketching */
-    size_t query_window_stride() const noexcept {
-        return queryWindowStride_;
     }
 
 
@@ -789,11 +738,9 @@ public:
     accumulate_matches(InputIterator queryBegin, InputIterator queryEnd,
                        match_target_locations& res) const
     {
-        for_each_window(queryBegin, queryEnd, queryWindowSize_, queryWindowStride_,
-            [this, &res] (InputIterator b, InputIterator e) {
-                auto sk = querySketcher_(b,e);
-
-                res.offsets_.reserve(res.offsets_.size() + sk.size());
+        querySketcher_.for_each_sketch(queryBegin, queryEnd,
+            [this, &res] (auto sk) {
+                 res.offsets_.reserve(res.offsets_.size() + sk.size());
 
                 for(auto f : sk) {
                     auto locs = features_.find(f);
@@ -894,12 +841,7 @@ public:
 
         //sketching parameters
         read_binary(is, targetSketcher_);
-        read_binary(is, targetWindowSize_);
-        read_binary(is, targetWindowStride_);
-
         read_binary(is, querySketcher_);
-        read_binary(is, queryWindowSize_);
-        read_binary(is, queryWindowStride_);
 
         //target insertion parameters
         read_binary(is, maxLocsPerFeature_);
@@ -963,12 +905,7 @@ public:
 
         //sketching parameters
         write_binary(os, targetSketcher_);
-        write_binary(os, targetWindowSize_);
-        write_binary(os, targetWindowStride_);
-
         write_binary(os, querySketcher_);
-        write_binary(os, queryWindowSize_);
-        write_binary(os, queryWindowStride_);
 
         //target insertion parameters
         write_binary(os, maxLocsPerFeature_);
@@ -1045,12 +982,9 @@ private:
     //---------------------------------------------------------------
     window_id add_all_window_sketches(const sequence& seq, target_id tgt)
     {
-        using iter_t = typename sequence::const_iterator;
-
         window_id win = 0;
-        for_each_window(seq, targetWindowSize_, targetWindowStride_,
-            [&, this] (iter_t b, iter_t e) {
-                auto sk = targetSketcher_(b,e);
+        targetSketcher_.for_each_sketch(seq,
+            [&, this] (auto sk) {
                 //insert features from sketch into database
                 for(const auto& f : sk) {
                     auto it = features_.insert(f, target_location{tgt, win});
@@ -1067,10 +1001,6 @@ private:
     //---------------------------------------------------------------
     sketcher targetSketcher_;
     sketcher querySketcher_;
-    std::uint64_t targetWindowSize_;
-    std::uint64_t targetWindowStride_;
-    std::uint64_t queryWindowSize_;
-    std::uint64_t queryWindowStride_;
     std::uint64_t maxLocsPerFeature_;
     target_id targetCount_;
     feature_store features_;
@@ -1144,8 +1074,8 @@ void print_static_properties(const sketch_database<S,K,H,G,W,L>& db)
         << "------------------------------------------------\n"
         << "window id type       " << type_name<window_id>() << " " << (sizeof(window_id)*CHAR_BIT) << " bits\n"
         << "window limit         " << std::uint64_t(db.max_windows_per_target()) << '\n'
-        << "window length        " << db.target_window_size() << '\n'
-        << "window stride        " << db.target_window_stride() << '\n'
+        << "window length        " << db.target_sketcher().window_size() << '\n'
+        << "window stride        " << db.target_sketcher().window_stride() << '\n'
         << "------------------------------------------------\n"
         << "sketcher type        " << type_name<typename db_t::sketcher>() << '\n'
         << "feature type         " << type_name<feature_t>() << " " << (sizeof(feature_t)*CHAR_BIT) << " bits\n"
