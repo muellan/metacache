@@ -89,18 +89,31 @@ public:
         return encodedAmbig_;
     }
 
-    //---------------------------------------------------------------
+    /*************************************************************************//**
+    *
+    * @brief batch contains features and locations of multiple targets
+    *        allocated memory location depends on policy
+    *
+    * @return either last if whole sequence was processed
+    *         or iterator to position which has to be processed next
+    *
+    *****************************************************************************/
     template<class InputIterator, policy U = P, std::enable_if_t<U==policy::Host, int> = 0>
     InputIterator
     add_target(
         InputIterator first, InputIterator last,
-        target_id tgt, window_id win
+        target_id tgt, window_id win,
+        numk_t kmerSize
     ) {
         using std::distance;
 
-        //todo check if (sub) sequences longer than kmer size
+        const size_t seqLength = distance(first, last);
 
-        if(numTargets_ < maxTargets_) {
+        // no kmers in sequence, nothing to do here
+        if(seqLength < kmerSize) return last;
+
+        //check if batch has space left
+        if((numTargets_ < maxTargets_) && (encodeOffsets_[numTargets_] < maxEncodeLength_)) {
             targetIds_[numTargets_] = tgt;
             windowOffsets_[numTargets_] = win;
             encodeOffsets_[numTargets_+1] = encodeOffsets_[numTargets_];
@@ -108,7 +121,6 @@ public:
             constexpr auto lettersPerBlock = sizeof(encodedseq_t)*CHAR_BIT;
             const auto availableBlocks = (maxEncodeLength_ - encodeOffsets_[numTargets_]);
             const size_t availableLength = availableBlocks * lettersPerBlock;
-            const size_t seqLength = distance(first, last);
 
             InputIterator end = (seqLength <= availableLength) ?
                                 last :
@@ -118,13 +130,15 @@ public:
                 [&, this] (encodedseq_t substring, encodedambig_t ambig) {
                     encodedSeq_[encodeOffsets_[numTargets_+1]] = substring;
                     encodedAmbig_[encodeOffsets_[numTargets_+1]] = ambig;
-                    ++encodeOffsets_[numTargets_+1];
+                    ++(encodeOffsets_[numTargets_+1]);
                 });
 
             ++numTargets_;
-            return end;
+
+            return (end == last) ? end : end - kmerSize + 1;
         }
         else {
+            // batch full, nothing was processed
             return first;
         }
     }
@@ -168,7 +182,7 @@ sequence_batch<policy::Device>::~sequence_batch();
 
 
 /*************************************************************************//**
- * todo
+ * TODO
  * @brief   (integer) key -> value hashed multimap
  *          optimized for many values per key (pay attention to max_bucket_size()!
  *          Each bucket contains only one key and all values mapped to that key.
@@ -219,7 +233,7 @@ public:
         numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
         hash_{}, keyEqual_{},
         kmerLength_(16), sketchSize_(16), windowSize_(128), windowStride_(113),
-        seqBatches_(), featureBatches_()
+        seqBatches_{}, featureBatches_{}
     {
         init();
     }
@@ -230,7 +244,7 @@ public:
         numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
         hash_{}, keyEqual_{keyComp},
         kmerLength_(16), sketchSize_(16), windowSize_(128), windowStride_(113),
-        seqBatches_(), featureBatches_()
+        seqBatches_{}, featureBatches_{}
     {
         init();
     }
@@ -243,7 +257,7 @@ public:
         numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
         hash_{hash}, keyEqual_{keyComp},
         kmerLength_(16), sketchSize_(16), windowSize_(128), windowStride_(113),
-        seqBatches_(), featureBatches_()
+        seqBatches_{}, featureBatches_{}
     {
         init();
     }

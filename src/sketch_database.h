@@ -294,7 +294,7 @@ public:
         maxLocsPerFeature_(max_supported_locations_per_feature()),
         targetCount_{0},
         features_{},
-        features_gpu_{},
+        featureStoreGPU_{},
         targets_{},
         taxa_{},
         ranksCache_{taxa_, taxon_rank::Sequence},
@@ -303,9 +303,12 @@ public:
         batch_{},
         queue_(10),
         sketchingDone_{true},
-        inserterThread_{}
+        inserterThread_{},
+        seqBatches_{}
     {
         features_.max_load_factor(default_max_load_factor());
+
+        seqBatches_.emplace_back(MAX_TARGETS_PER_BATCH, MAX_ENCODE_LENGTH_PER_BATCH);
     }
 
     database(const database&) = delete;
@@ -485,31 +488,15 @@ public:
         const auto taxid = taxon_id_of_target(targetCount);
 
         //sketch sequence -> insert features
-        // source.windows = add_all_window_sketches(seq, targetCount);
-        std::vector<kmer_type> features = add_all_window_sketches(seq, targetCount);
-        // source.windows = add_all_window_sketches_gpu(seq, targetCount);
-        std::vector<kmer_type> features_gpu = add_all_window_sketches_gpu(seq, targetCount);
-        //compare results
-        auto result = std::equal(features.begin(), features.end(), features_gpu.begin());
-        if(result) {
-            std::cout << "results are equal\n";
+        window_id windows_cpu = add_all_window_sketches(seq, targetCount);
+        window_id windows_gpu = add_all_window_sketches_gpu(seq, targetCount);
+
+        if(windows_cpu != windows_gpu) {
+            std::cout << "diiferent number of windows: "
+                      << windows_cpu << ' ' << windows_gpu << std::endl;
         }
-        else {
-            std::cout << "results are different:\n";
-            std::cout << "CPU:\n";
-            for(size_t i=0; i<features.size(); ++i) {
-                std:: cout << features[i] << ' ';
-                if((i+1) % target_sketcher().sketch_size() == 0)
-                    std::cout << '\n';
-            }
-            std::cout << "\nGPU:\n";
-            for(size_t i=0; i<features_gpu.size(); ++i) {
-                std:: cout << features_gpu[i] << ' ';
-                if((i+1) % target_sketcher().sketch_size() == 0)
-                    std::cout << '\n';
-            }
-        }
-        std::cout << std::endl;
+
+        source.windows = windows_cpu;
 
         //insert sequence metadata as a new taxon
         if(parentTaxid < 1) parentTaxid = 0;
@@ -1071,17 +1058,54 @@ public:
     }
 
 
+    void flush_batches() {
+        std::vector<kmer_type> new_features_gpu = featureStoreGPU_.insert(seqBatches_[0]);
+        seqBatches_[0].num_targets(0);
+        features_gpu.insert(features_gpu.end(), new_features_gpu.begin(), new_features_gpu.end());
+
+        //compare results
+        auto result = std::equal(features.begin(), features.end(), features_gpu.begin());
+        if(result) {
+            std::cout << "results are equal\n";
+        }
+        else {
+            std::cout << "results are different:\n";
+            std::cout << "CPU:\n";
+            for(size_t i=0; i<features.size(); ++i) {
+                std:: cout << features[i] << ' ';
+                if((i+1) % target_sketcher().sketch_size() == 0)
+                    std::cout << '\n';
+            }
+            std::cout << "\nGPU:\n";
+            for(size_t i=0; i<features_gpu.size(); ++i) {
+                std:: cout << features_gpu[i] << ' ';
+                if((i+1) % target_sketcher().sketch_size() == 0)
+                    std::cout << '\n';
+            }
+        }
+        std::cout << std::endl;
+    }
+
 private:
     //---------------------------------------------------------------
-    std::vector<kmer_type> add_all_window_sketches_gpu(const sequence& seq, target_id tgt)
+    window_id add_all_window_sketches_gpu(const sequence& seq, target_id tgt)
     {
         using std::begin;
         using std::end;
+
+        return add_all_window_sketches_gpu(begin(seq), end(seq), tgt);
+    }
+    //---------------------------------------------------------------
+    window_id add_all_window_sketches_gpu(
+        sequence::const_iterator first,
+        sequence::const_iterator last,
+        target_id tgt)
+    {
         using std::distance;
 
-        const auto seqLength = distance(begin(seq), end(seq));
+        const auto seqLength = distance(first, last);
 
-        if(seqLength < targetSketcher_.kmer_size()) return std::vector<kmer_type>{};
+        if(seqLength < targetSketcher_.kmer_size()) return 0;
 
         const window_id numWindows =
             (seqLength-targetSketcher_.kmer_size() + targetSketcher_.window_stride())
@@ -1096,30 +1120,43 @@ private:
                   << '\n';
 
         //create batch of targets
-        sequence_batch<policy::Host> seqBatch(MAX_TARGETS_PER_BATCH, MAX_ENCODE_LENGTH_PER_BATCH);
-        auto seqRemain = seqBatch.add_target(begin(seq), end(seq), tgt, 0);
-        if(seqRemain == end(seq))
+        auto seqRemain = seqBatches_[0].add_target(
+            first, last, tgt, 0, targetSketcher_.kmer_size());
+
+        std::cout << "num targets: " << seqBatches_[0].num_targets()
+                  << " target id: " << seqBatches_[0].target_ids()[seqBatches_[0].num_targets()-1]
+                  << " window off: " << seqBatches_[0].window_offsets()[seqBatches_[0].num_targets()-1]
+                  << " encode len: " << seqBatches_[0].encode_offsets()[seqBatches_[0].num_targets()]
+                  << '\n';
+
+        if(seqRemain == last) {
             std::cout << "sequence done\n";
+            return numWindows;
+        }
         else {
             std::cout << "sequence not done\n";
-            //todo do something
-            // std::cout << distance(seqRemain, end(seq)) << std::endl;
+            //insert batch
+            std::vector<kmer_type> new_features_gpu = featureStoreGPU_.insert(seqBatches_[0]);
+            //reset batch
+            seqBatches_[0].num_targets(0);
+            //store results for error checking
+            features_gpu.insert(features_gpu.end(), new_features_gpu.begin(), new_features_gpu.end());
+
+            //resume with remaining sequence
+            return numWindows + add_all_window_sketches_gpu(seqRemain, last, tgt);
         }
-
-        std::vector<kmer_type> features = features_gpu_.insert(seqBatch);
-
-        // return numWindows;
-        return features;
     }
 
 
+
+
     //---------------------------------------------------------------
-    std::vector<kmer_type> add_all_window_sketches(const sequence& seq, target_id tgt)
+    window_id add_all_window_sketches(const sequence& seq, target_id tgt)
     {
         std::cout << "Target ID: " << tgt << '\n';
 
         window_id win = 0;
-        std::vector<kmer_type> features{};
+        std::vector<kmer_type> new_features{};
 
         std::cout << "Target ID: " << tgt << '\n';
 
@@ -1133,13 +1170,14 @@ private:
                 //     this->enqueue_insertion_of_sketch_batch();
                 //     batch_.clear();
                 // }
+                new_features.insert(new_features.end(), sk.begin(), sk.end());
 
                 ++win;
-
-                features.insert(features.end(), sk.begin(), sk.end());
             });
-        // return win;
-        return features;
+
+        features.insert(features.end(), new_features.begin(), new_features.end());
+
+        return win;
     }
 
 
@@ -1278,7 +1316,7 @@ private:
     std::uint64_t maxLocsPerFeature_;
     target_id targetCount_;
     feature_store features_;
-    feature_store_gpu features_gpu_;
+    feature_store_gpu featureStoreGPU_;
     std::vector<const taxon*> targets_;
     taxonomy taxa_;
     mutable ranked_lineages_cache ranksCache_;
@@ -1289,6 +1327,10 @@ private:
     sketch_queue queue_;
     std::atomic_bool sketchingDone_;
     std::unique_ptr<std::future<void>> inserterThread_;
+
+    std::vector<sequence_batch<policy::Host>> seqBatches_;
+    std::vector<kmer_type> features = {};
+    std::vector<kmer_type> features_gpu = {};
 };
 
 

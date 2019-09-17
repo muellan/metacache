@@ -470,6 +470,7 @@ void add_targets_to_database(database& db,
                 seq.fileTaxId = fileTaxId;
                 reader->next_header_and_data(seq.header, seq.data);
             }
+            db.flush_batches();
 
             if(infoLvl == info_level::verbose) {
                 cout << "done." << endl;

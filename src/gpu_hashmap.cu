@@ -172,7 +172,7 @@ std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
     #define ITEMS_PER_THREAD 4
 
     extract_features<BLOCK_THREADS,ITEMS_PER_THREAD><<<1,BLOCK_THREADS,0,stream>>>(
-        //todo num targets
+        seqBatches_[0].num_targets(),
         seqBatches_[0].target_ids(),
         seqBatches_[0].window_offsets(),
         seqBatches_[0].encode_offsets(),
@@ -182,8 +182,10 @@ std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
         featureBatches_[0].features(),
         featureBatches_[0].values(),
         featureBatches_[0].feature_counter());
-    // cudaStreamSynchronize(stream);
-    // CUERR
+    //neccessary sync to get featuer counter
+    //TODO remove later
+    cudaStreamSynchronize(stream);
+    CUERR
 
     uint64_t h_featureCounter = 0;
     cudaMemcpyAsync(&h_featureCounter, featureBatches_[0].feature_counter(),
