@@ -377,13 +377,15 @@ for_each_consecutive_substring_2bit(InputIterator first, InputIterator last,
         }
     }
     //handle tail
-    //shift kmer to highest bits
-    kmer <<= (sizeof(kmer) * CHAR_BIT) - (k * 2);
-    ambig <<= (sizeof(ambig) * CHAR_BIT) - k;
-    //mark lower bits ambiguous
-    ambig |= ambig_t(~0) >> k;
-    //do something with the kmer (and the ambiguous letters flag)
-    consume(kmer, ambig);
+    if(k) {
+        //shift kmer to highest bits
+        kmer <<= (sizeof(kmer) * CHAR_BIT) - (k * 2);
+        ambig <<= (sizeof(ambig) * CHAR_BIT) - k;
+        //mark lower bits ambiguous
+        ambig |= ambig_t(~0) >> k;
+        //do something with the kmer (and the ambiguous letters flag)
+        consume(kmer, ambig);
+    }
 }
 
 
