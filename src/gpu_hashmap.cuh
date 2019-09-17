@@ -10,7 +10,13 @@ namespace mc {
 
 enum class policy {Host, Device};
 
-template<policy P = policy::Host>
+/*************************************************************************//**
+ *
+ * @brief batch contains sequence data of multiple targets
+ *        allocated memory location depends on policy
+ *
+ *****************************************************************************/
+template<policy P>
 class sequence_batch
  {
 public:
@@ -21,10 +27,10 @@ public:
     //-----------------------------------------------------
     sequence_batch(sequence_batch&& other) {
         maxTargets_      = other.max_targets();
-        other.max_targets(0);
         maxEncodeLength_ = other.max_encode_length();
-        other.max_encode_length(0);
         numTargets_      = other.num_targets();
+        other.max_targets(0);
+        other.max_encode_length(0);
         other.num_targets(0);
 
         targetIds_     = other.target_ids();
@@ -159,8 +165,10 @@ template<>
 sequence_batch<policy::Device>::~sequence_batch();
 
 
+
+
 /*************************************************************************//**
- *
+ * todo
  * @brief   (integer) key -> value hashed multimap
  *          optimized for many values per key (pay attention to max_bucket_size()!
  *          Each bucket contains only one key and all values mapped to that key.
@@ -204,14 +212,6 @@ public:
         return std::numeric_limits<bucket_size_type>::max();
     }
 
-private:
-    //-----------------------------------------------------
-    struct feature_batch {
-        Key    * features_;
-        ValueT * values_;
-        size_t * featureCounter_;
-    };
-
 public:
     //---------------------------------------------------------------
     gpu_hashmap()
@@ -219,7 +219,7 @@ public:
         numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
         hash_{}, keyEqual_{},
         kmerLength_(16), sketchSize_(16), windowSize_(128), windowStride_(113),
-        seqBatchesDevice_()
+        seqBatches_(), featureBatches_()
     {
         init();
     }
@@ -230,7 +230,7 @@ public:
         numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
         hash_{}, keyEqual_{keyComp},
         kmerLength_(16), sketchSize_(16), windowSize_(128), windowStride_(113),
-        seqBatchesDevice_()
+        seqBatches_(), featureBatches_()
     {
         init();
     }
@@ -243,13 +243,68 @@ public:
         numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
         hash_{hash}, keyEqual_{keyComp},
         kmerLength_(16), sketchSize_(16), windowSize_(128), windowStride_(113),
-        seqBatchesDevice_()
+        seqBatches_(), featureBatches_()
     {
         init();
     }
 
 private:
     void init();
+
+    /*************************************************************************//**
+    *
+    * @brief batch contains features and locations of multiple targets
+    *        allocated memory location depends on policy
+    *
+    *****************************************************************************/
+    class feature_batch
+    {
+    public:
+        //---------------------------------------------------------------
+        feature_batch(size_t maxFeatures = 0);
+        //-----------------------------------------------------
+        feature_batch(const feature_batch&) = delete;
+        //-----------------------------------------------------
+        feature_batch(feature_batch&& other) {
+            maxFeatures_ = other.max_features();
+            other.max_features(0);
+
+            features_       = other.features();
+            values_         = other.values();
+            featureCounter_ = other.feature_counter();
+        };
+
+        //---------------------------------------------------------------
+        ~feature_batch();
+
+        //---------------------------------------------------------------
+        size_t max_features() const noexcept {
+            return maxFeatures_;
+        }
+        //-----------------------------------------------------
+        void max_features(size_t n) noexcept {
+            maxFeatures_ = n;
+        }
+        //---------------------------------------------------------------
+        key_type * features() const noexcept {
+            return features_;
+        }
+        //---------------------------------------------------------------
+        value_type * values() const noexcept {
+            return values_;
+        }
+        //---------------------------------------------------------------
+        size_t * feature_counter() const noexcept {
+            return featureCounter_;
+        }
+
+    private:
+        size_t maxFeatures_;
+
+        key_type   * features_;
+        value_type * values_;
+        size_t     * featureCounter_;
+    };
 
 public:
     //---------------------------------------------------------------
@@ -276,7 +331,7 @@ public:
     }
 
     //---------------------------------------------------------------
-    std::vector<Key> insert(const sequence_batch<policy::Host>& seqBatchHost);
+    std::vector<key_type> insert(const sequence_batch<policy::Host>& seqBatchHost);
 
     //---------------------------------------------------------------
     size_type numKeys_;
@@ -291,8 +346,8 @@ public:
     size_t windowStride_;
 
     size_t maxBatchNum_;
-    std::vector<sequence_batch<policy::Device>> seqBatchesDevice_;
-    feature_batch featureBatch_;
+    std::vector<sequence_batch<policy::Device>> seqBatches_;
+    std::vector<feature_batch> featureBatches_;
 };
 
 

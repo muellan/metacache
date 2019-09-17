@@ -1096,7 +1096,7 @@ private:
                   << '\n';
 
         //create batch of targets
-        sequence_batch<policy::Host> seqBatch(MAX_TARGET_PER_BATCH, MAX_ENCODE_LENGTH_PER_BATCH);
+        sequence_batch<policy::Host> seqBatch(MAX_TARGETS_PER_BATCH, MAX_ENCODE_LENGTH_PER_BATCH);
         auto seqRemain = seqBatch.add_target(begin(seq), end(seq), tgt, 0);
         if(seqRemain == end(seq))
             std::cout << "sequence done\n";
