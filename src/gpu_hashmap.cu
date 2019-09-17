@@ -8,6 +8,70 @@
 
 namespace mc {
 
+    //---------------------------------------------------------------
+    template<>
+    sequence_batch<policy::Host>::sequence_batch(size_t maxTargets, size_t maxEncodeLength) :
+        maxTargets_{maxTargets}, maxEncodeLength_{maxEncodeLength}, numTargets_{0}
+    {
+        if(maxTargets_) {
+            cudaMallocHost(&targetIds_, maxTargets_*sizeof(target_id));
+            cudaMallocHost(&windowOffsets_, maxTargets_*sizeof(window_id));
+            cudaMallocHost(&encodeOffsets_, (maxTargets_+1)*sizeof(encodinglen_t));
+            encodeOffsets_[0] = 0;
+        }
+        if(maxEncodeLength_) {
+            cudaMallocHost(&encodedSeq_, maxEncodeLength_*sizeof(encodedseq_t));
+            cudaMallocHost(&encodedAmbig_, maxEncodeLength_*sizeof(encodedambig_t));
+        }
+        CUERR
+    }
+    //---------------------------------------------------------------
+    template<>
+    sequence_batch<policy::Host>::~sequence_batch() {
+        if(maxTargets_) {
+            cudaFreeHost(targetIds_);
+            cudaFreeHost(windowOffsets_);
+            cudaFreeHost(encodeOffsets_);
+        }
+        if(maxEncodeLength_) {
+            cudaFreeHost(encodedSeq_);
+            cudaFreeHost(encodedAmbig_);
+        }
+        CUERR
+    }
+
+    //---------------------------------------------------------------
+    template<>
+    sequence_batch<policy::Device>::sequence_batch(size_t maxTargets, size_t maxEncodeLength) :
+        maxTargets_{maxTargets}, maxEncodeLength_{maxEncodeLength}, numTargets_{0}
+    {
+        if(maxTargets_) {
+            cudaMalloc(&targetIds_, maxTargets_*sizeof(target_id));
+            cudaMalloc(&windowOffsets_, maxTargets_*sizeof(window_id));
+            cudaMalloc(&encodeOffsets_, (maxTargets_+1)*sizeof(encodinglen_t));
+        }
+        if(maxEncodeLength_) {
+            cudaMalloc(&encodedSeq_, maxEncodeLength_*sizeof(encodedseq_t));
+            cudaMalloc(&encodedAmbig_, maxEncodeLength_*sizeof(encodedambig_t));
+        }
+        CUERR
+    }
+    //---------------------------------------------------------------
+    template<>
+    sequence_batch<policy::Device>::~sequence_batch() {
+        if(maxTargets_) {
+            cudaFree(targetIds_);
+            cudaFree(windowOffsets_);
+            cudaFree(encodeOffsets_);
+        }
+        if(maxEncodeLength_) {
+            cudaFree(encodedSeq_);
+            cudaFree(encodedAmbig_);
+        }
+        CUERR
+    }
+
+
     //-----------------------------------------------------
     template<
         class Key,
@@ -16,35 +80,18 @@ namespace mc {
         class KeyEqual,
         class BucketSizeT
     >
-    void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::init(
-        numk_t kmerLength,
-        sketch_size_type sketchSize,
-        size_t windowStride,
-        size_t windowSize
-    )
+    void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::init()
     {
-        kmerLength_ = kmerLength;
-        sketchSize_ = sketchSize;
-        windowStride_ = windowStride;
-        windowSize_ = windowSize;
-
         cudaSetDevice(0);
-        size_t maxTargets = 1;
-        size_t maxEncodeLength = 100;
-        size_t maxSeqLength = maxEncodeLength*sizeof(encodedambig_t)*CHAR_BIT;
+        size_t maxSeqLength = MAX_ENCODE_LENGTH_PER_BATCH*sizeof(encodedambig_t)*CHAR_BIT;
         size_t maxWindows = (maxSeqLength-kmerLength_ + windowStride_) / windowStride_;
         size_t maxFeatures = maxWindows * sketchSize_;
 
-        cudaMalloc(&seqBatch_.targetIds, maxTargets*sizeof(target_id));
-        cudaMalloc(&seqBatch_.windowOffsets, maxTargets*sizeof(window_id));
-        cudaMalloc(&seqBatch_.encodeOffsets, (maxTargets+1)*sizeof(uint32_t));
+        seqBatchesDevice_.emplace_back(MAX_TARGET_PER_BATCH, MAX_ENCODE_LENGTH_PER_BATCH);
 
-        cudaMalloc(&seqBatch_.encodedSeq, maxEncodeLength*sizeof(encodedseq_t));
-        cudaMalloc(&seqBatch_.encodedAmbig, maxEncodeLength*sizeof(encodedambig_t));
-
-        cudaMalloc(&seqBatch_.features, maxFeatures*sizeof(Key));
-        cudaMalloc(&seqBatch_.values, maxFeatures*sizeof(ValueT));
-        cudaMalloc(&seqBatch_.featureCounter, sizeof(size_t));
+        cudaMalloc(&featureBatch_.features_, maxFeatures*sizeof(Key));
+        cudaMalloc(&featureBatch_.values_, maxFeatures*sizeof(ValueT));
+        cudaMalloc(&featureBatch_.featureCounter_, sizeof(size_t));
         CUERR
     }
 
@@ -58,58 +105,54 @@ namespace mc {
         class BucketSizeT
     >
     std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
-        target_id tgt,
-        std::vector<encodedseq_t> encodedSeq,
-        std::vector<encodedambig_t> encodedAmbig)
-    {
-
-        const uint32_t encodedLength = encodedSeq.size();
-        //not real seq length but upper bound
-        const size_t seqLength = encodedLength*sizeof(encodedambig_t)*CHAR_BIT;
-        const size_t numWindows = (seqLength-kmerLength_ + windowStride_) / windowStride_;
-        const size_t numFeatures = numWindows * sketchSize_;
-        std::cout << "Target ID: " << tgt
-                  << " Length: " << seqLength
-                  << " Windows: " << numWindows
-                  << " Features: " << numFeatures
-                  << '\n';
-
+        const sequence_batch<policy::Host>& seqBatchHost
+    ) {
         cudaStream_t stream = 0;
 
-        cudaMemsetAsync(seqBatch_.featureCounter, 0, sizeof(uint64_t), stream);
+        seqBatchesDevice_[0].num_targets(seqBatchHost.num_targets());
 
-        cudaMemcpyAsync(seqBatch_.targetIds, &tgt,
-                   sizeof(target_id), cudaMemcpyHostToDevice, stream);
-        const window_id winOffset = 0;
-        cudaMemcpyAsync(seqBatch_.windowOffsets, &winOffset,
-                   sizeof(window_id), cudaMemcpyHostToDevice, stream);
-        const uint32_t encOffsets[2] = {0,encodedLength};
-        cudaMemcpyAsync(seqBatch_.encodeOffsets, encOffsets,
-                   2*sizeof(uint32_t), cudaMemcpyHostToDevice, stream);
-        cudaMemcpyAsync(seqBatch_.encodedSeq, encodedSeq.data(),
-                   encodedLength*sizeof(encodedseq_t), cudaMemcpyHostToDevice, stream);
-        cudaMemcpyAsync(seqBatch_.encodedAmbig, encodedAmbig.data(),
-                   encodedLength*sizeof(encodedambig_t), cudaMemcpyHostToDevice, stream);
+        //copy batch to gpu
+        cudaMemcpyAsync(seqBatchesDevice_[0].target_ids(), seqBatchHost.target_ids(),
+                        seqBatchHost.num_targets()*sizeof(target_id),
+                        cudaMemcpyHostToDevice, stream);
+        cudaMemcpyAsync(seqBatchesDevice_[0].window_offsets(), seqBatchHost.window_offsets(),
+                        seqBatchHost.num_targets()*sizeof(window_id),
+                        cudaMemcpyHostToDevice, stream);
+        cudaMemcpyAsync(seqBatchesDevice_[0].encode_offsets(), seqBatchHost.encode_offsets(),
+                        (seqBatchHost.num_targets()+1)*sizeof(encodinglen_t),
+                        cudaMemcpyHostToDevice, stream);
+        cudaMemcpyAsync(seqBatchesDevice_[0].encoded_seq(), seqBatchHost.encoded_seq(),
+                        seqBatchHost.encode_offsets()[seqBatchHost.num_targets()]*sizeof(encodedseq_t),
+                        cudaMemcpyHostToDevice, stream);
+        cudaMemcpyAsync(seqBatchesDevice_[0].encoded_ambig(), seqBatchHost.encoded_ambig(),
+                        seqBatchHost.encode_offsets()[seqBatchHost.num_targets()]*sizeof(encodedambig_t),
+                        cudaMemcpyHostToDevice, stream);
+
+        //initialize counter
+        cudaMemsetAsync(featureBatch_.featureCounter_, 0, sizeof(uint64_t), stream);
         // cudaStreamSynchronize(stream);
         // CUERR
 
+        // max 32*4 features => max window size is 128
         #define BLOCK_THREADS 32
+        #define ITEMS_PER_THREAD 4
 
-        extract_features<BLOCK_THREADS,4><<<1,BLOCK_THREADS,0,stream>>>(
-            seqBatch_.targetIds,
-            seqBatch_.windowOffsets,
-            seqBatch_.encodeOffsets,
-            seqBatch_.encodedSeq,
-            seqBatch_.encodedAmbig,
+        extract_features<BLOCK_THREADS,ITEMS_PER_THREAD><<<1,BLOCK_THREADS,0,stream>>>(
+            //todo num targets
+            seqBatchesDevice_[0].target_ids(),
+            seqBatchesDevice_[0].window_offsets(),
+            seqBatchesDevice_[0].encode_offsets(),
+            seqBatchesDevice_[0].encoded_seq(),
+            seqBatchesDevice_[0].encoded_ambig(),
             kmerLength_, sketchSize_, windowStride_, windowSize_,
-            seqBatch_.features,
-            seqBatch_.values,
-            seqBatch_.featureCounter);
+            featureBatch_.features_,
+            featureBatch_.values_,
+            featureBatch_.featureCounter_);
         // cudaStreamSynchronize(stream);
         // CUERR
 
         uint64_t h_featureCounter = 0;
-        cudaMemcpyAsync(&h_featureCounter, seqBatch_.featureCounter,
+        cudaMemcpyAsync(&h_featureCounter, featureBatch_.featureCounter_,
                    sizeof(uint64_t), cudaMemcpyDeviceToHost, stream);
         // cudaStreamSynchronize(stream);
         // std::cout << "Counter: " << h_featureCounter << '\n';
@@ -118,9 +161,9 @@ namespace mc {
         // cudaMallocHost(&h_features, numFeatures*sizeof(Key));
         std::vector<Key> h_features(h_featureCounter);
         std::vector<ValueT> h_values(h_featureCounter);
-        cudaMemcpyAsync(h_features.data(), seqBatch_.features,
+        cudaMemcpyAsync(h_features.data(), featureBatch_.features_,
                    h_featureCounter*sizeof(Key), cudaMemcpyDeviceToHost, stream);
-        cudaMemcpyAsync(h_values.data(), seqBatch_.values,
+        cudaMemcpyAsync(h_values.data(), featureBatch_.values_,
                    h_featureCounter*sizeof(ValueT), cudaMemcpyDeviceToHost, stream);
         // cudaStreamSynchronize(stream);
         // CUERR

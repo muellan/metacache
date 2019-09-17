@@ -1083,27 +1083,30 @@ private:
 
         if(seqLength < targetSketcher_.kmer_size()) return std::vector<kmer_type>{};
 
-        const auto lettersPerBlock = sizeof(encodedseq_t)*CHAR_BIT;
-        const auto encodedSeqLength =
-            (seqLength + lettersPerBlock - 1) / lettersPerBlock;
-        // const window_id numWindows =
-        //     (seqLength-targetSketcher_.kmer_size() + targetSketcher_.window_stride())
-        //     / targetSketcher_.window_stride();
+        const window_id numWindows =
+            (seqLength-targetSketcher_.kmer_size() + targetSketcher_.window_stride())
+            / targetSketcher_.window_stride();
 
-        //todo: use pinned mem for encoded sequence and ambig
-        std::vector<encodedseq_t> encodedSeq{};
-        encodedSeq.reserve(encodedSeqLength);
-        std::vector<encodedambig_t> encodedAmbig{};
-        encodedAmbig.reserve(encodedSeqLength);
+        //print target infos
+        const size_t numFeatures = numWindows * targetSketcher_.sketch_size();
+        std::cout << "Target ID: " << tgt
+                  << " Length: " << seqLength
+                  << " Windows: " << numWindows
+                  << " Features: " << numFeatures
+                  << '\n';
 
-        for_each_consecutive_substring_2bit<encodedseq_t>(seq,
-            [&, this] (encodedseq_t substring, encodedambig_t ambig) {
-                encodedSeq.emplace_back(substring);
-                encodedAmbig.emplace_back(ambig);
-            });
+        //create batch of targets
+        sequence_batch<policy::Host> seqBatch(MAX_TARGET_PER_BATCH, MAX_ENCODE_LENGTH_PER_BATCH);
+        auto seqRemain = seqBatch.add_target(begin(seq), end(seq), tgt, 0);
+        if(seqRemain == end(seq))
+            std::cout << "sequence done\n";
+        else {
+            std::cout << "sequence not done\n";
+            //todo do something
+            // std::cout << distance(seqRemain, end(seq)) << std::endl;
+        }
 
-        std::vector<kmer_type> features = features_gpu_.insert(
-            tgt, encodedSeq, encodedAmbig);
+        std::vector<kmer_type> features = features_gpu_.insert(seqBatch);
 
         // return numWindows;
         return features;

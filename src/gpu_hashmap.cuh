@@ -8,6 +8,157 @@
 
 namespace mc {
 
+enum class policy {Host, Device};
+
+template<policy P = policy::Host>
+class sequence_batch
+ {
+public:
+    //---------------------------------------------------------------
+    sequence_batch(size_t maxTargets = 0, size_t maxEncodeLength = 0);
+    //-----------------------------------------------------
+    sequence_batch(const sequence_batch&) = delete;
+    //-----------------------------------------------------
+    sequence_batch(sequence_batch&& other) {
+        maxTargets_      = other.max_targets();
+        other.max_targets(0);
+        maxEncodeLength_ = other.max_encode_length();
+        other.max_encode_length(0);
+        numTargets_      = other.num_targets();
+        other.num_targets(0);
+
+        targetIds_     = other.target_ids();
+        windowOffsets_ = other.window_offsets();
+        encodeOffsets_ = other.encode_offsets();
+        encodedSeq_    = other.encoded_seq();
+        encodedAmbig_  = other.encoded_ambig();
+    };
+
+    //---------------------------------------------------------------
+    ~sequence_batch();
+
+    //---------------------------------------------------------------
+    size_t max_targets() const noexcept {
+        return maxTargets_;
+    }
+    //-----------------------------------------------------
+    void max_targets(size_t n) noexcept {
+        maxTargets_ = n;
+    }
+    //---------------------------------------------------------------
+    size_t max_encode_length() const noexcept {
+        return maxEncodeLength_;
+    }
+    //-----------------------------------------------------
+    void max_encode_length(size_t n) noexcept {
+        maxEncodeLength_ = n;
+    }
+    //---------------------------------------------------------------
+    size_t num_targets() const noexcept {
+        return numTargets_;
+    }
+    //-----------------------------------------------------
+    void num_targets(size_t n) noexcept {
+        if(n > max_targets()) n = max_targets();
+        numTargets_ = n;
+    }
+    //---------------------------------------------------------------
+    target_id * target_ids() const noexcept {
+        return targetIds_;
+    }
+    //---------------------------------------------------------------
+    window_id * window_offsets() const noexcept {
+        return windowOffsets_;
+    }
+    //---------------------------------------------------------------
+    encodinglen_t * encode_offsets() const noexcept {
+        return encodeOffsets_;
+    }
+    //---------------------------------------------------------------
+    encodedseq_t * encoded_seq() const noexcept {
+        return encodedSeq_;
+    }
+    //---------------------------------------------------------------
+    encodedambig_t * encoded_ambig() const noexcept {
+        return encodedAmbig_;
+    }
+
+    //---------------------------------------------------------------
+    template<class InputIterator, policy U = P, std::enable_if_t<U==policy::Host, int> = 0>
+    InputIterator
+    add_target(
+        InputIterator first, InputIterator last,
+        target_id tgt, window_id win
+    ) {
+        using std::distance;
+
+        //todo check if (sub) sequences longer than kmer size
+
+        if(numTargets_ < maxTargets_) {
+            targetIds_[numTargets_] = tgt;
+            windowOffsets_[numTargets_] = win;
+            encodeOffsets_[numTargets_+1] = encodeOffsets_[numTargets_];
+
+            constexpr auto lettersPerBlock = sizeof(encodedseq_t)*CHAR_BIT;
+            const auto availableBlocks = (maxEncodeLength_ - encodeOffsets_[numTargets_]);
+            const size_t availableLength = availableBlocks * lettersPerBlock;
+            const size_t seqLength = distance(first, last);
+
+            InputIterator end = (seqLength <= availableLength) ?
+                                last :
+                                first + availableLength;
+
+            for_each_consecutive_substring_2bit<encodedseq_t>(first, end,
+                [&, this] (encodedseq_t substring, encodedambig_t ambig) {
+                    encodedSeq_[encodeOffsets_[numTargets_+1]] = substring;
+                    encodedAmbig_[encodeOffsets_[numTargets_+1]] = ambig;
+                    ++encodeOffsets_[numTargets_+1];
+                });
+
+            ++numTargets_;
+            return end;
+        }
+        else {
+            return first;
+        }
+    }
+
+    // template<class InputRange, policy U = P, std::enable_if_t<U==policy::Host, int> = 0>
+    // typename InputRange::const_iterator
+    // add_target(
+    //     InputRange input,
+    //     target_id tgt, window_id win
+    // ) {
+    //     using std::begin;
+    //     using std::end;
+    //     return add_target(begin(input), end(input), tgt, win);
+    // }
+
+private:
+    size_t maxTargets_;
+    size_t maxEncodeLength_;
+    size_t numTargets_;
+
+    target_id      * targetIds_;
+    window_id      * windowOffsets_;
+    encodinglen_t  * encodeOffsets_;
+    encodedseq_t   * encodedSeq_;
+    encodedambig_t * encodedAmbig_;
+};
+
+template<>
+sequence_batch<policy::Host>::sequence_batch(size_t maxTargets, size_t maxEncodeLength);
+
+template<>
+sequence_batch<policy::Host>::~sequence_batch();
+
+template<>
+sequence_batch<policy::Device>::sequence_batch(size_t maxTargets, size_t maxEncodeLength);
+
+template<>
+sequence_batch<policy::Device>::~sequence_batch();
+
+
 /*************************************************************************//**
  *
  * @brief   (integer) key -> value hashed multimap
@@ -53,24 +204,22 @@ public:
         return std::numeric_limits<bucket_size_type>::max();
     }
 
+private:
     //-----------------------------------------------------
-    struct sequence_batch {
-        target_id * targetIds;
-        window_id * windowOffsets;
-        uint32_t * encodeOffsets;
-        encodedseq_t * encodedSeq;
-        encodedambig_t * encodedAmbig;
-        Key * features;
-        ValueT * values;
-        size_t * featureCounter;
-   };
+    struct feature_batch {
+        Key    * features_;
+        ValueT * values_;
+        size_t * featureCounter_;
+    };
 
 public:
     //---------------------------------------------------------------
     gpu_hashmap()
     :
         numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
-        hash_{}, keyEqual_{}
+        hash_{}, keyEqual_{},
+        kmerLength_(16), sketchSize_(16), windowSize_(128), windowStride_(113),
+        seqBatchesDevice_()
     {
         init();
     }
@@ -79,7 +228,9 @@ public:
     gpu_hashmap(const key_equal& keyComp)
     :
         numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
-        hash_{}, keyEqual_{keyComp}
+        hash_{}, keyEqual_{keyComp},
+        kmerLength_(16), sketchSize_(16), windowSize_(128), windowStride_(113),
+        seqBatchesDevice_()
     {
         init();
     }
@@ -90,17 +241,15 @@ public:
         const key_equal& keyComp)
     :
         numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
-        hash_{hash}, keyEqual_{keyComp}
+        hash_{hash}, keyEqual_{keyComp},
+        kmerLength_(16), sketchSize_(16), windowSize_(128), windowStride_(113),
+        seqBatchesDevice_()
     {
         init();
     }
 
 private:
-    void init(
-        numk_t kmerLength = 16,
-        sketch_size_type sketchSize = 16,
-        size_t windowStride = 113,
-        size_t windowSize = 128);
+    void init();
 
 public:
     //---------------------------------------------------------------
@@ -127,10 +276,7 @@ public:
     }
 
     //---------------------------------------------------------------
-    std::vector<Key> insert(
-        target_id tgt,
-        std::vector<encodedseq_t> encodedSeq,
-        std::vector<encodedambig_t> encodedAmbig);
+    std::vector<Key> insert(const sequence_batch<policy::Host>& seqBatchHost);
 
     //---------------------------------------------------------------
     size_type numKeys_;
@@ -140,10 +286,13 @@ public:
     key_equal keyEqual_;
 
     numk_t kmerLength_;
+    sketch_size_type sketchSize_;
     size_t windowSize_;
     size_t windowStride_;
-    sketch_size_type sketchSize_;
-    sequence_batch seqBatch_;
+
+    size_t maxBatchNum_;
+    std::vector<sequence_batch<policy::Device>> seqBatchesDevice_;
+    feature_batch featureBatch_;
 };
 
 
