@@ -94,65 +94,74 @@ public:
     * @brief batch contains features and locations of multiple targets
     *        allocated memory location depends on policy
     *
-    * @return either last if whole sequence was processed
-    *         or iterator to position which has to be processed next
+    * @return number of processed windows
     *
     *****************************************************************************/
     template<class InputIterator, policy U = P, std::enable_if_t<U==policy::Host, int> = 0>
-    InputIterator
+    window_id
     add_target(
         InputIterator first, InputIterator last,
         target_id tgt, window_id win,
-        numk_t kmerSize
+        numk_t kmerSize,
+        size_t windowSize, size_t windowStride
     ) {
         using std::distance;
+
+        window_id processedWindows = 0;
 
         const size_t seqLength = distance(first, last);
 
         // no kmers in sequence, nothing to do here
-        if(seqLength < kmerSize) return last;
+        if(seqLength < kmerSize) return processedWindows;
 
-        //check if batch has space left
-        if((numTargets_ < maxTargets_) && (encodeOffsets_[numTargets_] < maxEncodeLength_)) {
-            targetIds_[numTargets_] = tgt;
-            windowOffsets_[numTargets_] = win;
-            encodeOffsets_[numTargets_+1] = encodeOffsets_[numTargets_];
+        // batch full, nothing processed
+        if(numTargets_ == maxTargets_) return processedWindows;
 
-            constexpr auto lettersPerBlock = sizeof(encodedseq_t)*CHAR_BIT;
-            const auto availableBlocks = (maxEncodeLength_ - encodeOffsets_[numTargets_]);
-            const size_t availableLength = availableBlocks * lettersPerBlock;
+        const auto availableBlocks = (maxEncodeLength_ - encodeOffsets_[numTargets_]);
+        // batch full, nothing processed
+        if(!availableBlocks) return processedWindows;
 
-            InputIterator end = (seqLength <= availableLength) ?
-                                last :
-                                first + availableLength;
+        constexpr auto lettersPerBlock = sizeof(encodedambig_t)*CHAR_BIT;
+        const size_t availableLength = availableBlocks * lettersPerBlock;
 
-            for_each_consecutive_substring_2bit<encodedseq_t>(first, end,
-                [&, this] (encodedseq_t substring, encodedambig_t ambig) {
-                    encodedSeq_[encodeOffsets_[numTargets_+1]] = substring;
-                    encodedAmbig_[encodeOffsets_[numTargets_+1]] = ambig;
-                    ++(encodeOffsets_[numTargets_+1]);
-                });
+        InputIterator end = last;
+        if(seqLength > availableLength) {
+            //sequence does not fit into batch as a whole
+            //so need to process a whole window
 
-            ++numTargets_;
+            const window_id availableWindows = availableLength < windowSize ? 0 :
+                (availableLength - windowSize) / windowStride + 1;
+            // batch full, nothing processed
+            if(!availableWindows) return processedWindows;
 
-            return (end == last) ? end : end - kmerSize + 1;
+            const size_t providedLength = windowSize + (availableWindows-1) * windowStride;
+
+            //split sequence into [first,end] and [next,last] with overlap
+            end = first + providedLength;
+            processedWindows += availableWindows;
         }
         else {
-            // batch full, nothing was processed
-            return first;
+            const window_id numWindows =
+                (seqLength - kmerSize + windowStride) / windowStride;
+            processedWindows += numWindows;
         }
-    }
 
-    // template<class InputRange, policy U = P, std::enable_if_t<U==policy::Host, int> = 0>
-    // typename InputRange::const_iterator
-    // add_target(
-    //     InputRange input,
-    //     target_id tgt, window_id win
-    // ) {
-    //     using std::begin;
-    //     using std::end;
-    //     return add_target(begin(input), end(input), tgt, win);
-    // }
+        // insert sequence into batch
+        targetIds_[numTargets_] = tgt;
+        windowOffsets_[numTargets_] = win;
+        encodeOffsets_[numTargets_+1] = encodeOffsets_[numTargets_];
+
+        for_each_consecutive_substring_2bit<encodedseq_t>(first, end,
+            [&, this] (encodedseq_t substring, encodedambig_t ambig) {
+                encodedSeq_[encodeOffsets_[numTargets_+1]] = substring;
+                encodedAmbig_[encodeOffsets_[numTargets_+1]] = ambig;
+                ++(encodeOffsets_[numTargets_+1]);
+            });
+
+        ++numTargets_;
+
+        return processedWindows;
+    }
 
 private:
     size_t maxTargets_;
@@ -274,8 +283,10 @@ private:
     class feature_batch
     {
     public:
+        using counter_type = uint32_t;
+
         //---------------------------------------------------------------
-        feature_batch(size_t maxFeatures = 0);
+        feature_batch(counter_type maxFeatures = 0);
         //-----------------------------------------------------
         feature_batch(const feature_batch&) = delete;
         //-----------------------------------------------------
@@ -292,11 +303,11 @@ private:
         ~feature_batch();
 
         //---------------------------------------------------------------
-        size_t max_features() const noexcept {
+        counter_type max_features() const noexcept {
             return maxFeatures_;
         }
         //-----------------------------------------------------
-        void max_features(size_t n) noexcept {
+        void max_features(counter_type n) noexcept {
             maxFeatures_ = n;
         }
         //---------------------------------------------------------------
@@ -308,16 +319,16 @@ private:
             return values_;
         }
         //---------------------------------------------------------------
-        size_t * feature_counter() const noexcept {
+        counter_type * feature_counter() const noexcept {
             return featureCounter_;
         }
 
     private:
-        size_t maxFeatures_;
+        counter_type maxFeatures_;
 
-        key_type   * features_;
-        value_type * values_;
-        size_t     * featureCounter_;
+        key_type     * features_;
+        value_type   * values_;
+        counter_type * featureCounter_;
     };
 
 public:

@@ -108,18 +108,18 @@ template<
 __global__
 void extract_features(
     size_t numTargets,
-    target_id * targetIds,
-    window_id * winOffsets,
-    encodinglen_t * encodeOffsets,
-    encodedseq_t * encodedSeq,
-    encodedambig_t * encodedAmbig,
+    target_id * const targetIds,
+    window_id * const winOffsets,
+    encodinglen_t * const encodeOffsets,
+    encodedseq_t * const encodedSeq,
+    encodedambig_t * const encodedAmbig,
     numk_t k,
     uint32_t sketchSize,
-    size_t windowStride,
     size_t windowSize,
-    kmer_type* features_out,
-    location* locations_out,
-    uint64_t* size_out)
+    size_t windowStride,
+    kmer_type * features_out,
+    location * locations_out,
+    uint32_t * size_out)
 {
     for(size_t tgt = blockIdx.y; tgt < numTargets; tgt += gridDim.y) {
         const encodinglen_t encodingLength = encodeOffsets[tgt+1] - encodeOffsets[tgt];
@@ -162,12 +162,16 @@ void extract_features(
                 const std::uint8_t   kmer_slot   = tid & (ambigBits-1);
                 const encodedambig_t ambig_left  = ambig[seq_slot] << kmer_slot;
                 const encodedambig_t ambig_right = ambig[seq_slot+1] >> (ambigBits-kmer_slot);
+                // cuda-memcheck save version
+                // const encodedambig_t ambig_right = kmer_slot ? ambig[seq_slot+1] >> (ambigBits-kmer_slot) : 0;
 
                 //continue only if no bases ambiguous
                 if(!((ambig_left+ambig_right) & ambigMask))
                 {
                     const encodedseq_t seq_left  = seq[seq_slot] << (2*kmer_slot);
                     const encodedseq_t seq_right = seq[seq_slot+1] >> (encBits-(2*kmer_slot));
+                    // cuda-memcheck save version
+                    // const encodedseq_t seq_right = kmer_slot ? seq[seq_slot+1] >> (encBits-(2*kmer_slot)) : 0;
 
                     //get highest bits
                     kmer_type kmer = (seq_left+seq_right) & kmerMask;
@@ -192,7 +196,7 @@ void extract_features(
             {
                 //load candidate and successor
                 const kmer_type kmer = items[i];
-                kmer_type nextKmer = threadIdx.x ? items[i] : items[i+1];
+                kmer_type nextKmer = threadIdx.x ? items[i] : items[(i+1) % ITEMS_PER_THREAD];
                 nextKmer = __shfl_sync(0xFFFFFFFF, nextKmer, threadIdx.x+1);
 
                 //find valid candidates

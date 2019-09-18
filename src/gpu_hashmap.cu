@@ -81,13 +81,13 @@ template<
     class KeyEqual,
     class BucketSizeT
 >
-gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::feature_batch::feature_batch(size_t maxFeatures) :
+gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::feature_batch::feature_batch(feature_batch::counter_type maxFeatures) :
     maxFeatures_{maxFeatures}
 {
     if(maxFeatures_) {
         cudaMalloc(&features_, maxFeatures_*sizeof(Key));
         cudaMalloc(&values_, maxFeatures_*sizeof(ValueT));
-        cudaMalloc(&featureCounter_, sizeof(size_t));
+        cudaMalloc(&featureCounter_, sizeof(feature_batch::counter_type));
     }
     CUERR
 }
@@ -120,13 +120,22 @@ template<
 void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::init()
 {
     cudaSetDevice(0);
-    size_t maxSeqLength = MAX_ENCODE_LENGTH_PER_BATCH*sizeof(encodedambig_t)*CHAR_BIT;
-    size_t maxWindows = (maxSeqLength-kmerLength_ + windowStride_) / windowStride_;
-    size_t maxFeatures = maxWindows * sketchSize_;
+
+    //FIXME unsafe
+    //possible fix: limit number of windows in sequence batch
+    //shortest possible window size to create full sketch can be encoded in 2 blocks
+    // const size_t winLen = 2;
+    //average should be bigger than this
+    const size_t winLen = 5;
+
+    const size_t maxWindows = MAX_ENCODE_LENGTH_PER_BATCH / winLen;
+    const size_t maxFeatures = maxWindows * sketchSize_;
+
+    std::cout << "max features: " << maxFeatures << '\n';
 
     seqBatches_.emplace_back(MAX_TARGETS_PER_BATCH, MAX_ENCODE_LENGTH_PER_BATCH);
 
-    featureBatches_.emplace_back(feature_batch(maxFeatures));
+    featureBatches_.emplace_back(maxFeatures);
 }
 
 
@@ -141,6 +150,8 @@ template<
 std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
     const sequence_batch<policy::Host>& seqBatchHost
 ) {
+    using counter_type = typename feature_batch::counter_type;
+
     cudaStream_t stream = 0;
 
     seqBatches_[0].num_targets(seqBatchHost.num_targets());
@@ -163,7 +174,7 @@ std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
                     cudaMemcpyHostToDevice, stream);
 
     //initialize counter
-    cudaMemsetAsync(featureBatches_[0].feature_counter(), 0, sizeof(uint64_t), stream);
+    cudaMemsetAsync(featureBatches_[0].feature_counter(), 0, sizeof(counter_type), stream);
     // cudaStreamSynchronize(stream);
     // CUERR
 
@@ -178,20 +189,21 @@ std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
         seqBatches_[0].encode_offsets(),
         seqBatches_[0].encoded_seq(),
         seqBatches_[0].encoded_ambig(),
-        kmerLength_, sketchSize_, windowStride_, windowSize_,
+        kmerLength_, sketchSize_, windowSize_, windowStride_,
         featureBatches_[0].features(),
         featureBatches_[0].values(),
         featureBatches_[0].feature_counter());
-    //neccessary sync to get featuer counter
-    //TODO remove later
+    //TODO remove later ------------------------------------------------------------
+    //neccessary sync to get feature counter
     cudaStreamSynchronize(stream);
     CUERR
 
-    uint64_t h_featureCounter = 0;
+    counter_type h_featureCounter = 0;
     cudaMemcpyAsync(&h_featureCounter, featureBatches_[0].feature_counter(),
-                sizeof(uint64_t), cudaMemcpyDeviceToHost, stream);
-    // cudaStreamSynchronize(stream);
-    // std::cout << "Counter: " << h_featureCounter << '\n';
+                sizeof(counter_type), cudaMemcpyDeviceToHost, stream);
+    //neccessary sync to get feature counter
+    cudaStreamSynchronize(stream);
+    std::cout << "Counter: " << h_featureCounter << '\n';
 
     // kmer_type * h_features;
     // cudaMallocHost(&h_features, numFeatures*sizeof(Key));
@@ -221,6 +233,7 @@ std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
 
     cudaStreamSynchronize(stream);
     CUERR
+    //TODO remove later ------------------------------------------------------------
 
     return h_features;
 }

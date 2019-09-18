@@ -1070,17 +1070,24 @@ public:
         }
         else {
             std::cout << "results are different:\n";
-            std::cout << "CPU:\n";
             for(size_t i=0; i<features.size(); ++i) {
-                std:: cout << features[i] << ' ';
-                if((i+1) % target_sketcher().sketch_size() == 0)
-                    std::cout << '\n';
-            }
-            std::cout << "\nGPU:\n";
-            for(size_t i=0; i<features_gpu.size(); ++i) {
-                std:: cout << features_gpu[i] << ' ';
-                if((i+1) % target_sketcher().sketch_size() == 0)
-                    std::cout << '\n';
+                std::cout << "CPU: ";
+                for(size_t j=i; j<features.size(); ++j) {
+                    std:: cout << features[j] << ' ';
+                    if(j+1<features.size() && features[j] > features[j+1]) {
+                        std::cout << '\n';
+                        break;
+                    }
+                }
+                std::cout << "GPU: ";
+                for(; i<features_gpu.size(); ++i) {
+                    std:: cout << features_gpu[i] << ' ';
+                    if(i+1<features_gpu.size() && features_gpu[i] > features_gpu[i+1]) {
+                        std::cout << '\n';
+                        break;
+                    }
+                }
+                std::cout << '\n';
             }
         }
         std::cout << std::endl;
@@ -1099,13 +1106,18 @@ private:
     window_id add_all_window_sketches_gpu(
         sequence::const_iterator first,
         sequence::const_iterator last,
-        target_id tgt)
+        target_id tgt,
+        window_id win = 0)
     {
         using std::distance;
 
         const auto seqLength = distance(first, last);
 
-        if(seqLength < targetSketcher_.kmer_size()) return 0;
+        //no windows left in sequence
+        if(seqLength < targetSketcher_.kmer_size()) {
+            std::cout << "sequence done\n";
+            return 0;
+        }
 
         const window_id numWindows =
             (seqLength-targetSketcher_.kmer_size() + targetSketcher_.window_stride())
@@ -1119,9 +1131,12 @@ private:
                   << " Features: " << numFeatures
                   << '\n';
 
-        //create batch of targets
-        auto seqRemain = seqBatches_[0].add_target(
-            first, last, tgt, 0, targetSketcher_.kmer_size());
+        //fill sequence batch
+        auto processedWindows = seqBatches_[0].add_target(
+            first, last, tgt, win,
+            targetSketcher_.kmer_size(),
+            targetSketcher_.window_size(),
+            targetSketcher_.window_stride());
 
         std::cout << "num targets: " << seqBatches_[0].num_targets()
                   << " target id: " << seqBatches_[0].target_ids()[seqBatches_[0].num_targets()-1]
@@ -1129,22 +1144,21 @@ private:
                   << " encode len: " << seqBatches_[0].encode_offsets()[seqBatches_[0].num_targets()]
                   << '\n';
 
-        if(seqRemain == last) {
-            std::cout << "sequence done\n";
-            return numWindows;
-        }
-        else {
-            std::cout << "sequence not done\n";
+        // if no windows were processed batch must be full
+        if(!processedWindows) {
             //insert batch
             std::vector<kmer_type> new_features_gpu = featureStoreGPU_.insert(seqBatches_[0]);
             //reset batch
             seqBatches_[0].num_targets(0);
             //store results for error checking
             features_gpu.insert(features_gpu.end(), new_features_gpu.begin(), new_features_gpu.end());
-
-            //resume with remaining sequence
-            return numWindows + add_all_window_sketches_gpu(seqRemain, last, tgt);
         }
+
+        //resume with remaining sequence
+        return processedWindows +
+               add_all_window_sketches_gpu(
+                   first+processedWindows*targetSketcher_.window_stride(), last,
+                   tgt, win+processedWindows);
     }
 
 
