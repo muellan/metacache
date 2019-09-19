@@ -333,7 +333,8 @@ public:
         taxa_{},
         ranksCache_{taxa_, taxon_rank::Sequence},
         name2tax_{},
-        batch_{}
+        batch_{},
+        batchCounter_{0}
     {
         features_.max_load_factor(default_max_load_factor());
     }
@@ -1007,9 +1008,12 @@ public:
     void insert_sketches(sketch_queue& queue, std::atomic_bool& done) {
 
         sketch_batch batch;
+        size_t counter = 0;
 
-        while(!done.load()) {
+        while(!done.load() || queue.peek()) {
             if (queue.wait_dequeue_timed(batch, std::chrono::seconds(1))) {
+                std::cout << "batch " << counter++ << " dequeued\n";
+
                 for(const auto& windowSketch : batch) {
                     //insert features from sketch into database
                     for(const auto& f : windowSketch.sk) {
@@ -1024,6 +1028,14 @@ public:
         }
     }
 
+    //---------------------------------------------------------------
+    void enqueue_batch(sketch_queue& queue) {
+        while(!queue.try_enqueue(batch_))
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+
+        std::cout << "batch " << batchCounter_++ << " enqueued\n";
+    }
+
 
 private:
     //---------------------------------------------------------------
@@ -1035,13 +1047,11 @@ private:
         targetSketcher_.for_each_sketch(seq,
             [&, this] (auto sk) {
                 //insert sketch into batch
-                if(batch_.size() < 100) {
+                if(batch_.size() < 1000) {
                     batch_.emplace_back(tgt, win, std::move(sk));
                 }
                 else {
-                    while(!queue.try_enqueue(batch_))
-                        std::this_thread::sleep_for(std::chrono::seconds(1));
-
+                    enqueue_batch(queue);
                     batch_.clear();
                 }
                 ++win;
@@ -1062,6 +1072,7 @@ private:
     std::map<taxon_name,const taxon*> name2tax_;
 
     sketch_batch batch_;
+    size_t batchCounter_;
 };
 
 

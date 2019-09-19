@@ -408,6 +408,7 @@ void add_targets_to_database(database& db,
                     }
                 }
             }
+
             if(infoLvl == info_level::verbose) {
                 cout << "done." << endl;
             }
@@ -430,8 +431,25 @@ void add_targets_to_database(database& db,
         ++i;
     }
 
-    sketchingDone.store(1);
-    inserter.join();
+    try {
+        //last batch
+        db.enqueue_batch(queue);
+        sketchingDone.store(1);
+        inserter.join();
+    }
+    catch(database::target_limit_exceeded_error&) {
+        cout << endl;
+        cerr << "Reached maximum number of targets per database ("
+                << db.max_target_count() << ").\n"
+                << "See 'README.md' on how to compile MetaCache with "
+                << "support for databases with more reference targets.\n"
+                << endl;
+    }
+    catch(std::exception& e) {
+        if(infoLvl == info_level::verbose) {
+            cout << "FAIL: " << e.what() << endl;
+        }
+    }
 }
 
 
