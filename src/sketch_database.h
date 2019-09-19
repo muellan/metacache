@@ -1009,7 +1009,7 @@ public:
         sketch_batch batch;
 
         while(!done.load() || queue.peek()) {
-            if (queue.wait_dequeue_timed(batch, std::chrono::seconds(1))) {
+            if (queue.wait_dequeue_timed(batch, std::chrono::milliseconds(10))) {
                 for(const auto& windowSketch : batch) {
                     //insert features from sketch into database
                     for(const auto& f : windowSketch.sk) {
@@ -1027,7 +1027,7 @@ public:
     //---------------------------------------------------------------
     void enqueue_batch(sketch_queue& queue) {
         while(!queue.try_enqueue(batch_)) {
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     }
 
@@ -1045,7 +1045,7 @@ private:
                 batch_.emplace_back(tgt, win, std::move(sk));
 
                 //enqueue full batch and reset
-                if(batch_.size() == 1000) {
+                if(batch_.size() == 10000) {
                     enqueue_batch(queue);
                     batch_.clear();
                 }
