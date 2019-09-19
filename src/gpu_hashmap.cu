@@ -182,7 +182,9 @@ std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
     #define BLOCK_THREADS 32
     #define ITEMS_PER_THREAD 4
 
-    extract_features<BLOCK_THREADS,ITEMS_PER_THREAD><<<1,BLOCK_THREADS,0,stream>>>(
+    //TODO increase grid in x and y dim
+    constexpr dim3 numBlocks{1,1};
+    extract_features<BLOCK_THREADS,ITEMS_PER_THREAD><<<numBlocks,BLOCK_THREADS,0,stream>>>(
         seqBatches_[0].num_targets(),
         seqBatches_[0].target_ids(),
         seqBatches_[0].window_offsets(),
@@ -203,7 +205,7 @@ std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
                 sizeof(counter_type), cudaMemcpyDeviceToHost, stream);
     //neccessary sync to get feature counter
     cudaStreamSynchronize(stream);
-    std::cout << "Counter: " << h_featureCounter << '\n';
+    std::cout << "Counter: " << h_featureCounter << std::endl;
 
     // kmer_type * h_features;
     // cudaMallocHost(&h_features, numFeatures*sizeof(Key));
@@ -213,8 +215,8 @@ std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
                 h_featureCounter*sizeof(Key), cudaMemcpyDeviceToHost, stream);
     cudaMemcpyAsync(h_values.data(), featureBatches_[0].values(),
                 h_featureCounter*sizeof(ValueT), cudaMemcpyDeviceToHost, stream);
-    // cudaStreamSynchronize(stream);
-    // CUERR
+    cudaStreamSynchronize(stream);
+    CUERR
 
     //print features
     // for(size_t i=0; i<h_featureCounter; ++i) {
@@ -229,10 +231,8 @@ std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
     //     if((i+1) % sketchSize_ == 0)
     //         std::cout << '\n';
     // }
-    std::cout << std::endl;
+    // std::cout << std::endl;
 
-    cudaStreamSynchronize(stream);
-    CUERR
     //TODO remove later ------------------------------------------------------------
 
     return h_features;

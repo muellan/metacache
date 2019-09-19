@@ -1035,7 +1035,6 @@ public:
         }
     }
 
-
     //---------------------------------------------------------------
     void wait_until_add_target_complete() {
         enqueue_insertion_of_sketch_batch();
@@ -1058,39 +1057,46 @@ public:
     }
 
 
-    void flush_batches() {
-        std::vector<kmer_type> new_features_gpu = featureStoreGPU_.insert(seqBatches_[0]);
-        seqBatches_[0].num_targets(0);
-        features_gpu.insert(features_gpu.end(), new_features_gpu.begin(), new_features_gpu.end());
-
+    void compare_features() {
         //compare results
-        auto result = std::equal(features.begin(), features.end(), features_gpu.begin());
+        auto result = std::equal(features_gpu.begin(), features_gpu.end(), features.begin());
+
+        // features.push_back(0);
+        features_gpu.push_back(0);
+
         if(result) {
             std::cout << "results are equal\n";
         }
         else {
             std::cout << "results are different:\n";
-            for(size_t i=0; i<features.size(); ++i) {
+            for(size_t i=0; i+1<features_gpu.size(); ++i) {
                 std::cout << "CPU: ";
-                for(size_t j=i; j<features.size(); ++j) {
+                for(size_t j=i; j+1<features.size() && features[j] <= features[j+1]; ++j) {
                     std:: cout << features[j] << ' ';
-                    if(j+1<features.size() && features[j] > features[j+1]) {
-                        std::cout << '\n';
-                        break;
-                    }
-                }
-                std::cout << "GPU: ";
-                for(; i<features_gpu.size(); ++i) {
-                    std:: cout << features_gpu[i] << ' ';
-                    if(i+1<features_gpu.size() && features_gpu[i] > features_gpu[i+1]) {
-                        std::cout << '\n';
-                        break;
-                    }
                 }
                 std::cout << '\n';
+                std::cout << "GPU: ";
+                for(; i+1<features_gpu.size() && features_gpu[i] <= features_gpu[i+1]; ++i) {
+                    std:: cout << features_gpu[i] << ' ';
+                }
+                std::cout << '\n';
+                std::cout << '\n';
             }
+            throw std::runtime_error{"results are different!"};
         }
         std::cout << std::endl;
+
+        features.erase(features.begin(), features.begin()+(features_gpu.size()-1));
+        features_gpu.clear();
+    }
+
+    //---------------------------------------------------------------
+    void flush_batches() {
+        std::vector<kmer_type> new_features_gpu = featureStoreGPU_.insert(seqBatches_[0]);
+        seqBatches_[0].num_targets(0);
+        features_gpu.insert(features_gpu.end(), new_features_gpu.begin(), new_features_gpu.end());
+
+        compare_features();
     }
 
 private:
@@ -1152,6 +1158,8 @@ private:
             seqBatches_[0].num_targets(0);
             //store results for error checking
             features_gpu.insert(features_gpu.end(), new_features_gpu.begin(), new_features_gpu.end());
+
+            compare_features();
         }
 
         //resume with remaining sequence
@@ -1170,7 +1178,6 @@ private:
         std::cout << "Target ID: " << tgt << '\n';
 
         window_id win = 0;
-        std::vector<kmer_type> new_features{};
 
         std::cout << "Target ID: " << tgt << '\n';
 
@@ -1184,12 +1191,11 @@ private:
                 //     this->enqueue_insertion_of_sketch_batch();
                 //     batch_.clear();
                 // }
-                new_features.insert(new_features.end(), sk.begin(), sk.end());
+
+                features.insert(features.end(), sk.begin(), sk.end());
 
                 ++win;
             });
-
-        features.insert(features.end(), new_features.begin(), new_features.end());
 
         return win;
     }
