@@ -245,6 +245,9 @@ $(DBG_DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.h
 $(DBG_DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.h
 	$(DBG_COMPILE)
 
+$(DBG_DIR)/gpu_hashmap.o : src/gpu_hashmap.cu $(HEADERS)
+	$(DBG_COMPILE_NP)
+
 
 #--------------------------------------------------------------------
 # profile (out-of-place build)
@@ -302,3 +305,6 @@ $(PRF_DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.h
 
 $(PRF_DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.h
 	$(PRF_COMPILE)
+
+$(PRF_DIR)/gpu_hashmap.o : src/gpu_hashmap.cu $(HEADERS)
+	$(PRF_COMPILE_NP)
