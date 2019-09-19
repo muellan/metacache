@@ -38,6 +38,9 @@
 #include <limits>
 #include <memory>
 
+#include <thread>
+#include <chrono>
+
 #include "version.h"
 #include "io_error.h"
 #include "io_options.h"
@@ -46,6 +49,8 @@
 #include "hash_multimap.h"
 #include "dna_encoding.h"
 #include "typename.h"
+
+#include "queue/readerwriterqueue.h"
 
 
 namespace mc {
@@ -197,6 +202,23 @@ public:
 
 
 private:
+    struct window_sketch {
+
+        window_sketch() = default;
+        window_sketch(target_id tgt, window_id win, sketch sk) :
+            tgt{tgt}, win{win}, sk{std::move(sk)} {};
+
+        target_id tgt;
+        window_id win;
+        sketch sk;
+    };
+public:
+    using sketch_batch = std::vector<window_sketch>;
+
+    using sketch_queue = moodycamel::BlockingReaderWriterQueue<sketch_batch>;
+
+
+private:
     //-----------------------------------------------------
     //"heart of the database": maps features to target locations
     using feature_store = hash_multimap<feature,target_location, //key, value
@@ -310,7 +332,8 @@ public:
         targets_{},
         taxa_{},
         ranksCache_{taxa_, taxon_rank::Sequence},
-        name2tax_{}
+        name2tax_{},
+        batch_{}
     {
         features_.max_load_factor(default_max_load_factor());
     }
@@ -450,7 +473,8 @@ public:
 
 
     //---------------------------------------------------------------
-    bool add_target(const sequence& seq, taxon_name sid,
+    bool add_target(sketch_queue& queue,
+                    const sequence& seq, taxon_name sid,
                     taxon_id parentTaxid = 0,
                     file_source source = file_source{})
     {
@@ -471,7 +495,7 @@ public:
         const auto taxid = taxon_id_of_target(targetCount);
 
         //sketch sequence -> insert features
-        source.windows = add_all_window_sketches(seq, targetCount);
+        source.windows = add_all_window_sketches(queue, seq, targetCount);
 
         //insert sequence metadata as a new taxon
         if(parentTaxid < 1) parentTaxid = 0;
@@ -978,19 +1002,47 @@ public:
     }
 
 
+public:
+    //---------------------------------------------------------------
+    void insert_sketches(sketch_queue& queue, std::atomic_bool& done) {
+
+        sketch_batch batch;
+
+        while(!done.load()) {
+            if (queue.wait_dequeue_timed(batch, std::chrono::seconds(1))) {
+                for(const auto& windowSketch : batch) {
+                    //insert features from sketch into database
+                    for(const auto& f : windowSketch.sk) {
+                        auto it = features_.insert(
+                            f, target_location{windowSketch.tgt, windowSketch.win});
+                        if(it->size() > maxLocsPerFeature_) {
+                            features_.shrink(it, maxLocsPerFeature_);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
 private:
     //---------------------------------------------------------------
-    window_id add_all_window_sketches(const sequence& seq, target_id tgt)
+    window_id add_all_window_sketches(
+        sketch_queue& queue,
+        const sequence& seq, target_id tgt)
     {
         window_id win = 0;
         targetSketcher_.for_each_sketch(seq,
             [&, this] (auto sk) {
-                //insert features from sketch into database
-                for(const auto& f : sk) {
-                    auto it = features_.insert(f, target_location{tgt, win});
-                    if(it->size() > maxLocsPerFeature_) {
-                        features_.shrink(it, maxLocsPerFeature_);
-                    }
+                //insert sketch into batch
+                if(batch_.size() < 100) {
+                    batch_.emplace_back(tgt, win, std::move(sk));
+                }
+                else {
+                    while(!queue.try_enqueue(batch_))
+                        std::this_thread::sleep_for(std::chrono::seconds(1));
+
+                    batch_.clear();
                 }
                 ++win;
             });
@@ -1008,6 +1060,8 @@ private:
     taxonomy taxa_;
     ranked_lineages_cache ranksCache_;
     std::map<taxon_name,const taxon*> name2tax_;
+
+    sketch_batch batch_;
 };
 
 

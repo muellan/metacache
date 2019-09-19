@@ -30,6 +30,9 @@
 #include <utility>
 #include <vector>
 
+#include <thread>
+#include <chrono>
+
 #include "timer.h"
 #include "args_handling.h"
 #include "args_parser.h"
@@ -40,6 +43,8 @@
 #include "config.h"
 #include "sequence_io.h"
 #include "taxonomy_io.h"
+
+#include "queue/readerwriterqueue.h"
 
 
 namespace mc {
@@ -348,6 +353,13 @@ void add_targets_to_database(database& db,
     int n = infiles.size();
     int i = 0;
 
+    database::sketch_queue queue(10);
+    std::atomic_bool sketchingDone(0);
+
+    std::thread inserter([&]() {
+        db.insert_sketches(queue, sketchingDone);
+    });
+
     //read sequences
     for(const auto& filename : infiles) {
         if(infoLvl == info_level::verbose) {
@@ -387,6 +399,7 @@ void add_targets_to_database(database& db,
 
                     //try to add to database
                     bool added = db.add_target(
+                        queue,
                         sequ.data, seqId, parentTaxId,
                         database::file_source{filename, reader->index()});
 
@@ -416,6 +429,9 @@ void add_targets_to_database(database& db,
 
         ++i;
     }
+
+    sketchingDone.store(1);
+    inserter.join();
 }
 
 
