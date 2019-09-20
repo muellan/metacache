@@ -358,22 +358,24 @@ void add_targets_to_database(database& db,
         }
 
         try {
+            auto fileId = extract_accession_string(filename);
+            taxon_id fileTaxId = find_taxon_id(sequ2taxid, fileId);
+
             auto reader = make_sequence_reader(filename);
             while(reader->has_next()) {
 
                 auto sequ = reader->next();
                 if(!sequ.data.empty()) {
                     auto seqId  = extract_accession_string(sequ.header);
-                    auto fileId = extract_accession_string(filename);
 
                     //make sure sequence id is not empty,
                     //use entire header if neccessary
                     if(seqId.empty()) seqId = sequ.header;
 
-                    taxon_id parentTaxId = find_taxon_id(sequ2taxid, seqId);
+                    taxon_id parentTaxId = fileTaxId;
 
                     if(parentTaxId == taxonomy::none_id())
-                        parentTaxId = find_taxon_id(sequ2taxid, fileId);
+                        parentTaxId = find_taxon_id(sequ2taxid, seqId);
 
                     if(parentTaxId == taxonomy::none_id())
                         parentTaxId = extract_taxon_id(sequ.header);
