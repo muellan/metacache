@@ -21,11 +21,22 @@
 set -u  # Protect against uninitialized vars.
 set -e  # Stop on error
 
-FTPURL="ftp://ftp.ncbi.nih.gov/pub/taxonomy"
+FTPURL_TAXONOMY="ftp://ftp.ncbi.nih.gov/pub/taxonomy"
+FTPURL_REPORTS="ftp://ftp.ncbi.nih.gov/genomes/ASSEMBLY_REPORTS"
+
+function download_mapping {
+  FILE=$1
+
+  if [ ! -e "$FILE" ]; then
+    echo "Downloading $FILE ... "
+    wget $FTPURL_REPORTS/$FILE
+    echo "Download complete."
+  fi
+}
 
 
 if [ $# -lt 1 ]; then
-  echo "Usage: $0 <target directory>"
+  echo "Usage: $0 <target directory> [genbank]"
   exit
 fi
 
@@ -41,7 +52,7 @@ echo "Downloading NCBI taxonomic tree."
 if [ ! -e "nodes.dmp" ] || [ ! -e "names.dmp" ]; then
   if [ ! -e "taxdump.tar.gz" ]; then
     echo "Downloading taxonomic tree ... "
-    wget $FTPURL/taxdump.tar.gz
+    wget $FTPURL_TAXONOMY/taxdump.tar.gz
     echo "Download Complete."
   fi
   echo -n "Unpacking taxonomic tree ... "
@@ -49,5 +60,21 @@ if [ ! -e "nodes.dmp" ] || [ ! -e "names.dmp" ]; then
   rm taxdump.tar.gz
   echo "complete."
 fi
+
+
+echo "Downloading genome to taxid mapping files."
+# default: refseq
+download_mapping assembly_summary_refseq.txt
+download_mapping assembly_summary_refseq_historical.txt
+if [ $# -gt 1 ]; then
+  if [ "$2" = "genbank" ]; then
+    download_mapping assembly_summary_genbank.txt
+    download_mapping assembly_summary_genbank_historical.txt
+  else
+    echo "unknown option $2"
+    exit
+  fi
+fi
+
 
 echo "Taxonomy complete."
