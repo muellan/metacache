@@ -50,7 +50,7 @@
 #include "dna_encoding.h"
 #include "typename.h"
 
-#include "queue/readerwriterqueue.h"
+#include "../dep/queue/readerwriterqueue.h"
 
 
 namespace mc {
