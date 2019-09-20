@@ -333,13 +333,29 @@ public:
         taxa_{},
         ranksCache_{taxa_, taxon_rank::Sequence},
         name2tax_{},
-        batch_{}
+        batch_{},
+        queue_(10),
+        sketchingDone_(1),
+        inserterThread_{}
     {
         features_.max_load_factor(default_max_load_factor());
     }
 
     sketch_database(const sketch_database&) = delete;
-    sketch_database(sketch_database&&)      = default;
+    sketch_database(sketch_database&& other) :
+        targetSketcher_{std::move(other.targetSketcher_)},
+        querySketcher_{std::move(other.querySketcher_)},
+        maxLocsPerFeature_(other.maxLocsPerFeature_),
+        features_{std::move(other.features_)},
+        targets_{std::move(other.targets_)},
+        taxa_{std::move(other.taxa_)},
+        ranksCache_{std::move(other.ranksCache_)},
+        name2tax_{std::move(other.name2tax_)},
+        batch_{std::move(other.batch_)},
+        queue_{std::move(other.queue_)},
+        sketchingDone_(other.sketchingDone_.load()),
+        inserterThread_{std::move(other.inserterThread_)}
+    {}
 
     sketch_database& operator = (const sketch_database&) = delete;
     sketch_database& operator = (sketch_database&&)      = default;
@@ -473,8 +489,7 @@ public:
 
 
     //---------------------------------------------------------------
-    bool add_target(sketch_queue& queue,
-                    const sequence& seq, taxon_name sid,
+    bool add_target(const sequence& seq, taxon_name sid,
                     taxon_id parentTaxid = 0,
                     file_source source = file_source{})
     {
@@ -495,7 +510,7 @@ public:
         const auto taxid = taxon_id_of_target(targetCount);
 
         //sketch sequence -> insert features
-        source.windows = add_all_window_sketches(queue, seq, targetCount);
+        source.windows = add_all_window_sketches(seq, targetCount);
 
         //insert sequence metadata as a new taxon
         if(parentTaxid < 1) parentTaxid = 0;
@@ -1002,40 +1017,58 @@ public:
     }
 
 
-public:
+private:
     //---------------------------------------------------------------
-    void insert_sketches(sketch_queue& queue, std::atomic_bool& done) {
+    void spawn_inserter() {
+        inserterThread_ = std::make_unique<std::thread> ([&]() {
+            sketch_batch batch;
 
-        sketch_batch batch;
-
-        while(!done.load() || queue.peek()) {
-            if (queue.wait_dequeue_timed(batch, std::chrono::milliseconds(10))) {
-                for(const auto& windowSketch : batch) {
-                    //insert features from sketch into database
-                    for(const auto& f : windowSketch.sk) {
-                        auto it = features_.insert(
-                            f, target_location{windowSketch.tgt, windowSketch.win});
-                        if(it->size() > maxLocsPerFeature_) {
-                            features_.shrink(it, maxLocsPerFeature_);
+            while(!sketchingDone_.load() || queue_.peek()) {
+                if (queue_.wait_dequeue_timed(batch, std::chrono::milliseconds(10))) {
+                    for(const auto& windowSketch : batch) {
+                        //insert features from sketch into database
+                        for(const auto& f : windowSketch.sk) {
+                            auto it = features_.insert(
+                                f, target_location{windowSketch.tgt, windowSketch.win});
+                            if(it->size() > maxLocsPerFeature_) {
+                                features_.shrink(it, maxLocsPerFeature_);
+                            }
                         }
                     }
                 }
             }
-        }
+        });
     }
 
+public:
     //---------------------------------------------------------------
-    void enqueue_batch(sketch_queue& queue) {
-        while(!queue.try_enqueue(batch_)) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
+    void finish_sketching() {
+        enqueue_batch();
+        sketchingDone_.store(1);
+        inserterThread_->join();
     }
 
 
 private:
     //---------------------------------------------------------------
+    void enqueue_batch() {
+        if(sketchingDone_.load()) {
+            sketchingDone_.store(0);
+            spawn_inserter();
+        }
+
+        //allow queue to grow
+        queue_.enqueue(batch_);
+
+        //don't allow queue to grow
+        // while(!queue_.try_enqueue(batch_)) {
+        //     std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // }
+    }
+
+
+    //---------------------------------------------------------------
     window_id add_all_window_sketches(
-        sketch_queue& queue,
         const sequence& seq, target_id tgt)
     {
         window_id win = 0;
@@ -1046,7 +1079,7 @@ private:
 
                 //enqueue full batch and reset
                 if(batch_.size() == 10000) {
-                    enqueue_batch(queue);
+                    enqueue_batch();
                     batch_.clear();
                 }
 
@@ -1068,6 +1101,9 @@ private:
     std::map<taxon_name,const taxon*> name2tax_;
 
     sketch_batch batch_;
+    sketch_queue queue_;
+    std::atomic_bool sketchingDone_;
+    std::unique_ptr<std::thread> inserterThread_;
 };
 
 
