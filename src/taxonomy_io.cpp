@@ -286,7 +286,8 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
 
 //-------------------------------------------------------------------
 std::map<string,taxon_id>
-make_sequence_to_taxon_id_map(const std::vector<string>& mappingFilenames,
+make_sequence_to_taxon_id_map(const std::vector<string>& localMappingFilenames,
+                              const std::vector<string>& globalMappingFilenames,
                               const std::vector<string>& infilenames,
                               info_level infoLvl)
 {
@@ -297,9 +298,13 @@ make_sequence_to_taxon_id_map(const std::vector<string>& mappingFilenames,
     auto map = std::map<string,taxon_id>{};
 
     for(const auto& dir : indirs) {
-        for(const auto& file : mappingFilenames) {
+        for(const auto& file : localMappingFilenames) {
             read_sequence_to_taxon_id_mapping(dir + "/" + file, map, infoLvl);
         }
+    }
+
+    for(const auto& file : globalMappingFilenames) {
+        read_sequence_to_taxon_id_mapping(file, map, infoLvl);
     }
 
     return map;

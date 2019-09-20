@@ -43,7 +43,8 @@ struct taxonomy_options
     std::string nodesFile;
     std::string namesFile;
     std::string mergeFile;
-    std::vector<std::string> mappingPreFiles;
+    std::vector<std::string> mappingPreFilesLocal;
+    std::vector<std::string> mappingPreFilesGlobal;
     std::vector<std::string> mappingPostFiles;
 };
 

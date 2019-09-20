@@ -74,6 +74,7 @@ void read_sequence_to_taxon_id_mapping(
  *****************************************************************************/
 std::map<std::string,taxonomy::taxon_id>
 make_sequence_to_taxon_id_map(const std::vector<std::string>& mappingFilenames,
+                              const std::vector<std::string>& globalMappingFilenames,
                               const std::vector<std::string>& infilenames,
                               info_level infoLvl);
 

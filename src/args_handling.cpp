@@ -117,7 +117,11 @@ get_taxonomy_options(const args_parser& args)
     opt.namesFile = opt.path + "names.dmp";
     opt.mergeFile = opt.path + "merged.dmp";
 
-    opt.mappingPreFiles.push_back("assembly_summary.txt");
+    opt.mappingPreFilesLocal.push_back("assembly_summary.txt");
+    opt.mappingPreFilesGlobal.push_back(opt.path + "assembly_summary_refseq.txt");
+    opt.mappingPreFilesGlobal.push_back(opt.path + "assembly_summary_refseq_historical.txt");
+    opt.mappingPreFilesGlobal.push_back(opt.path + "assembly_summary_genbank.txt");
+    opt.mappingPreFilesGlobal.push_back(opt.path + "assembly_summary_genbank_historical.txt");
 
     //manually added accession to taxon map file names
     auto postm = args.get<std::string>({"taxpostmap", "taxonomy-postmap"}, "");

@@ -541,7 +541,8 @@ void add_to_database(database& db, const build_options& opt)
         const auto initNumTargets = db.target_count();
 
         auto taxonMap = make_sequence_to_taxon_id_map(
-                            opt.taxonomy.mappingPreFiles,
+                            opt.taxonomy.mappingPreFilesLocal,
+                            opt.taxonomy.mappingPreFilesGlobal,
                             opt.infiles, opt.infoLevel);
 
         add_targets_to_database(db, opt.infiles, taxonMap, opt.infoLevel);
