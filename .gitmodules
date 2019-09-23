@@ -1,3 +1,3 @@
-[submodule "src/queue"]
-	path = dep/queue
-	url = https://github.com/cameron314/readerwriterqueue
+# [submodule "dep/queue"]
+# 	path = dep/queue
+# 	url = https://github.com/cameron314/readerwriterqueue
