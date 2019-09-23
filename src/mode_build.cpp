@@ -178,9 +178,11 @@ void rank_targets_with_mapping_file(database& db,
     if(!is.good()) return;
 
     const auto fsize = file_size(mappingFile);
-    auto nextStatStep = fsize / 1000;
-    auto nextStat = nextStatStep;
     bool showProgress = fsize > 100000000;
+    //accession2taxid files have 40-450M lines
+    //update progress indicator every 1M lines
+    size_t step = 0;
+    size_t statStep = 1UL << 20;
 
     cout << "Try to map sequences to taxa using '" << mappingFile
          << "' (" << std::max(std::streamoff(1),
@@ -217,12 +219,9 @@ void rank_targets_with_mapping_file(database& db,
             }
         }
 
-        if(showProgress) {
+        if(showProgress && !(++step % statStep)) {
             auto pos = is.tellg();
-            if(pos >= nextStat) {
-                show_progress_indicator(cout, pos / float(fsize));
-                nextStat = pos + nextStatStep;
-            }
+            show_progress_indicator(cout, pos / float(fsize));
         }
     }
 
