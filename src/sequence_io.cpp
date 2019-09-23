@@ -41,7 +41,7 @@ using std::string;
 constexpr const char* accession_prefix[]
 {
     "GCF_",
-    "AC_", 
+    "AC_",
     "NC_", "NG_", "NS_", "NT_", "NW_", "NZ_",
     // "AEMK",
     // "CCMK",
@@ -51,7 +51,7 @@ constexpr const char* accession_prefix[]
     "BA", "BK", "BX",
     "CC", "CM", "CP", "CR", "CT", "CU",
     "FM", "FN", "FO", "FP", "FQ", "FR",
-    "HE", 
+    "HE",
     "JH"
 };
 
@@ -72,6 +72,7 @@ sequence_reader::next()
     if(!has_next()) return sequence{};
 
     std::lock_guard<std::mutex> lock(mutables_);
+
     sequence seq;
     ++index_;
     seq.index = index_;
@@ -103,7 +104,8 @@ void sequence_reader::skip(index_type skip)
 fasta_reader::fasta_reader(const string& filename):
     sequence_reader{},
     file_{},
-    linebuffer_{}
+    linebuffer_{},
+    pos_{0}
 {
     if(!filename.empty()) {
         file_.open(filename);
@@ -123,10 +125,11 @@ fasta_reader::fasta_reader(const string& filename):
 //-------------------------------------------------------------------
 void fasta_reader::read_next(sequence& seq)
 {
-    if(!file_.good()) {
-        invalidate();
-        return;
-    }
+    // if(!file_.good()) {
+    //     pos_ = -1;
+    //     invalidate();
+    //     return;
+    // }
     string line;
 
     if(linebuffer_.empty()) {
@@ -137,6 +140,8 @@ void fasta_reader::read_next(sequence& seq)
         using std::swap;
         swap(line, linebuffer_);
     }
+    //line should not be empty
+    pos_ += line.size()+1;
 
     if(line[0] != '>') {
         throw io_format_error{"malformed fasta file - expected header char > not found"};
@@ -144,7 +149,7 @@ void fasta_reader::read_next(sequence& seq)
         return;
     }
     seq.header = line.substr(1);
-    
+
     std::ostringstream seqss;
 
     while(file_.good()) {
@@ -155,7 +160,10 @@ void fasta_reader::read_next(sequence& seq)
         }
         else {
             seqss << line;
-            pos_ = file_.tellg();
+            if(!line.empty())
+                pos_ += line.size()+1;
+            else //eof
+                pos_ = -1;
         }
     }
     seq.data = seqss.str();
@@ -167,8 +175,8 @@ void fasta_reader::read_next(sequence& seq)
     }
 
     if(!file_.good()) {
+        pos_ = -1;
         invalidate();
-        return;
     }
 }
 
@@ -177,25 +185,28 @@ void fasta_reader::read_next(sequence& seq)
 //-------------------------------------------------------------------
 void fasta_reader::skip_next()
 {
-    if(!file_.good()) {
-        invalidate();
-        return;
-    }
+    // if(!file_.good()) {
+    //     pos_ = -1;
+    //     invalidate();
+    //     return;
+    // }
 
     if(linebuffer_.empty()) {
         file_.ignore(1);
+        pos_ += file_.gcount();
     } else {
+        pos_ += linebuffer_.size()+1;
         linebuffer_.clear();
     }
     file_.ignore(std::numeric_limits<std::streamsize>::max(), '>');
-    pos_ = file_.tellg();
+    pos_ += file_.gcount();
 
     if(!file_.good()) {
+        pos_ = -1;
         invalidate();
-        return;
     } else {
         file_.unget();
-        pos_ = file_.tellg();
+        pos_ -= 1;
     }
 }
 
@@ -205,9 +216,11 @@ void fasta_reader::skip_next()
 void fasta_reader::do_seek(std::streampos pos)
 {
     file_.seekg(pos);
+    pos_ = pos;
     linebuffer_.clear();
 
     if(!file_.good()) {
+        pos_ = -1;
         invalidate();
     }
 }
@@ -604,7 +617,7 @@ extract_ncbi_accession_version_number(const string& prefix,
 string
 extract_ncbi_accession_version_number(string text)
 {
-    if(text.size() < 2) return ""; 
+    if(text.size() < 2) return "";
 
     //remove leading dots
     while(text.size() < 2 && text[0] == '.') text.erase(0);
