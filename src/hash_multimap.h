@@ -375,17 +375,7 @@ public:
                     for(auto i = nvals, e = i + ncap; i < e; ++i) {
                         value_alloc::construct(alloc, i);
                     }
-                    if(std::is_trivially_copyable<value_type>::value) {
-                        std::copy(values_, values_ + size_, nvals);
-                    }
-                    else {
-                        // move/copy values over
-                        auto nv = nvals;
-                        auto ov = values_;
-                        for(size_type i = 0; i < size_; ++i, ++ov, ++nv) {
-                            *nv = std::move(*ov);
-                        }
-                    }
+                    std::copy(values_, values_ + size_, nvals);
                     deallocate(alloc);
                     values_ = nvals;
                     capacity_ = size_type(ncap);
