@@ -372,22 +372,25 @@ public:
                     //make new array
                     auto nvals = value_alloc::allocate(alloc, ncap);
                     if(!nvals) return false;
-                    if(!std::is_pod<value_type>::value) {
-                        for(auto i = nvals, e = i + ncap; i < e; ++i) {
-                            value_alloc::construct(alloc, i);
-                        }
+                    for(auto i = nvals, e = i + ncap; i < e; ++i) {
+                        value_alloc::construct(alloc, i);
                     }
-                    //move values over
-                    auto nv = nvals;
-                    auto ov = values_;
-                    for(size_type i = 0; i < size_; ++i, ++ov, ++nv) {
-                        *nv = std::move(*ov);
+                    if(std::is_trivially_copyable<value_type>::value) {
+                        std::copy(values_, values_ + size_, nvals);
+                    }
+                    else {
+                        // move/copy values over
+                        auto nv = nvals;
+                        auto ov = values_;
+                        for(size_type i = 0; i < size_; ++i, ++ov, ++nv) {
+                            *nv = std::move(*ov);
+                        }
                     }
                     deallocate(alloc);
                     values_ = nvals;
                     capacity_ = size_type(ncap);
                 }
-                else if(!std::is_pod<value_type>::value) {
+                else {
                     for(auto i = values_ + size_, e = values_ + n; i < e; ++i) {
                         value_alloc::construct(alloc, i);
                     }
@@ -398,10 +401,8 @@ public:
                 if(!nvals) return false;
                 values_ = nvals;
                 capacity_ = size_type(n);
-                if(!std::is_pod<value_type>::value) {
-                    for(auto i = values_, e = i + capacity_; i < e; ++i) {
-                        value_alloc::construct(alloc, i);
-                    }
+                for(auto i = values_, e = i + capacity_; i < e; ++i) {
+                    value_alloc::construct(alloc, i);
                 }
             }
             return true;
