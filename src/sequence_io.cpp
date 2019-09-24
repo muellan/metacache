@@ -131,7 +131,6 @@ void fasta_reader::read_next(sequence& seq)
         using std::swap;
         swap(line, linebuffer_);
     }
-    //line should not be empty
     pos_ += line.size()+1;
 
     if(line[0] != '>') {
@@ -150,10 +149,7 @@ void fasta_reader::read_next(sequence& seq)
         }
         else {
             seq.data.append(line);
-            if(!line.empty())
-                pos_ += line.size()+1;
-            else //eof
-                pos_ = -1;
+            pos_ += line.size()+1;
         }
     }
 
@@ -224,7 +220,8 @@ std::streampos fasta_reader::do_tell()
 //-------------------------------------------------------------------
 fastq_reader::fastq_reader(const string& filename):
     sequence_reader{},
-    file_{}
+    file_{},
+    pos_{0}
 {
     if(!filename.empty()) {
         file_.open(filename);
@@ -246,7 +243,10 @@ void fastq_reader::read_next(sequence& seq)
 {
     string line;
     getline(file_, line);
+    pos_ += line.size()+1;
+
     if(line.empty()) {
+        pos_ = -1;
         invalidate();
         return;
     }
@@ -258,9 +258,13 @@ void fastq_reader::read_next(sequence& seq)
         return;
     }
     seq.header = line.substr(1);
+
     getline(file_, seq.data);
+    pos_ += seq.data.size()+1;
 
     getline(file_, line);
+    pos_ += line.size()+1;
+
     if(line.empty() || line[0] != '+') {
         if(line[0] != '\r') {
             throw io_format_error{"malformed fastq file - quality header: "  + line};
@@ -268,9 +272,12 @@ void fastq_reader::read_next(sequence& seq)
         invalidate();
         return;
     }
+
     getline(file_, seq.qualities);
+    pos_ += seq.qualities.size()+1;
 
     if(!file_.good()) {
+        pos_ = -1;
         invalidate();
     }
 }
@@ -282,11 +289,16 @@ void fastq_reader::skip_next()
 {
     //TODO does not cover all cases
     file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    pos_ += file_.gcount();
     file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    pos_ += file_.gcount();
     file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    pos_ += file_.gcount();
     file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    pos_ += file_.gcount();
 
     if(!file_.good()) {
+        pos_ = -1;
         invalidate();
     }
 }
@@ -297,8 +309,10 @@ void fastq_reader::skip_next()
 void fastq_reader::do_seek(std::streampos pos)
 {
     file_.seekg(pos);
+    pos_ = pos;
 
     if(!file_.good()) {
+        pos_ = -1;
         invalidate();
     }
 }
@@ -308,7 +322,7 @@ void fastq_reader::do_seek(std::streampos pos)
 //-------------------------------------------------------------------
 std::streampos fastq_reader::do_tell()
 {
-    return file_.tellg();
+    return pos_;
 }
 
 

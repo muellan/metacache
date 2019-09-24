@@ -148,6 +148,7 @@ protected:
 
 private:
     std::ifstream file_;
+    std::streampos pos_;
 };
 
 
