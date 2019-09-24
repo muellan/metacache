@@ -71,8 +71,6 @@ sequence_reader::next()
 {
     if(!has_next()) return sequence{};
 
-    std::lock_guard<std::mutex> lock(mutables_);
-
     sequence seq;
     ++index_;
     seq.index = index_;
@@ -86,8 +84,6 @@ sequence_reader::next()
 void sequence_reader::skip(index_type skip)
 {
     if(skip < 1) return;
-
-    std::lock_guard<std::mutex> lock(mutables_);
 
     for(; skip > 0 && has_next(); --skip) {
         ++index_;
@@ -125,11 +121,6 @@ fasta_reader::fasta_reader(const string& filename):
 //-------------------------------------------------------------------
 void fasta_reader::read_next(sequence& seq)
 {
-    // if(!file_.good()) {
-    //     pos_ = -1;
-    //     invalidate();
-    //     return;
-    // }
     string line;
 
     if(linebuffer_.empty()) {
@@ -183,12 +174,6 @@ void fasta_reader::read_next(sequence& seq)
 //-------------------------------------------------------------------
 void fasta_reader::skip_next()
 {
-    // if(!file_.good()) {
-    //     pos_ = -1;
-    //     invalidate();
-    //     return;
-    // }
-
     if(linebuffer_.empty()) {
         file_.ignore(1);
         pos_ += file_.gcount();
@@ -199,12 +184,12 @@ void fasta_reader::skip_next()
     file_.ignore(std::numeric_limits<std::streamsize>::max(), '>');
     pos_ += file_.gcount();
 
-    if(!file_.good()) {
-        pos_ = -1;
-        invalidate();
-    } else {
+    if(file_.good()) {
         file_.unget();
         pos_ -= 1;
+    } else {
+        pos_ = -1;
+        invalidate();
     }
 }
 
@@ -259,11 +244,6 @@ fastq_reader::fastq_reader(const string& filename):
 //-------------------------------------------------------------------
 void fastq_reader::read_next(sequence& seq)
 {
-    if(!file_.good()) {
-        invalidate();
-        return;
-    }
-
     string line;
     getline(file_, line);
     if(line.empty()) {
@@ -289,6 +269,10 @@ void fastq_reader::read_next(sequence& seq)
         return;
     }
     getline(file_, seq.qualities);
+
+    if(!file_.good()) {
+        invalidate();
+    }
 }
 
 
@@ -296,11 +280,6 @@ void fastq_reader::read_next(sequence& seq)
 //-------------------------------------------------------------------
 void fastq_reader::skip_next()
 {
-    if(!file_.good()) {
-        invalidate();
-        return;
-    }
-
     //TODO does not cover all cases
     file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
@@ -309,7 +288,6 @@ void fastq_reader::skip_next()
 
     if(!file_.good()) {
         invalidate();
-        return;
     }
 }
 
@@ -410,7 +388,6 @@ std::streampos sequence_header_reader::do_tell()
 sequence_pair_reader::sequence_pair_reader(const std::string& filename1,
                                            const std::string& filename2)
 :
-    mutables_{},
     reader1_{nullptr},
     reader2_{nullptr},
     singleMode_{true}
@@ -432,7 +409,6 @@ sequence_pair_reader::sequence_pair_reader(const std::string& filename1,
 //-------------------------------------------------------------------
 bool sequence_pair_reader::has_next() const noexcept
 {
-    std::lock_guard<std::mutex> lock(mutables_);
     if(!reader1_) return false;
     if(!reader1_->has_next()) return false;
     if(!reader2_) return true;
@@ -447,8 +423,6 @@ sequence_pair_reader::sequence_pair
 sequence_pair_reader::next()
 {
     if(!has_next()) return sequence_pair{};
-
-    std::lock_guard<std::mutex> lock(mutables_);
 
     if(singleMode_) return sequence_pair{reader1_->next(), sequence{}};
 
@@ -471,7 +445,6 @@ void sequence_pair_reader::skip(index_type skip)
     if(skip < 1 || !reader1_) return;
 
     if(reader2_) {
-        std::lock_guard<std::mutex> lock(mutables_);
         reader1_->skip(skip);
         reader2_->skip(skip);
     }
@@ -501,7 +474,6 @@ void sequence_pair_reader::index_offset(index_type index)
 {
     if(!reader1_) return;
 
-    std::lock_guard<std::mutex> lock(mutables_);
     reader1_->index_offset(index);
     if(reader2_) reader2_->index_offset(index);
 }
@@ -513,7 +485,6 @@ void sequence_pair_reader::seek(const stream_positions& pos)
 {
     if(!reader1_) return;
 
-    std::lock_guard<std::mutex> lock(mutables_);
     reader1_->seek(pos.first);
     if(reader2_) reader2_->seek(pos.second);
 }

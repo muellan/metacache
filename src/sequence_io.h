@@ -27,11 +27,9 @@
 #define MC_FASTA_READER_H_
 
 
-#include <atomic>
 #include <cstdint>
 #include <fstream>
 #include <memory>
-#include <mutex>
 #include <string>
 
 #include "io_error.h"
@@ -44,7 +42,7 @@ namespace mc {
 /*************************************************************************//**
  *
  * @brief polymorphic file reader for (pairs of) bio-sequences
- *        base class handles concurrency safety
+ *        NOT concurrency safe
  *
  *****************************************************************************/
 class sequence_reader
@@ -74,17 +72,17 @@ public:
     /** @brief skip n sequences */
     void skip(index_type n);
 
-    bool has_next() const noexcept { return valid_.load(); }
+    bool has_next() const noexcept { return valid_; }
 
-    index_type index() const noexcept { return index_.load(); }
+    index_type index() const noexcept { return index_; }
 
-    void index_offset(index_type index) { index_.store(index); }
+    void index_offset(index_type index) { index_ = index; }
 
     void seek(std::streampos pos) { do_seek(pos); }
     std::streampos tell()         { return do_tell(); }
 
 protected:
-    void invalidate() { valid_.store(false); }
+    void invalidate() { valid_ = false; }
 
     virtual std::streampos do_tell() = 0;
 
@@ -96,9 +94,8 @@ protected:
     virtual void skip_next() = 0;
 
 private:
-    mutable std::mutex mutables_;
-    std::atomic<index_type> index_;
-    std::atomic<bool> valid_;
+    index_type index_;
+    bool valid_;
 };
 
 
@@ -185,6 +182,7 @@ private:
 /*************************************************************************//**
  *
  * @brief file reader for (pairs of) bio-sequences
+ *        NOT concurrency safe
  *
  *****************************************************************************/
 class sequence_pair_reader
@@ -226,7 +224,6 @@ public:
 
 
 private:
-    mutable std::mutex mutables_;
     std::unique_ptr<sequence_reader> reader1_;
     std::unique_ptr<sequence_reader> reader2_;
     bool singleMode_;
