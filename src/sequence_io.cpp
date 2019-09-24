@@ -150,8 +150,7 @@ void fasta_reader::read_next(sequence& seq)
     }
     seq.header = line.substr(1);
 
-    std::ostringstream seqss;
-
+    seq.data.clear();
     while(file_.good()) {
         getline(file_, line);
         if(line[0] == '>') {
@@ -159,14 +158,13 @@ void fasta_reader::read_next(sequence& seq)
             break;
         }
         else {
-            seqss << line;
+            seq.data.append(line);
             if(!line.empty())
                 pos_ += line.size()+1;
             else //eof
                 pos_ = -1;
         }
     }
-    seq.data = seqss.str();
 
     if(seq.data.empty()) {
         throw io_format_error{"malformed fasta file - zero-length sequence: " + seq.header};
