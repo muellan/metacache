@@ -41,7 +41,7 @@ using std::string;
 constexpr const char* accession_prefix[]
 {
     "GCF_",
-    "AC_", 
+    "AC_",
     "NC_", "NG_", "NS_", "NT_", "NW_", "NZ_",
     // "AEMK",
     // "CCMK",
@@ -51,7 +51,7 @@ constexpr const char* accession_prefix[]
     "BA", "BK", "BX",
     "CC", "CM", "CP", "CR", "CT", "CU",
     "FM", "FN", "FO", "FP", "FQ", "FR",
-    "HE", 
+    "HE",
     "JH"
 };
 
@@ -71,7 +71,6 @@ sequence_reader::next()
 {
     if(!has_next()) return sequence{};
 
-    std::lock_guard<std::mutex> lock(mutables_);
     sequence seq;
     ++index_;
     seq.index = index_;
@@ -85,8 +84,6 @@ sequence_reader::next()
 void sequence_reader::skip(index_type skip)
 {
     if(skip < 1) return;
-
-    std::lock_guard<std::mutex> lock(mutables_);
 
     for(; skip > 0 && has_next(); --skip) {
         ++index_;
@@ -103,7 +100,8 @@ void sequence_reader::skip(index_type skip)
 fasta_reader::fasta_reader(const string& filename):
     sequence_reader{},
     file_{},
-    linebuffer_{}
+    linebuffer_{},
+    pos_{0}
 {
     if(!filename.empty()) {
         file_.open(filename);
@@ -123,10 +121,6 @@ fasta_reader::fasta_reader(const string& filename):
 //-------------------------------------------------------------------
 void fasta_reader::read_next(sequence& seq)
 {
-    if(!file_.good()) {
-        invalidate();
-        return;
-    }
     string line;
 
     if(linebuffer_.empty()) {
@@ -137,6 +131,7 @@ void fasta_reader::read_next(sequence& seq)
         using std::swap;
         swap(line, linebuffer_);
     }
+    pos_ += line.size()+1;
 
     if(line[0] != '>') {
         throw io_format_error{"malformed fasta file - expected header char > not found"};
@@ -144,9 +139,8 @@ void fasta_reader::read_next(sequence& seq)
         return;
     }
     seq.header = line.substr(1);
-    
-    std::ostringstream seqss;
 
+    seq.data.clear();
     while(file_.good()) {
         getline(file_, line);
         if(line[0] == '>') {
@@ -154,11 +148,10 @@ void fasta_reader::read_next(sequence& seq)
             break;
         }
         else {
-            seqss << line;
-            pos_ = file_.tellg();
+            seq.data.append(line);
+            pos_ += line.size()+1;
         }
     }
-    seq.data = seqss.str();
 
     if(seq.data.empty()) {
         throw io_format_error{"malformed fasta file - zero-length sequence: " + seq.header};
@@ -167,8 +160,8 @@ void fasta_reader::read_next(sequence& seq)
     }
 
     if(!file_.good()) {
+        pos_ = -1;
         invalidate();
-        return;
     }
 }
 
@@ -177,25 +170,22 @@ void fasta_reader::read_next(sequence& seq)
 //-------------------------------------------------------------------
 void fasta_reader::skip_next()
 {
-    if(!file_.good()) {
-        invalidate();
-        return;
-    }
-
     if(linebuffer_.empty()) {
         file_.ignore(1);
+        pos_ += file_.gcount();
     } else {
+        pos_ += linebuffer_.size()+1;
         linebuffer_.clear();
     }
     file_.ignore(std::numeric_limits<std::streamsize>::max(), '>');
-    pos_ = file_.tellg();
+    pos_ += file_.gcount();
 
-    if(!file_.good()) {
-        invalidate();
-        return;
-    } else {
+    if(file_.good()) {
         file_.unget();
-        pos_ = file_.tellg();
+        pos_ -= 1;
+    } else {
+        pos_ = -1;
+        invalidate();
     }
 }
 
@@ -205,9 +195,11 @@ void fasta_reader::skip_next()
 void fasta_reader::do_seek(std::streampos pos)
 {
     file_.seekg(pos);
+    pos_ = pos;
     linebuffer_.clear();
 
     if(!file_.good()) {
+        pos_ = -1;
         invalidate();
     }
 }
@@ -228,7 +220,8 @@ std::streampos fasta_reader::do_tell()
 //-------------------------------------------------------------------
 fastq_reader::fastq_reader(const string& filename):
     sequence_reader{},
-    file_{}
+    file_{},
+    pos_{0}
 {
     if(!filename.empty()) {
         file_.open(filename);
@@ -248,14 +241,12 @@ fastq_reader::fastq_reader(const string& filename):
 //-------------------------------------------------------------------
 void fastq_reader::read_next(sequence& seq)
 {
-    if(!file_.good()) {
-        invalidate();
-        return;
-    }
-
     string line;
     getline(file_, line);
+    pos_ += line.size()+1;
+
     if(line.empty()) {
+        pos_ = -1;
         invalidate();
         return;
     }
@@ -267,9 +258,13 @@ void fastq_reader::read_next(sequence& seq)
         return;
     }
     seq.header = line.substr(1);
+
     getline(file_, seq.data);
+    pos_ += seq.data.size()+1;
 
     getline(file_, line);
+    pos_ += line.size()+1;
+
     if(line.empty() || line[0] != '+') {
         if(line[0] != '\r') {
             throw io_format_error{"malformed fastq file - quality header: "  + line};
@@ -277,7 +272,14 @@ void fastq_reader::read_next(sequence& seq)
         invalidate();
         return;
     }
+
     getline(file_, seq.qualities);
+    pos_ += seq.qualities.size()+1;
+
+    if(!file_.good()) {
+        pos_ = -1;
+        invalidate();
+    }
 }
 
 
@@ -285,20 +287,19 @@ void fastq_reader::read_next(sequence& seq)
 //-------------------------------------------------------------------
 void fastq_reader::skip_next()
 {
-    if(!file_.good()) {
-        invalidate();
-        return;
-    }
-
     //TODO does not cover all cases
     file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    pos_ += file_.gcount();
     file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    pos_ += file_.gcount();
     file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    pos_ += file_.gcount();
     file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    pos_ += file_.gcount();
 
     if(!file_.good()) {
+        pos_ = -1;
         invalidate();
-        return;
     }
 }
 
@@ -308,8 +309,10 @@ void fastq_reader::skip_next()
 void fastq_reader::do_seek(std::streampos pos)
 {
     file_.seekg(pos);
+    pos_ = pos;
 
     if(!file_.good()) {
+        pos_ = -1;
         invalidate();
     }
 }
@@ -319,7 +322,7 @@ void fastq_reader::do_seek(std::streampos pos)
 //-------------------------------------------------------------------
 std::streampos fastq_reader::do_tell()
 {
-    return file_.tellg();
+    return pos_;
 }
 
 
@@ -399,7 +402,6 @@ std::streampos sequence_header_reader::do_tell()
 sequence_pair_reader::sequence_pair_reader(const std::string& filename1,
                                            const std::string& filename2)
 :
-    mutables_{},
     reader1_{nullptr},
     reader2_{nullptr},
     singleMode_{true}
@@ -421,7 +423,6 @@ sequence_pair_reader::sequence_pair_reader(const std::string& filename1,
 //-------------------------------------------------------------------
 bool sequence_pair_reader::has_next() const noexcept
 {
-    std::lock_guard<std::mutex> lock(mutables_);
     if(!reader1_) return false;
     if(!reader1_->has_next()) return false;
     if(!reader2_) return true;
@@ -436,8 +437,6 @@ sequence_pair_reader::sequence_pair
 sequence_pair_reader::next()
 {
     if(!has_next()) return sequence_pair{};
-
-    std::lock_guard<std::mutex> lock(mutables_);
 
     if(singleMode_) return sequence_pair{reader1_->next(), sequence{}};
 
@@ -460,7 +459,6 @@ void sequence_pair_reader::skip(index_type skip)
     if(skip < 1 || !reader1_) return;
 
     if(reader2_) {
-        std::lock_guard<std::mutex> lock(mutables_);
         reader1_->skip(skip);
         reader2_->skip(skip);
     }
@@ -490,7 +488,6 @@ void sequence_pair_reader::index_offset(index_type index)
 {
     if(!reader1_) return;
 
-    std::lock_guard<std::mutex> lock(mutables_);
     reader1_->index_offset(index);
     if(reader2_) reader2_->index_offset(index);
 }
@@ -502,7 +499,6 @@ void sequence_pair_reader::seek(const stream_positions& pos)
 {
     if(!reader1_) return;
 
-    std::lock_guard<std::mutex> lock(mutables_);
     reader1_->seek(pos.first);
     if(reader2_) reader2_->seek(pos.second);
 }
@@ -604,7 +600,7 @@ extract_ncbi_accession_version_number(const string& prefix,
 string
 extract_ncbi_accession_version_number(string text)
 {
-    if(text.size() < 2) return ""; 
+    if(text.size() < 2) return "";
 
     //remove leading dots
     while(text.size() < 2 && text[0] == '.') text.erase(0);
