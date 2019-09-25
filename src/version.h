@@ -28,7 +28,7 @@
 
 #define MC_DB_VERSION 20190916
 
-#define MC_VERSION_STRING "0.6.0"
+#define MC_VERSION_STRING "0.6.1"
 
 
 #endif
