@@ -1028,7 +1028,7 @@ private:
 
 public:
     //---------------------------------------------------------------
-    void finish_sketching() {
+    void wait_until_add_target_complete() {
         enqueue_batch();
         sketchingDone_.store(1);
         inserterThread_->join();
@@ -1065,7 +1065,7 @@ private:
 
                 //enqueue full batch and reset
                 if(batch_.size() == 10000) {
-                    enqueue_batch();
+                    this->enqueue_batch();
                     batch_.clear();
                 }
 

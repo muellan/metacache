@@ -423,7 +423,7 @@ void add_targets_to_database(database& db,
 
     try {
         //last batch
-        db.finish_sketching();
+        db.wait_until_add_target_complete();
     }
     catch(database::target_limit_exceeded_error&) {
         cout << endl;
