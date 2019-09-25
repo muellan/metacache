@@ -38,6 +38,9 @@
 #include <limits>
 #include <memory>
 
+#include <thread>
+#include <chrono>
+
 #include "version.h"
 #include "io_error.h"
 #include "io_options.h"
@@ -46,6 +49,8 @@
 #include "hash_multimap.h"
 #include "dna_encoding.h"
 #include "typename.h"
+
+#include "../dep/queue/readerwriterqueue.h"
 
 
 namespace mc {
@@ -183,6 +188,23 @@ public:
 
 
 private:
+    struct window_sketch {
+
+        window_sketch() = default;
+        window_sketch(target_id tgt, window_id win, sketch sk) :
+            tgt{tgt}, win{win}, sk{std::move(sk)} {};
+
+        target_id tgt;
+        window_id win;
+        sketch sk;
+    };
+public:
+    using sketch_batch = std::vector<window_sketch>;
+
+    using sketch_queue = moodycamel::BlockingReaderWriterQueue<sketch_batch>;
+
+
+private:
     //-----------------------------------------------------
     //"heart of the database": maps features to target locations
     using feature_store = hash_multimap<feature,target_location, //key, value
@@ -296,13 +318,30 @@ public:
         targets_{},
         taxa_{},
         ranksCache_{taxa_, taxon_rank::Sequence},
-        name2tax_{}
+        name2tax_{},
+        batch_{},
+        queue_(10),
+        sketchingDone_(1),
+        inserterThread_{}
     {
         features_.max_load_factor(default_max_load_factor());
     }
 
     sketch_database(const sketch_database&) = delete;
-    sketch_database(sketch_database&&)      = default;
+    sketch_database(sketch_database&& other) :
+        targetSketcher_{std::move(other.targetSketcher_)},
+        querySketcher_{std::move(other.querySketcher_)},
+        maxLocsPerFeature_(other.maxLocsPerFeature_),
+        features_{std::move(other.features_)},
+        targets_{std::move(other.targets_)},
+        taxa_{std::move(other.taxa_)},
+        ranksCache_{std::move(other.ranksCache_)},
+        name2tax_{std::move(other.name2tax_)},
+        batch_{std::move(other.batch_)},
+        queue_{std::move(other.queue_)},
+        sketchingDone_(other.sketchingDone_.load()),
+        inserterThread_{std::move(other.inserterThread_)}
+    {}
 
     sketch_database& operator = (const sketch_database&) = delete;
     sketch_database& operator = (sketch_database&&)      = default;
@@ -966,18 +1005,70 @@ public:
 
 private:
     //---------------------------------------------------------------
-    window_id add_all_window_sketches(const sequence& seq, target_id tgt)
+    void spawn_inserter() {
+        inserterThread_ = std::make_unique<std::thread> ([&]() {
+            sketch_batch batch;
+
+            while(!sketchingDone_.load() || queue_.peek()) {
+                if (queue_.wait_dequeue_timed(batch, std::chrono::milliseconds(10))) {
+                    for(const auto& windowSketch : batch) {
+                        //insert features from sketch into database
+                        for(const auto& f : windowSketch.sk) {
+                            auto it = features_.insert(
+                                f, target_location{windowSketch.tgt, windowSketch.win});
+                            if(it->size() > maxLocsPerFeature_) {
+                                features_.shrink(it, maxLocsPerFeature_);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+public:
+    //---------------------------------------------------------------
+    void finish_sketching() {
+        enqueue_batch();
+        sketchingDone_.store(1);
+        inserterThread_->join();
+    }
+
+
+private:
+    //---------------------------------------------------------------
+    void enqueue_batch() {
+        if(sketchingDone_.load()) {
+            sketchingDone_.store(0);
+            spawn_inserter();
+        }
+
+        //allow queue to grow
+        queue_.enqueue(batch_);
+
+        //don't allow queue to grow
+        // while(!queue_.try_enqueue(batch_)) {
+        //     std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // }
+    }
+
+
+    //---------------------------------------------------------------
+    window_id add_all_window_sketches(
+        const sequence& seq, target_id tgt)
     {
         window_id win = 0;
         targetSketcher_.for_each_sketch(seq,
             [&, this] (auto sk) {
-                //insert features from sketch into database
-                for(const auto& f : sk) {
-                    auto it = features_.insert(f, target_location{tgt, win});
-                    if(it->size() > maxLocsPerFeature_) {
-                        features_.shrink(it, maxLocsPerFeature_);
-                    }
+                //insert sketch into batch
+                batch_.emplace_back(tgt, win, std::move(sk));
+
+                //enqueue full batch and reset
+                if(batch_.size() == 10000) {
+                    enqueue_batch();
+                    batch_.clear();
                 }
+
                 ++win;
             });
         return win;
@@ -994,6 +1085,11 @@ private:
     taxonomy taxa_;
     ranked_lineages_cache ranksCache_;
     std::map<taxon_name,const taxon*> name2tax_;
+
+    sketch_batch batch_;
+    sketch_queue queue_;
+    std::atomic_bool sketchingDone_;
+    std::unique_ptr<std::thread> inserterThread_;
 };
 
 

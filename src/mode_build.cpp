@@ -30,6 +30,9 @@
 #include <utility>
 #include <vector>
 
+#include <thread>
+#include <chrono>
+
 #include "timer.h"
 #include "args_handling.h"
 #include "args_parser.h"
@@ -395,6 +398,7 @@ void add_targets_to_database(database& db,
                     }
                 }
             }
+
             if(infoLvl == info_level::verbose) {
                 cout << "done." << endl;
             }
@@ -415,6 +419,24 @@ void add_targets_to_database(database& db,
         }
 
         ++i;
+    }
+
+    try {
+        //last batch
+        db.finish_sketching();
+    }
+    catch(database::target_limit_exceeded_error&) {
+        cout << endl;
+        cerr << "Reached maximum number of targets per database ("
+                << db.max_target_count() << ").\n"
+                << "See 'README.md' on how to compile MetaCache with "
+                << "support for databases with more reference targets.\n"
+                << endl;
+    }
+    catch(std::exception& e) {
+        if(infoLvl == info_level::verbose) {
+            cout << "FAIL: " << e.what() << endl;
+        }
     }
 }
 
