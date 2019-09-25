@@ -162,11 +162,6 @@ private:
         using target_id_t = target_id;
         using window_id_t = window_id;
 
-        constexpr
-        target_location(target_id g = 0, window_id w = 0) noexcept :
-            tgt{g}, win{w}
-        {}
-
         target_id tgt;
         window_id win;
 
@@ -175,15 +170,6 @@ private:
             if(a.tgt < b.tgt) return true;
             if(a.tgt > b.tgt) return false;
             return (a.win < b.win);
-        }
-
-        friend void read_binary(std::istream& is, target_location& p) {
-            read_binary(is, p.tgt);
-            read_binary(is, p.win);
-        }
-        friend void write_binary(std::ostream& os, const target_location& p) {
-            write_binary(os, p.tgt);
-            write_binary(os, p.win);
         }
     };
     //avoid padding bits

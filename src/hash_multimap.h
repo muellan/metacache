@@ -352,7 +352,7 @@ public:
 
         //-----------------------------------------------------
         void deallocate(value_allocator& alloc) {
-            if(!std::is_pod<value_type>::value) {
+            if(!std::is_trivially_destructible<value_type>::value) {
                 for(auto i = values_, e = i + size_; i < e; ++i) {
                     value_alloc::destroy(alloc, i);
                 }
@@ -372,8 +372,10 @@ public:
                     //make new array
                     auto nvals = value_alloc::allocate(alloc, ncap);
                     if(!nvals) return false;
-                    for(auto i = nvals, e = i + ncap; i < e; ++i) {
-                        value_alloc::construct(alloc, i);
+                    if(!std::is_trivially_constructible<value_type>::value) {
+                        for(auto i = nvals, e = i + ncap; i < e; ++i) {
+                            value_alloc::construct(alloc, i);
+                        }
                     }
                     std::copy(values_, values_ + size_, nvals);
                     deallocate(alloc);
@@ -381,8 +383,10 @@ public:
                     capacity_ = size_type(ncap);
                 }
                 else {
-                    for(auto i = values_ + size_, e = values_ + n; i < e; ++i) {
-                        value_alloc::construct(alloc, i);
+                    if(!std::is_trivially_constructible<value_type>::value) {
+                        for(auto i = values_ + size_, e = values_ + n; i < e; ++i) {
+                            value_alloc::construct(alloc, i);
+                        }
                     }
                 }
             }
@@ -391,8 +395,10 @@ public:
                 if(!nvals) return false;
                 values_ = nvals;
                 capacity_ = size_type(n);
-                for(auto i = values_, e = i + capacity_; i < e; ++i) {
-                    value_alloc::construct(alloc, i);
+                if(!std::is_trivially_constructible<value_type>::value) {
+                    for(auto i = values_, e = i + capacity_; i < e; ++i) {
+                        value_alloc::construct(alloc, i);
+                    }
                 }
             }
             return true;
