@@ -547,7 +547,7 @@ make_sequence_reader(const string& filename)
  *
  *****************************************************************************/
 const std::regex
-accession_regex("(^|[^[:alnum:]])(([A-Z][A-Z,_]{1,6}[0-9]{5,})(.[0-9]+)?)",
+accession_regex("(^|[^[:alnum:]])(([A-Z][_A-Z]{1,6}[0-9]{5,})(\\.[0-9]+)?)",
                 std::regex::optimize);
 
 
