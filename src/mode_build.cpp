@@ -360,7 +360,8 @@ void add_targets_to_database(database& db,
         }
 
         try {
-            auto fileId = extract_accession_string(filename);
+            auto fileId = extract_accession_string(filename,
+                                                   sequence_id_type::acc_ver);
             taxon_id fileTaxId = find_taxon_id(sequ2taxid, fileId);
 
             auto reader = make_sequence_reader(filename);
@@ -368,7 +369,8 @@ void add_targets_to_database(database& db,
 
                 auto sequ = reader->next();
                 if(!sequ.data.empty()) {
-                    auto seqId  = extract_accession_string(sequ.header);
+                    auto seqId = extract_accession_string(sequ.header,
+                                                          sequence_id_type::any);
 
                     //make sure sequence id is not empty,
                     //use entire header if neccessary
