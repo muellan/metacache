@@ -37,8 +37,7 @@
 #include <string>
 #include <limits>
 #include <memory>
-
-#include <thread>
+#include <future>
 #include <chrono>
 
 #include "version.h"
@@ -1006,24 +1005,26 @@ public:
 private:
     //---------------------------------------------------------------
     void spawn_inserter() {
-        inserterThread_ = std::make_unique<std::thread> ([&]() {
-            sketch_batch batch;
+        inserterThread_ = std::make_unique<std::future<void>>(
+            std::async(std::launch::async, [&]() {
+                sketch_batch batch;
 
-            while(!sketchingDone_.load() || queue_.peek()) {
-                if (queue_.wait_dequeue_timed(batch, std::chrono::milliseconds(10))) {
-                    for(const auto& windowSketch : batch) {
-                        //insert features from sketch into database
-                        for(const auto& f : windowSketch.sk) {
-                            auto it = features_.insert(
-                                f, target_location{windowSketch.tgt, windowSketch.win});
-                            if(it->size() > maxLocsPerFeature_) {
-                                features_.shrink(it, maxLocsPerFeature_);
+                while(!sketchingDone_.load() || queue_.peek()) {
+                    if (queue_.wait_dequeue_timed(batch, std::chrono::milliseconds(10))) {
+                        for(const auto& windowSketch : batch) {
+                            //insert features from sketch into database
+                            for(const auto& f : windowSketch.sk) {
+                                auto it = features_.insert(
+                                    f, target_location{windowSketch.tgt, windowSketch.win});
+                                if(it->size() > maxLocsPerFeature_) {
+                                    features_.shrink(it, maxLocsPerFeature_);
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            })
+        );
     }
 
 public:
@@ -1031,7 +1032,8 @@ public:
     void wait_until_add_target_complete() {
         enqueue_batch();
         sketchingDone_.store(1);
-        inserterThread_->join();
+        if (inserterThread_->valid())
+            inserterThread_->get();
     }
 
 
@@ -1089,7 +1091,7 @@ private:
     sketch_batch batch_;
     sketch_queue queue_;
     std::atomic_bool sketchingDone_;
-    std::unique_ptr<std::thread> inserterThread_;
+    std::unique_ptr<std::future<void>> inserterThread_;
 };
 
 
