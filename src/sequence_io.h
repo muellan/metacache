@@ -239,7 +239,7 @@ private:
  *
  *****************************************************************************/
 enum class sequence_id_type {
-    custom, acc, acc_ver, gi
+    any, acc, acc_ver, gi
 };
 
 
@@ -256,49 +256,21 @@ make_sequence_reader(const std::string& filename);
 
 
 
+
 /*************************************************************************//**
  *
- * @brief extracts the NCBI accession number from a string in the format
- *        "prefix_accession.version"
+ * @brief extracts accession ID according to sequence_id_type
+ *        sequence_id_type::any order: acc_ver > acc > gi
  *
  *****************************************************************************/
-std::string extract_ncbi_accession_number(const std::string& prefix, const std::string&);
-std::string extract_ncbi_accession_number(const std::string&);
+std::string extract_accession_string(const std::string&,
+                                     sequence_id_type idtype);
 
 
 
 /*************************************************************************//**
  *
- * @brief extracts the NCBI accession.version number from a string in the format
- *        "prefix_accession.version"
- *
- *****************************************************************************/
-std::string extract_ncbi_accession_version_number(const std::string& prefix, const std::string&);
-std::string extract_ncbi_accession_version_number(std::string);
-
-
-
-/*************************************************************************//**
- *
- * @brief extracts the numeric part from a gi identifier
- *
- *****************************************************************************/
-std::string extract_genbank_identifier(const std::string&);
-
-
-
-/*************************************************************************//**
- *
- * @brief extracts any string recognized as accession ID
- *
- *****************************************************************************/
-std::string extract_accession_string(const std::string&);
-
-
-
-/*************************************************************************//**
- *
- * @brief extracts the numeric part from a gi identifier
+ * @brief extracts the numeric part from a taxid identifier
  *
  *****************************************************************************/
 std::int_least64_t extract_taxon_id(const std::string&);

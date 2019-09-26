@@ -25,6 +25,7 @@
 
 #include <sstream>
 #include <stdexcept>
+#include <regex>
 
 #include "io_error.h"
 #include "sequence_io.h"
@@ -34,34 +35,6 @@
 namespace mc {
 
 using std::string;
-
-
-//-------------------------------------------------------------------
-// orderered by priority from highest to lowest
-constexpr const char* accession_prefix[]
-{
-    "GCF_",
-    "AC_",
-    "NC_", "NG_", "NS_", "NT_", "NW_", "NZ_",
-    // "AEMK",
-    // "CCMK",
-    // "FPKY",
-    "MKHE",
-    "AE", "AJ", "AL", "AM", "AP", "AY",
-    "BA", "BK", "BX",
-    "CC", "CM", "CP", "CR", "CT", "CU",
-    "FM", "FN", "FO", "FP", "FQ", "FR",
-    "HE",
-    "JH"
-};
-
-// orderered by priority from highest to lowest
-constexpr const char end_of_accession_chars[]
-{
-    '|', ' ', '-', '_', ',', ':', '+', ';'
-};
-
-
 
 
 
@@ -561,103 +534,60 @@ make_sequence_reader(const string& filename)
 
 
 
-//-------------------------------------------------------------------
-string::size_type
-end_of_accession_number(const string& text,
-                        string::size_type start = 0)
-{
-    if(start >= text.size()) return text.size();
-
-    for(auto eoac : end_of_accession_chars) {
-        auto k = text.find(eoac, start);
-        if(k != string::npos) return k;
-    }
-
-    return text.size();
-}
 
 
-//-------------------------------------------------------------------
+/*************************************************************************//**
+ *
+ * @brief regex to find accession[.version] number
+ *
+ * @detail first sub-match will be ignored
+ *         second sub-match is accession[.version] number
+ *         third sub-match is accession number
+ *         forth sub-match is version
+ *
+ *****************************************************************************/
+const std::regex
+accession_regex("(^|[^[:alnum:]])(([A-Z][A-Z,_]{1,6}[0-9]{5,})(.[0-9]+)?)",
+                std::regex::optimize);
+
+
+/*************************************************************************//**
+ *
+ * @brief extracts the NCBI accession[.version] number from a string
+ *        by searching for a regular expression
+ *
+ *****************************************************************************/
 string
-extract_ncbi_accession_version_number(const string& prefix,
-                                      const string& text)
+extract_ncbi_accession_number(const string& text,
+                              sequence_id_type idtype = sequence_id_type::any)
 {
     if(text.empty()) return "";
 
-    auto i = text.find(prefix);
-    if(i == string::npos) return "";
+    std::smatch match;
+    std::regex_search(text, match, accession_regex);
 
-    //find separator *after* prefix
-    auto s = text.find('.', i + prefix.size());
-    if(s == string::npos || (s-i) > 25) return "";
-
-    auto k = end_of_accession_number(text,s+1);
-
-    return trimmed(text.substr(i, k-i));
-}
-
-//---------------------------------------------------------
-string
-extract_ncbi_accession_version_number(string text)
-{
-    if(text.size() < 2) return "";
-
-    //remove leading dots
-    while(text.size() < 2 && text[0] == '.') text.erase(0);
-
-    if(text.size() < 2) return "";
-
-    //try to find any known prefix + separator
-    for(auto prefix : accession_prefix) {
-        auto num = extract_ncbi_accession_version_number(prefix, text);
-        if(!num.empty()) return num;
+    switch(idtype) {
+        case sequence_id_type::acc:
+            return match[3];
+        case sequence_id_type::acc_ver:
+            if(match[4].length())
+                return match[2];
+            else
+                return "";
+        case sequence_id_type::gi:
+            return "";
+        default:
+            return match[2];
     }
-
-    //try to find version speparator
-    auto s = text.find('.', 1);
-    if(s < 25) return trimmed(text.substr(0, end_of_accession_number(text,s+1)));
-
-    return "";
 }
 
 
 
-//-------------------------------------------------------------------
-string
-extract_ncbi_accession_number(const string& prefix,
-                              const string& text)
-{
-    if(text.empty()) return "";
-
-    auto i = text.find(prefix);
-    if(i != string::npos) {
-        auto j = i + prefix.size();
-        auto k = end_of_accession_number(text,j);
-        //version separator
-        auto l = text.find('.', j);
-        if(l < k) k = l;
-        return trimmed(text.substr(i, k-i));
-    }
-    return "";
-}
-
-//---------------------------------------------------------
-string
-extract_ncbi_accession_number(const string& text)
-{
-    if(text.empty()) return "";
-
-    for(auto prefix : accession_prefix) {
-        auto num = extract_ncbi_accession_number(prefix, text);
-
-        if(!num.empty()) return num;
-    }
-    return "";
-}
-
-
-
-//-------------------------------------------------------------------
+/*************************************************************************//**
+ *
+ * @brief extracts the numeric part from a gi identifier
+ *
+ *****************************************************************************/
 string
 extract_genbank_identifier(const string& text)
 {
@@ -682,19 +612,26 @@ extract_genbank_identifier(const string& text)
 
 //-------------------------------------------------------------------
 string
-extract_accession_string(const string& text)
+extract_accession_string(const string& text, sequence_id_type idtype)
 {
     if(text.empty()) return "";
 
-    auto s = extract_ncbi_accession_version_number(text);
-    if(!s.empty()) return s;
+    switch(idtype) {
+        case sequence_id_type::acc:
+            [[fallthrough]]
+        case sequence_id_type::acc_ver:
+            return extract_ncbi_accession_number(text, idtype);
+        case sequence_id_type::gi:
+            return extract_genbank_identifier(text);
+        default: {
+            auto s = extract_ncbi_accession_number(text);
+            if(!s.empty()) return s;
 
-    s = extract_ncbi_accession_number(text);
-    if(!s.empty()) return s;
+            s = extract_genbank_identifier(text);
 
-    s = extract_genbank_identifier(text);
-
-    return s;
+            return s;
+        }
+    }
 }
 
 

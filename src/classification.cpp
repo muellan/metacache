@@ -112,10 +112,10 @@ ground_truth(const database& db, const string& header)
 {
     //try to extract query id and find the corresponding target in database
     const taxon* tax = nullptr;
-    tax = db.taxon_with_name(extract_ncbi_accession_version_number(header));
+    tax = db.taxon_with_name(extract_accession_string(header, sequence_id_type::acc_ver));
     if(tax) return db.next_ranked_ancestor(tax);
 
-    tax = db.taxon_with_similar_name(extract_ncbi_accession_number(header));
+    tax = db.taxon_with_similar_name(extract_accession_string(header, sequence_id_type::acc));
     if(tax) return db.next_ranked_ancestor(tax);
 
     //try to extract id from header

@@ -240,73 +240,61 @@ void annotate_with_taxid(const annotation_options& opt,
                          std::istream& is,
                          std::ostream& os)
 {
-   bool firstLine = true;
-   std::string line;
-   do {
-       getline(is, line);
+    bool firstLine = true;
+    std::string line;
+    do {
+        getline(is, line);
 
-       if(!line.empty()) {
-           //if line is header
-           if(line[0] == '>' || line[0] == '@') {
-               std::string id;
-               switch(opt.idtype) {
-                   case sequence_id_type::acc:
-                       id = extract_ncbi_accession_number(line);
-                       break;
-                   case sequence_id_type::acc_ver:
-                       id = extract_ncbi_accession_version_number(line);
-                       break;
-                   case sequence_id_type::gi:
-                       id = extract_genbank_identifier(line);
-                       break;
-                   default: break;
-               }
+        if(!line.empty()) {
+            //if line is header
+            if(line[0] == '>' || line[0] == '@') {
+                std::string id = extract_accession_string(line, opt.idtype);
 
-               //delete old taxid if present
-               {
-                   auto j = line.find("taxid");
-                   if(j != std::string::npos) {
-                       auto k = line.find(opt.valueSeparator, j+4);
-                       if(k != std::string::npos) {
-                           auto l = line.find(opt.fieldSeparator, k+1);
-                           if(l == std::string::npos)
-                               l = line.find(opt.valueSeparator, k+1);
-                           line.erase(j, l-j+1);
-                       }
-                   }
-               }
+                //delete old taxid if present
+                {
+                    auto j = line.find("taxid");
+                    if(j != std::string::npos) {
+                        auto k = line.find(opt.valueSeparator, j+4);
+                        if(k != std::string::npos) {
+                            auto l = line.find(opt.fieldSeparator, k+1);
+                            if(l == std::string::npos)
+                                l = line.find(opt.valueSeparator, k+1);
+                            line.erase(j, l-j+1);
+                        }
+                    }
+                }
 
-               if(!id.empty()) {
-                   taxid_t taxid = 0;
-                   auto it = map.find(id);
-                   if(it != map.end()) {
-                       taxid = it->second;
-                   }
+                if(!id.empty()) {
+                    taxid_t taxid = 0;
+                    auto it = map.find(id);
+                    if(it != map.end()) {
+                        taxid = it->second;
+                    }
 
-                   //insert taxid after first field separator / end of line
-                   auto ipos = line.find(opt.fieldSeparator);
-                   if(ipos == std::string::npos) {
-                       line += opt.fieldSeparator + "taxid" +
-                               opt.valueSeparator + std::to_string(taxid) +
-                               opt.fieldSeparator;
-                   }
-                   else {
-                       line.insert(ipos+1, "taxid" +
-                                   opt.valueSeparator + std::to_string(taxid) +
-                                   opt.fieldSeparator);
-                   }
-               }
-           }
-       }
+                    //insert taxid after first field separator / end of line
+                    auto ipos = line.find(opt.fieldSeparator);
+                    if(ipos == std::string::npos) {
+                        line += opt.fieldSeparator + "taxid" +
+                                opt.valueSeparator + std::to_string(taxid) +
+                                opt.fieldSeparator;
+                    }
+                    else {
+                        line.insert(ipos+1, "taxid" +
+                                    opt.valueSeparator + std::to_string(taxid) +
+                                    opt.fieldSeparator);
+                    }
+                }
+            }
+        }
 
-       if(firstLine) {
-           os << line;
-           firstLine = false;
-       }
-       else if(!line.empty()) {
-           os << '\n' << line;
-       }
-   } while(is.good() && os.good() && !line.empty());
+        if(firstLine) {
+            os << line;
+            firstLine = false;
+        }
+        else if(!line.empty()) {
+            os << '\n' << line;
+        }
+    } while(is.good() && os.good() && !line.empty());
 
 }
 
