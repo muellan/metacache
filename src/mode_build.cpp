@@ -414,6 +414,7 @@ void add_targets_to_database(database& db,
                     << "See 'README.md' on how to compile MetaCache with "
                     << "support for databases with more reference targets.\n"
                     << endl;
+            break;
         }
         catch(std::exception& e) {
             if(infoLvl == info_level::verbose) {
