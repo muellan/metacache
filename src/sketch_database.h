@@ -267,7 +267,7 @@ public:
             offsets_.resize(1, 0);
         }
 
-        void empty() const noexcept { return locs_.empty(); }
+        bool empty() const noexcept { return locs_.empty(); }
         auto size()  const noexcept { return locs_.size(); }
 
         auto begin() const noexcept { return locs_.begin(); }

@@ -407,6 +407,14 @@ void add_targets_to_database(database& db,
                 cout << "done." << endl;
             }
         }
+        catch(database::target_limit_exceeded_error&) {
+            cout << endl;
+            cerr << "Reached maximum number of targets per database ("
+                    << db.max_target_count() << ").\n"
+                    << "See 'README.md' on how to compile MetaCache with "
+                    << "support for databases with more reference targets.\n"
+                    << endl;
+        }
         catch(std::exception& e) {
             if(infoLvl == info_level::verbose) {
                 cout << "FAIL: " << e.what() << endl;
@@ -421,14 +429,6 @@ void add_targets_to_database(database& db,
     try {
         //last batch
         db.wait_until_add_target_complete();
-    }
-    catch(database::target_limit_exceeded_error&) {
-        cout << endl;
-        cerr << "Reached maximum number of targets per database ("
-                << db.max_target_count() << ").\n"
-                << "See 'README.md' on how to compile MetaCache with "
-                << "support for databases with more reference targets.\n"
-                << endl;
     }
     catch(std::exception& e) {
         if(infoLvl == info_level::verbose) {
