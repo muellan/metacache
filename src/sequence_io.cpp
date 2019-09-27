@@ -94,35 +94,27 @@ fasta_reader::fasta_reader(const string& filename):
 //-------------------------------------------------------------------
 void fasta_reader::read_next(sequence& seq)
 {
-    string line;
-
     if(linebuffer_.empty()) {
-        getline(file_, line);
+        getline(file_, linebuffer_);
     }
-    else {
-        line.clear();
-        using std::swap;
-        swap(line, linebuffer_);
-    }
-    pos_ += line.size()+1;
+    pos_ += linebuffer_.size()+1;
 
-    if(line[0] != '>') {
+    if(linebuffer_[0] != '>') {
         throw io_format_error{"malformed fasta file - expected header char > not found"};
         invalidate();
         return;
     }
-    seq.header = line.substr(1);
+    seq.header = linebuffer_.substr(1);
 
     seq.data.clear();
     while(file_.good()) {
-        getline(file_, line);
-        if(line[0] == '>') {
-            linebuffer_ = line;
+        getline(file_, linebuffer_);
+        if(linebuffer_[0] == '>') {
             break;
         }
         else {
-            seq.data.append(line);
-            pos_ += line.size()+1;
+            seq.data.append(linebuffer_);
+            pos_ += linebuffer_.size()+1;
         }
     }
 
