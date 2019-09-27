@@ -399,26 +399,21 @@ void add_targets_to_database(database& db,
                         cout << seqId << " not added to database" << endl;
                     }
                 }
+
+                if(db.add_target_terminated()) break;
             }
 
             if(infoLvl == info_level::verbose) {
                 cout << "done." << endl;
             }
         }
-        catch(database::target_limit_exceeded_error&) {
-            cout << endl;
-            cerr << "Reached maximum number of targets per database ("
-                 << db.max_target_count() << ").\n"
-                 << "See 'README.md' on how to compile MetaCache with "
-                 << "support for databases with more reference targets.\n"
-                 << endl;
-            break;
-        }
         catch(std::exception& e) {
             if(infoLvl == info_level::verbose) {
                 cout << "FAIL: " << e.what() << endl;
             }
         }
+
+        if(db.add_target_terminated()) break;
 
         ++i;
     }

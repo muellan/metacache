@@ -1010,7 +1010,7 @@ private:
                 sketch_batch batch;
 
                 while(!sketchingDone_.load() || queue_.peek()) {
-                    if (queue_.wait_dequeue_timed(batch, std::chrono::milliseconds(10))) {
+                    if(queue_.wait_dequeue_timed(batch, std::chrono::milliseconds(10))) {
                         for(const auto& windowSketch : batch) {
                             //insert features from sketch into database
                             for(const auto& f : windowSketch.sk) {
@@ -1032,8 +1032,22 @@ public:
     void wait_until_add_target_complete() {
         enqueue_batch();
         sketchingDone_.store(1);
-        if (inserterThread_->valid())
+        if(inserterThread_ && inserterThread_->valid())
             inserterThread_->get();
+    }
+
+
+    //---------------------------------------------------------------
+    bool add_target_terminated() {
+        if(!inserterThread_)
+            return false;
+
+        if(inserterThread_->valid()) {
+            auto status = inserterThread_->wait_for(std::chrono::minutes::zero());
+            if (status == std::future_status::timeout)
+                return false;
+        }
+        return true;
     }
 
 
