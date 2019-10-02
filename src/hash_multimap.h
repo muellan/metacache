@@ -931,8 +931,10 @@ private:
             //if the allocator supports it: reserve one large memory chunk
             //for all values; individual buckets will then point into this
             //array; the default chunk_allocator does this
-            reserve_values(nvalues);
             reserve_keys(nkeys);
+            reserve_values(nvalues);
+            const auto valuesBegin = alloc_.allocate(nvalues);
+            auto valuesOffset = valuesBegin;
 
             for(len_t i = 0; i < nkeys; ++i) {
                 key_type key;
@@ -940,14 +942,14 @@ private:
                 read_binary(is, key);
                 read_binary(is, nvals);
                 if(nvals > 0) {
-                    auto it = insert_into_slot(std::move(key), nullptr, 0, 0);
+                    auto it = insert_into_slot(std::move(key), valuesOffset, nvals, nvals);
                     if(it == buckets_.end()) continue;
 
-                    it->resize(alloc_, nvals);
-
-                    read_binary(is, it->begin(), it->size());
+                    valuesOffset += nvals;
                 }
             }
+            read_binary(is, valuesBegin, nvalues);
+
             numKeys_ = nkeys;
             numValues_ = nvalues;
         }
@@ -969,7 +971,10 @@ private:
             if(!bucket.empty()) {
                 write_binary(os, bucket.key());
                 write_binary(os, bucket.size());
-
+            }
+        }
+        for(const auto& bucket : buckets_) {
+            if(!bucket.empty()) {
                 write_binary(os, bucket.begin(), bucket.size());
             }
         }
