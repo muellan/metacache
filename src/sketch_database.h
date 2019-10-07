@@ -1004,6 +1004,21 @@ public:
 
 private:
     //---------------------------------------------------------------
+    void add_sketch_batch(const sketch_batch& batch) {
+        for(const auto& windowSketch : batch) {
+            //insert features from sketch into database
+            for(const auto& f : windowSketch.sk) {
+                auto it = features_.insert(
+                    f, target_location{windowSketch.tgt, windowSketch.win});
+                if(it->size() > maxLocsPerFeature_) {
+                    features_.shrink(it, maxLocsPerFeature_);
+                }
+            }
+        }
+    }
+
+
+    //---------------------------------------------------------------
     void spawn_inserter() {
         inserterThread_ = std::make_unique<std::future<void>>(
             std::async(std::launch::async, [&]() {
@@ -1011,47 +1026,14 @@ private:
 
                 while(!sketchingDone_.load() || queue_.peek()) {
                     if(queue_.wait_dequeue_timed(batch, std::chrono::milliseconds(10))) {
-                        for(const auto& windowSketch : batch) {
-                            //insert features from sketch into database
-                            for(const auto& f : windowSketch.sk) {
-                                auto it = features_.insert(
-                                    f, target_location{windowSketch.tgt, windowSketch.win});
-                                if(it->size() > maxLocsPerFeature_) {
-                                    features_.shrink(it, maxLocsPerFeature_);
-                                }
-                            }
-                        }
+                        add_sketch_batch(batch);
                     }
                 }
             })
         );
     }
 
-public:
-    //---------------------------------------------------------------
-    void wait_until_add_target_complete() {
-        enqueue_batch();
-        sketchingDone_.store(1);
-        if(inserterThread_ && inserterThread_->valid())
-            inserterThread_->get();
-    }
 
-
-    //---------------------------------------------------------------
-    bool add_target_terminated() {
-        if(!inserterThread_)
-            return false;
-
-        if(inserterThread_->valid()) {
-            auto status = inserterThread_->wait_for(std::chrono::minutes::zero());
-            if (status == std::future_status::timeout)
-                return false;
-        }
-        return true;
-    }
-
-
-private:
     //---------------------------------------------------------------
     void enqueue_batch() {
         if(sketchingDone_.load()) {
@@ -1091,6 +1073,31 @@ private:
     }
 
 
+public:
+    //---------------------------------------------------------------
+    void wait_until_add_target_complete() {
+        enqueue_batch();
+        sketchingDone_.store(1);
+        if(inserterThread_ && inserterThread_->valid())
+            inserterThread_->get();
+    }
+
+
+    //---------------------------------------------------------------
+    bool add_target_terminated() {
+        if(!inserterThread_)
+            return false;
+
+        if(inserterThread_->valid()) {
+            auto status = inserterThread_->wait_for(std::chrono::minutes::zero());
+            if (status == std::future_status::timeout)
+                return false;
+        }
+        return true;
+    }
+
+
+private:
     //---------------------------------------------------------------
     sketcher targetSketcher_;
     sketcher querySketcher_;
