@@ -109,7 +109,7 @@ gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::feature_batch::~feature_batch
 }
 
 
-//-----------------------------------------------------
+//---------------------------------------------------------------
 template<
     class Key,
     class ValueT,
@@ -117,7 +117,11 @@ template<
     class KeyEqual,
     class BucketSizeT
 >
-void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::init()
+gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::gpu_hashmap() :
+    numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
+    hash_{}, keyEqual_{},
+    kmerLength_(16), sketchSize_(16), windowSize_(128), windowStride_(113),
+    seqBatches_{}, featureBatches_{}
 {
     cudaSetDevice(0);
 
@@ -137,6 +141,27 @@ void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::init()
 
     featureBatches_.emplace_back(maxFeatures);
 }
+
+//---------------------------------------------------------------
+template<
+    class Key,
+    class ValueT,
+    class Hash,
+    class KeyEqual,
+    class BucketSizeT
+>
+gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::~gpu_hashmap() = default;
+
+
+//---------------------------------------------------------------
+template<
+    class Key,
+    class ValueT,
+    class Hash,
+    class KeyEqual,
+    class BucketSizeT
+>
+gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::gpu_hashmap(gpu_hashmap&&) = default;
 
 
 //-----------------------------------------------------

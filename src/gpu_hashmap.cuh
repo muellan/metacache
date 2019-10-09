@@ -229,51 +229,14 @@ public:
 
     using size_type        = size_t;
 
-    //---------------------------------------------------------------
-    static constexpr std::size_t
-    max_bucket_size() noexcept {
-        return std::numeric_limits<bucket_size_type>::max();
-    }
-
 public:
     //---------------------------------------------------------------
-    gpu_hashmap()
-    :
-        numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
-        hash_{}, keyEqual_{},
-        kmerLength_(16), sketchSize_(16), windowSize_(128), windowStride_(113),
-        seqBatches_{}, featureBatches_{}
-    {
-        init();
-    }
-
-    //-----------------------------------------------------
-    gpu_hashmap(const key_equal& keyComp)
-    :
-        numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
-        hash_{}, keyEqual_{keyComp},
-        kmerLength_(16), sketchSize_(16), windowSize_(128), windowStride_(113),
-        seqBatches_{}, featureBatches_{}
-    {
-        init();
-    }
-
-    //-----------------------------------------------------
-    gpu_hashmap(
-        const hasher& hash,
-        const key_equal& keyComp)
-    :
-        numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
-        hash_{hash}, keyEqual_{keyComp},
-        kmerLength_(16), sketchSize_(16), windowSize_(128), windowStride_(113),
-        seqBatches_{}, featureBatches_{}
-    {
-        init();
-    }
+    gpu_hashmap();
+    ~gpu_hashmap();
+    gpu_hashmap(gpu_hashmap&&);
+    gpu_hashmap(const gpu_hashmap&) = delete;
 
 private:
-    void init();
-
     /*************************************************************************//**
     *
     * @brief batch contains features and locations of multiple targets
@@ -332,6 +295,12 @@ private:
     };
 
 public:
+    //---------------------------------------------------------------
+    static constexpr std::size_t
+    max_bucket_size() noexcept {
+        return std::numeric_limits<bucket_size_type>::max();
+    }
+
     //---------------------------------------------------------------
     size_type key_count() const noexcept {
         return numKeys_;
