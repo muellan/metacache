@@ -225,7 +225,6 @@ public:
     //---------------------------------------------------------------
     using key_type         = Key;
     using value_type       = ValueT;
-    using mapped_type      = ValueT;
     using hasher           = Hash;
     using key_equal        = KeyEqual;
     using bucket_size_type = BucketSizeT;
@@ -319,6 +318,11 @@ public:
     }
 
     //---------------------------------------------------------------
+    float load_factor() const noexcept {
+        return hashTable_ ? hashTable_->load_factor() : -1;
+    }
+
+    //---------------------------------------------------------------
     static constexpr float default_max_load_factor() noexcept {
         return 0.95;
     }
@@ -331,11 +335,39 @@ public:
     std::vector<key_type> insert(const sequence_batch<policy::Host>& seqBatchHost);
 
 
-    //---------------------------------------------------------------
-    void insert_all(key_type *keys_in, value_type *values_in, size_type size_in);
+    /****************************************************************
+     * @brief deserialize hashmap from input stream
+     */
+     friend void read_binary(std::istream& is, gpu_hashmap& m) {
+        m.deserialize(is);
+    }
+
+    /****************************************************************
+     * @brief serialize hashmap to output stream
+     */
+    friend void write_binary(std::ostream& os, const gpu_hashmap& m) {
+        m.serialize(os);
+    }
+
 
 private:
     //---------------------------------------------------------------
+    void deserialize(std::istream& is);
+
+    //---------------------------------------------------------------
+    /**
+     * @brief binary serialization of all non-emtpy buckets
+     */
+    void serialize(std::ostream& os) const;
+
+
+private:
+    //---------------------------------------------------------------
+    /**
+     * @brief hashtable which maps feature to value bucket and bucket size
+     */
+    std::unique_ptr<single_value_hash_table> hashTable_;
+    value_type * values_;
     size_type numKeys_;
     size_type numValues_;
     float maxLoadFactor_;
@@ -350,8 +382,6 @@ private:
     size_t maxBatchNum_;
     std::vector<sequence_batch<policy::Device>> seqBatches_;
     std::vector<feature_batch> featureBatches_;
-
-    std::unique_ptr<single_value_hash_table> hashTable_;
 };
 
 

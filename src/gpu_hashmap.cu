@@ -121,20 +121,29 @@ template<
 >
 class gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::single_value_hash_table {
 
-    using hash_table_t = warpcore::SingleValueHashTable<
-        Key, ValueT,
-        warpcore::defaults::probing_t<Key>,
-        warpcore::defaults::empty_key<Key>(),          //=0
-        warpcore::defaults::tombstone_key<Key>()>;     //=-1
+    using key_type   = Key;
+    using value_type = std::uint64_t;
+    using size_type  = size_t;
 
-    using Index = size_t;
+    using hash_table_t = warpcore::SingleValueHashTable<
+        key_type, value_type,
+        warpcore::defaults::probing_t<key_type>,
+        warpcore::defaults::empty_key<key_type>(),          //=0
+        warpcore::defaults::tombstone_key<key_type>()>;     //=-1
 
 public:
     single_value_hash_table(size_t capacity) : hashTable_(capacity) {}
 
-    void insert(Key *keys_in, ValueT *values_in, Index size_in)
+    //---------------------------------------------------------------
+    float load_factor() const noexcept {
+        return hashTable_.load_factor();
+    }
+
+    //---------------------------------------------------------------
+    void insert(key_type *keys_in, value_type *values_in, size_type size_in)
     {
-        Index probing_length = 4*hashTable_.capacity();
+        size_type probing_length = 4*hashTable_.capacity();
+        //TODO
         cudaStream_t stream = 0;
         hashTable_.insert(keys_in, values_in, size_in, probing_length, stream);
     }
@@ -142,22 +151,6 @@ public:
 private:
     hash_table_t hashTable_;
 };
-
-
-
-//---------------------------------------------------------------
-template<
-    class Key,
-    class ValueT,
-    class Hash,
-    class KeyEqual,
-    class BucketSizeT
->
-void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert_all(
-    key_type *keys_in, value_type *values_in, size_type size_in)
-{
-    hashTable_->insert(keys_in, values_in, size_in);
-}
 
 
 //---------------------------------------------------------------
@@ -315,6 +308,131 @@ std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
 }
 
 
+
+
+
+//---------------------------------------------------------------
+template<
+    class Key,
+    class ValueT,
+    class Hash,
+    class KeyEqual,
+    class BucketSizeT
+>
+void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::deserialize(
+    std::istream& is)
+{
+    using len_t = std::uint64_t;
+
+    const size_t keyBatchSize = 1UL << 20;
+    const size_t valBatchSize = 1UL << 20;
+
+    len_t nkeys = 0;
+    read_binary(is, nkeys);
+    len_t nvalues = 0;
+    read_binary(is, nvalues);
+
+    if(nkeys > 0) {
+        {//load hash table
+            //initialize hash table
+            hashTable_ = std::make_unique<single_value_hash_table>(nkeys/maxLoadFactor_);
+
+            //allocate insert buffers
+            key_type * h_keyBuffer;
+            key_type * d_keyBuffer;
+            cudaMallocHost(&h_keyBuffer, keyBatchSize*sizeof(key_type));
+            cudaMalloc    (&d_keyBuffer, keyBatchSize*sizeof(key_type));
+            uint64_t * h_offsetBuffer;
+            uint64_t * d_offsetBuffer;
+            cudaMallocHost(&h_offsetBuffer, keyBatchSize*sizeof(uint64_t));
+            cudaMalloc    (&d_offsetBuffer, keyBatchSize*sizeof(uint64_t));
+
+            uint64_t valuesOffset = 0;
+            for(len_t i = 0; i < nkeys; ++i) {
+                key_type key;
+                bucket_size_type nvals = 0;
+                read_binary(is, key);
+                read_binary(is, nvals);
+
+                h_keyBuffer[i % keyBatchSize] = key;
+                //store offset and size together in 64bit
+                //default is 56bit offset, 8bit size
+                h_offsetBuffer[i % keyBatchSize] =
+                    (valuesOffset << sizeof(bucket_size_type)*CHAR_BIT) + nvals;;
+
+                valuesOffset += nvals;
+
+                //insert buffer if full
+                if(i % keyBatchSize == 0) {
+                    cudaMemcpy(d_keyBuffer, h_keyBuffer, keyBatchSize*sizeof(key_type),
+                               cudaMemcpyHostToDevice);
+                    cudaMemcpy(d_offsetBuffer, h_offsetBuffer, keyBatchSize*sizeof(uint64_t),
+                               cudaMemcpyHostToDevice);
+                    hashTable_->insert(d_keyBuffer, d_offsetBuffer, keyBatchSize);
+                }
+            }
+            //insert remaining pairs in buffer
+            cudaMemcpy(d_keyBuffer, h_keyBuffer, keyBatchSize*sizeof(key_type),
+                       cudaMemcpyHostToDevice);
+            cudaMemcpy(d_offsetBuffer, h_offsetBuffer, keyBatchSize*sizeof(uint64_t),
+                       cudaMemcpyHostToDevice);
+            hashTable_->insert(d_keyBuffer, d_offsetBuffer, nkeys % keyBatchSize);
+
+            cudaFreeHost(h_keyBuffer);
+            cudaFree    (d_keyBuffer);
+            cudaFreeHost(h_offsetBuffer);
+            cudaFree    (d_offsetBuffer);
+        }
+
+        {//load values
+            //allocate large memory chunk for all values,
+            //individual buckets will then point into this array
+            cudaMalloc(&values_, nvalues*sizeof(value_type));
+
+            //allocate buffer
+            value_type * valueBuffer;
+            cudaMallocHost(&valueBuffer, valBatchSize*sizeof(value_type));
+
+            //read batch of values and copy to device
+            //TODO overlap async
+            auto valuesOffset = values_;
+            for(size_t i = 0; i < nvalues/valBatchSize; ++i) {
+                read_binary(is, valueBuffer, valBatchSize);
+                cudaMemcpy(valuesOffset, valueBuffer, valBatchSize*sizeof(value_type),
+                           cudaMemcpyHostToDevice);
+                valuesOffset += valBatchSize;
+            }
+            //read remaining values and copy to device
+            const size_t remainingSize = nvalues % valBatchSize;
+            read_binary(is, valueBuffer, remainingSize);
+            cudaMemcpy(valuesOffset, valueBuffer, remainingSize*sizeof(value_type),
+                       cudaMemcpyHostToDevice);
+
+            cudaFreeHost(valueBuffer);
+        }
+
+        numKeys_ = nkeys;
+        numValues_ = nvalues;
+    }
+}
+
+
+//---------------------------------------------------------------
+/**
+* @brief binary serialization of all non-emtpy buckets
+*/
+template<
+    class Key,
+    class ValueT,
+    class Hash,
+    class KeyEqual,
+    class BucketSizeT
+>
+void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::serialize(
+    std::ostream& os) const
+{
+    //TODO
+}
 
 
 
