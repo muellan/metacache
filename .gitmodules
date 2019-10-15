@@ -7,3 +7,6 @@
 [submodule "cub"]
 	path = dep/cub
 	url = https://github.com/NVlabs/cub.git
+[submodule "dep/warpcore"]
+	path = dep/warpcore
+	url = https://github.com/sleeepyjack/warpcore

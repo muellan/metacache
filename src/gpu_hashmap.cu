@@ -6,6 +6,8 @@
 #include "sketch_database.h"
 #include "gpu_engine.cuh"
 
+#include "../dep/warpcore/include/warpcore.cuh"
+
 namespace mc {
 
 //---------------------------------------------------------------
@@ -117,6 +119,55 @@ template<
     class KeyEqual,
     class BucketSizeT
 >
+class gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::single_value_hash_table {
+
+    using hash_table_t = warpcore::SingleValueHashTable<
+        Key, ValueT,
+        warpcore::defaults::probing_t<Key>,
+        warpcore::defaults::empty_key<Key>(),          //=0
+        warpcore::defaults::tombstone_key<Key>()>;     //=-1
+
+    using Index = size_t;
+
+public:
+    single_value_hash_table(size_t capacity) : hashTable_(capacity) {}
+
+    void insert(Key *keys_in, ValueT *values_in, Index size_in)
+    {
+        Index probing_length = 4*hashTable_.capacity();
+        cudaStream_t stream = 0;
+        hashTable_.insert(keys_in, values_in, size_in, probing_length, stream);
+    }
+
+private:
+    hash_table_t hashTable_;
+};
+
+
+
+//---------------------------------------------------------------
+template<
+    class Key,
+    class ValueT,
+    class Hash,
+    class KeyEqual,
+    class BucketSizeT
+>
+void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert_all(
+    key_type *keys_in, value_type *values_in, size_type size_in)
+{
+    hashTable_->insert(keys_in, values_in, size_in);
+}
+
+
+//---------------------------------------------------------------
+template<
+    class Key,
+    class ValueT,
+    class Hash,
+    class KeyEqual,
+    class BucketSizeT
+>
 gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::gpu_hashmap() :
     numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
     hash_{}, keyEqual_{},
@@ -142,7 +193,7 @@ gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::gpu_hashmap() :
     featureBatches_.emplace_back(maxFeatures);
 }
 
-//---------------------------------------------------------------
+//-----------------------------------------------------
 template<
     class Key,
     class ValueT,
@@ -153,7 +204,7 @@ template<
 gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::~gpu_hashmap() = default;
 
 
-//---------------------------------------------------------------
+//-----------------------------------------------------
 template<
     class Key,
     class ValueT,
@@ -164,7 +215,7 @@ template<
 gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::gpu_hashmap(gpu_hashmap&&) = default;
 
 
-//-----------------------------------------------------
+//---------------------------------------------------------------
 template<
     class Key,
     class ValueT,

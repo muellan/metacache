@@ -3,6 +3,7 @@
 
 #include <functional>
 #include <limits>
+#include <memory>
 
 #include "config.h"
 
@@ -214,6 +215,8 @@ template<
 >
 class gpu_hashmap
 {
+    class single_value_hash_table;
+
     static_assert(std::is_integral<BucketSizeT>::value &&
         std::is_unsigned<BucketSizeT>::value,
         "bucket size type must be an unsigned integer");
@@ -327,6 +330,11 @@ public:
     //---------------------------------------------------------------
     std::vector<key_type> insert(const sequence_batch<policy::Host>& seqBatchHost);
 
+
+    //---------------------------------------------------------------
+    void insert_all(key_type *keys_in, value_type *values_in, size_type size_in);
+
+private:
     //---------------------------------------------------------------
     size_type numKeys_;
     size_type numValues_;
@@ -342,6 +350,8 @@ public:
     size_t maxBatchNum_;
     std::vector<sequence_batch<policy::Device>> seqBatches_;
     std::vector<feature_batch> featureBatches_;
+
+    std::unique_ptr<single_value_hash_table> hashTable_;
 };
 
 
