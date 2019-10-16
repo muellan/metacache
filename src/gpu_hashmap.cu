@@ -260,6 +260,7 @@ void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::deserialize(
 {
     using len_t = std::uint64_t;
 
+    //TODO tune sizes
     const size_t keyBatchSize = 1UL << 20;
     const size_t valBatchSize = 1UL << 20;
 
@@ -299,6 +300,7 @@ void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::deserialize(
                 valuesOffset += nvals;
 
                 //insert buffer if full
+                //TODO overlap async
                 if(i % keyBatchSize == 0) {
                     cudaMemcpy(d_keyBuffer, h_keyBuffer, keyBatchSize*sizeof(key_type),
                                cudaMemcpyHostToDevice);
@@ -372,7 +374,7 @@ void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::serialize(
 
 
 
-//-----------------------------------------------------
+//---------------------------------------------------------------
 template class gpu_hashmap<
         kmer_type,
         location,

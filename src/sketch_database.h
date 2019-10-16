@@ -307,8 +307,6 @@ public:
         seqBatches_{}
     {
         features_.max_load_factor(default_max_load_factor());
-
-        seqBatches_.emplace_back(MAX_TARGETS_PER_BATCH, MAX_ENCODE_LENGTH_PER_BATCH);
     }
 
     database(const database&) = delete;
@@ -932,6 +930,7 @@ public:
 
         //hash table
         read_binary(is, features_);
+        // read_binary(is, featureStoreGPU_);
     }
 
 
@@ -1137,6 +1136,8 @@ private:
                   << " Features: " << numFeatures
                   << '\n';
 
+        if(seqBatches_.size() < 1) provide_sequence_batches(1);
+
         //fill sequence batch
         auto processedWindows = seqBatches_[0].add_target(
             first, last, tgt, win,
@@ -1170,6 +1171,11 @@ private:
     }
 
 
+    //---------------------------------------------------------------
+    void provide_sequence_batches(size_t numBatches) {
+        for(size_t i = seqBatches_.size(); i < numBatches; ++i)
+            seqBatches_.emplace_back(MAX_TARGETS_PER_BATCH, MAX_ENCODE_LENGTH_PER_BATCH);
+    }
 
 
     //---------------------------------------------------------------
