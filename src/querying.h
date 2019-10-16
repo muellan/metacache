@@ -65,6 +65,61 @@ struct sequence_query
 
 /*************************************************************************//**
  *
+ * @brief queries database with a batch of reads
+ *
+ * @tparam BufferSource  returns a per-batch buffer object
+ *
+ * @tparam BufferUpdate  takes database matches of one query and a buffer;
+ *                       must be thread-safe (only const operations on DB!)
+ *
+ * @tparam BufferSink    recieves buffer after batch is finished
+ *
+ *****************************************************************************/
+template<
+    class BufferSource, class BufferUpdate, class BufferSink
+>
+void process_sequence_batch(
+    const std::vector<sequence_pair_reader::sequence_pair>& sequenceBatch,
+    const database& db, std::mutex& finalizeMtx,
+    BufferSource&& getBuffer, BufferUpdate&& update, BufferSink&& finalize)
+{
+    auto batchBuffer = getBuffer();
+    bool bufferEmpty = true;
+    match_locations matches;
+    match_target_locations targetMatches;
+
+    for(auto& seq : sequenceBatch) {
+        if(!seq.first.header.empty()) {
+            bufferEmpty = false;
+            targetMatches.clear();
+
+            db.accumulate_matches(seq.first.data, targetMatches);
+            db.accumulate_matches(seq.second.data, targetMatches);
+            targetMatches.sort();
+
+            matches.clear();
+            for(auto& m : targetMatches)
+                matches.emplace_back(db.taxon_of_target(m.tgt), m.win);
+
+            update(batchBuffer,
+                    sequence_query{seq.first.index,
+                                   std::move(seq.first.header),
+                                   std::move(seq.first.data),
+                                   std::move(seq.second.data)},
+                    matches );
+        }
+    }
+
+    if(!bufferEmpty) {
+        std::lock_guard<std::mutex> lock(finalizeMtx);
+        finalize(std::move(batchBuffer));
+    }
+}
+
+
+
+/*************************************************************************//**
+ *
  * @brief queries database with batches of reads from one sequence source
  *        produces one match list per sequence
  *
@@ -84,7 +139,7 @@ query_id query_batched(
     const std::string& filename1, const std::string& filename2,
     const database& db, const query_processing_options& opt,
     const query_id& startId,
-    BufferSource&& getBuffer, BufferUpdate&& update, BufferSink&& finalize,
+    BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
     LogCallback&& log)
 {
     std::mutex finalizeMtx;
@@ -95,50 +150,20 @@ query_id query_batched(
         sequence_pair_reader reader{filename1, filename2};
         reader.index_offset(startId);
 
-        std::vector<sequence_pair_reader::sequence_pair> sequenceBatch;
-        sequenceBatch.reserve(opt.batchSize);
-
-        match_locations matches;
-        match_target_locations targetMatches;
-
         while(reader.has_next() && queryLimit > 0) {
-            auto batchBuffer = getBuffer();
-            bool bufferEmpty = true;
+            std::vector<sequence_pair_reader::sequence_pair> sequenceBatch;
+            sequenceBatch.reserve(opt.batchSize);
 
             //fill batch with sequences
-            for(std::size_t i = 0; i < opt.batchSize && queryLimit > 0; ++i, queryLimit--) {
+            for(std::size_t i = 0; i < opt.batchSize && queryLimit > 0; ++i, --queryLimit) {
                 if(!reader.has_next()) break;
                 sequenceBatch.emplace_back(reader.next());
             }
 
-            //process batch of sequences
-            for(auto& seq : sequenceBatch) {
-                if(!seq.first.header.empty()) {
-                    bufferEmpty = false;
-                    targetMatches.clear();
-
-                    db.accumulate_matches(seq.first.data, targetMatches);
-                    db.accumulate_matches(seq.second.data, targetMatches);
-                    targetMatches.sort();
-
-                    matches.clear();
-                    for(auto& m : targetMatches)
-                        matches.emplace_back(db.taxon_of_target(m.tgt), m.win);
-
-                    update(batchBuffer,
-                            sequence_query{seq.first.index,
-                                            std::move(seq.first.header),
-                                            std::move(seq.first.data),
-                                            std::move(seq.second.data)},
-                            matches );
-                }
-            }
-            sequenceBatch.clear();
-
-            if(!bufferEmpty) {
-                std::lock_guard<std::mutex> lock(finalizeMtx);
-                finalize(std::move(batchBuffer));
-            }
+            process_sequence_batch(sequenceBatch, db, finalizeMtx,
+                                   std::forward<BufferSource>(bufsrc),
+                                   std::forward<BufferUpdate>(bufupdate),
+                                   std::forward<BufferSink>(bufsink));
         }
 
         endId = reader.index();
