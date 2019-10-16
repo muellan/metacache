@@ -107,8 +107,6 @@ struct query_processing_options
 
     std::size_t batchSize = 4096 * std::thread::hardware_concurrency();
 
-    int perThreadSequentialQueries = 4;
-
     //limits number of reads per sequence source (file)
     std::int_least64_t queryLimit = std::numeric_limits<std::int_least64_t>::max();
 };

@@ -88,120 +88,69 @@ query_id query_batched(
     LogCallback&& log)
 {
     std::mutex finalizeMtx;
-    std::atomic<std::int_least64_t> queryLimit{opt.queryLimit};
-    std::atomic<query_id> workId{startId};
+    std::int_least64_t queryLimit = opt.queryLimit;
+    query_id endId = startId;
 
-    // store id and position of most advanced thread
-    std::mutex tipMtx;
-    query_id qid{startId};
-    sequence_pair_reader::stream_positions pos{0,0};
+    try {
+        sequence_pair_reader reader{filename1, filename2};
+        reader.index_offset(startId);
 
-    std::vector<std::future<void>> threads;
-    // assign work to threads
-    for(int threadId = 0; threadId < opt.numThreads; ++threadId) {
-        threads.emplace_back(std::async(std::launch::async, [&] {
-            sequence_pair_reader reader{filename1, filename2};
+        std::vector<sequence_pair_reader::sequence_pair> sequenceBatch;
+        sequenceBatch.reserve(opt.batchSize);
 
-            const auto readSequentially = opt.perThreadSequentialQueries;
+        match_locations matches;
+        match_target_locations targetMatches;
 
-            std::vector<sequence_pair_reader::sequence_pair> sequences;
-            sequences.reserve(readSequentially);
+        while(reader.has_next() && queryLimit > 0) {
+            auto batchBuffer = getBuffer();
+            bool bufferEmpty = true;
 
-            match_locations matches;
-            match_target_locations targetMatches;
+            //fill batch with sequences
+            for(std::size_t i = 0; i < opt.batchSize && queryLimit > 0; ++i, queryLimit--) {
+                if(!reader.has_next()) break;
+                sequenceBatch.emplace_back(reader.next());
+            }
 
-            while(reader.has_next() && queryLimit > 0) {
-                auto batchBuffer = getBuffer();
-                bool bufferEmpty = true;
+            //process batch of sequences
+            for(auto& seq : sequenceBatch) {
+                if(!seq.first.header.empty()) {
+                    bufferEmpty = false;
+                    targetMatches.clear();
 
-                for(std::size_t i = 0;
-                    i < opt.batchSize && queryLimit.fetch_sub(readSequentially) > 0; ++i)
-                {
-                    query_id myQid;
-                    sequence_pair_reader::stream_positions myPos;
+                    db.accumulate_matches(seq.first.data, targetMatches);
+                    db.accumulate_matches(seq.second.data, targetMatches);
+                    targetMatches.sort();
 
-                    // get most recent position and query id
-                    {
-                        std::lock_guard<std::mutex> lock(tipMtx);
-                        myQid = qid;
-                        myPos = pos;
-                    }
-                    reader.seek(myPos);
-                    if(!reader.has_next()) break;
-                    reader.index_offset(myQid);
+                    matches.clear();
+                    for(auto& m : targetMatches)
+                        matches.emplace_back(db.taxon_of_target(m.tgt), m.win);
 
-                    // get work id and skip to this read
-                    auto wid = workId.fetch_add(readSequentially);
-                    if(myQid != wid) {
-                        reader.skip(wid-myQid);
-                    }
-                    if(!reader.has_next()) break;
-                    for(int i = 0; i < readSequentially; ++i) {
-                        sequences.emplace_back(reader.next());
-                    }
-
-                    // update most recent position and query id
-                    myQid = reader.index();
-                    myPos = reader.tell();
-                    while(myQid > qid) {// reading qid unsafe
-                        if(tipMtx.try_lock()) {
-                            if(myQid > qid) {// reading qid safe
-                                qid = myQid;
-                                pos = myPos;
-                            }
-                            tipMtx.unlock();
-                        }
-                    }
-
-                    for(auto& seq : sequences) {
-                        if(!seq.first.header.empty()) {
-                            bufferEmpty = false;
-                            targetMatches.clear();
-
-                            db.accumulate_matches(seq.first.data, targetMatches);
-                            db.accumulate_matches(seq.second.data, targetMatches);
-                            targetMatches.sort();
-
-                            matches.clear();
-                            for(auto& m : targetMatches)
-                                matches.emplace_back(db.taxon_of_target(m.tgt), m.win);
-
-                            update(batchBuffer,
-                                   sequence_query{seq.first.index,
-                                                  std::move(seq.first.header),
-                                                  std::move(seq.first.data),
-                                                  std::move(seq.second.data)},
-                                   matches );
-                        }
-                    }
-                    sequences.clear();
-                }
-                if(!bufferEmpty) {
-                    std::lock_guard<std::mutex> lock(finalizeMtx);
-                    finalize(std::move(batchBuffer));
+                    update(batchBuffer,
+                            sequence_query{seq.first.index,
+                                            std::move(seq.first.header),
+                                            std::move(seq.first.data),
+                                            std::move(seq.second.data)},
+                            matches );
                 }
             }
-        })); //emplace
-    }
+            sequenceBatch.clear();
 
-    // wait for all threads to finish and catch exceptions
-    for(unsigned int threadId = 0; threadId < threads.size(); ++threadId) {
-        if(threads[threadId].valid()) {
-            try {
-                threads[threadId].get();
-            }
-            catch(file_access_error& e) {
-                if(threadId == 0) {
-                    log(std::string("FAIL: ") + e.what());
-                }
-            }
-            catch(std::exception& e) {
-                log(std::string("FAIL: ") + e.what());
+            if(!bufferEmpty) {
+                std::lock_guard<std::mutex> lock(finalizeMtx);
+                finalize(std::move(batchBuffer));
             }
         }
+
+        endId = reader.index();
+    }
+    catch(file_access_error& e) {
+        log(std::string("FAIL: ") + e.what());
+    }
+    catch(std::exception& e) {
+        log(std::string("FAIL: ") + e.what());
     }
 
-    return qid;
+    return endId;
 }
 
 
