@@ -51,6 +51,7 @@ HEADERS = \
           src/printing.h \
           src/query_options.h \
           src/querying.h \
+          src/sequence_batch.cuh \
           src/sequence_io.h \
           src/sequence_view.h \
           src/sketch_database.h \
@@ -67,6 +68,7 @@ SOURCES = \
           src/classification.cpp \
           src/cmdline_utility.cpp \
           src/filesys_utility.cpp \
+		  src/gpu_hashmap.cu \
           src/main.cpp \
           src/mode_annotate.cpp \
           src/mode_build.cpp \
@@ -76,10 +78,10 @@ SOURCES = \
           src/mode_query.cpp \
           src/printing.cpp \
           src/query_options.cpp \
+          src/sequence_batch.cu \
           src/sequence_io.cpp \
           src/sketch_database.cpp \
-          src/taxonomy_io.cpp \
-		  src/gpu_hashmap.cu
+          src/taxonomy_io.cpp
 
 
 #--------------------------------------------------------------------
@@ -187,6 +189,9 @@ $(REL_DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.h
 $(REL_DIR)/gpu_hashmap.o : src/gpu_hashmap.cu $(HEADERS)
 	$(REL_COMPILE_NP)
 
+$(REL_DIR)/sequence_batch.o : src/sequence_batch.cu $(HEADERS)
+	$(REL_COMPILE_NP)
+
 
 #--------------------------------------------------------------------
 # debug (out-of-place build)
@@ -248,6 +253,9 @@ $(DBG_DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.h
 $(DBG_DIR)/gpu_hashmap.o : src/gpu_hashmap.cu $(HEADERS)
 	$(DBG_COMPILE_NP)
 
+$(DBG_DIR)/sequence_batch.o : src/sequence_batch.cu $(HEADERS)
+	$(DBG_COMPILE_NP)
+
 
 #--------------------------------------------------------------------
 # profile (out-of-place build)
@@ -307,4 +315,7 @@ $(PRF_DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.h
 	$(PRF_COMPILE)
 
 $(PRF_DIR)/gpu_hashmap.o : src/gpu_hashmap.cu $(HEADERS)
+	$(PRF_COMPILE_NP)
+
+$(PRF_DIR)/sequence_batch.o : src/sequence_batch.cu $(HEADERS)
 	$(PRF_COMPILE_NP)
