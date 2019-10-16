@@ -82,7 +82,7 @@ template<
     class BufferSource, class BufferUpdate, class BufferSink
 >
 void process_sequence_batch(
-    const std::vector<sequence_pair_reader::sequence_pair>& sequenceBatch,
+    std::vector<sequence_pair_reader::sequence_pair>& sequenceBatch,
     const database& db, std::mutex& finalizeMtx,
     BufferSource& getBuffer, BufferUpdate& update, BufferSink& finalize)
 {
@@ -109,9 +109,11 @@ void process_sequence_batch(
                                    std::move(seq.first.header),
                                    std::move(seq.first.data),
                                    std::move(seq.second.data)},
-                    matches );
+                    matches);
         }
     }
+
+    sequenceBatch.clear();
 
     if(!bufferEmpty) {
         std::lock_guard<std::mutex> lock(finalizeMtx);
@@ -148,15 +150,12 @@ query_id query_batched(
     using sequence_batch = std::vector<sequence_pair_reader::sequence_pair>;
 
     std::mutex finalizeMtx;
-    std::int_least64_t queryLimit = opt.queryLimit;
-    query_id endId = startId;
-
     std::atomic_bool queryingDone{0};
-    moodycamel::ConcurrentQueue<sequence_batch> queue(opt.numThreads+1);
+    moodycamel::ConcurrentQueue<sequence_batch> queue(opt.numThreads);
 
     //spawn consumers
     std::vector<std::future<void>> threads;
-    for(int i = 0; i < opt.numThreads; ++i) {
+    for(int i = 0; i < opt.numThreads-1; ++i) {
         threads.emplace_back(std::async(std::launch::async, [&] {
                 sequence_batch sequenceBatch;
 
@@ -169,6 +168,9 @@ query_id query_batched(
                 }
             }));
     }
+
+    std::int_least64_t queryLimit = opt.queryLimit;
+    query_id endId = startId;
 
     //read sequences from file
     try {
@@ -185,9 +187,17 @@ query_id query_batched(
                 sequenceBatch.emplace_back(reader.next());
             }
 
-            while(!queue.try_enqueue(sequenceBatch)) {
-                std::this_thread::sleep_for(std::chrono::milliseconds{10});
-            };
+            //enqueue batch or process if single threaded
+            if(opt.numThreads > 1) {
+                while(!queue.try_enqueue(std::move(sequenceBatch))) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+                };
+            }
+            else {
+                process_sequence_batch(
+                    sequenceBatch, db, finalizeMtx,
+                    bufsrc, bufupdate, bufsink);
+            }
         }
 
         endId = reader.index();
