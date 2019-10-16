@@ -25,12 +25,15 @@
 #include <vector>
 #include <iostream>
 #include <future>
+#include <chrono>
 
 #include "config.h"
 #include "sequence_io.h"
 #include "cmdline_utility.h"
 #include "query_options.h"
 #include "cmdline_utility.h"
+
+#include "../dep/queue/concurrentqueue.h"
 
 
 namespace mc {
@@ -81,7 +84,7 @@ template<
 void process_sequence_batch(
     const std::vector<sequence_pair_reader::sequence_pair>& sequenceBatch,
     const database& db, std::mutex& finalizeMtx,
-    BufferSource&& getBuffer, BufferUpdate&& update, BufferSink&& finalize)
+    BufferSource& getBuffer, BufferUpdate& update, BufferSink& finalize)
 {
     auto batchBuffer = getBuffer();
     bool bufferEmpty = true;
@@ -142,16 +145,38 @@ query_id query_batched(
     BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
     LogCallback&& log)
 {
+    using sequence_batch = std::vector<sequence_pair_reader::sequence_pair>;
+
     std::mutex finalizeMtx;
     std::int_least64_t queryLimit = opt.queryLimit;
     query_id endId = startId;
 
+    std::atomic_bool queryingDone{0};
+    moodycamel::ConcurrentQueue<sequence_batch> queue(opt.numThreads+1);
+
+    //spawn consumers
+    std::vector<std::future<void>> threads;
+    for(int i = 0; i < opt.numThreads; ++i) {
+        threads.emplace_back(std::async(std::launch::async, [&] {
+                sequence_batch sequenceBatch;
+
+                while(!queryingDone.load() || queue.size_approx() > 0) {
+                    if(queue.try_dequeue(sequenceBatch)) {
+                        process_sequence_batch(
+                            sequenceBatch, db, finalizeMtx,
+                            bufsrc, bufupdate, bufsink);
+                    }
+                }
+            }));
+    }
+
+    //read sequences from file
     try {
         sequence_pair_reader reader{filename1, filename2};
         reader.index_offset(startId);
 
         while(reader.has_next() && queryLimit > 0) {
-            std::vector<sequence_pair_reader::sequence_pair> sequenceBatch;
+            sequence_batch sequenceBatch;
             sequenceBatch.reserve(opt.batchSize);
 
             //fill batch with sequences
@@ -160,10 +185,9 @@ query_id query_batched(
                 sequenceBatch.emplace_back(reader.next());
             }
 
-            process_sequence_batch(sequenceBatch, db, finalizeMtx,
-                                   std::forward<BufferSource>(bufsrc),
-                                   std::forward<BufferUpdate>(bufupdate),
-                                   std::forward<BufferSink>(bufsink));
+            while(!queue.try_enqueue(sequenceBatch)) {
+                std::this_thread::sleep_for(std::chrono::milliseconds{10});
+            };
         }
 
         endId = reader.index();
@@ -173,6 +197,14 @@ query_id query_batched(
     }
     catch(std::exception& e) {
         log(std::string("FAIL: ") + e.what());
+    }
+
+    queryingDone.store(1);
+    // wait for all threads to finish
+    for(unsigned int threadId = 0; threadId < threads.size(); ++threadId) {
+        if(threads[threadId].valid()) {
+            threads[threadId].get();
+        }
     }
 
     return endId;
