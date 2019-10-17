@@ -152,6 +152,7 @@ query_id query_batched(
     std::mutex finalizeMtx;
     std::atomic_bool queryingDone{0};
     moodycamel::ConcurrentQueue<sequence_batch> queue(opt.numThreads);
+    moodycamel::ProducerToken ptok(queue);
 
     //spawn consumers
     std::vector<std::future<void>> threads;
@@ -160,10 +161,13 @@ query_id query_batched(
                 sequence_batch sequenceBatch;
 
                 while(!queryingDone.load() || queue.size_approx() > 0) {
-                    if(queue.try_dequeue(sequenceBatch)) {
+                    if(queue.try_dequeue_from_producer(ptok, sequenceBatch)) {
                         process_sequence_batch(
                             sequenceBatch, db, finalizeMtx,
                             bufsrc, bufupdate, bufsink);
+                    }
+                    else {
+                        std::this_thread::sleep_for(std::chrono::milliseconds{10});
                     }
                 }
             }));
@@ -189,7 +193,7 @@ query_id query_batched(
 
             //enqueue batch or process if single threaded
             if(opt.numThreads > 1) {
-                while(!queue.try_enqueue(std::move(sequenceBatch))) {
+                while(!queue.try_enqueue(ptok, std::move(sequenceBatch))) {
                     std::this_thread::sleep_for(std::chrono::milliseconds{10});
                 };
             }
