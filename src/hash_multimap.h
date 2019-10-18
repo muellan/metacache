@@ -948,7 +948,17 @@ private:
                     valuesOffset += nvals;
                 }
             }
-            read_binary(is, valuesBegin, nvalues);
+
+            valuesOffset = valuesBegin;
+            const len_t readAtOnce = len_t(1) << 20;
+            const len_t numCycles = nvalues / readAtOnce;
+            const len_t remainder = nvalues % readAtOnce;
+
+            for(len_t i = 0; i < numCycles; ++i) {
+                read_binary(is, valuesOffset, readAtOnce);
+                valuesOffset += readAtOnce;
+            }
+            read_binary(is, valuesOffset, remainder);
 
             numKeys_ = nkeys;
             numValues_ = nvalues;
