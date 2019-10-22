@@ -222,6 +222,10 @@ class hash_multimap
                   std::is_unsigned<BucketSizeT>::value,
                   "bucket size type must be an unsigned integer");
 
+    static_assert(std::is_trivially_constructible<ValueT>::value &&
+                  std::is_trivially_destructible<ValueT>::value,
+                  "value type must be trivially con- & destructible");
+
     using value_alloc  = std::allocator_traits<ValueAllocator>;
     using alloc_config = allocator_config<ValueAllocator>;
 
@@ -352,11 +356,6 @@ public:
 
         //-----------------------------------------------------
         void deallocate(value_allocator& alloc) {
-            if(!std::is_trivially_destructible<value_type>::value) {
-                for(auto i = values_, e = i + size_; i < e; ++i) {
-                    value_alloc::destroy(alloc, i);
-                }
-            }
             value_alloc::deallocate(alloc, values_, capacity_);
         }
 
@@ -365,41 +364,25 @@ public:
         bool reserve(value_allocator& alloc, std::size_t n) {
             if(n > max_bucket_size()) return false;
 
-            if(values_) {
+            if(!unused()) {
                 if(n > capacity_) {
                     auto ncap = std::size_t(n + 0.3*size_);
                     if(ncap > max_bucket_size()) ncap = max_bucket_size();
-                    //make new array
+                    //make new array and copy old values
                     auto nvals = value_alloc::allocate(alloc, ncap);
                     if(!nvals) return false;
-                    if(!std::is_trivially_constructible<value_type>::value) {
-                        for(auto i = nvals, e = i + ncap; i < e; ++i) {
-                            value_alloc::construct(alloc, i);
-                        }
-                    }
                     std::copy(values_, values_ + size_, nvals);
                     deallocate(alloc);
                     values_ = nvals;
                     capacity_ = size_type(ncap);
                 }
-                else {
-                    if(!std::is_trivially_constructible<value_type>::value) {
-                        for(auto i = values_ + size_, e = values_ + n; i < e; ++i) {
-                            value_alloc::construct(alloc, i);
-                        }
-                    }
-                }
             }
             else {
+                //make new array
                 auto nvals = value_alloc::allocate(alloc, n);
                 if(!nvals) return false;
                 values_ = nvals;
                 capacity_ = size_type(n);
-                if(!std::is_trivially_constructible<value_type>::value) {
-                    for(auto i = values_, e = i + capacity_; i < e; ++i) {
-                        value_alloc::construct(alloc, i);
-                    }
-                }
             }
             return true;
         }
