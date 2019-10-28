@@ -200,6 +200,7 @@ class best_distinct_matches_in_contiguous_window_ranges
 
 public:
     using size_type      = std::size_t;
+    using iterator       = candidates_list::iterator;
     using const_iterator = candidates_list::const_iterator;
 
 
@@ -234,6 +235,7 @@ public:
     const match_candidate&
     operator [] (size_type i) const noexcept { return top_[i]; }
 
+    iterator erase(const_iterator pos) { return top_.erase(pos); }
 
     /****************************************************************
      * @brief insert candidate and keep list sorted

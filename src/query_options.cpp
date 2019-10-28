@@ -162,6 +162,9 @@ get_classification_options(const args_parser& args,
         opt.maxNumCandidatesPerQuery = std::numeric_limits<std::size_t>::max();
     }
 
+    opt.covPercentile = args.get<float>({"percentile", "coverage-percentile"},
+                                        defaults.covPercentile);
+
     return opt;
 }
 

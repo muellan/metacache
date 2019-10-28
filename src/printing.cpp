@@ -450,8 +450,11 @@ void show_matches_per_targets(std::ostream& os,
        << " windows_in_sequence " << opt.format.column
        << "queryid/window_index:hits/window_index:hits/...,queryid/...\n";
 
+    const auto rmin = taxon_rank::Sequence;
+    const auto rmax = opt.showLineage ? opt.highestRank : rmin;
+
     for(const auto& mapping : tgtMatches) {
-        show_taxon(os, db, opt, mapping.first);
+        show_lineage(os, db.ranks(mapping.first), opt.showTaxaAs, rmin, rmax, opt.format);
         os << opt.format.column << mapping.first->source().windows
            << opt.format.column;
 

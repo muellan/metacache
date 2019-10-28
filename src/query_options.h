@@ -29,13 +29,11 @@
 #include <thread>
 #include <vector>
 
+#include "config.h"
 #include "taxonomy.h"
 
 
 namespace mc {
-
-
-using taxon_rank = taxonomy::rank;
 
 
 /*************************************************************************//**
@@ -130,6 +128,8 @@ struct classification_options
     std::size_t insertSizeMax = 0;
 
     std::size_t maxNumCandidatesPerQuery = 2;
+
+    float covPercentile = 0.0f;
 };
 
 

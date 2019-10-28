@@ -87,6 +87,7 @@ private:
         std::unordered_map<const taxon*, std::vector<candidate>>;
 
 public:
+    using iterator        = hits_per_target::iterator;
     using const_iterator  = hits_per_target::const_iterator;
 
 
@@ -106,6 +107,11 @@ public:
     const_iterator begin() const noexcept { return hitsPerTarget_.begin(); }
     const_iterator end()   const noexcept { return hitsPerTarget_.end(); }
 
+    iterator erase(const_iterator pos) { return hitsPerTarget_.erase(pos); }
+
+    hits_per_target::size_type erase(const hits_per_target::key_type& key) {
+        return hitsPerTarget_.erase(key);
+    }
 
     //---------------------------------------------------------------
     void insert(query_id qid,
