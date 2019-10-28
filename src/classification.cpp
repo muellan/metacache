@@ -602,8 +602,8 @@ void show_query_mapping(
 
 /*************************************************************************//**
  *
- * @brief filter out targets which have a coverage percentage below a percentile of all
- *        coverage percentages
+ * @brief filter out targets which have a coverage percentage below a percentile
+ *        of all coverage percentages
  *
  *****************************************************************************/
 void filter_targets_by_coverage(
@@ -642,7 +642,7 @@ void filter_targets_by_coverage(
     float coveragePercentagesPartSum = 0;
     for(auto it = coveragePercentages.begin(); it != coveragePercentages.end(); ++it) {
         coveragePercentagesPartSum += it->second;
-        if(coveragePercentagesPartSum > percentile / 100 * coveragePercentagesSum) {
+        if(coveragePercentagesPartSum > percentile * coveragePercentagesSum) {
             // coveragePercentages.resize(std::distance(it, coveragePercentages.rend()));
             break;
         }
