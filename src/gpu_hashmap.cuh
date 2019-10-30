@@ -151,7 +151,9 @@ public:
     }
 
     //---------------------------------------------------------------
-    std::vector<key_type> insert(const sequence_batch<policy::Host>& seqBatchHost);
+    std::vector<key_type> insert(
+        const sequence_batch<policy::Host>& seqBatchHost,
+        const sketcher& targetSketcher);
 
 
     /****************************************************************
@@ -192,11 +194,6 @@ private:
     float maxLoadFactor_;
     hasher hash_;
     key_equal keyEqual_;
-
-    numk_t kmerLength_;
-    sketch_size_type sketchSize_;
-    size_t windowSize_;
-    size_t windowStride_;
 
     size_t maxBatchNum_;
     std::vector<sequence_batch<policy::Device>> seqBatches_;

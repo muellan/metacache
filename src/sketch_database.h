@@ -1091,7 +1091,7 @@ public:
 
     //---------------------------------------------------------------
     void flush_batches() {
-        std::vector<kmer_type> new_features_gpu = featureStoreGPU_.insert(seqBatches_[0]);
+        std::vector<kmer_type> new_features_gpu = featureStoreGPU_.insert(seqBatches_[0], targetSketcher_);
         seqBatches_[0].num_targets(0);
         features_gpu.insert(features_gpu.end(), new_features_gpu.begin(), new_features_gpu.end());
 
@@ -1154,7 +1154,7 @@ private:
         // if no windows were processed batch must be full
         if(!processedWindows) {
             //insert batch
-            std::vector<kmer_type> new_features_gpu = featureStoreGPU_.insert(seqBatches_[0]);
+            std::vector<kmer_type> new_features_gpu = featureStoreGPU_.insert(seqBatches_[0], targetSketcher_);
             //reset batch
             seqBatches_[0].num_targets(0);
             //store results for error checking

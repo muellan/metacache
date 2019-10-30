@@ -78,10 +78,10 @@ public:
     //---------------------------------------------------------------
     void insert(key_type *keys_in, value_type *values_in, size_type size_in)
     {
-        size_type probing_length = 4*hashTable_.capacity();
+        size_type probingLength = 4*hashTable_.capacity();
         //TODO
         cudaStream_t stream = 0;
-        hashTable_.insert(keys_in, values_in, size_in, probing_length, stream);
+        hashTable_.insert(keys_in, values_in, size_in, probingLength, stream);
     }
 
 private:
@@ -100,7 +100,6 @@ template<
 gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::gpu_hashmap() :
     numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
     hash_{}, keyEqual_{},
-    kmerLength_(16), sketchSize_(16), windowSize_(128), windowStride_(113),
     seqBatches_{}, featureBatches_{}
 {
     cudaSetDevice(0);
@@ -113,8 +112,11 @@ gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::gpu_hashmap() :
     const size_t winLen = 5;
 
     const size_t maxWindows = MAX_ENCODE_LENGTH_PER_BATCH / winLen;
-    const size_t maxFeatures = maxWindows * sketchSize_;
 
+    //TODO get sketch size from sketcher
+    sketch_size_type sketchSize = 16;
+
+    const size_t maxFeatures = maxWindows * sketchSize;
     std::cout << "max features: " << maxFeatures << '\n';
 
     seqBatches_.emplace_back(MAX_TARGETS_PER_BATCH, MAX_ENCODE_LENGTH_PER_BATCH);
@@ -153,7 +155,8 @@ template<
     class BucketSizeT
 >
 std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
-    const sequence_batch<policy::Host>& seqBatchHost
+    const sequence_batch<policy::Host>& seqBatchHost,
+    const sketcher& targetSketcher
 ) {
     using counter_type = typename feature_batch::counter_type;
 
@@ -196,7 +199,10 @@ std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
         seqBatches_[0].encode_offsets(),
         seqBatches_[0].encoded_seq(),
         seqBatches_[0].encoded_ambig(),
-        kmerLength_, sketchSize_, windowSize_, windowStride_,
+        targetSketcher.kmer_size(),
+        targetSketcher.sketch_size(),
+        targetSketcher.window_size(),
+        targetSketcher.window_stride(),
         featureBatches_[0].features(),
         featureBatches_[0].values(),
         featureBatches_[0].feature_counter());
