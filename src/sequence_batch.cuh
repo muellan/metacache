@@ -28,18 +28,19 @@ public:
     sequence_batch(const sequence_batch&) = delete;
     //-----------------------------------------------------
     sequence_batch(sequence_batch&& other) {
-        maxTargets_      = other.max_targets();
-        maxEncodeLength_ = other.max_encode_length();
-        numTargets_      = other.num_targets();
-        other.max_targets(0);
-        other.max_encode_length(0);
-        other.num_targets(0);
+        maxTargets_      = other.maxTargets_;
+        maxEncodeLength_ = other.maxEncodeLength_;
+        numTargets_      = other.numTargets_;
 
-        targetIds_     = other.target_ids();
-        windowOffsets_ = other.window_offsets();
-        encodeOffsets_ = other.encode_offsets();
-        encodedSeq_    = other.encoded_seq();
-        encodedAmbig_  = other.encoded_ambig();
+        other.maxTargets_      = 0;
+        other.maxEncodeLength_ = 0;
+        other.numTargets_      = 0;
+
+        targetIds_     = other.targetIds_;
+        windowOffsets_ = other.windowOffsets_;
+        encodeOffsets_ = other.encodeOffsets_;
+        encodedSeq_    = other.encodedSeq_;
+        encodedAmbig_  = other.encodedAmbig_;
     };
 
     //---------------------------------------------------------------
@@ -52,17 +53,9 @@ public:
     size_t max_targets() const noexcept {
         return maxTargets_;
     }
-    //-----------------------------------------------------
-    void max_targets(size_t n) noexcept {
-        maxTargets_ = n;
-    }
     //---------------------------------------------------------------
     size_t max_encode_length() const noexcept {
         return maxEncodeLength_;
-    }
-    //-----------------------------------------------------
-    void max_encode_length(size_t n) noexcept {
-        maxEncodeLength_ = n;
     }
     //---------------------------------------------------------------
     size_t num_targets() const noexcept {
@@ -159,9 +152,10 @@ public:
 
         for_each_consecutive_substring_2bit<encodedseq_t>(first, end,
             [&, this] (encodedseq_t substring, encodedambig_t ambig) {
-                encodedSeq_[encodeOffsets_[numTargets_+1]] = substring;
-                encodedAmbig_[encodeOffsets_[numTargets_+1]] = ambig;
-                ++(encodeOffsets_[numTargets_+1]);
+                auto& index = encodeOffsets_[numTargets_+1];
+                encodedSeq_[index] = substring;
+                encodedAmbig_[index] = ambig;
+                ++index;
             });
 
         ++numTargets_;
