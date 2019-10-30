@@ -49,6 +49,7 @@ HEADERS = \
           src/matches_per_target.h \
           src/modes.h \
           src/printing.h \
+          src/query_batch.cuh \
           src/query_options.h \
           src/querying.h \
           src/sequence_batch.cuh \
@@ -77,6 +78,7 @@ SOURCES = \
           src/mode_merge.cpp \
           src/mode_query.cpp \
           src/printing.cpp \
+          src/query_batch.cu \
           src/query_options.cpp \
           src/sequence_batch.cu \
           src/sequence_io.cpp \
@@ -192,6 +194,9 @@ $(REL_DIR)/gpu_hashmap.o : src/gpu_hashmap.cu $(HEADERS)
 $(REL_DIR)/sequence_batch.o : src/sequence_batch.cu $(HEADERS)
 	$(REL_COMPILE_NP)
 
+$(REL_DIR)/query_batch.o : src/query_batch.cu $(HEADERS)
+	$(REL_COMPILE_NP)
+
 
 #--------------------------------------------------------------------
 # debug (out-of-place build)
@@ -256,6 +261,9 @@ $(DBG_DIR)/gpu_hashmap.o : src/gpu_hashmap.cu $(HEADERS)
 $(DBG_DIR)/sequence_batch.o : src/sequence_batch.cu $(HEADERS)
 	$(DBG_COMPILE_NP)
 
+$(DBG_DIR)/query_batch.o : src/query_batch.cu $(HEADERS)
+	$(DBG_COMPILE_NP)
+
 
 #--------------------------------------------------------------------
 # profile (out-of-place build)
@@ -318,4 +326,7 @@ $(PRF_DIR)/gpu_hashmap.o : src/gpu_hashmap.cu $(HEADERS)
 	$(PRF_COMPILE_NP)
 
 $(PRF_DIR)/sequence_batch.o : src/sequence_batch.cu $(HEADERS)
+	$(PRF_COMPILE_NP)
+
+$(PRF_DIR)/query_batch.o : src/query_batch.cu $(HEADERS)
 	$(PRF_COMPILE_NP)
