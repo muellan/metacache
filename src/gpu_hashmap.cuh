@@ -6,6 +6,7 @@
 
 #include "config.h"
 #include "sequence_batch.cuh"
+#include "query_batch.cuh"
 
 namespace mc {
 
@@ -154,6 +155,10 @@ public:
     std::vector<key_type> insert(
         const sequence_batch<policy::Host>& seqBatchHost,
         const sketcher& targetSketcher);
+
+    //---------------------------------------------------------------
+    void query(query_batch<value_type>& batch,
+               const sketcher& querySketcher) const;
 
 
     /****************************************************************

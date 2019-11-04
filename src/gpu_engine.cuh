@@ -117,14 +117,14 @@ void extract_features(
     uint32_t sketchSize,
     size_t windowSize,
     size_t windowStride,
-    kmer_type * features_out,
+    feature * features_out,
     location * locations_out,
     uint32_t * size_out)
 {
     for(size_t tgt = blockIdx.y; tgt < numTargets; tgt += gridDim.y) {
         const encodinglen_t encodingLength = encodeOffsets[tgt+1] - encodeOffsets[tgt];
 
-        typedef cub::BlockRadixSort<kmer_type, BLOCK_THREADS, ITEMS_PER_THREAD> BlockRadixSortT;
+        typedef cub::BlockRadixSort<feature, BLOCK_THREADS, ITEMS_PER_THREAD> BlockRadixSortT;
 
         __shared__ typename BlockRadixSortT::TempStorage temp_storage;
 
@@ -145,18 +145,18 @@ void extract_features(
         //each block processes one window
         for(window_id win = blockIdx.x; win < numWindows; win += gridDim.x)
         {
-            kmer_type items[ITEMS_PER_THREAD];
+            feature items[ITEMS_PER_THREAD];
             uint8_t numItems = 0;
             for(int i=0; i<ITEMS_PER_THREAD; ++i)
             {
-                items[i] = kmer_type(~0);
+                items[i] = feature(~0);
             }
 
             //each thread extracts one feature
             const size_t first = win * windowStride;
             for(size_t tid  = first + threadIdx.x;
-                    tid  < min(first + windowSize - k + 1, last);
-                    tid += blockDim.x)
+                       tid  < min(first + windowSize - k + 1, last);
+                       tid += blockDim.x)
             {
                 const std::uint32_t  seq_slot    = tid / (ambigBits);
                 const std::uint8_t   kmer_slot   = tid & (ambigBits-1);
@@ -195,12 +195,12 @@ void extract_features(
             for(int i=0; i*BLOCK_THREADS<windowStride && kmerCounter<sketchSize; ++i)
             {
                 //load candidate and successor
-                const kmer_type kmer = items[i];
-                kmer_type nextKmer = threadIdx.x ? items[i] : items[(i+1) % ITEMS_PER_THREAD];
+                const feature kmer = items[i];
+                feature nextKmer = threadIdx.x ? items[i] : items[(i+1) % ITEMS_PER_THREAD];
                 nextKmer = __shfl_sync(0xFFFFFFFF, nextKmer, threadIdx.x+1);
 
                 //find valid candidates
-                const bool predicate = (kmer != kmer_type(~0)) && (kmer != nextKmer);
+                const bool predicate = (kmer != feature(~0)) && (kmer != nextKmer);
 
                 const uint32_t mask = __ballot_sync(0xFFFFFFFF, predicate);
                 const uint32_t count = __popc(mask);
@@ -230,6 +230,149 @@ void extract_features(
     }
 }
 
+
+
+//---------------------------------------------------------------
+// BLOCK_THREADS has to be 32
+template<
+    int BLOCK_THREADS,
+    int ITEMS_PER_THREAD,
+    class Hashtable,
+    class result_type>
+__global__
+void gpu_hahstable_query(
+    Hashtable hashtable,
+    size_t probingLength,
+    size_t numQueries,
+    encodinglen_t * const encodeOffsets,
+    encodedseq_t * const encodedSeq,
+    encodedambig_t * const encodedAmbig,
+    numk_t k,
+    uint32_t sketchSize,
+    size_t windowSize,
+    size_t windowStride,
+    result_type * results_out)
+{
+    //each block processes one query
+    for(size_t queryId = blockIdx.x; queryId < numQueries; queryId += gridDim.x) {
+        const encodinglen_t encodingLength = encodeOffsets[queryId+1] - encodeOffsets[queryId];
+
+        typedef cub::BlockRadixSort<feature, BLOCK_THREADS, ITEMS_PER_THREAD> BlockRadixSortT;
+
+        __shared__ union {
+            typename BlockRadixSortT::TempStorage sort;
+            feature sketch[16];
+        } tempStorage;
+
+        constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
+        constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
+
+        //letters stored from high to low bits
+        //masks get highest bits
+        const encodedseq_t   kmerMask  = encodedseq_t(~0) << (encBits - 2*k);
+        const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - k);
+
+        const size_t last = encodingLength * ambigBits - k + 1;
+
+        const encodedseq_t   * const seq   = encodedSeq   + encodeOffsets[queryId];
+        const encodedambig_t * const ambig = encodedAmbig + encodeOffsets[queryId];
+
+        //each block processes one window
+        {
+            feature items[ITEMS_PER_THREAD];
+            uint8_t numItems = 0;
+            for(int i=0; i<ITEMS_PER_THREAD; ++i)
+            {
+                items[i] = feature(~0);
+            }
+
+            //each thread extracts one feature
+            for(size_t tid  = threadIdx.x;
+                       tid  < last;
+                       tid += BLOCK_THREADS)
+            {
+                const std::uint32_t  seq_slot    = tid / (ambigBits);
+                const std::uint8_t   kmer_slot   = tid & (ambigBits-1);
+                const encodedambig_t ambig_left  = ambig[seq_slot] << kmer_slot;
+                const encodedambig_t ambig_right = ambig[seq_slot+1] >> (ambigBits-kmer_slot);
+                // cuda-memcheck save version
+                // const encodedambig_t ambig_right = kmer_slot ? ambig[seq_slot+1] >> (ambigBits-kmer_slot) : 0;
+
+                //continue only if no bases ambiguous
+                if(!((ambig_left+ambig_right) & ambigMask))
+                {
+                    const encodedseq_t seq_left  = seq[seq_slot] << (2*kmer_slot);
+                    const encodedseq_t seq_right = seq[seq_slot+1] >> (encBits-(2*kmer_slot));
+                    // cuda-memcheck save version
+                    // const encodedseq_t seq_right = kmer_slot ? seq[seq_slot+1] >> (encBits-(2*kmer_slot)) : 0;
+
+                    //get highest bits
+                    kmer_type kmer = (seq_left+seq_right) & kmerMask;
+                    //shift kmer to lowest bits
+                    kmer >>= (encBits - 2*k);
+
+                    kmer = make_canonical_2bit(kmer);
+
+                    items[numItems++] = sketching_hash{}(kmer);
+                }
+                // else
+                // {
+                //     printf("ambiguous\n");
+                // }
+            }
+
+            BlockRadixSortT(tempStorage.sort).SortBlockedToStriped(items);
+
+            //output <sketchSize> unique features
+            uint32_t kmerCounter = 0;
+            for(int i=0; i*BLOCK_THREADS<windowStride && kmerCounter<sketchSize; ++i)
+            {
+                //load candidate and successor
+                const feature kmer = items[i];
+                feature nextKmer = threadIdx.x ? items[i] : items[(i+1) % ITEMS_PER_THREAD];
+                nextKmer = __shfl_sync(0xFFFFFFFF, nextKmer, threadIdx.x+1);
+
+                //find valid candidates
+                const bool predicate = (kmer != feature(~0)) && (kmer != nextKmer);
+
+                const uint32_t mask = __ballot_sync(0xFFFFFFFF, predicate);
+                const uint32_t count = __popc(mask);
+
+                //get position
+                const uint32_t numPre = __popc(mask & ((1 << threadIdx.x) -1));
+                uint32_t sketchPos = kmerCounter + numPre;
+
+                //write features to shared memory
+                if(predicate && (sketchPos < sketchSize)) {
+                    tempStorage.sketch[sketchPos] = kmer;
+                }
+
+                kmerCounter += count;
+            }
+
+            //query hashtable for bucket locations & sizes
+            namespace cg = cooperative_groups;
+
+            const auto group =
+                cg::tiled_partition<Hashtable::cg_size>(cg::this_thread_block());
+
+            using bucket_size_type = uint8_t;
+
+            for(uint32_t i = threadIdx.x; i < sketchSize*Hashtable::cg_size; i += BLOCK_THREADS) {
+                const uint8_t gid = i / Hashtable::cg_size;
+                typename Hashtable::value_type valuesOffset;
+                hashtable.retrieve(tempStorage.sketch[gid], valuesOffset, group, probingLength);
+
+                bucket_size_type numValues = bucket_size_type(valuesOffset);
+                valuesOffset >>= sizeof(bucket_size_type)*CHAR_BIT;
+
+                if(group.thread_rank() == 0)
+                    printf("offset: %llu numValues: %d\n", valuesOffset, numValues);
+                //TODO copy values into results_out
+            }
+        }
+    }
+}
 
 
 } // namespace mc

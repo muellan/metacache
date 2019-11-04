@@ -3,6 +3,8 @@
 
 #include <functional>
 
+#include "cuda_runtime.h"
+
 #include "config.h"
 #include "hash_dna.h"
 
@@ -133,8 +135,8 @@ public:
     template<class InputIterator>
     bool
     add_read(
+        query_id qid,
         InputIterator first, InputIterator last,
-        query_id qid, window_id win,
         numk_t kmerSize,
         size_t windowSize, size_t windowStride
     ) {

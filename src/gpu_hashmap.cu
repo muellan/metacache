@@ -84,6 +84,36 @@ public:
         hashTable_.insert(keys_in, values_in, size_in, probingLength, stream);
     }
 
+    //---------------------------------------------------------------
+    template<class result_type>
+    void query(query_batch<result_type>& batch, const sketcher& querySketcher) const {
+        //TODO
+        cudaStream_t stream = 0;
+        batch.copy_queries_to_device(stream);
+
+        // max 32*4 features => max window size is 128
+        #define BLOCK_THREADS 32
+        #define ITEMS_PER_THREAD 4
+
+        size_type probingLength = 4*hashTable_.capacity();
+        //TODO increase grid in x and y dim
+        constexpr dim3 numBlocks{1,1};
+        gpu_hahstable_query<BLOCK_THREADS,ITEMS_PER_THREAD><<<numBlocks,BLOCK_THREADS,0,stream>>>(
+            hashTable_,
+            probingLength,
+            batch.num_queries(),
+            batch.encode_offsets_device(),
+            batch.encoded_seq_device(),
+            batch.encoded_ambig_device(),
+            querySketcher.kmer_size(),
+            querySketcher.sketch_size(),
+            querySketcher.window_size(),
+            querySketcher.window_stride(),
+            batch.query_results_device());
+
+        batch.copy_results_to_host(stream);
+    }
+
 private:
     hash_table_t hashTable_;
 };
@@ -247,6 +277,19 @@ std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
     //TODO remove later ------------------------------------------------------------
 
     return h_features;
+}
+
+
+//---------------------------------------------------------------
+template<
+    class Key,
+    class ValueT,
+    class Hash,
+    class KeyEqual,
+    class BucketSizeT
+>
+void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::query(query_batch<value_type>& batch, const sketcher& querySketcher) const {
+    hashTable_->query(batch, querySketcher);
 }
 
 
