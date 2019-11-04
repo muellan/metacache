@@ -664,7 +664,7 @@ struct query_mapping
     // matches_per_location allhits;
 };
 
-using query_mappings = std::vector<std::pair<query_id, query_mapping>>;
+using query_mappings = std::vector<query_mapping>;
 
 
 /*************************************************************************//**
@@ -695,14 +695,14 @@ void redo_classification_batched(
 
                     for(auto& mapping : mappings) {
                         // classify using only targets left in tgtMatches
-                        update_classification(db, opt.classify, mapping.second.cls, tgtMatches);
+                        update_classification(db, opt.classify, mapping.cls, tgtMatches);
 
-                        evaluate_classification(db, opt.evaluate, mapping.second.query, mapping.second.cls, results.statistics);
+                        evaluate_classification(db, opt.evaluate, mapping.query, mapping.cls, results.statistics);
 
-                        show_query_mapping(bufout, db, opt.output, mapping.second.query, mapping.second.cls, match_locations{});
+                        show_query_mapping(bufout, db, opt.output, mapping.query, mapping.cls, match_locations{});
 
-                        if(opt.output.makeTaxCounts && mapping.second.cls.best) {
-                            ++taxCounts[mapping.second.cls.best];
+                        if(opt.output.makeTaxCounts && mapping.cls.best) {
+                            ++taxCounts[mapping.cls.best];
                         }
                     }
                     std::lock_guard<std::mutex> lock(mtx);
@@ -801,7 +801,7 @@ void map_queries_to_targets_default(
                 sequence().swap(query.seq2);
 
             //save query mapping for post processing
-            buf.queryMappings.emplace_back(query.id, query_mapping{std::move(query), std::move(cls)});
+            buf.queryMappings.emplace_back(query_mapping{std::move(query), std::move(cls)});
         }
     };
 
