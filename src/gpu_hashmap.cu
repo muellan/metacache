@@ -86,7 +86,7 @@ public:
 
     //---------------------------------------------------------------
     template<class result_type>
-    void query(query_batch<result_type>& batch, const sketcher& querySketcher) const {
+    void query(query_batch<result_type>& batch, const sketcher& querySketcher, location * const locations, bucket_size_type maxLocationPerFeature) const {
         //TODO
         cudaStream_t stream = 0;
         batch.copy_queries_to_device(stream);
@@ -109,6 +109,8 @@ public:
             querySketcher.sketch_size(),
             querySketcher.window_size(),
             querySketcher.window_stride(),
+            locations,
+            maxLocationPerFeature,
             batch.query_results_device());
 
         batch.copy_results_to_host(stream);
@@ -288,8 +290,8 @@ template<
     class KeyEqual,
     class BucketSizeT
 >
-void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::query(query_batch<value_type>& batch, const sketcher& querySketcher) const {
-    hashTable_->query(batch, querySketcher);
+void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::query(query_batch<value_type>& batch, const sketcher& querySketcher, bucket_size_type maxLocationPerFeature) const {
+    hashTable_->query(batch, querySketcher, values_, maxLocationPerFeature);
 }
 
 

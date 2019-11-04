@@ -50,6 +50,8 @@
 #include "gpu_hashmap.cuh"
 #include "dna_encoding.h"
 #include "typename.h"
+#include "query_batch.cuh"
+
 #include "../dep/cudahelpers/cuda_helpers.cuh"
 
 #include "../dep/queue/readerwriterqueue.h"
@@ -817,6 +819,26 @@ public:
         using std::end;
         accumulate_matches(begin(query), end(query), res);
     }
+
+
+    //---------------------------------------------------------------
+    void
+    accumulate_matches_gpu(query_batch<location>& queryBatch,
+                           matches_sorter& res) const
+    {
+        featureStoreGPU_.query(queryBatch, query_sketcher(), max_locations_per_feature());
+
+        size_t numResultBuckets = queryBatch.num_queries() * query_sketcher().sketch_size();
+
+        size_t maxResults = numResultBuckets * max_locations_per_feature();
+
+        res.locs_.insert(res.locs_.end(), queryBatch.query_results_host(), queryBatch.query_results_host()+maxResults);
+        for(size_t i = 0; i < numResultBuckets; ++i) {
+            res.offsets_.emplace_back(res.offsets_.back()+max_locations_per_feature());
+        }
+    }
+
+
 
 
     //---------------------------------------------------------------

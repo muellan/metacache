@@ -32,6 +32,9 @@
 #include "query_options.h"
 #include "cmdline_utility.h"
 #include "batch_processing.h"
+#include "query_batch.cuh"
+
+#include "../dep/queue/concurrentqueue.h"
 
 
 namespace mc {
@@ -103,6 +106,9 @@ query_id query_batched(
 
     std::mutex finalizeMtx;
 
+    // each thread may have a gpu batch for querying
+    std::vector<std::unique_ptr<query_batch<location>>> gpuBatches(opt.numThreads);
+
     // get executor that runs classification in batches
     batch_processing_options execOpt;
     execOpt.concurrency(opt.numThreads - 1);
@@ -113,12 +119,23 @@ query_id query_batched(
     batch_executor<sequence_query> executor {
         execOpt,
         // classifies a batch of input queries
-        [&](int, std::vector<sequence_query>& batch) {
+        [&](int id, std::vector<sequence_query>& batch) {
             auto resultsBuffer = getBuffer();
             database::matches_sorter targetMatches;
 
+            if(!gpuBatches[id])
+                gpuBatches[id] = std::make_unique<query_batch<location>>(
+                    1, 100, db.query_sketcher().sketch_size()*db.max_locations_per_feature());
+
             for(auto& seq : batch) {
                 targetMatches.clear();
+
+                gpuBatches[id]->add_read(seq.id, std::begin(seq.seq1), std::end(seq.seq1),
+                                        db.query_sketcher().kmer_size(),
+                                        db.query_sketcher().window_size(),
+                                        db.query_sketcher().window_stride());
+
+                db.accumulate_matches_gpu(*(gpuBatches[id]), targetMatches);
 
                 db.accumulate_matches(seq.seq1, targetMatches);
                 db.accumulate_matches(seq.seq2, targetMatches);

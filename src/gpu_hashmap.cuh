@@ -158,7 +158,8 @@ public:
 
     //---------------------------------------------------------------
     void query(query_batch<value_type>& batch,
-               const sketcher& querySketcher) const;
+               const sketcher& querySketcher,
+               bucket_size_type maxLocationPerFeature) const;
 
 
     /****************************************************************

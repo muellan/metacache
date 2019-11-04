@@ -238,6 +238,7 @@ template<
     int BLOCK_THREADS,
     int ITEMS_PER_THREAD,
     class Hashtable,
+    class bucket_size_type,
     class result_type>
 __global__
 void gpu_hahstable_query(
@@ -251,6 +252,8 @@ void gpu_hahstable_query(
     uint32_t sketchSize,
     size_t windowSize,
     size_t windowStride,
+    location * const locations,
+    bucket_size_type maxLocationsPerFeature,
     result_type * results_out)
 {
     //each block processes one query
@@ -261,7 +264,7 @@ void gpu_hahstable_query(
 
         __shared__ union {
             typename BlockRadixSortT::TempStorage sort;
-            feature sketch[16];
+            uint64_t sketch[16];
         } tempStorage;
 
         constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
@@ -345,6 +348,7 @@ void gpu_hahstable_query(
                 //write features to shared memory
                 if(predicate && (sketchPos < sketchSize)) {
                     tempStorage.sketch[sketchPos] = kmer;
+                    // printf("feature: %d sketchPos: %d\n", kmer, sketchPos);
                 }
 
                 kmerCounter += count;
@@ -356,20 +360,40 @@ void gpu_hahstable_query(
             const auto group =
                 cg::tiled_partition<Hashtable::cg_size>(cg::this_thread_block());
 
-            using bucket_size_type = uint8_t;
-
             for(uint32_t i = threadIdx.x; i < sketchSize*Hashtable::cg_size; i += BLOCK_THREADS) {
                 const uint8_t gid = i / Hashtable::cg_size;
-                typename Hashtable::value_type valuesOffset;
-                hashtable.retrieve(tempStorage.sketch[gid], valuesOffset, group, probingLength);
+                typename Hashtable::value_type valuesOffset = 0;
+                //if key not found valuesOffset stays 0
+                const auto status = hashtable.retrieve(tempStorage.sketch[gid], valuesOffset, group, probingLength);
+
+
+                if(group.thread_rank() == 0) {
+                    tempStorage.sketch[gid] = valuesOffset;
+
+                    //if key not found numValues = 0
+                    bucket_size_type numValues = bucket_size_type(valuesOffset);
+                    valuesOffset >>= sizeof(bucket_size_type)*CHAR_BIT;
+
+                    // printf("status %d\n", status.has_any());
+                    // printf("status %d\n", status.has_key_not_found());
+                    printf("status %d offset: %llu numValues: %d\n", status.has_any(), valuesOffset, uint32_t(numValues));
+                }
+            }
+            __syncthreads();
+
+            //copy locations of found features into results_out
+            for(uint32_t s = 0; s < sketchSize; ++s) {
+                typename Hashtable::value_type valuesOffset = tempStorage.sketch[s];
 
                 bucket_size_type numValues = bucket_size_type(valuesOffset);
                 valuesOffset >>= sizeof(bucket_size_type)*CHAR_BIT;
 
-                if(group.thread_rank() == 0)
-                    printf("offset: %llu numValues: %d\n", valuesOffset, numValues);
-                //TODO copy values into results_out
+                for(uint32_t i = threadIdx.x; i < maxLocationsPerFeature; i += BLOCK_THREADS) {
+                    //copy found locations, pad with dummies
+                    results_out[(queryId*sketchSize + s) * maxLocationsPerFeature + i] = i < numValues ? locations[valuesOffset + i] : location{~0, ~0};
+                }
             }
+
         }
     }
 }
