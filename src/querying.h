@@ -122,24 +122,49 @@ query_id query_batched(
         [&](int id, std::vector<sequence_query>& batch) {
             auto resultsBuffer = getBuffer();
             database::matches_sorter targetMatches;
+            database::matches_sorter targetMatchesGpu;
 
             if(!gpuBatches[id])
                 gpuBatches[id] = std::make_unique<query_batch<location>>(
-                    1, 100, db.query_sketcher().sketch_size()*db.max_locations_per_feature());
+                    5, 100, db.query_sketcher().sketch_size()*db.max_locations_per_feature());
 
             for(auto& seq : batch) {
                 targetMatches.clear();
+                targetMatchesGpu.clear();
 
                 gpuBatches[id]->add_read(seq.id, std::begin(seq.seq1), std::end(seq.seq1),
                                         db.query_sketcher().kmer_size(),
                                         db.query_sketcher().window_size(),
                                         db.query_sketcher().window_stride());
 
-                db.accumulate_matches_gpu(*(gpuBatches[id]), targetMatches);
+                // gpuBatches[id]->add_read(seq.id, std::begin(seq.seq2), std::end(seq.seq2),
+                //                         db.query_sketcher().kmer_size(),
+                //                         db.query_sketcher().window_size(),
+                //                         db.query_sketcher().window_stride());
+
+                if(gpuBatches[id]->num_queries() > 0)
+                    db.accumulate_matches_gpu(*(gpuBatches[id]), targetMatchesGpu);
+                else
+                    std::cout << "no queries\n";
+
+                gpuBatches[id]->clear();
+
+                targetMatchesGpu.sort();
+
+                std::cout << "targetMatchesGpu: ";
+                for(const auto& x : targetMatchesGpu) {
+                    if(x.tgt < std::numeric_limits<target_id>::max())
+                        std::cout << x.tgt << ':' << x.win << ' ';
+                }
 
                 db.accumulate_matches(seq.seq1, targetMatches);
                 db.accumulate_matches(seq.seq2, targetMatches);
                 targetMatches.sort();
+
+                std::cout << "targetMatches:    ";
+                for(const auto& x : targetMatches) {
+                    std::cout << x.tgt << ':' << x.win << ' ';
+                }
 
                 update(resultsBuffer, seq, targetMatches.locations());
             }
