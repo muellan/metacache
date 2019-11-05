@@ -132,11 +132,14 @@ query_id query_batched(
                 targetMatches.clear();
                 targetMatchesGpu.clear();
 
-                gpuBatches[id]->add_read(seq.id, seq.seq1, db.query_sketcher());
-                gpuBatches[id]->add_read(seq.id, seq.seq2, db.query_sketcher());
+                // gpuBatches[id]->add_read(seq.id, seq.seq1, db.query_sketcher());
+                // gpuBatches[id]->add_read(seq.id, seq.seq2, db.query_sketcher());
+                gpuBatches[id]->add_paired_read(seq.id, seq.seq1, seq.seq2, db.query_sketcher());
 
-                if(gpuBatches[id]->num_queries() > 0)
+                if(gpuBatches[id]->num_queries() > 0) {
+                    std::cout << gpuBatches[id]->num_queries() << " queries\n";
                     db.accumulate_matches_gpu(*(gpuBatches[id]), targetMatchesGpu);
+                }
                 else
                     std::cout << "no queries\n";
 

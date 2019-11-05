@@ -145,7 +145,7 @@ public:
         const size_t seqLength = std::distance(first, last);
 
         // no kmers in sequence, nothing to do here
-        if(seqLength < kmerSize) return false;
+        if(seqLength < kmerSize) return true;
 
         const window_id numWindows = (seqLength-kmerSize + windowStride) / windowStride;
 
@@ -185,6 +185,98 @@ public:
         using std::end;
 
         return add_read(qid, begin(seq), end(seq), querySketcher);
+    }
+
+    /*************************************************************************//**
+    *
+    * @brief add sequence pair to batch as windows of encoded characters
+    *        if sequence pair does not fit into batch, don't add it
+    *
+    * @detail each window of a sequence is added as a separate query
+    *
+    * @return true if added, false otherwise
+    *
+    *****************************************************************************/
+    template<class InputIterator>
+    bool add_paired_read(
+        query_id qid,
+        InputIterator first1, InputIterator last1,
+        InputIterator first2, InputIterator last2,
+        const sketcher& querySketcher
+    ) {
+        const numk_t kmerSize = querySketcher.kmer_size();
+        const size_t windowSize = querySketcher.window_size();
+        const size_t windowStride = querySketcher.window_stride();
+
+        const size_t seqLength1 = std::distance(first1, last1);
+        const size_t seqLength2 = std::distance(first2, last2);
+
+        // no kmers in sequence, nothing to do here
+        if(seqLength1 < kmerSize && seqLength2 < kmerSize) return true;
+
+        const window_id numWindows1 = (seqLength1-kmerSize + windowStride) / windowStride;
+        const window_id numWindows2 = (seqLength2-kmerSize + windowStride) / windowStride;
+
+        // batch full, nothing processed
+        if(numQueries_ + numWindows1 + numWindows2 > maxQueries_) return false;
+
+        const auto availableBlocks = maxEncodeLength_ - h_encodeOffsets_[numQueries_];
+        constexpr auto lettersPerBlock = sizeof(encodedambig_t)*CHAR_BIT;
+        const auto blocksPerWindow = (windowSize-1) / lettersPerBlock + 1;
+        // batch full, nothing processed
+        if(availableBlocks < (numWindows1 + numWindows2)*blocksPerWindow) return false;
+
+        if(seqLength1 >= kmerSize) {
+            // insert first sequence into batch as separate windows
+            for_each_window(first1, last1, windowSize, windowStride,
+                [&] (InputIterator first, InputIterator last) {
+                    queryIds_[numQueries_] = qid;
+                    h_encodeOffsets_[numQueries_+1] = h_encodeOffsets_[numQueries_];
+
+                    for_each_consecutive_substring_2bit<encodedseq_t>(first, last,
+                        [&, this] (encodedseq_t substring, encodedambig_t ambig) {
+                            auto& index = h_encodeOffsets_[numQueries_+1];
+                            h_encodedSeq_[index] = substring;
+                            h_encodedAmbig_[index] = ambig;
+                            ++index;
+                        });
+
+                    ++numQueries_;
+                });
+        }
+
+        if(seqLength2 >= kmerSize) {
+            // insert second sequence into batch as separate windows
+            for_each_window(first2, last2, windowSize, windowStride,
+                [&] (InputIterator first, InputIterator last) {
+                    queryIds_[numQueries_] = qid;
+                    h_encodeOffsets_[numQueries_+1] = h_encodeOffsets_[numQueries_];
+
+                    for_each_consecutive_substring_2bit<encodedseq_t>(first, last,
+                        [&, this] (encodedseq_t substring, encodedambig_t ambig) {
+                            auto& index = h_encodeOffsets_[numQueries_+1];
+                            h_encodedSeq_[index] = substring;
+                            h_encodedAmbig_[index] = ambig;
+                            ++index;
+                        });
+
+                    ++numQueries_;
+                });
+        }
+
+        return true;
+    }
+
+    //-----------------------------------------------------
+    template<class Sequence>
+    bool add_paired_read(query_id qid, Sequence seq1, Sequence seq2, const sketcher& querySketcher) {
+        using std::begin;
+        using std::end;
+
+        return add_paired_read(qid,
+                               begin(seq1), end(seq1),
+                               begin(seq2), end(seq2),
+                               querySketcher);
     }
 
 
