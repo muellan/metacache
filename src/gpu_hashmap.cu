@@ -114,9 +114,11 @@ public:
             batch.query_results_device());
 
         batch.copy_results_to_host(stream);
+        //TODO async
+        cudaStreamSynchronize(stream);
     }
 
-private:
+// private:
     hash_table_t hashTable_;
 };
 
@@ -320,6 +322,8 @@ void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::deserialize(
     len_t nvalues = 0;
     read_binary(is, nvalues);
 
+    std::cout << "nkeys: " << nkeys << " nvalues: " << nvalues << std::endl;
+
     if(nkeys > 0) {
         {//load hash table
             //initialize hash table
@@ -335,6 +339,13 @@ void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::deserialize(
             cudaMallocHost(&h_offsetBuffer, keyBatchSize*sizeof(uint64_t));
             cudaMalloc    (&d_offsetBuffer, keyBatchSize*sizeof(uint64_t));
 
+            using handler_type = warpcore::status_handlers::ReturnStatus;
+            using handler_base_type = handler_type::base_type;
+
+            handler_base_type * status;
+            cudaMallocManaged(&status, keyBatchSize*sizeof(uint64_t));
+            cudaMemset(status, 1, keyBatchSize*sizeof(uint64_t));
+
             uint64_t valuesOffset = 0;
             for(len_t i = 0; i < nkeys; ++i) {
                 key_type key;
@@ -346,26 +357,46 @@ void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::deserialize(
                 //store offset and size together in 64bit
                 //default is 56bit offset, 8bit size
                 h_offsetBuffer[i % keyBatchSize] =
-                    (valuesOffset << sizeof(bucket_size_type)*CHAR_BIT) + nvals;;
+                    (valuesOffset << sizeof(bucket_size_type)*CHAR_BIT) + nvals;
 
                 valuesOffset += nvals;
 
                 //insert buffer if full
                 //TODO overlap async
-                if(i % keyBatchSize == 0) {
+                if((i+1) % keyBatchSize == 0) {
                     cudaMemcpy(d_keyBuffer, h_keyBuffer, keyBatchSize*sizeof(key_type),
                                cudaMemcpyHostToDevice);
                     cudaMemcpy(d_offsetBuffer, h_offsetBuffer, keyBatchSize*sizeof(uint64_t),
                                cudaMemcpyHostToDevice);
-                    hashTable_->insert(d_keyBuffer, d_offsetBuffer, keyBatchSize);
+                    // hashTable_->insert(d_keyBuffer, d_offsetBuffer, keyBatchSize);
+                    size_type probingLength = hashTable_->hashTable_.capacity();
+                    hashTable_->hashTable_.template insert<handler_type>(d_keyBuffer, d_offsetBuffer, keyBatchSize, probingLength, 0, status);
+                    cudaDeviceSynchronize();
+
+                    for(size_t j=0; j<keyBatchSize; ++j) {
+                        if(status[j % keyBatchSize].has_any()) {
+                            std::cout << h_keyBuffer[j % keyBatchSize] << ' ' << status[j % keyBatchSize] << std::endl;
+                        }
+                    }
                 }
             }
+            const size_t remainingSize = nkeys % keyBatchSize;
             //insert remaining pairs in buffer
-            cudaMemcpy(d_keyBuffer, h_keyBuffer, keyBatchSize*sizeof(key_type),
+            cudaMemcpy(d_keyBuffer, h_keyBuffer, remainingSize*sizeof(key_type),
                        cudaMemcpyHostToDevice);
-            cudaMemcpy(d_offsetBuffer, h_offsetBuffer, keyBatchSize*sizeof(uint64_t),
+            cudaMemcpy(d_offsetBuffer, h_offsetBuffer, remainingSize*sizeof(uint64_t),
                        cudaMemcpyHostToDevice);
-            hashTable_->insert(d_keyBuffer, d_offsetBuffer, nkeys % keyBatchSize);
+            // hashTable_->insert(d_keyBuffer, d_offsetBuffer, remainingSize);
+            size_type probingLength = hashTable_->hashTable_.capacity();
+            hashTable_->hashTable_.template insert<handler_type>(d_keyBuffer, d_offsetBuffer, remainingSize, probingLength, 0, status);
+            cudaDeviceSynchronize();
+
+            for(size_t j=0; j<remainingSize; ++j) {
+                if(status[j % keyBatchSize].has_any()) {
+                    std::cout << h_keyBuffer[j % keyBatchSize] << ' ' << status[j % keyBatchSize] << std::endl;
+                }
+            }
+            // std::cout << hashTable_->hashTable_.peek_status() << std::endl;
 
             cudaFreeHost(h_keyBuffer);
             cudaFree    (d_keyBuffer);
