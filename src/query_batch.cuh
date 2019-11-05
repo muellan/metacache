@@ -129,20 +129,20 @@ public:
     *
     * @detail each window of a sequence is added as a separate query
     *
-    * @return number of processed windows
+    * @return true if added, false otherwise
     *
     *****************************************************************************/
     template<class InputIterator>
-    bool
-    add_read(
+    bool add_read(
         query_id qid,
         InputIterator first, InputIterator last,
-        numk_t kmerSize,
-        size_t windowSize, size_t windowStride
+        const sketcher& querySketcher
     ) {
-        using std::distance;
+        const numk_t kmerSize = querySketcher.kmer_size();
+        const size_t windowSize = querySketcher.window_size();
+        const size_t windowStride = querySketcher.window_stride();
 
-        const size_t seqLength = distance(first, last);
+        const size_t seqLength = std::distance(first, last);
 
         // no kmers in sequence, nothing to do here
         if(seqLength < kmerSize) return false;
@@ -176,6 +176,15 @@ public:
             });
 
         return true;
+    }
+
+    //-----------------------------------------------------
+    template<class Sequence>
+    bool add_read(query_id qid, Sequence seq, const sketcher& querySketcher) {
+        using std::begin;
+        using std::end;
+
+        return add_read(qid, begin(seq), end(seq), querySketcher);
     }
 
 
