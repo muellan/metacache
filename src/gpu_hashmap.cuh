@@ -22,8 +22,6 @@ namespace mc {
  *
  * @tparam  Key:    key type
  * @tparam  ValueT: value type
- * @tparam  Hash:   hash function (object) type
- * @tparam  ProbingIterator: implements probing scheme
  *
  *****************************************************************************/
 template<
@@ -35,7 +33,7 @@ template<
 >
 class gpu_hashmap
 {
-    class single_value_hash_table;
+    class hash_table;
 
     static_assert(std::is_integral<BucketSizeT>::value &&
         std::is_unsigned<BucketSizeT>::value,
@@ -124,23 +122,15 @@ public:
     }
 
     //---------------------------------------------------------------
-    size_type key_count() const noexcept {
-        return numKeys_;
-    }
+    size_type key_count() const noexcept;
     //-----------------------------------------------------
-    size_type value_count() const noexcept {
-        return numValues_;
-    }
-
+    size_type value_count() const noexcept;
     //-----------------------------------------------------
     bool empty() const noexcept {
-        return (numKeys_ < 1);
+        return key_count() < 1;
     }
-
     //---------------------------------------------------------------
-    float load_factor() const noexcept {
-        return hashTable_ ? hashTable_->load_factor() : -1;
-    }
+    float load_factor() const noexcept;
 
     //---------------------------------------------------------------
     static constexpr float default_max_load_factor() noexcept {
@@ -191,12 +181,9 @@ private:
 private:
     //---------------------------------------------------------------
     /**
-     * @brief hashtable which maps feature to value bucket and bucket size
+     * @brief hashtable which maps feature -> values
      */
-    std::unique_ptr<single_value_hash_table> hashTable_;
-    value_type * values_;
-    size_type numKeys_;
-    size_type numValues_;
+    std::unique_ptr<hash_table> hashTable_;
     float maxLoadFactor_;
     hasher hash_;
     key_equal keyEqual_;

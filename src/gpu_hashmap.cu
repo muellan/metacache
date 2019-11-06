@@ -47,7 +47,18 @@ gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::feature_batch::~feature_batch
 }
 
 
-//---------------------------------------------------------------
+/*************************************************************************//**
+ * TODO
+ * @brief   key -> values hashed multimap
+ *          loads metacache db to GPU to enable queries on GPU
+ *
+ * @details uses warpcore::SingleValueHashTable to map key -> locations pointer & size
+ *          locations are stored in separate array
+ *
+ * @tparam  Key:    key type
+ * @tparam  ValueT: value type
+ *
+ *****************************************************************************/
 template<
     class Key,
     class ValueT,
@@ -55,10 +66,11 @@ template<
     class KeyEqual,
     class BucketSizeT
 >
-class gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::single_value_hash_table {
+class gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::hash_table {
 
     using key_type   = Key;
     using value_type = std::uint64_t;
+    using location_type = ValueT;
     using size_type  = size_t;
 
     using hash_table_t = warpcore::SingleValueHashTable<
@@ -68,12 +80,25 @@ class gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::single_value_hash_table
         warpcore::defaults::tombstone_key<key_type>()>;     //=-1
 
 public:
-    single_value_hash_table(size_t capacity) : hashTable_(capacity) {}
+    hash_table(size_t capacity) :
+        hashTable_(capacity),
+        numKeys_(0), numLocations_(0),
+        locations_(nullptr)
+    {}
 
     //---------------------------------------------------------------
     float load_factor() const noexcept {
         return hashTable_.load_factor();
     }
+    //---------------------------------------------------------------
+    size_type key_count() const noexcept {
+        return numKeys_;
+    }
+    //-----------------------------------------------------
+    size_type location_count() const noexcept {
+        return numLocations_;
+    }
+
 
     //---------------------------------------------------------------
     void insert(key_type *keys_in, value_type *values_in, size_type size_in)
@@ -86,7 +111,10 @@ public:
 
     //---------------------------------------------------------------
     template<class result_type>
-    void query(query_batch<result_type>& batch, const sketcher& querySketcher, location * const locations, bucket_size_type maxLocationPerFeature) const {
+    void query(query_batch<result_type>& batch,
+               const sketcher& querySketcher,
+               bucket_size_type maxLocationPerFeature) const
+    {
         //TODO
         cudaStream_t stream = 0;
         batch.copy_queries_to_device(stream);
@@ -109,7 +137,7 @@ public:
             querySketcher.sketch_size(),
             querySketcher.window_size(),
             querySketcher.window_stride(),
-            locations,
+            locations_,
             maxLocationPerFeature,
             batch.query_results_device());
 
@@ -118,8 +146,127 @@ public:
         cudaStreamSynchronize(stream);
     }
 
-// private:
+    //---------------------------------------------------------------
+    template<class len_t>
+    void deserialize(std::istream& is, len_t nkeys, len_t nlocations)
+    {
+        //TODO tune sizes
+        const size_t keyBatchSize = 1UL << 20;
+        const size_t valBatchSize = 1UL << 20;
+
+        {//load hash table
+            //allocate insert buffers
+            key_type * h_keyBuffer;
+            key_type * d_keyBuffer;
+            cudaMallocHost(&h_keyBuffer, keyBatchSize*sizeof(key_type));
+            cudaMalloc    (&d_keyBuffer, keyBatchSize*sizeof(key_type));
+            uint64_t * h_offsetBuffer;
+            uint64_t * d_offsetBuffer;
+            cudaMallocHost(&h_offsetBuffer, keyBatchSize*sizeof(uint64_t));
+            cudaMalloc    (&d_offsetBuffer, keyBatchSize*sizeof(uint64_t));
+
+            using handler_type = warpcore::status_handlers::ReturnStatus;
+            using handler_base_type = handler_type::base_type;
+
+            handler_base_type * status;
+            cudaMallocManaged(&status, keyBatchSize*sizeof(uint64_t));
+            cudaMemset(status, 1, keyBatchSize*sizeof(uint64_t));
+
+            uint64_t locsOffset = 0;
+            for(len_t i = 0; i < nkeys; ++i) {
+                key_type key;
+                bucket_size_type nlocs = 0;
+                read_binary(is, key);
+                read_binary(is, nlocs);
+
+                h_keyBuffer[i % keyBatchSize] = key;
+                //store offset and size together in 64bit
+                //default is 56bit offset, 8bit size
+                h_offsetBuffer[i % keyBatchSize] =
+                    (locsOffset << sizeof(bucket_size_type)*CHAR_BIT) + nlocs;
+
+                locsOffset += nlocs;
+
+                //insert buffer if full
+                //TODO overlap async
+                if((i+1) % keyBatchSize == 0) {
+                    cudaMemcpy(d_keyBuffer, h_keyBuffer, keyBatchSize*sizeof(key_type),
+                                cudaMemcpyHostToDevice);
+                    cudaMemcpy(d_offsetBuffer, h_offsetBuffer, keyBatchSize*sizeof(uint64_t),
+                                cudaMemcpyHostToDevice);
+                    // insert(d_keyBuffer, d_offsetBuffer, keyBatchSize);
+                    size_type probingLength = hashTable_.capacity();
+                    hashTable_.template insert<handler_type>(d_keyBuffer, d_offsetBuffer, keyBatchSize, probingLength, 0, status);
+                    cudaDeviceSynchronize();
+
+                    for(size_t j=0; j<keyBatchSize; ++j) {
+                        if(status[j % keyBatchSize].has_any()) {
+                            std::cout << h_keyBuffer[j % keyBatchSize] << ' ' << status[j % keyBatchSize] << std::endl;
+                        }
+                    }
+                }
+            }
+            const size_t remainingSize = nkeys % keyBatchSize;
+            //insert remaining pairs in buffer
+            cudaMemcpy(d_keyBuffer, h_keyBuffer, remainingSize*sizeof(key_type),
+                        cudaMemcpyHostToDevice);
+            cudaMemcpy(d_offsetBuffer, h_offsetBuffer, remainingSize*sizeof(uint64_t),
+                        cudaMemcpyHostToDevice);
+            // insert(d_keyBuffer, d_offsetBuffer, remainingSize);
+            size_type probingLength = hashTable_.capacity();
+            hashTable_.template insert<handler_type>(d_keyBuffer, d_offsetBuffer, remainingSize, probingLength, 0, status);
+            cudaDeviceSynchronize();
+
+            for(size_t j=0; j<remainingSize; ++j) {
+                if(status[j % keyBatchSize].has_any()) {
+                    std::cout << h_keyBuffer[j % keyBatchSize] << ' ' << status[j % keyBatchSize] << std::endl;
+                }
+            }
+            // std::cout << hashTable_.peek_status() << std::endl;
+
+            cudaFreeHost(h_keyBuffer);
+            cudaFree    (d_keyBuffer);
+            cudaFreeHost(h_offsetBuffer);
+            cudaFree    (d_offsetBuffer);
+        }
+
+        {//load locations
+            //allocate large memory chunk for all locations,
+            //individual buckets will then point into this array
+            cudaMalloc(&locations_, nlocations*sizeof(location));
+
+            //allocate buffer
+            location * valueBuffer;
+            cudaMallocHost(&valueBuffer, valBatchSize*sizeof(location));
+
+            //read batch of locations and copy to device
+            //TODO overlap async
+            auto locsOffset = locations_;
+            for(size_t i = 0; i < nlocations/valBatchSize; ++i) {
+                read_binary(is, valueBuffer, valBatchSize);
+                cudaMemcpy(locsOffset, valueBuffer, valBatchSize*sizeof(location),
+                            cudaMemcpyHostToDevice);
+                locsOffset += valBatchSize;
+            }
+            //read remaining locations and copy to device
+            const size_t remainingSize = nlocations % valBatchSize;
+            read_binary(is, valueBuffer, remainingSize);
+            cudaMemcpy(locsOffset, valueBuffer, remainingSize*sizeof(location),
+                        cudaMemcpyHostToDevice);
+
+            cudaFreeHost(valueBuffer);
+        }
+
+        numKeys_ = nkeys;
+        numLocations_ = nlocations;
+    }
+
+private:
     hash_table_t hashTable_;
+
+    size_type numKeys_;
+    size_type numLocations_;
+    location * locations_;
 };
 
 
@@ -132,7 +279,7 @@ template<
     class BucketSizeT
 >
 gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::gpu_hashmap() :
-    numKeys_(0), numValues_(0), maxLoadFactor_(default_max_load_factor()),
+    maxLoadFactor_(default_max_load_factor()),
     hash_{}, keyEqual_{},
     seqBatches_{}, featureBatches_{}
 {
@@ -168,7 +315,6 @@ template<
 >
 gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::~gpu_hashmap() = default;
 
-
 //-----------------------------------------------------
 template<
     class Key,
@@ -178,6 +324,45 @@ template<
     class BucketSizeT
 >
 gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::gpu_hashmap(gpu_hashmap&&) = default;
+
+
+
+//---------------------------------------------------------------
+template<
+class Key,
+class ValueT,
+class Hash,
+class KeyEqual,
+class BucketSizeT
+>
+size_t gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::key_count() const noexcept {
+    return hashTable_ ? hashTable_->key_count() : 0;
+}
+
+//-----------------------------------------------------
+template<
+class Key,
+class ValueT,
+class Hash,
+class KeyEqual,
+class BucketSizeT
+>
+size_t gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::value_count() const noexcept {
+    return hashTable_ ? hashTable_->location_count() : 0;
+}
+
+//---------------------------------------------------------------
+template<
+class Key,
+class ValueT,
+class Hash,
+class KeyEqual,
+class BucketSizeT
+>
+float gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::load_factor() const noexcept {
+    return hashTable_ ? hashTable_->load_factor() : -1;
+}
+
 
 
 //---------------------------------------------------------------
@@ -293,11 +478,8 @@ template<
     class BucketSizeT
 >
 void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::query(query_batch<value_type>& batch, const sketcher& querySketcher, bucket_size_type maxLocationPerFeature) const {
-    hashTable_->query(batch, querySketcher, values_, maxLocationPerFeature);
+    hashTable_->query(batch, querySketcher, maxLocationPerFeature);
 }
-
-
-
 
 
 //---------------------------------------------------------------
@@ -313,10 +495,6 @@ void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::deserialize(
 {
     using len_t = std::uint64_t;
 
-    //TODO tune sizes
-    const size_t keyBatchSize = 1UL << 20;
-    const size_t valBatchSize = 1UL << 20;
-
     len_t nkeys = 0;
     read_binary(is, nkeys);
     len_t nvalues = 0;
@@ -325,114 +503,10 @@ void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::deserialize(
     std::cout << "nkeys: " << nkeys << " nvalues: " << nvalues << std::endl;
 
     if(nkeys > 0) {
-        {//load hash table
-            //initialize hash table
-            hashTable_ = std::make_unique<single_value_hash_table>(nkeys/maxLoadFactor_);
+        //initialize hash table
+        hashTable_ = std::make_unique<hash_table>(nkeys/maxLoadFactor_);
 
-            //allocate insert buffers
-            key_type * h_keyBuffer;
-            key_type * d_keyBuffer;
-            cudaMallocHost(&h_keyBuffer, keyBatchSize*sizeof(key_type));
-            cudaMalloc    (&d_keyBuffer, keyBatchSize*sizeof(key_type));
-            uint64_t * h_offsetBuffer;
-            uint64_t * d_offsetBuffer;
-            cudaMallocHost(&h_offsetBuffer, keyBatchSize*sizeof(uint64_t));
-            cudaMalloc    (&d_offsetBuffer, keyBatchSize*sizeof(uint64_t));
-
-            using handler_type = warpcore::status_handlers::ReturnStatus;
-            using handler_base_type = handler_type::base_type;
-
-            handler_base_type * status;
-            cudaMallocManaged(&status, keyBatchSize*sizeof(uint64_t));
-            cudaMemset(status, 1, keyBatchSize*sizeof(uint64_t));
-
-            uint64_t valuesOffset = 0;
-            for(len_t i = 0; i < nkeys; ++i) {
-                key_type key;
-                bucket_size_type nvals = 0;
-                read_binary(is, key);
-                read_binary(is, nvals);
-
-                h_keyBuffer[i % keyBatchSize] = key;
-                //store offset and size together in 64bit
-                //default is 56bit offset, 8bit size
-                h_offsetBuffer[i % keyBatchSize] =
-                    (valuesOffset << sizeof(bucket_size_type)*CHAR_BIT) + nvals;
-
-                valuesOffset += nvals;
-
-                //insert buffer if full
-                //TODO overlap async
-                if((i+1) % keyBatchSize == 0) {
-                    cudaMemcpy(d_keyBuffer, h_keyBuffer, keyBatchSize*sizeof(key_type),
-                               cudaMemcpyHostToDevice);
-                    cudaMemcpy(d_offsetBuffer, h_offsetBuffer, keyBatchSize*sizeof(uint64_t),
-                               cudaMemcpyHostToDevice);
-                    // hashTable_->insert(d_keyBuffer, d_offsetBuffer, keyBatchSize);
-                    size_type probingLength = hashTable_->hashTable_.capacity();
-                    hashTable_->hashTable_.template insert<handler_type>(d_keyBuffer, d_offsetBuffer, keyBatchSize, probingLength, 0, status);
-                    cudaDeviceSynchronize();
-
-                    for(size_t j=0; j<keyBatchSize; ++j) {
-                        if(status[j % keyBatchSize].has_any()) {
-                            std::cout << h_keyBuffer[j % keyBatchSize] << ' ' << status[j % keyBatchSize] << std::endl;
-                        }
-                    }
-                }
-            }
-            const size_t remainingSize = nkeys % keyBatchSize;
-            //insert remaining pairs in buffer
-            cudaMemcpy(d_keyBuffer, h_keyBuffer, remainingSize*sizeof(key_type),
-                       cudaMemcpyHostToDevice);
-            cudaMemcpy(d_offsetBuffer, h_offsetBuffer, remainingSize*sizeof(uint64_t),
-                       cudaMemcpyHostToDevice);
-            // hashTable_->insert(d_keyBuffer, d_offsetBuffer, remainingSize);
-            size_type probingLength = hashTable_->hashTable_.capacity();
-            hashTable_->hashTable_.template insert<handler_type>(d_keyBuffer, d_offsetBuffer, remainingSize, probingLength, 0, status);
-            cudaDeviceSynchronize();
-
-            for(size_t j=0; j<remainingSize; ++j) {
-                if(status[j % keyBatchSize].has_any()) {
-                    std::cout << h_keyBuffer[j % keyBatchSize] << ' ' << status[j % keyBatchSize] << std::endl;
-                }
-            }
-            // std::cout << hashTable_->hashTable_.peek_status() << std::endl;
-
-            cudaFreeHost(h_keyBuffer);
-            cudaFree    (d_keyBuffer);
-            cudaFreeHost(h_offsetBuffer);
-            cudaFree    (d_offsetBuffer);
-        }
-
-        {//load values
-            //allocate large memory chunk for all values,
-            //individual buckets will then point into this array
-            cudaMalloc(&values_, nvalues*sizeof(value_type));
-
-            //allocate buffer
-            value_type * valueBuffer;
-            cudaMallocHost(&valueBuffer, valBatchSize*sizeof(value_type));
-
-            //read batch of values and copy to device
-            //TODO overlap async
-            auto valuesOffset = values_;
-            for(size_t i = 0; i < nvalues/valBatchSize; ++i) {
-                read_binary(is, valueBuffer, valBatchSize);
-                cudaMemcpy(valuesOffset, valueBuffer, valBatchSize*sizeof(value_type),
-                           cudaMemcpyHostToDevice);
-                valuesOffset += valBatchSize;
-            }
-            //read remaining values and copy to device
-            const size_t remainingSize = nvalues % valBatchSize;
-            read_binary(is, valueBuffer, remainingSize);
-            cudaMemcpy(valuesOffset, valueBuffer, remainingSize*sizeof(value_type),
-                       cudaMemcpyHostToDevice);
-
-            cudaFreeHost(valueBuffer);
-        }
-
-        numKeys_ = nkeys;
-        numValues_ = nvalues;
+        hashTable_->deserialize(is, nkeys, nvalues);
     }
 }
 
