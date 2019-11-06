@@ -235,6 +235,11 @@ public:
         friend class database;
 
     public:
+        matches_sorter() :
+            locs_(),
+            offsets_(1, 0)
+        {}
+
         void sort() {
             merge_sort(locs_, offsets_, temp_);
         }
@@ -838,6 +843,36 @@ public:
         }
     }
 
+
+    //---------------------------------------------------------------
+    void
+    accumulate_matches_gpu(query_batch<location>& queryBatch,
+                           std::vector<matches_sorter>& res,
+                           size_t& outIndex) const
+    {
+        featureStoreGPU_.query(queryBatch, query_sketcher(), max_locations_per_feature());
+
+        size_t maxResultsPerQuery = query_sketcher().sketch_size() * max_locations_per_feature();
+
+        res[outIndex].locs_.insert(res[outIndex].locs_.end(), queryBatch.query_results_host(), queryBatch.query_results_host()+maxResultsPerQuery);
+
+        for(size_t i = 0; i < query_sketcher().sketch_size(); ++i) {
+            res[outIndex].offsets_.emplace_back(res[outIndex].offsets_.back()+max_locations_per_feature());
+        }
+
+        for(size_t i = 1; i < queryBatch.num_queries(); ++i) {
+            if(queryBatch.query_ids()[i] != queryBatch.query_ids()[i-1]) {
+                ++outIndex;
+            }
+
+            res[outIndex].locs_.insert(res[outIndex].locs_.end(), queryBatch.query_results_host()+i*maxResultsPerQuery, queryBatch.query_results_host()+(i+1)*maxResultsPerQuery);
+
+            for(size_t i = 0; i < query_sketcher().sketch_size(); ++i) {
+                res[outIndex].offsets_.emplace_back(res[outIndex].offsets_.back()+max_locations_per_feature());
+            }
+        }
+        ++outIndex;
+    }
 
 
 
