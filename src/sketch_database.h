@@ -1246,13 +1246,10 @@ private:
 
         //fill sequence batch
         auto processedWindows = seqBatches_[0].add_target(
-            first, last, tgt, win,
-            targetSketcher_.kmer_size(),
-            targetSketcher_.window_size(),
-            targetSketcher_.window_stride());
+            first, last, tgt, win, targetSketcher_);
 
         std::cout << "num targets: " << seqBatches_[0].num_targets()
-                  << " target id: " << seqBatches_[0].target_ids()[seqBatches_[0].num_targets()-1]
+                  << " target id: "  << seqBatches_[0].target_ids()[seqBatches_[0].num_targets()-1]
                   << " window off: " << seqBatches_[0].window_offsets()[seqBatches_[0].num_targets()-1]
                   << " encode len: " << seqBatches_[0].encode_offsets()[seqBatches_[0].num_targets()]
                   << '\n';
@@ -1260,11 +1257,13 @@ private:
         // if no windows were processed batch must be full
         if(!processedWindows) {
             //insert batch
-            std::vector<kmer_type> new_features_gpu = featureStoreGPU_.insert(seqBatches_[0], targetSketcher_);
+            std::vector<kmer_type> new_features_gpu =
+                featureStoreGPU_.insert(seqBatches_[0], targetSketcher_);
             //reset batch
             seqBatches_[0].num_targets(0);
             //store results for error checking
-            features_gpu.insert(features_gpu.end(), new_features_gpu.begin(), new_features_gpu.end());
+            features_gpu.insert(features_gpu.end(),
+                                new_features_gpu.begin(), new_features_gpu.end());
 
             compare_features();
         }

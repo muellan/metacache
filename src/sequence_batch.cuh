@@ -101,16 +101,18 @@ public:
     add_target(
         InputIterator first, InputIterator last,
         target_id tgt, window_id win,
-        numk_t kmerSize,
-        size_t windowSize, size_t windowStride
+        const sketcher& targetSketcher
     ) {
-        using std::distance;
+        const numk_t kmerSize     = targetSketcher.kmer_size();
+        const size_t windowSize   = targetSketcher.window_size();
+        const size_t windowStride = targetSketcher.window_stride();
 
         window_id processedWindows = 0;
 
-        const size_t seqLength = distance(first, last);
+        const size_t seqLength = std::distance(first, last);
 
         // no kmers in sequence, nothing to do here
+        //TODO different case than batch full
         if(seqLength < kmerSize) return processedWindows;
 
         // batch full, nothing processed
