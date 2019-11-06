@@ -116,8 +116,8 @@ public:
                bucket_size_type maxLocationPerFeature) const
     {
         //TODO
-        cudaStream_t stream = 0;
-        batch.copy_queries_to_device(stream);
+        cudaStream_t stream = batch.stream();
+        batch.copy_queries_to_device_async();
 
         // max 32*4 features => max window size is 128
         #define BLOCK_THREADS 32
@@ -141,9 +141,9 @@ public:
             maxLocationPerFeature,
             batch.query_results_device());
 
-        batch.copy_results_to_host(stream);
+        batch.copy_results_to_host_async();
         //TODO async
-        cudaStreamSynchronize(stream);
+        batch.sync_stream();
     }
 
     //---------------------------------------------------------------

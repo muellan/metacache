@@ -12,8 +12,10 @@ namespace mc {
 
 /*************************************************************************//**
  *
- * @brief batch contains sequence data of multiple reads
- *        manages allocated memory on host and device
+ * @brief batch contains sequence data & query results of multiple reads,
+ *        manages allocated memory on host and device,
+ *        moves data between host & device,
+ *        uses its own stream
  *
  *****************************************************************************/
  template<class result_type>
@@ -21,56 +23,50 @@ class query_batch
  {
 public:
     //---------------------------------------------------------------
-    /**
-     * @brief allocate memory on host and device
-     */
+    /** @brief allocate memory on host and device */
     query_batch(size_t maxQueries = 0, size_t maxEncodeLength = 0, size_t maxResultsPerQuery = 0);
     //-----------------------------------------------------
     query_batch(const query_batch&) = delete;
     //-----------------------------------------------------
     query_batch(query_batch&& other) {
-        maxQueries_      = other.max_queries();
-        maxEncodeLength_ = other.max_encode_length();
-        numQueries_      = other.num_queries();
-        other.max_queries(0);
-        other.max_encode_length(0);
-        other.num_queries(0);
+        maxQueries_         = other.maxQueries_;
+        maxEncodeLength_    = other.maxEncodeLength_;
+        numQueries_         = other.numQueries_;
+        maxResultsPerQuery_ = other.maxResultsPerQuery_;
 
-        queryIds_        = other.query_ids();
+        other.maxQueries_         = 0;
+        other.maxEncodeLength_    = 0;
+        other.numQueries_         = 0;
+        other.maxResultsPerQuery_ = 0;
 
-        h_encodeOffsets_ = other.encode_offsets_host();
-        h_encodedSeq_    = other.encoded_seq_host();
-        h_encodedAmbig_  = other.encoded_ambig_host();
+        queryIds_        = other.queryIds_;
 
-        d_encodeOffsets_ = other.encode_offsets_device();
-        d_encodedSeq_    = other.encoded_seq_device();
-        d_encodedAmbig_  = other.encoded_ambig_device();
+        h_encodeOffsets_ = other.h_encodeOffsets_;
+        h_encodedSeq_    = other.h_encodedSeq_;
+        h_encodedAmbig_  = other.h_encodedAmbig_;
 
-        h_queryResults_  = other.query_results_host();;
-        d_queryResults_  = other.query_results_device();;
+        d_encodeOffsets_ = other.d_encodeOffsets_;
+        d_encodedSeq_    = other.d_encodedSeq_;
+        d_encodedAmbig_  = other.d_encodedAmbig_;
+
+        h_queryResults_  = other.h_queryResults_;
+        d_queryResults_  = other.d_queryResults_;
+
+        stream_ = other.stream_;
+        other.stream_ = 0;
     };
 
     //---------------------------------------------------------------
-    /**
-     * @brief free memory allocation
-     */
+    /** @brief free memory allocation */
     ~query_batch();
 
     //---------------------------------------------------------------
     size_t max_queries() const noexcept {
         return maxQueries_;
     }
-    //-----------------------------------------------------
-    void max_queries(size_t n) noexcept {
-        maxQueries_ = n;
-    }
     //---------------------------------------------------------------
     size_t max_encode_length() const noexcept {
         return maxEncodeLength_;
-    }
-    //-----------------------------------------------------
-    void max_encode_length(size_t n) noexcept {
-        maxEncodeLength_ = n;
     }
     //---------------------------------------------------------------
     size_t num_queries() const noexcept {
@@ -81,6 +77,11 @@ public:
         if(n > max_queries()) n = max_queries();
         numQueries_ = n;
     }
+    //---------------------------------------------------------------
+    size_t max_results_per_query() const noexcept {
+        return maxResultsPerQuery_;
+    }
+
     //---------------------------------------------------------------
     query_id * query_ids() const noexcept {
         return queryIds_;
@@ -118,9 +119,23 @@ public:
         return d_queryResults_;
     }
     //---------------------------------------------------------------
+    const cudaStream_t& stream() const noexcept {
+        return stream_;
+    }
+
+    //---------------------------------------------------------------
     void clear() noexcept {
         num_queries(0);
     }
+
+    //---------------------------------------------------------------
+    /** @brief asynchronously copy queries to device using stream_ */
+    void copy_queries_to_device_async();
+    //---------------------------------------------------------------
+    /** @brief asynchronously copy results to host using stream_ */
+    void copy_results_to_host_async();
+    //---------------------------------------------------------------
+    void sync_stream();
 
     /*************************************************************************//**
     *
@@ -269,7 +284,11 @@ public:
 
     //-----------------------------------------------------
     template<class Sequence>
-    bool add_paired_read(query_id qid, Sequence seq1, Sequence seq2, const sketcher& querySketcher) {
+    bool add_paired_read(
+        query_id qid,
+        Sequence seq1, Sequence seq2,
+        const sketcher& querySketcher
+    ) {
         using std::begin;
         using std::end;
 
@@ -278,12 +297,6 @@ public:
                                begin(seq2), end(seq2),
                                querySketcher);
     }
-
-
-    //---------------------------------------------------------------
-    void copy_queries_to_device(cudaStream_t stream);
-    //---------------------------------------------------------------
-    void copy_results_to_host(cudaStream_t stream);
 
 
 private:
@@ -304,6 +317,8 @@ private:
 
     result_type    * h_queryResults_;
     result_type    * d_queryResults_;
+
+    cudaStream_t stream_;
 };
 
 

@@ -1,13 +1,16 @@
 
 #include "query_batch.cuh"
-#include "gpu_engine.cuh"
+#include "sketch_database.h"
 
 namespace mc {
 
 
 //---------------------------------------------------------------
 template<class result_type>
-query_batch<result_type>::query_batch(size_t maxQueries, size_t maxEncodeLength, size_t maxResultsPerQuery) :
+query_batch<result_type>::query_batch(
+    size_t maxQueries,
+    size_t maxEncodeLength,
+    size_t maxResultsPerQuery) :
     numQueries_{0},
     maxQueries_{maxQueries},
     maxEncodeLength_{maxEncodeLength},
@@ -31,6 +34,9 @@ query_batch<result_type>::query_batch(size_t maxQueries, size_t maxEncodeLength,
         cudaMalloc(&d_encodedAmbig_, maxEncodeLength_*sizeof(encodedambig_t));
     }
     CUERR
+
+    cudaStreamCreate(&stream_);
+    CUERR
 }
 //---------------------------------------------------------------
 template<class result_type>
@@ -52,26 +58,40 @@ query_batch<result_type>::~query_batch() {
         cudaFree(d_encodedAmbig_);
     }
     CUERR
+
+    cudaStreamDestroy(stream_);
+    CUERR
 }
 
 
 //---------------------------------------------------------------
 template<class result_type>
-void query_batch<result_type>::copy_queries_to_device(cudaStream_t stream) {
+void query_batch<result_type>::copy_queries_to_device_async() {
     cudaMemcpyAsync(d_encodeOffsets_, h_encodeOffsets_,
-               (numQueries_+1)*sizeof(encodinglen_t), cudaMemcpyHostToDevice, stream);
+                    (numQueries_+1)*sizeof(encodinglen_t),
+                    cudaMemcpyHostToDevice, stream_);
     cudaMemcpyAsync(d_encodedSeq_, h_encodedSeq_,
-               h_encodeOffsets_[numQueries_]*sizeof(encodedseq_t), cudaMemcpyHostToDevice, stream);
+                    h_encodeOffsets_[numQueries_]*sizeof(encodedseq_t),
+                    cudaMemcpyHostToDevice, stream_);
     cudaMemcpyAsync(d_encodedAmbig_, h_encodedAmbig_,
-               h_encodeOffsets_[numQueries_]*sizeof(encodedambig_t), cudaMemcpyHostToDevice, stream);
+                    h_encodeOffsets_[numQueries_]*sizeof(encodedambig_t),
+                    cudaMemcpyHostToDevice, stream_);
 }
 
 
 //---------------------------------------------------------------
 template<class result_type>
-void query_batch<result_type>::copy_results_to_host(cudaStream_t stream) {
+void query_batch<result_type>::copy_results_to_host_async() {
     cudaMemcpyAsync(h_queryResults_, d_queryResults_,
-               numQueries_*maxResultsPerQuery_*sizeof(result_type), cudaMemcpyHostToDevice, stream);
+                    numQueries_*maxResultsPerQuery_*sizeof(result_type),
+                    cudaMemcpyHostToDevice, stream_);
+}
+
+
+//---------------------------------------------------------------
+template<class result_type>
+void query_batch<result_type>::sync_stream() {
+    cudaStreamSynchronize(stream_);
 }
 
 
