@@ -321,8 +321,6 @@ read_database(const string& filename, const database_query_options& opt)
     try {
         db.read(filename);
         cerr << "done." << endl;
-        db.read_values_only(filename);
-        cerr << "done again." << endl;
     }
     catch(const file_access_error& e) {
         cerr << "FAIL" << endl;

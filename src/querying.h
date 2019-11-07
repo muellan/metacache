@@ -122,9 +122,7 @@ query_id query_batched(
         [&](int id, std::vector<sequence_query>& batch) {
             auto resultsBuffer = getBuffer();
             std::vector<database::matches_sorter> targetMatches(batch.size());
-            std::vector<database::matches_sorter> targetMatchesGpu(batch.size());
 
-            size_t outIndexHost = 0;
             size_t outIndex = 0;
 
             if(!gpuBatches[id])
@@ -139,8 +137,8 @@ query_id query_batched(
                 if(!gpuBatches[id]->add_paired_read(seq.id, seq.seq1, seq.seq2, db.query_sketcher())) {
                     //could not add read, send full batch to gpu
                     if(gpuBatches[id]->num_queries() > 0) {
-                        std::cout << "send batch to gpu\n";
-                        db.accumulate_matches_gpu(*(gpuBatches[id]), targetMatchesGpu, outIndex);
+                        // std::cout << "send batch to gpu\n";
+                        db.accumulate_matches_gpu(*(gpuBatches[id]), targetMatches, outIndex);
                         gpuBatches[id]->clear();
 
                         //try to add read again
@@ -152,15 +150,12 @@ query_id query_batched(
                     }
                 }
 
-                std::cout << i << ". sequence: ";
+                // std::cout << i << ". sequence: ";
                 if(gpuBatches[id]->num_queries() != numQueries) {
-                    std::cout << gpuBatches[id]->num_queries() << " queries\n";
-                    db.accumulate_matches(seq.seq1, targetMatches[outIndexHost]);
-                    db.accumulate_matches(seq.seq2, targetMatches[outIndexHost]);
-                    ++outIndexHost;
+                    // std::cout << gpuBatches[id]->num_queries() << " queries\n";
                 }
                 else {
-                    std::cout << "no queries\n";
+                    // std::cout << "no queries\n";
                     database::match_locations locations;
                     update(resultsBuffer, seq, locations);
                     batch.erase(batch.begin() + i);
@@ -168,33 +163,26 @@ query_id query_batched(
             }
 
             if(gpuBatches[id]->num_queries() > 0) {
-                std::cout << "send final batch to gpu\n";
-                db.accumulate_matches_gpu(*(gpuBatches[id]), targetMatchesGpu, outIndex);
+                // std::cout << "send final batch to gpu\n";
+                db.accumulate_matches_gpu(*(gpuBatches[id]), targetMatches, outIndex);
                 gpuBatches[id]->clear();
             }
 
             for(size_t i = 0; i < batch.size(); ++i) {
                 auto& seq = batch[i];
 
-                targetMatchesGpu[i].sort();
-
-                std::cout << i << ". targetMatchesGpu: ";
-                for(const auto& x : targetMatchesGpu[i]) {
-                    if(x.tgt < std::numeric_limits<target_id>::max())
-                        std::cout << x.tgt << ':' << x.win << ' ';
-                    else
-                        break;
-                }
-                std::cout << '\n';
-
-
                 targetMatches[i].sort();
 
-                std::cout << i << ". targetMatches:    ";
-                for(const auto& x : targetMatches[i]) {
-                    std::cout << x.tgt << ':' << x.win << ' ';
-                }
-                std::cout << '\n';
+                // std::cout << i << ". targetMatches:    ";
+                // for(const auto& x : targetMatches[i]) {
+                //     std::cout << x.tgt << ':' << x.win << ' ';
+                // }
+                // std::cout << '\n';
+
+                auto it = std::find_if(targetMatches[i].begin(), targetMatches[i].end(), [](const auto& loc) {
+                    return loc.tgt == std::numeric_limits<target_id>::max();
+                });
+                targetMatches[i].resize(std::distance(targetMatches[i].begin(), it));
 
                 update(resultsBuffer, seq, targetMatches[i].locations());
             }

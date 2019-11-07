@@ -76,7 +76,8 @@ class gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::hash_table {
     using hash_table_t = warpcore::SingleValueHashTable<
         key_type, value_type,
         warpcore::defaults::probing_t<key_type>,
-        warpcore::defaults::empty_key<key_type>(),          //=0
+        // warpcore::defaults::empty_key<key_type>(),          //=0
+        key_type(-2),
         warpcore::defaults::tombstone_key<key_type>()>;     //=-1
 
 public:
@@ -124,8 +125,8 @@ public:
         #define ITEMS_PER_THREAD 4
 
         size_type probingLength = 4*hashTable_.capacity();
-        //TODO increase grid in x and y dim
-        constexpr dim3 numBlocks{1,1};
+        //TODO increase grid size
+        constexpr size_t numBlocks = 32;
         gpu_hahstable_query<BLOCK_THREADS,ITEMS_PER_THREAD><<<numBlocks,BLOCK_THREADS,0,stream>>>(
             hashTable_,
             probingLength,

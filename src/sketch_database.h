@@ -250,6 +250,10 @@ public:
             offsets_.resize(1, 0);
         }
 
+        void resize(size_t size) {
+            locs_.resize(size);
+        }
+
         bool empty() const noexcept { return locs_.empty(); }
         auto size()  const noexcept { return locs_.size(); }
 
@@ -986,91 +990,6 @@ public:
         if(what == scope::metadata_only) return;
 
         //hash table
-        read_binary(is, features_);
-        // read_binary(is, featureStoreGPU_);
-    }
-
-
-    //---------------------------------------------------------------
-    /**
-     * @brief   read database from binary file,
-     *          discard everything but the feature mapping
-     * @details Note that the map is not just de-serialized but
-     *          rebuilt by inserting individual keys and values
-     *          This should make DB files more robust against changes in the
-     *          internal mapping structure.
-     */
-    void read_values_only(const std::string& filename)
-    {
-        std::ifstream is{filename, std::ios::in | std::ios::binary};
-
-        if(!is.good()) {
-            throw file_access_error{"can't open file " + filename};
-        }
-
-        //database version info
-        using std::uint64_t;
-        using std::uint8_t;
-        uint64_t dbVer = 0;
-        read_binary(is, dbVer);
-
-        if(uint64_t( MC_DB_VERSION ) != dbVer) {
-            throw file_read_error{
-                "Database " + filename + " (version " + std::to_string(dbVer) + ")"
-                + " is incompatible\nwith this version of MetaCache"
-                + " (uses version " + std::to_string(MC_DB_VERSION) + ")" };
-        }
-
-        //data type info
-        {
-            //data type widths
-            uint8_t featureSize = 0; read_binary(is, featureSize);
-            uint8_t targetSize = 0;  read_binary(is, targetSize);
-            uint8_t windowSize = 0;  read_binary(is, windowSize);
-            uint8_t bucketSize = 0;  read_binary(is, bucketSize);
-            uint8_t taxidSize = 0;   read_binary(is, taxidSize);
-            uint8_t numTaxRanks = 0; read_binary(is, numTaxRanks);
-
-            if( (sizeof(feature) != featureSize) ||
-                (sizeof(target_id) != targetSize) ||
-                (sizeof(bucket_size_type) != bucketSize) ||
-                (sizeof(window_id) != windowSize) )
-            {
-                throw file_read_error{
-                    "Database " + filename +
-                    " is incompatible with this variant of MetaCache" +
-                    " due to different data type sizes"};
-            }
-
-            if( (sizeof(taxon_id) != taxidSize) ||
-                (taxonomy::num_ranks != numTaxRanks) )
-            {
-                throw file_read_error{
-                    "Database " + filename +
-                    " is incompatible with this variant of MetaCache" +
-                    " due to different taxonomy data types"};
-            }
-        }
-
-        //sketching parameters
-        sketcher sketcherDummy{};
-        read_binary(is, sketcherDummy);
-        read_binary(is, sketcherDummy);
-
-        //target insertion parameters
-        uint64_t maxLocsPerFeature;
-        read_binary(is, maxLocsPerFeature);
-
-        //taxon metadata
-        taxonomy taxonomyDummy{};
-        read_binary(is, taxonomyDummy);
-
-        target_id targetCount = 0;
-        read_binary(is, targetCount);
-        if(targetCount < 1) return;
-
-        //hash table
-        // read_binary(is, features_);
         read_binary(is, featureStoreGPU_);
     }
 

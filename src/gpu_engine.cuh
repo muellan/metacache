@@ -371,12 +371,12 @@ void gpu_hahstable_query(
                     tempStorage.sketch[gid] = valuesOffset;
 
                     //if key not found numValues = 0
-                    bucket_size_type numValues = bucket_size_type(valuesOffset);
-                    valuesOffset >>= sizeof(bucket_size_type)*CHAR_BIT;
+                    // bucket_size_type numValues = bucket_size_type(valuesOffset);
+                    // valuesOffset >>= sizeof(bucket_size_type)*CHAR_BIT;
 
                     // printf("status %d\n", status.has_any());
                     // printf("status %d\n", status.has_key_not_found());
-                    printf("status %d offset: %llu numValues: %d\n", status.has_any(), valuesOffset, uint32_t(numValues));
+                    // printf("status %d offset: %llu numValues: %d\n", status.has_any(), valuesOffset, uint32_t(numValues));
                 }
             }
             __syncthreads();
