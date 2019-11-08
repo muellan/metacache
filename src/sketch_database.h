@@ -163,11 +163,8 @@ private:
     //avoid padding bits
     struct target_location
     {
-        using target_id_t = target_id;
-        using window_id_t = window_id;
-
-        target_id tgt;
         window_id win;
+        target_id tgt;
 
         friend bool
         operator < (const target_location& a, const target_location& b) noexcept {
@@ -187,8 +184,8 @@ public:
 
 
 private:
-    struct window_sketch {
-
+    struct window_sketch
+    {
         window_sketch() = default;
         window_sketch(target_id tgt, window_id win, sketch sk) :
             tgt{tgt}, win{win}, sk{std::move(sk)} {};
@@ -1009,7 +1006,7 @@ private:
             //insert features from sketch into database
             for(const auto& f : windowSketch.sk) {
                 auto it = features_.insert(
-                    f, target_location{windowSketch.tgt, windowSketch.win});
+                    f, target_location{windowSketch.win, windowSketch.tgt});
                 if(it->size() > maxLocsPerFeature_) {
                     features_.shrink(it, maxLocsPerFeature_);
                 }
