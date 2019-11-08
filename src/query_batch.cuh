@@ -61,21 +61,20 @@ public:
     ~query_batch();
 
     //---------------------------------------------------------------
+    size_t num_segments() const noexcept {
+        return numSegments_;
+    }
+    //---------------------------------------------------------------
+    size_t num_queries() const noexcept {
+        return numQueries_;
+    }
+    //---------------------------------------------------------------
     size_t max_queries() const noexcept {
         return maxQueries_;
     }
     //---------------------------------------------------------------
     size_t max_encode_length() const noexcept {
         return maxEncodeLength_;
-    }
-    //---------------------------------------------------------------
-    size_t num_queries() const noexcept {
-        return numQueries_;
-    }
-    //-----------------------------------------------------
-    void num_queries(size_t n) noexcept {
-        if(n > max_queries()) n = max_queries();
-        numQueries_ = n;
     }
     //---------------------------------------------------------------
     size_t max_results_per_query() const noexcept {
@@ -115,8 +114,15 @@ public:
         return h_queryResults_;
     }
     //---------------------------------------------------------------
+    result_type * query_results_host_tmp() const noexcept {
+        return h_queryResultsTmp_;
+    }
+    //---------------------------------------------------------------
     result_type * query_results_device() const noexcept {
         return d_queryResults_;
+    }
+    int * result_offsets_host() const noexcept {
+        return h_resultOffsets_;
     }
     //---------------------------------------------------------------
     const cudaStream_t& stream() const noexcept {
@@ -125,7 +131,8 @@ public:
 
     //---------------------------------------------------------------
     void clear() noexcept {
-        num_queries(0);
+        numSegments_ = 0;
+        numQueries_ = 0;
     }
 
     //---------------------------------------------------------------
@@ -134,8 +141,12 @@ public:
     //---------------------------------------------------------------
     /** @brief asynchronously copy results to host using stream_ */
     void copy_results_to_host_async();
+    void copy_results_to_host_tmp_async();
     //---------------------------------------------------------------
     void sync_stream();
+
+    //---------------------------------------------------------------
+    void sort_results();
 
     /*************************************************************************//**
     *
@@ -279,6 +290,8 @@ public:
                 });
         }
 
+        ++numSegments_;
+
         return true;
     }
 
@@ -300,6 +313,7 @@ public:
 
 
 private:
+    size_t numSegments_;
     size_t numQueries_;
     size_t maxQueries_;
     size_t maxEncodeLength_;
@@ -316,7 +330,12 @@ private:
     encodedambig_t * d_encodedAmbig_;
 
     result_type    * h_queryResults_;
+    result_type    * h_queryResultsTmp_;
     result_type    * d_queryResults_;
+    result_type    * d_queryResultsTmp_;
+
+    int            * h_resultOffsets_;
+    int            * d_resultOffsets_;
 
     cudaStream_t stream_;
 };

@@ -122,6 +122,7 @@ query_id query_batched(
         [&](int id, std::vector<sequence_query>& batch) {
             auto resultsBuffer = getBuffer();
             std::vector<database::matches_sorter> targetMatches(batch.size());
+            std::vector<database::matches_sorter> targetMatchesTmp(batch.size());
 
             size_t outIndex = 0;
 
@@ -138,7 +139,7 @@ query_id query_batched(
                     //could not add read, send full batch to gpu
                     if(gpuBatches[id]->num_queries() > 0) {
                         // std::cout << "send batch to gpu\n";
-                        db.accumulate_matches_gpu(*(gpuBatches[id]), targetMatches, outIndex);
+                        db.accumulate_matches_gpu(*(gpuBatches[id]), targetMatches, targetMatchesTmp, outIndex);
                         gpuBatches[id]->clear();
 
                         //try to add read again
@@ -164,25 +165,50 @@ query_id query_batched(
 
             if(gpuBatches[id]->num_queries() > 0) {
                 // std::cout << "send final batch to gpu\n";
-                db.accumulate_matches_gpu(*(gpuBatches[id]), targetMatches, outIndex);
+                db.accumulate_matches_gpu(*(gpuBatches[id]), targetMatches, targetMatchesTmp, outIndex);
                 gpuBatches[id]->clear();
             }
 
             for(size_t i = 0; i < batch.size(); ++i) {
                 auto& seq = batch[i];
 
-                targetMatches[i].sort();
+                auto it = is_sorted_until(targetMatches[i].begin(), targetMatches[i].end());
+                auto numSorted = std::distance(targetMatches[i].begin(), it);
+                // std::cout << "sorted: " << numSorted << '\n';
 
-                // std::cout << i << ". targetMatches:    ";
-                // for(const auto& x : targetMatches[i]) {
-                //     std::cout << x.tgt << ':' << x.win << ' ';
-                // }
-                // std::cout << '\n';
+                if(numSorted < 4064) {
+                    std::cout << i << ". sorted: " << numSorted << '\n';
 
-                auto it = std::find_if(targetMatches[i].begin(), targetMatches[i].end(), [](const auto& loc) {
+                    targetMatchesTmp[i].sort();
+
+                    std::cout << i << ". targetMatchesTmp: ";
+                    for(const auto& m : targetMatchesTmp[i]) {
+                        if(m.tgt < std::numeric_limits<target_id>::max()) {
+                            std::cout << m.tgt << ':' << m.win << ' ';
+                        }
+                        else {
+                            break;
+                        }
+                    }
+                    std::cout << '\n';
+
+
+                    std::cout << i << ". targetMatches:    ";
+                    for(const auto& m : targetMatches[i]) {
+                        if(m.tgt < std::numeric_limits<target_id>::max()) {
+                            std::cout << m.tgt << ':' << m.win << ' ';
+                        }
+                        else {
+                            break;
+                        }
+                    }
+                    std::cout << '\n';
+                }
+
+                auto it2 = std::find_if(targetMatches[i].begin(), targetMatches[i].end(), [](const auto& loc) {
                     return loc.tgt == std::numeric_limits<target_id>::max();
                 });
-                targetMatches[i].resize(std::distance(targetMatches[i].begin(), it));
+                targetMatches[i].resize(std::distance(targetMatches[i].begin(), it2));
 
                 update(resultsBuffer, seq, targetMatches[i].locations());
             }

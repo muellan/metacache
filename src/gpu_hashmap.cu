@@ -142,6 +142,10 @@ public:
             maxLocationPerFeature,
             batch.query_results_device());
 
+        batch.copy_results_to_host_tmp_async();
+
+        batch.sort_results();
+
         batch.copy_results_to_host_async();
         //TODO async
         batch.sync_stream();
