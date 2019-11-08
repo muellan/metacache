@@ -852,7 +852,6 @@ public:
     void
     accumulate_matches_gpu(query_batch<location>& queryBatch,
                            std::vector<matches_sorter>& res,
-                           std::vector<matches_sorter>& resTmp,
                            size_t& outIndex) const
     {
         featureStoreGPU_.query(queryBatch, query_sketcher(), max_locations_per_feature());
@@ -863,32 +862,7 @@ public:
                                          queryBatch.query_results_host()+queryBatch.result_offsets_host()[s],
                                          queryBatch.query_results_host()+queryBatch.result_offsets_host()[s+1]);
         }
-        //TODO use later
-        // outIndex += queryBatch.num_segments();
-
-        //TODO remove later
-        //prepare temp results
-        resTmp[outIndex].locs_.insert(resTmp[outIndex].locs_.end(),
-                                      queryBatch.query_results_host_tmp(),
-                                      queryBatch.query_results_host_tmp()+queryBatch.max_results_per_query());
-
-        for(size_t i = 0; i < query_sketcher().sketch_size(); ++i) {
-            resTmp[outIndex].offsets_.emplace_back(resTmp[outIndex].offsets_.back()+max_locations_per_feature());
-        }
-
-        for(size_t i = 1; i < queryBatch.num_queries(); ++i) {
-            if(queryBatch.query_ids()[i] != queryBatch.query_ids()[i-1]) {
-                ++outIndex;
-            }
-            resTmp[outIndex].locs_.insert(resTmp[outIndex].locs_.end(),
-                                          queryBatch.query_results_host_tmp()+i*queryBatch.max_results_per_query(),
-                                          queryBatch.query_results_host_tmp()+(i+1)*queryBatch.max_results_per_query());
-
-            for(size_t i = 0; i < query_sketcher().sketch_size(); ++i) {
-                resTmp[outIndex].offsets_.emplace_back(resTmp[outIndex].offsets_.back()+max_locations_per_feature());
-            }
-        }
-        ++outIndex;
+        outIndex += queryBatch.num_segments();
     }
 
 
