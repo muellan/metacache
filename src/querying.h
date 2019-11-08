@@ -71,6 +71,49 @@ struct sequence_query
 
 
 
+/*************************************************************************//**
+ *
+ * @brief process batch of results from database query
+ *
+ * @tparam Buffer        batch buffer object
+ *
+ * @tparam BufferUpdate  takes database matches of one query and a buffer;
+ *                       must be thread-safe (only const operations on DB!)
+ *
+ *****************************************************************************/
+template<class Buffer, class BufferUpdate>
+void process_batch_results(
+    std::vector<sequence_query>& sequenceBatch,
+    query_batch<location>& queryBatch,
+    database::matches_sorter& targetMatches,
+    Buffer& batchBuffer, BufferUpdate& update,
+    size_t& outIndex)
+{
+    for(size_t s = 0; s < queryBatch.num_segments(); ++s) {
+        auto resultsBegin = queryBatch.query_results_host()+queryBatch.result_offsets_host()[s];
+        auto resultsEnd   = queryBatch.query_results_host()+queryBatch.result_offsets_host()[s+1];
+
+        auto& seq = sequenceBatch[outIndex+s];
+
+        auto it = std::find_if(resultsBegin, resultsEnd, [](const auto& loc) {
+            return loc.tgt == std::numeric_limits<target_id>::max();
+        });
+
+        targetMatches.clear();
+        targetMatches.insert(resultsBegin, it);
+
+        // std::cout << i << ". targetMatches:    ";
+        // for(const auto& m : targetMatches)
+            // std::cout << m.tgt << ':' << m.win << ' ';
+        // std::cout << '\n';
+
+        update(batchBuffer, seq, targetMatches.locations());
+    }
+    outIndex += queryBatch.num_segments();
+}
+
+
+
  /*************************************************************************//**
  *
  * @brief queries database with batches of reads from ONE sequence source (pair)
@@ -121,7 +164,7 @@ query_id query_batched(
         // classifies a batch of input queries
         [&](int id, std::vector<sequence_query>& batch) {
             auto resultsBuffer = getBuffer();
-            std::vector<database::matches_sorter> targetMatches(batch.size());
+            database::matches_sorter targetMatches;
 
             size_t outIndex = 0;
 
@@ -138,7 +181,11 @@ query_id query_batched(
                     //could not add read, send full batch to gpu
                     if(gpuBatches[id]->num_queries() > 0) {
                         // std::cout << "send batch to gpu\n";
-                        db.accumulate_matches_gpu(*(gpuBatches[id]), targetMatches, outIndex);
+                        db.accumulate_matches_gpu(*(gpuBatches[id]));
+
+                        process_batch_results(batch, *(gpuBatches[id]), targetMatches,
+                                              resultsBuffer, update, outIndex);
+
                         gpuBatches[id]->clear();
 
                         //try to add read again
@@ -164,23 +211,12 @@ query_id query_batched(
 
             if(gpuBatches[id]->num_queries() > 0) {
                 // std::cout << "send final batch to gpu\n";
-                db.accumulate_matches_gpu(*(gpuBatches[id]), targetMatches, outIndex);
+                db.accumulate_matches_gpu(*(gpuBatches[id]));
+
+                process_batch_results(batch, *(gpuBatches[id]), targetMatches,
+                                      resultsBuffer, update, outIndex);
+
                 gpuBatches[id]->clear();
-            }
-
-            for(size_t i = 0; i < batch.size(); ++i) {
-                auto& seq = batch[i];
-
-                auto it2 = std::find_if(targetMatches[i].begin(), targetMatches[i].end(), [](const auto& loc) {
-                    return loc.tgt == std::numeric_limits<target_id>::max();
-                });
-                targetMatches[i].resize(std::distance(targetMatches[i].begin(), it2));
-
-                // std::cout << i << ". targetMatches:    ";
-                // for(const auto& m : targetMatches[i])
-                    // std::cout << m.tgt << ':' << m.win << ' ';
-
-                update(resultsBuffer, seq, targetMatches[i].locations());
             }
 
             std::lock_guard<std::mutex> lock(finalizeMtx);

@@ -254,6 +254,11 @@ public:
             locs_.resize(size);
         }
 
+        template<class iterator>
+        auto insert(iterator begin, iterator end) {
+            return locs_.insert(locs_.end(), begin, end);
+        }
+
         bool empty() const noexcept { return locs_.empty(); }
         auto size()  const noexcept { return locs_.size(); }
 
@@ -832,37 +837,9 @@ public:
 
     //---------------------------------------------------------------
     void
-    accumulate_matches_gpu(query_batch<location>& queryBatch,
-                           matches_sorter& res) const
+    accumulate_matches_gpu(query_batch<location>& queryBatch) const
     {
         featureStoreGPU_.query(queryBatch, query_sketcher(), max_locations_per_feature());
-
-        size_t numResultBuckets = queryBatch.num_queries() * query_sketcher().sketch_size();
-
-        size_t maxResults = numResultBuckets * max_locations_per_feature();
-
-        res.locs_.insert(res.locs_.end(), queryBatch.query_results_host(), queryBatch.query_results_host()+maxResults);
-        for(size_t i = 0; i < numResultBuckets; ++i) {
-            res.offsets_.emplace_back(res.offsets_.back()+max_locations_per_feature());
-        }
-    }
-
-
-    //---------------------------------------------------------------
-    void
-    accumulate_matches_gpu(query_batch<location>& queryBatch,
-                           std::vector<matches_sorter>& res,
-                           size_t& outIndex) const
-    {
-        featureStoreGPU_.query(queryBatch, query_sketcher(), max_locations_per_feature());
-
-        //copy results out of batch
-        for(size_t s = 0; s < queryBatch.num_segments(); ++s) {
-            res[outIndex+s].locs_.insert(res[outIndex+s].locs_.end(),
-                                         queryBatch.query_results_host()+queryBatch.result_offsets_host()[s],
-                                         queryBatch.query_results_host()+queryBatch.result_offsets_host()[s+1]);
-        }
-        outIndex += queryBatch.num_segments();
     }
 
 
