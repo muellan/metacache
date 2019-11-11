@@ -117,7 +117,7 @@ public:
                bucket_size_type maxLocationPerFeature) const
     {
         //TODO
-        cudaStream_t stream = batch.stream();
+        const cudaStream_t stream = batch.stream();
         batch.copy_queries_to_device_async();
 
         // max 32*4 features => max window size is 128
@@ -131,6 +131,7 @@ public:
             hashTable_,
             probingLength,
             batch.num_queries(),
+            batch.query_ids_device(),
             batch.encode_offsets_device(),
             batch.encoded_seq_device(),
             batch.encoded_ambig_device(),
@@ -140,15 +141,17 @@ public:
             querySketcher.window_stride(),
             locations_,
             maxLocationPerFeature,
-            batch.query_results_device());
-
-        batch.copy_results_to_host_tmp_async();
+            batch.query_results_device(),
+            batch.result_counts_device(),
+            batch.result_offsets_device()
+        );
 
         batch.sort_results();
 
         batch.copy_results_to_host_async();
         //TODO async
         batch.sync_stream();
+        CUERR
     }
 
     //---------------------------------------------------------------

@@ -1,8 +1,10 @@
 
 #include "query_batch.cuh"
 #include "sketch_database.h"
+#include "gpu_engine.cuh"
 
 #include "../dep/cub/cub/device/device_segmented_radix_sort.cuh"
+#include "../dep/cub/cub/device/device_scan.cuh"
 
 namespace mc {
 
@@ -45,6 +47,8 @@ query_batch<result_type>::query_batch(
         cudaMallocHost(&h_resultOffsets_, (maxQueries_+1)*sizeof(int));
         cudaMalloc    (&d_resultOffsets_, (maxQueries_+1)*sizeof(int));
         h_resultOffsets_[0] = 0;
+
+        cudaMalloc    (&d_resultCounts_, maxQueries_*sizeof(int));
     }
     CUERR
 
@@ -75,6 +79,8 @@ query_batch<result_type>::~query_batch() {
 
         cudaFreeHost(h_resultOffsets_);
         cudaFree    (d_resultOffsets_);
+
+        cudaFree    (d_resultCounts_);
     }
     CUERR
 
@@ -106,15 +112,15 @@ template<class result_type>
 void query_batch<result_type>::copy_results_to_host_async() {
     cudaMemcpyAsync(h_queryResults_, d_queryResults_,
                     numQueries_*maxResultsPerQuery_*sizeof(result_type),
-                    cudaMemcpyHostToDevice, stream_);
+                    cudaMemcpyDeviceToHost, stream_);
 }
 
 //---------------------------------------------------------------
 template<class result_type>
 void query_batch<result_type>::copy_results_to_host_tmp_async() {
-    cudaMemcpyAsync(h_queryResultsTmp_, d_queryResults_,
+    cudaMemcpyAsync(h_queryResultsTmp_, d_queryResultsTmp_,
                     numQueries_*maxResultsPerQuery_*sizeof(result_type),
-                    cudaMemcpyHostToDevice, stream_);
+                    cudaMemcpyDeviceToHost, stream_);
 }
 
 
@@ -129,6 +135,57 @@ void query_batch<result_type>::sync_stream() {
 template<class result_type>
 void query_batch<result_type>::sort_results() {
 
+    {
+        size_t tempStorageBytes = maxQueries_*maxResultsPerQuery_*sizeof(result_type);
+        void * d_tempStorage = (void*)(d_queryResultsTmp_);
+
+        std::cout << "temp size: " << tempStorageBytes << std::endl;
+
+        int numItems = numQueries_;
+        // size_t tempStorageBytes = 767;
+        cudaError_t err = cub::DeviceScan::InclusiveSum(
+            d_tempStorage, tempStorageBytes,
+            d_resultCounts_, d_resultCounts_,
+            numItems,
+            stream_
+        );
+
+        cudaStreamSynchronize(stream_);
+
+        if (err != cudaSuccess) {                       \
+            std::cout << "CUDA error: " << cudaGetErrorString(err) << " : "    \
+                    << __FILE__ << ", line " << __LINE__ << std::endl;       \
+            exit(1);                                                           \
+        }
+
+        compact_kernel<<<numQueries_,32,0,stream_>>>(
+            numQueries_,
+            d_resultCounts_,
+            d_resultOffsets_,
+            maxResultsPerQuery_,
+            d_queryIds_,
+            d_queryResults_,
+            d_queryResultsTmp_
+        );
+        cudaStreamSynchronize(stream_);
+    }
+
+
+    cudaMemcpyAsync(h_resultOffsets_, d_resultOffsets_,
+                    (numSegments_+1)*sizeof(int),
+                    cudaMemcpyDeviceToHost, stream_);
+
+    copy_results_to_host_tmp_async();
+
+    cudaStreamSynchronize(stream_);
+
+    std::cout << "num results: ";
+    for(size_t i = 0; i < numQueries_; ++i) {
+        std::cout << h_resultOffsets_[i] << ' ';
+    }
+    std::cout << '\n';
+
+
     using result_type_equivalent = uint64_t;
 
     static_assert(sizeof(result_type) == sizeof(result_type_equivalent), "result_type must be 64 bit");
@@ -137,7 +194,6 @@ void query_batch<result_type>::sort_results() {
         h_resultOffsets_[h_queryIds_[i]+1] = (i+1) * maxResultsPerQuery_;
     }
 
-    int numItems = numQueries_*maxResultsPerQuery_;
 
     cudaMemcpyAsync(d_resultOffsets_, h_resultOffsets_,
                     (numSegments_+1)*sizeof(int),
@@ -148,11 +204,13 @@ void query_batch<result_type>::sort_results() {
         (result_type_equivalent*)(d_queryResults_),
         (result_type_equivalent*)(d_queryResultsTmp_));
 
-    // size_t tempStorageBytes = 255;
     size_t tempStorageBytes = maxEncodeLength_*sizeof(encodedseq_t);
+    void * d_tempStorage = (void*)(d_encodedSeq_);
 
+    int numItems = numQueries_*maxResultsPerQuery_;
+    // size_t tempStorageBytes = 255;
     cudaError_t err = cub::DeviceSegmentedRadixSort::SortKeys(
-        (void*)(d_encodedSeq_), tempStorageBytes,
+        d_tempStorage, tempStorageBytes,
         d_keys,
         numItems, numSegments_,
         d_resultOffsets_, d_resultOffsets_ + 1,

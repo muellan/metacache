@@ -4,9 +4,11 @@
 #include "config.h"
 #include "dna_encoding.h"
 #include "sketch_database.h"
+
 #include "../dep/cudahelpers/cuda_helpers.cuh"
 #include "../dep/cub/cub/block/block_radix_sort.cuh"
 #include "../dep/cub/cub/block/block_store.cuh"
+#include "../dep/cub/cub/block/block_scan.cuh"
 
 namespace mc {
 
@@ -238,23 +240,27 @@ template<
     int BLOCK_THREADS,
     int ITEMS_PER_THREAD,
     class Hashtable,
+    class id_type,
     class bucket_size_type,
     class result_type>
 __global__
 void gpu_hahstable_query(
     Hashtable hashtable,
     size_t probingLength,
-    size_t numQueries,
-    encodinglen_t * const encodeOffsets,
-    encodedseq_t * const encodedSeq,
+    uint32_t numQueries,
+    id_type        * segmentIds,
+    encodinglen_t  * const encodeOffsets,
+    encodedseq_t   * const encodedSeq,
     encodedambig_t * const encodedAmbig,
     numk_t k,
     uint32_t sketchSize,
-    size_t windowSize,
-    size_t windowStride,
+    uint32_t windowSize,
+    uint32_t windowStride,
     location * const locations,
     bucket_size_type maxLocationsPerFeature,
-    result_type * results_out)
+    result_type * results_out,
+    int         * resultCounts,
+    int         * resultOffsets)
 {
     //each block processes one query
     for(size_t queryId = blockIdx.x; queryId < numQueries; queryId += gridDim.x) {
@@ -381,6 +387,10 @@ void gpu_hahstable_query(
             }
             __syncthreads();
 
+            int totalNumValues = 0;
+
+            result_type * outPtr = results_out + queryId*sketchSize*maxLocationsPerFeature;
+
             //copy locations of found features into results_out
             for(uint32_t s = 0; s < sketchSize; ++s) {
                 typename Hashtable::value_type valuesOffset = tempStorage.sketch[s];
@@ -388,13 +398,158 @@ void gpu_hahstable_query(
                 bucket_size_type numValues = bucket_size_type(valuesOffset);
                 valuesOffset >>= sizeof(bucket_size_type)*CHAR_BIT;
 
-                for(uint32_t i = threadIdx.x; i < maxLocationsPerFeature; i += BLOCK_THREADS) {
-                    //copy found locations, pad with dummies
-                    results_out[(queryId*sketchSize + s) * maxLocationsPerFeature + i] = i < numValues ? locations[valuesOffset + i] : location{~0, ~0};
+                for(uint32_t i = threadIdx.x; i < numValues; i += BLOCK_THREADS) {
+                    //copy found locations
+                    outPtr[totalNumValues + i] = locations[valuesOffset + i];
                 }
+
+                totalNumValues += numValues;
             }
 
+            for(uint32_t i = totalNumValues + threadIdx.x; i < sketchSize*maxLocationsPerFeature; i += BLOCK_THREADS) {
+                //pad with dummies
+                outPtr[i] = location{~0, ~0};
+            }
+
+            if(threadIdx.x == 0) {
+                //store number of results of this query
+                resultCounts[queryId] = totalNumValues;
+                //clear result offset for next kernel
+                // resultOffsets[queryId+1] = 0;
+            }
         }
+    }
+}
+
+
+
+
+//TODO perfix sum
+// __global__
+// void prefix_sum_kernel_32(
+//     uint32_t numQueries,
+//     int *  resultCounts)
+// {
+//     // Specialize BlockScan for a 1D block of 32 threads on type int
+//     typedef cub::BlockScan<int, 32> BlockScan;
+//     // Allocate shared memory for BlockScan
+//     __shared__ typename BlockScan::TempStorage temp_storage;
+//     // Obtain input item for each thread
+//     int thread_data = threadIdx.x < numQueries ? resultCounts[threadIdx.x] : 0;
+
+//     // Collectively compute the block-wide inclusive prefix sum
+//     BlockScan(temp_storage).InclusiveSum(thread_data, thread_data);
+
+//     if(threadIdx.x < numQueries)
+//         resultCounts[threadIdx.x] = thread_data;
+// }
+
+// __global__
+// void prefix_sum_kernel_64(
+//     uint32_t numQueries,
+//     int *  resultCounts)
+// {
+//     // Specialize BlockScan for a 1D block of 64 threads on type int
+//     typedef cub::BlockScan<int, 64> BlockScan;
+//     // Allocate shared memory for BlockScan
+//     __shared__ typename BlockScan::TempStorage temp_storage;
+//     // Obtain input item for each thread
+//     int thread_data = threadIdx.x < numQueries ? resultCounts[threadIdx.x] : 0;
+
+//     // Collectively compute the block-wide inclusive prefix sum
+//     BlockScan(temp_storage).InclusiveSum(thread_data, thread_data);
+
+//     if(threadIdx.x < numQueries)
+//         resultCounts[threadIdx.x] = thread_data;
+// }
+
+
+// __global__
+// void prefix_sum_kernel_128(
+//     uint32_t numQueries,
+//     int *  resultCounts)
+// {
+//     // Specialize BlockScan for a 1D block of 128 threads on type int
+//     typedef cub::BlockScan<int, 128> BlockScan;
+//     // Allocate shared memory for BlockScan
+//     __shared__ typename BlockScan::TempStorage temp_storage;
+//     // Obtain input item for each thread
+//     int thread_data = threadIdx.x < numQueries ? resultCounts[threadIdx.x] : 0;
+
+//     // Collectively compute the block-wide inclusive prefix sum
+//     BlockScan(temp_storage).InclusiveSum(thread_data, thread_data);
+
+//     if(threadIdx.x < numQueries)
+//         resultCounts[threadIdx.x] = thread_data;
+// }
+
+
+template<class id_type, class result_type>
+__global__
+void compact_kernel(
+    uint32_t numQueries,
+    int * const resultPrefixScan,
+    int * segmentOffsets,
+    uint32_t maxResultsPerQuery,
+    id_type     * const segmentIds,
+    result_type * const results_in,
+    result_type * results_out
+)
+{
+    for(int bid = blockIdx.x; bid < numQueries; bid += gridDim.x) {
+        const int begin = (bid > 0) ? resultPrefixScan[bid-1] : 0;
+        const int end   = resultPrefixScan[bid];
+        const int numResults = end - begin;
+
+        result_type * const inPtr  = results_in + bid*maxResultsPerQuery;
+        result_type * outPtr = results_out + begin;
+
+        for(int tid = threadIdx.x; tid < numResults; tid += blockDim.x) {
+            outPtr[tid] = inPtr[tid];
+        }
+
+        // determine end offset for segment of this query
+        if(threadIdx.x == 0) {
+            const id_type segmentId = segmentIds[bid];
+            const id_type nextId    = (bid+1 < numQueries) ? segmentIds[bid+1] : id_type(~0);
+
+            // last query of segment sets end offset
+            if(segmentId != nextId)
+                segmentOffsets[segmentId+1] = end;
+        }
+    }
+
+    // for(int tid = threadIdx.x + blockIdx.x * blockDim.x; tid < numQueries; tid += blockDim.x * gridDim.x) {
+    //     const id_type segmentId = segmentIds[tid];
+    //     const id_type nextId    = (tid < numQueries) ? segmentIds[tid+1] : -1;
+
+    //     const int end = resultPrefixScan[tid];
+
+    //     // last query of segment sets end offset
+    //     if(segmentId != nextId)
+    //         segmentOffsets[segmentId+1] = end;
+    // }
+}
+
+
+template<class id_type>
+__global__
+void segment_kernel(
+    uint32_t numQueries,
+    int * const resultPrefixScan,
+    int * segmentOffsets,
+    id_type * const segmentIds
+)
+{
+    for(int tid = threadIdx.x + blockIdx.x * blockDim.x; tid < numQueries; tid += blockDim.x * gridDim.x) {
+        const id_type segmentId = segmentIds[tid];
+        const id_type nextId    = (tid < numQueries) ? segmentIds[tid+1] : -1;
+
+        const int end = resultPrefixScan[tid];
+
+        // last query of segment sets end offset
+        if(segmentId != nextId)
+            segmentOffsets[segmentId+1] = end;
     }
 }
 

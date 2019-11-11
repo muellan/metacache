@@ -30,17 +30,20 @@ public:
     query_batch(const query_batch&) = delete;
     //-----------------------------------------------------
     query_batch(query_batch&& other) {
+        numSegments_        = other.numSegments_;
         maxQueries_         = other.maxQueries_;
         maxEncodeLength_    = other.maxEncodeLength_;
         numQueries_         = other.numQueries_;
         maxResultsPerQuery_ = other.maxResultsPerQuery_;
 
+        other.numSegments_        = 0;
         other.maxQueries_         = 0;
         other.maxEncodeLength_    = 0;
         other.numQueries_         = 0;
         other.maxResultsPerQuery_ = 0;
 
         h_queryIds_      = other.h_queryIds_;
+        d_queryIds_      = other.d_queryIds_;
 
         h_encodeOffsets_ = other.h_encodeOffsets_;
         h_encodedSeq_    = other.h_encodedSeq_;
@@ -52,6 +55,13 @@ public:
 
         h_queryResults_  = other.h_queryResults_;
         d_queryResults_  = other.d_queryResults_;
+
+        h_queryResultsTmp_ = other.h_queryResultsTmp_;
+        d_queryResultsTmp_ = other.d_queryResultsTmp_;
+
+        h_resultOffsets_ = other.h_resultOffsets_;
+        d_resultOffsets_ = other.d_resultOffsets_;
+        d_resultCounts_  = other.d_resultCounts_;
 
         stream_ = other.stream_;
         other.stream_ = 0;
@@ -83,28 +93,32 @@ public:
     }
 
     //---------------------------------------------------------------
-    // query_id * query_ids() const noexcept {
-    //     return h_queryIds_;
-    // }
+    id_type * query_ids_host() const noexcept {
+        return h_queryIds_;
+    }
+    //---------------------------------------------------------------
+    id_type * query_ids_device() const noexcept {
+        return d_queryIds_;
+    }
     //---------------------------------------------------------------
     encodinglen_t * encode_offsets_host() const noexcept {
         return h_encodeOffsets_;
-    }
-    //---------------------------------------------------------------
-    encodedseq_t * encoded_seq_host() const noexcept {
-        return h_encodedSeq_;
-    }
-    //---------------------------------------------------------------
-    encodedambig_t * encoded_ambig_host() const noexcept {
-        return h_encodedAmbig_;
     }
     //---------------------------------------------------------------
     encodinglen_t * encode_offsets_device() const noexcept {
         return d_encodeOffsets_;
     }
     //---------------------------------------------------------------
+    encodedseq_t * encoded_seq_host() const noexcept {
+        return h_encodedSeq_;
+    }
+    //---------------------------------------------------------------
     encodedseq_t * encoded_seq_device() const noexcept {
         return d_encodedSeq_;
+    }
+    //---------------------------------------------------------------
+    encodedambig_t * encoded_ambig_host() const noexcept {
+        return h_encodedAmbig_;
     }
     //---------------------------------------------------------------
     encodedambig_t * encoded_ambig_device() const noexcept {
@@ -122,8 +136,17 @@ public:
     result_type * query_results_device() const noexcept {
         return d_queryResults_;
     }
+    //---------------------------------------------------------------
     int * result_offsets_host() const noexcept {
         return h_resultOffsets_;
+    }
+    //---------------------------------------------------------------
+    int * result_offsets_device() const noexcept {
+        return d_resultOffsets_;
+    }
+    //---------------------------------------------------------------
+    int * result_counts_device() const noexcept {
+        return d_resultCounts_;
     }
     //---------------------------------------------------------------
     const cudaStream_t& stream() const noexcept {
@@ -231,12 +254,14 @@ public:
         InputIterator first2, InputIterator last2,
         const sketcher& querySketcher
     ) {
+        using std::distance;
+
         const numk_t kmerSize = querySketcher.kmer_size();
         const size_t windowSize = querySketcher.window_size();
         const size_t windowStride = querySketcher.window_stride();
 
-        const size_t seqLength1 = std::distance(first1, last1);
-        const size_t seqLength2 = std::distance(first2, last2);
+        const size_t seqLength1 = distance(first1, last1);
+        const size_t seqLength2 = distance(first2, last2);
 
         // no kmers in sequence, nothing to do here
         if(seqLength1 < kmerSize && seqLength2 < kmerSize) return true;
@@ -253,10 +278,10 @@ public:
         // batch full, nothing processed
         if(availableBlocks < (numWindows1 + numWindows2)*blocksPerWindow) return false;
 
-        if(seqLength1 >= kmerSize) {
-            // insert first sequence into batch as separate windows
-            for_each_window(first1, last1, windowSize, windowStride,
-                [&] (InputIterator first, InputIterator last) {
+        // insert first sequence into batch as separate windows
+        for_each_window(first1, last1, windowSize, windowStride,
+            [&] (InputIterator first, InputIterator last) {
+                if(distance(first, last) >= kmerSize) {
                     h_queryIds_[numQueries_] = numSegments_;
                     h_encodeOffsets_[numQueries_+1] = h_encodeOffsets_[numQueries_];
 
@@ -266,16 +291,18 @@ public:
                             h_encodedSeq_[index] = substring;
                             h_encodedAmbig_[index] = ambig;
                             ++index;
-                        });
+                        }
+                    );
 
                     ++numQueries_;
-                });
-        }
+                }
+            }
+        );
 
-        if(seqLength2 >= kmerSize) {
-            // insert second sequence into batch as separate windows
-            for_each_window(first2, last2, windowSize, windowStride,
-                [&] (InputIterator first, InputIterator last) {
+        // insert second sequence into batch as separate windows
+        for_each_window(first2, last2, windowSize, windowStride,
+            [&] (InputIterator first, InputIterator last) {
+                if(distance(first, last) >= kmerSize) {
                     h_queryIds_[numQueries_] = numSegments_;
                     h_encodeOffsets_[numQueries_+1] = h_encodeOffsets_[numQueries_];
 
@@ -285,11 +312,13 @@ public:
                             h_encodedSeq_[index] = substring;
                             h_encodedAmbig_[index] = ambig;
                             ++index;
-                        });
+                        }
+                    );
 
                     ++numQueries_;
-                });
-        }
+                }
+            }
+        );
 
         ++numSegments_;
 
@@ -335,6 +364,7 @@ private:
 
     int            * h_resultOffsets_;
     int            * d_resultOffsets_;
+    int            * d_resultCounts_;
 
     cudaStream_t stream_;
 };

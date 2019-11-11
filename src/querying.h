@@ -89,6 +89,21 @@ void process_batch_results(
     Buffer& batchBuffer, BufferUpdate& update,
     size_t& outIndex)
 {
+    auto resultsBegin = queryBatch.query_results_host_tmp();
+    auto resultsEnd   = resultsBegin + queryBatch.num_queries()*queryBatch.max_results_per_query();
+
+    std::cout << "batch matches: ";
+    for(auto it = resultsBegin; it < resultsEnd; ++it) {
+        if((it->tgt < std::numeric_limits<target_id>::max()) && !(it->tgt == 0 && it->win == 0)) {
+            std::cout << it->tgt << ':' << it->win << ' ';
+        }
+        else {
+            std::cout << "-- " << it - resultsBegin << ' ';
+            break;
+        }
+    }
+    std::cout << '\n';
+
     for(size_t s = 0; s < queryBatch.num_segments(); ++s) {
         auto resultsBegin = queryBatch.query_results_host()+queryBatch.result_offsets_host()[s];
         auto resultsEnd   = queryBatch.query_results_host()+queryBatch.result_offsets_host()[s+1];
@@ -102,13 +117,14 @@ void process_batch_results(
         targetMatches.clear();
         targetMatches.insert(resultsBegin, it);
 
-        // std::cout << i << ". targetMatches:    ";
-        // for(const auto& m : targetMatches)
-            // std::cout << m.tgt << ':' << m.win << ' ';
-        // std::cout << '\n';
+        std::cout << s << ". targetMatches:    ";
+        for(const auto& m : targetMatches)
+            std::cout << m.tgt << ':' << m.win << ' ';
+        std::cout << '\n';
 
         update(batchBuffer, seq, targetMatches.locations());
     }
+    std::cout << '\n';
     outIndex += queryBatch.num_segments();
 }
 
