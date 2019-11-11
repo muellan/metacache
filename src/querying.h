@@ -177,7 +177,7 @@ query_id query_batched(
 
                 auto numQueries = gpuBatches[id]->num_queries();
 
-                if(!gpuBatches[id]->add_paired_read(seq.id, seq.seq1, seq.seq2, db.query_sketcher())) {
+                if(!gpuBatches[id]->add_paired_read(seq.seq1, seq.seq2, db.query_sketcher())) {
                     //could not add read, send full batch to gpu
                     if(gpuBatches[id]->num_queries() > 0) {
                         // std::cout << "send batch to gpu\n";
@@ -189,7 +189,7 @@ query_id query_batched(
                         gpuBatches[id]->clear();
 
                         //try to add read again
-                        if(!gpuBatches[id]->add_paired_read(seq.id, seq.seq1, seq.seq2, db.query_sketcher()))
+                        if(!gpuBatches[id]->add_paired_read(seq.seq1, seq.seq2, db.query_sketcher()))
                             std::cerr << "query batch is too small for a single read!" << std::endl;
                     }
                     else {

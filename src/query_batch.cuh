@@ -21,10 +21,11 @@ namespace mc {
  template<class result_type>
 class query_batch
  {
+     using id_type = uint32_t;
 public:
     //---------------------------------------------------------------
     /** @brief allocate memory on host and device */
-    query_batch(size_t maxQueries = 0, size_t maxEncodeLength = 0, size_t maxResultsPerQuery = 0);
+    query_batch(id_type maxQueries = 0, size_t maxEncodeLength = 0, size_t maxResultsPerQuery = 0);
     //-----------------------------------------------------
     query_batch(const query_batch&) = delete;
     //-----------------------------------------------------
@@ -39,7 +40,7 @@ public:
         other.numQueries_         = 0;
         other.maxResultsPerQuery_ = 0;
 
-        queryIds_        = other.queryIds_;
+        h_queryIds_      = other.h_queryIds_;
 
         h_encodeOffsets_ = other.h_encodeOffsets_;
         h_encodedSeq_    = other.h_encodedSeq_;
@@ -61,15 +62,15 @@ public:
     ~query_batch();
 
     //---------------------------------------------------------------
-    size_t num_segments() const noexcept {
+    id_type num_segments() const noexcept {
         return numSegments_;
     }
     //---------------------------------------------------------------
-    size_t num_queries() const noexcept {
+    id_type num_queries() const noexcept {
         return numQueries_;
     }
     //---------------------------------------------------------------
-    size_t max_queries() const noexcept {
+    id_type max_queries() const noexcept {
         return maxQueries_;
     }
     //---------------------------------------------------------------
@@ -82,9 +83,9 @@ public:
     }
 
     //---------------------------------------------------------------
-    query_id * query_ids() const noexcept {
-        return queryIds_;
-    }
+    // query_id * query_ids() const noexcept {
+    //     return h_queryIds_;
+    // }
     //---------------------------------------------------------------
     encodinglen_t * encode_offsets_host() const noexcept {
         return h_encodeOffsets_;
@@ -160,7 +161,6 @@ public:
     *****************************************************************************/
     template<class InputIterator>
     bool add_read(
-        query_id qid,
         InputIterator first, InputIterator last,
         const sketcher& querySketcher
     ) {
@@ -187,7 +187,7 @@ public:
         // insert sequence into batch as separate windows
         for_each_window(first, last, windowSize, windowStride,
             [&] (InputIterator first, InputIterator last) {
-                queryIds_[numQueries_] = qid;
+                h_queryIds_[numQueries_] = numSegments_;
                 h_encodeOffsets_[numQueries_+1] = h_encodeOffsets_[numQueries_];
 
                 for_each_consecutive_substring_2bit<encodedseq_t>(first, last,
@@ -201,16 +201,18 @@ public:
                 ++numQueries_;
             });
 
+        ++numSegments_;
+
         return true;
     }
 
     //-----------------------------------------------------
     template<class Sequence>
-    bool add_read(query_id qid, Sequence seq, const sketcher& querySketcher) {
+    bool add_read(Sequence seq, const sketcher& querySketcher) {
         using std::begin;
         using std::end;
 
-        return add_read(qid, begin(seq), end(seq), querySketcher);
+        return add_read(begin(seq), end(seq), querySketcher);
     }
 
     /*************************************************************************//**
@@ -225,7 +227,6 @@ public:
     *****************************************************************************/
     template<class InputIterator>
     bool add_paired_read(
-        query_id qid,
         InputIterator first1, InputIterator last1,
         InputIterator first2, InputIterator last2,
         const sketcher& querySketcher
@@ -256,7 +257,7 @@ public:
             // insert first sequence into batch as separate windows
             for_each_window(first1, last1, windowSize, windowStride,
                 [&] (InputIterator first, InputIterator last) {
-                    queryIds_[numQueries_] = qid;
+                    h_queryIds_[numQueries_] = numSegments_;
                     h_encodeOffsets_[numQueries_+1] = h_encodeOffsets_[numQueries_];
 
                     for_each_consecutive_substring_2bit<encodedseq_t>(first, last,
@@ -275,7 +276,7 @@ public:
             // insert second sequence into batch as separate windows
             for_each_window(first2, last2, windowSize, windowStride,
                 [&] (InputIterator first, InputIterator last) {
-                    queryIds_[numQueries_] = qid;
+                    h_queryIds_[numQueries_] = numSegments_;
                     h_encodeOffsets_[numQueries_+1] = h_encodeOffsets_[numQueries_];
 
                     for_each_consecutive_substring_2bit<encodedseq_t>(first, last,
@@ -298,40 +299,38 @@ public:
     //-----------------------------------------------------
     template<class Sequence>
     bool add_paired_read(
-        query_id qid,
         Sequence seq1, Sequence seq2,
         const sketcher& querySketcher
     ) {
         using std::begin;
         using std::end;
 
-        return add_paired_read(qid,
-                               begin(seq1), end(seq1),
+        return add_paired_read(begin(seq1), end(seq1),
                                begin(seq2), end(seq2),
                                querySketcher);
     }
 
 
 private:
-    size_t numSegments_;
-    size_t numQueries_;
-    size_t maxQueries_;
+    id_type numSegments_;
+    id_type numQueries_;
+    id_type maxQueries_;
     size_t maxEncodeLength_;
     size_t maxResultsPerQuery_;
 
-    query_id       * queryIds_;
+    id_type        * h_queryIds_;
+    id_type        * d_queryIds_;
 
     encodinglen_t  * h_encodeOffsets_;
-    encodedseq_t   * h_encodedSeq_;
-    encodedambig_t * h_encodedAmbig_;
-
     encodinglen_t  * d_encodeOffsets_;
+    encodedseq_t   * h_encodedSeq_;
     encodedseq_t   * d_encodedSeq_;
+    encodedambig_t * h_encodedAmbig_;
     encodedambig_t * d_encodedAmbig_;
 
     result_type    * h_queryResults_;
-    result_type    * h_queryResultsTmp_;
     result_type    * d_queryResults_;
+    result_type    * h_queryResultsTmp_;
     result_type    * d_queryResultsTmp_;
 
     int            * h_resultOffsets_;
