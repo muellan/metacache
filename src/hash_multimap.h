@@ -84,49 +84,52 @@ struct allocator_config<Alloc,true>
  * @tparam RAIterator :  random access iterator
  *
  *****************************************************************************/
-template<class RAIterator>
-class linear_probing_iterator
+struct linear_probing
 {
-public:
-    explicit
-    linear_probing_iterator(RAIterator pos, RAIterator beg, RAIterator end):
-       pos_(pos), fst_(pos), beg_(beg), end_(end)
-    {}
+    template<class RAIterator>
+    class iterator
+    {
+    public:
+        explicit
+        iterator(RAIterator pos, RAIterator beg, RAIterator end):
+           pos_(pos), fst_(pos), beg_(beg), end_(end)
+        {}
 
-    decltype(auto) operator -> () const {
-        return pos_.operator->();
-    }
-
-    decltype(auto) operator * () const {
-        return *pos_;
-    }
-
-    linear_probing_iterator& operator ++ () noexcept {
-        ++pos_;
-        if(pos_ >= end_) {
-            if(beg_ == end_) {
-                pos_ = end_;
-                return *this;
-            }
-            pos_ = beg_;
-            end_ = fst_;
-            beg_ = fst_;
+        decltype(auto) operator -> () const {
+            return pos_.operator->();
         }
-        return *this;
-    }
 
-    explicit operator bool() const noexcept {
-        return (pos_ < end_);
-    }
-    explicit operator RAIterator () const {
-        return pos_;
-    }
+        decltype(auto) operator * () const {
+            return *pos_;
+        }
 
-private:
-    RAIterator pos_;
-    RAIterator fst_;
-    RAIterator beg_;
-    RAIterator end_;
+        iterator& operator ++ () noexcept {
+            ++pos_;
+            if(pos_ >= end_) {
+                if(beg_ == end_) {
+                    pos_ = end_;
+                    return *this;
+                }
+                pos_ = beg_;
+                end_ = fst_;
+                beg_ = fst_;
+            }
+            return *this;
+        }
+
+        explicit operator bool() const noexcept {
+            return (pos_ < end_);
+        }
+        explicit operator RAIterator () const {
+            return pos_;
+        }
+
+    private:
+        RAIterator pos_;
+        RAIterator fst_;
+        RAIterator beg_;
+        RAIterator end_;
+    };
 };
 
 
@@ -138,53 +141,55 @@ private:
  * @tparam RAIterator :  random access iterator
  *
  *****************************************************************************/
-template<class RAIterator>
-class quadratic_probing_iterator
+struct single_pass_quadratic_probing
 {
-public:
-    explicit
-    quadratic_probing_iterator(RAIterator pos, RAIterator beg, RAIterator end):
-       hop_(1), pos_(pos), fst_(pos), beg_(beg), end_(end)
-    {}
+    template<class RAIterator>
+    class iterator
+    {
+    public:
+        explicit
+        iterator(RAIterator pos, RAIterator beg, RAIterator end):
+           hop_(1), pos_(pos), fst_(pos), beg_(beg), end_(end)
+        {}
 
-    decltype(auto) operator -> () const {
-        return pos_.operator->();
-    }
-
-    decltype(auto) operator * () const {
-        return *pos_;
-    }
-
-    quadratic_probing_iterator& operator ++ () noexcept {
-        pos_ += hop_;
-        if(pos_ >= end_) {
-            if(beg_ == end_) {
-                pos_ = end_;
-                return *this;
-            }
-            pos_ -= (end_ - beg_);
-            end_ = fst_;
-            beg_ = fst_;
+        decltype(auto) operator -> () const {
+            return pos_.operator->();
         }
-        ++hop_;
-        return *this;
-    }
 
-    explicit operator bool() const noexcept {
-        return (pos_ < end_);
-    }
-    explicit operator RAIterator () const {
-        return pos_;
-    }
+        decltype(auto) operator * () const {
+            return *pos_;
+        }
 
-private:
-    std::size_t hop_;
-    RAIterator pos_;
-    RAIterator fst_;
-    RAIterator beg_;
-    RAIterator end_;
+        iterator& operator ++ () noexcept {
+            pos_ += hop_;
+            if(pos_ >= end_) {
+                if(beg_ == end_) {
+                    pos_ = end_;
+                    return *this;
+                }
+                pos_ -= (end_ - beg_);
+                end_ = fst_;
+                beg_ = fst_;
+            }
+            ++hop_;
+            return *this;
+        }
+
+        explicit operator bool() const noexcept {
+            return (pos_ < end_);
+        }
+        explicit operator RAIterator () const {
+            return pos_;
+        }
+
+    private:
+        std::size_t hop_;
+        RAIterator pos_;
+        RAIterator fst_;
+        RAIterator beg_;
+        RAIterator end_;
+    };
 };
-
 
 
 
@@ -214,7 +219,8 @@ template<
     class KeyEqual = std::equal_to<Key>,
     class ValueAllocator = chunk_allocator<ValueT>,
     class BucketAllocator = std::allocator<Key>,
-    class BucketSizeT = std::uint8_t
+    class BucketSizeT = std::uint8_t,
+    class ProbingScheme = single_pass_quadratic_probing
 >
 class hash_multimap
 {
@@ -419,7 +425,7 @@ public:
 
 private:
     //-----------------------------------------------------
-    using probing_iterator = quadratic_probing_iterator<iterator>;
+    using probing_iterator = typename ProbingScheme::template iterator<iterator>;
 
 
 public:
