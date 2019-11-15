@@ -167,8 +167,10 @@ public:
     template<class len_t>
     void deserialize(std::istream& is, len_t nkeys, len_t nlocations)
     {
+        len_t keyBatchSize = 0;
+        read_binary(is, keyBatchSize);
+
         //TODO tune sizes
-        const size_t keyBatchSize = 1UL << 20;
         const size_t valBatchSize = 1UL << 20;
 
         {//load hash table
@@ -181,6 +183,8 @@ public:
             uint64_t * d_offsetBuffer;
             cudaMallocHost(&h_offsetBuffer, keyBatchSize*sizeof(uint64_t));
             cudaMalloc    (&d_offsetBuffer, keyBatchSize*sizeof(uint64_t));
+
+            std::vector<bucket_size_type> bsizeBuffer(keyBatchSize);
 
             using handler_type = warpcore::status_handlers::ReturnStatus;
             using handler_base_type = handler_type::base_type;
@@ -196,20 +200,17 @@ public:
             //load full batches
             const len_t numBatches = nkeys / keyBatchSize;
             for(len_t b = 0; b < numBatches; ++b) {
-                //fill batch
-                for(len_t i = 0; i < keyBatchSize; ++i) {
-                    key_type key;
-                    bucket_size_type nlocs = 0;
-                    read_binary(is, key);
-                    read_binary(is, nlocs);
+                //load batch
+                read_binary(is, h_keyBuffer, keyBatchSize);
+                read_binary(is, bsizeBuffer.data(), keyBatchSize);
 
-                    h_keyBuffer[i] = key;
+                for(len_t i = 0; i < keyBatchSize; ++i) {
                     //store offset and size together in 64bit
                     //default is 56bit offset, 8bit size
-                    h_offsetBuffer[i] =
-                        (locsOffset << sizeof(bucket_size_type)*CHAR_BIT) + nlocs;
+                    h_offsetBuffer[i] = (locsOffset << sizeof(bucket_size_type)*CHAR_BIT)
+                                        + bsizeBuffer[i];
 
-                    locsOffset += nlocs;
+                    locsOffset += bsizeBuffer[i];
                 }
 
                 //insert full batch
@@ -237,20 +238,17 @@ public:
             //load last batch
             const size_t remainingSize = nkeys % keyBatchSize;
             if(remainingSize) {
-                //fill batch
-                for(len_t i = 0; i < remainingSize; ++i) {
-                    key_type key;
-                    bucket_size_type nlocs = 0;
-                    read_binary(is, key);
-                    read_binary(is, nlocs);
+                //load batch
+                read_binary(is, h_keyBuffer, remainingSize);
+                read_binary(is, bsizeBuffer.data(), remainingSize);
 
-                    h_keyBuffer[i] = key;
+                for(len_t i = 0; i < remainingSize; ++i) {
                     //store offset and size together in 64bit
                     //default is 56bit offset, 8bit size
-                    h_offsetBuffer[i] =
-                        (locsOffset << sizeof(bucket_size_type)*CHAR_BIT) + nlocs;
+                    h_offsetBuffer[i] = (locsOffset << sizeof(bucket_size_type)*CHAR_BIT)
+                                        + bsizeBuffer[i];
 
-                    locsOffset += nlocs;
+                    locsOffset += bsizeBuffer[i];
                 }
 
                 //insert last batch
