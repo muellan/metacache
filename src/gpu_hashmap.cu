@@ -181,8 +181,8 @@ public:
             using handler_base_type = handler_type::base_type;
 
             handler_base_type * status;
-            cudaMallocManaged(&status, keyBatchSize*sizeof(uint64_t));
-            cudaMemset(status, 1, keyBatchSize*sizeof(uint64_t));
+            cudaMallocManaged(&status, keyBatchSize*sizeof(handler_base_type));
+            cudaMemset(status, 0, keyBatchSize*sizeof(handler_base_type));
 
             const size_type probingLength = hashTable_.capacity();
 
@@ -204,16 +204,8 @@ public:
                     locsOffset += bsizeBuffer[i];
                 }
 
-                //insert full batch
-                //TODO overlap async
-                cudaMemcpy(d_keyBuffer, h_keyBuffer, keyBatchSize*sizeof(key_type),
-                            cudaMemcpyHostToDevice);
-                cudaMemcpy(d_offsetBuffer, h_offsetBuffer, keyBatchSize*sizeof(uint64_t),
-                            cudaMemcpyHostToDevice);
-                // insert(d_keyBuffer, d_offsetBuffer, keyBatchSize);
-                hashTable_.template insert<handler_type>(
-                    d_keyBuffer, d_offsetBuffer, keyBatchSize, probingLength, stream, status);
-
+                //check status from previous batch
+                //implicit sync
                 const auto tableStatus = hashTable_.pop_status(stream);
                 if(tableStatus.has_any()) {
                     std::cerr << tableStatus << '\n';
@@ -223,6 +215,15 @@ public:
                         }
                     }
                 }
+
+                //insert full batch
+                cudaMemcpy(d_keyBuffer, h_keyBuffer, keyBatchSize*sizeof(key_type),
+                            cudaMemcpyHostToDevice);
+                cudaMemcpy(d_offsetBuffer, h_offsetBuffer, keyBatchSize*sizeof(uint64_t),
+                            cudaMemcpyHostToDevice);
+                // insert(d_keyBuffer, d_offsetBuffer, keyBatchSize);
+                hashTable_.template insert<handler_type>(
+                    d_keyBuffer, d_offsetBuffer, keyBatchSize, probingLength, stream, status);
             }
 
             //load last batch
@@ -241,6 +242,18 @@ public:
                     locsOffset += bsizeBuffer[i];
                 }
 
+                //check status from previous batch
+                //implicit sync
+                auto tableStatus = hashTable_.pop_status(stream);
+                if(tableStatus.has_any()) {
+                    std::cerr << tableStatus << '\n';
+                    for(size_t j=0; j<keyBatchSize; ++j) {
+                        if(status[j].has_any()) {
+                            std::cerr << h_keyBuffer[j] << ' ' << status[j] << '\n';
+                        }
+                    }
+                }
+
                 //insert last batch
                 cudaMemcpy(d_keyBuffer, h_keyBuffer, remainingSize*sizeof(key_type),
                             cudaMemcpyHostToDevice);
@@ -250,7 +263,9 @@ public:
                 hashTable_.template insert<handler_type>(
                     d_keyBuffer, d_offsetBuffer, remainingSize, probingLength, stream, status);
 
-                const auto tableStatus = hashTable_.pop_status(stream);
+                //check status from last batch
+                //implicit sync
+                tableStatus = hashTable_.pop_status(stream);
                 if(tableStatus.has_any()) {
                     std::cerr << tableStatus << '\n';
                     for(size_t j=0; j<keyBatchSize; ++j) {
