@@ -41,7 +41,6 @@ query_batch<result_type>::query_batch(
         cudaMallocHost(&h_queryResults_, maxQueries_*maxResultsPerQuery_*sizeof(result_type));
         cudaMalloc    (&d_queryResults_, maxQueries_*maxResultsPerQuery_*sizeof(result_type));
 
-        cudaMallocHost(&h_queryResultsTmp_, maxQueries_*maxResultsPerQuery_*sizeof(result_type));
         cudaMalloc    (&d_queryResultsTmp_, maxQueries_*maxResultsPerQuery_*sizeof(result_type));
 
         cudaMallocHost(&h_resultOffsets_, (maxQueries_+1)*sizeof(int));
@@ -77,7 +76,6 @@ query_batch<result_type>::~query_batch() {
         cudaFreeHost(h_queryResults_);
         cudaFree    (d_queryResults_);
 
-        cudaFreeHost(h_queryResultsTmp_);
         cudaFree    (d_queryResultsTmp_);
 
         cudaFreeHost(h_resultOffsets_);
@@ -127,14 +125,6 @@ void query_batch<result_type>::copy_results_to_host_async() {
                     cudaMemcpyDeviceToHost, stream_);
     // cudaStreamSynchronize(stream_);
     // CUERR
-}
-
-//---------------------------------------------------------------
-template<class result_type>
-void query_batch<result_type>::copy_results_to_host_tmp_async() {
-    cudaMemcpyAsync(h_queryResultsTmp_, d_queryResultsTmp_,
-                    numQueries_*maxResultsPerQuery_*sizeof(result_type),
-                    cudaMemcpyDeviceToHost, stream_);
 }
 
 

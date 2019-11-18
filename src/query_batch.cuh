@@ -46,21 +46,22 @@ public:
         d_queryIds_      = other.d_queryIds_;
 
         h_encodeOffsets_ = other.h_encodeOffsets_;
-        h_encodedSeq_    = other.h_encodedSeq_;
-        h_encodedAmbig_  = other.h_encodedAmbig_;
-
         d_encodeOffsets_ = other.d_encodeOffsets_;
+
+        h_encodedSeq_    = other.h_encodedSeq_;
         d_encodedSeq_    = other.d_encodedSeq_;
+
+        h_encodedAmbig_  = other.h_encodedAmbig_;
         d_encodedAmbig_  = other.d_encodedAmbig_;
 
         h_queryResults_  = other.h_queryResults_;
         d_queryResults_  = other.d_queryResults_;
 
-        h_queryResultsTmp_ = other.h_queryResultsTmp_;
         d_queryResultsTmp_ = other.d_queryResultsTmp_;
 
         h_resultOffsets_ = other.h_resultOffsets_;
         d_resultOffsets_ = other.d_resultOffsets_;
+
         d_resultCounts_  = other.d_resultCounts_;
 
         stream_ = other.stream_;
@@ -127,10 +128,6 @@ public:
     //---------------------------------------------------------------
     result_type * query_results_host() const noexcept {
         return h_queryResults_;
-    }
-    //---------------------------------------------------------------
-    result_type * query_results_host_tmp() const noexcept {
-        return h_queryResultsTmp_;
     }
     //---------------------------------------------------------------
     result_type * query_results_device() const noexcept {
@@ -359,7 +356,6 @@ private:
 
     result_type    * h_queryResults_;
     result_type    * d_queryResults_;
-    result_type    * h_queryResultsTmp_;
     result_type    * d_queryResultsTmp_;
 
     int            * h_resultOffsets_;
