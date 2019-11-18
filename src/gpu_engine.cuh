@@ -334,7 +334,7 @@ void gpu_hahstable_query(
 
             //output <sketchSize> unique features
             uint32_t kmerCounter = 0;
-            for(int i=0; i*BLOCK_THREADS<windowStride && kmerCounter<sketchSize; ++i)
+            for(int i=0; i<ITEMS_PER_THREAD && kmerCounter<sketchSize; ++i)
             {
                 //load candidate and successor
                 const feature kmer = items[i];
@@ -360,13 +360,16 @@ void gpu_hahstable_query(
                 kmerCounter += count;
             }
 
+            //cap kmer count
+            kmerCounter = min(kmerCounter, sketchSize);
+
             //query hashtable for bucket locations & sizes
             namespace cg = cooperative_groups;
 
             const auto group =
                 cg::tiled_partition<Hashtable::cg_size>(cg::this_thread_block());
 
-            for(uint32_t i = threadIdx.x; i < sketchSize*Hashtable::cg_size; i += BLOCK_THREADS) {
+            for(uint32_t i = threadIdx.x; i < kmerCounter*Hashtable::cg_size; i += BLOCK_THREADS) {
                 const uint8_t gid = i / Hashtable::cg_size;
                 typename Hashtable::value_type valuesOffset = 0;
                 //if key not found valuesOffset stays 0
@@ -392,7 +395,7 @@ void gpu_hahstable_query(
             result_type * outPtr = results_out + queryId*sketchSize*maxLocationsPerFeature;
 
             //copy locations of found features into results_out
-            for(uint32_t s = 0; s < sketchSize; ++s) {
+            for(uint32_t s = 0; s < kmerCounter; ++s) {
                 typename Hashtable::value_type valuesOffset = tempStorage.sketch[s];
 
                 bucket_size_type numValues = bucket_size_type(valuesOffset);
@@ -406,82 +409,13 @@ void gpu_hahstable_query(
                 totalNumValues += numValues;
             }
 
-            for(uint32_t i = totalNumValues + threadIdx.x; i < sketchSize*maxLocationsPerFeature; i += BLOCK_THREADS) {
-                //pad with dummies
-                outPtr[i] = location{~0, ~0};
-            }
-
             if(threadIdx.x == 0) {
                 //store number of results of this query
                 resultCounts[queryId] = totalNumValues;
-                //clear result offset for next kernel
-                // resultOffsets[queryId+1] = 0;
             }
         }
     }
 }
-
-
-
-
-//TODO perfix sum
-// __global__
-// void prefix_sum_kernel_32(
-//     uint32_t numQueries,
-//     int *  resultCounts)
-// {
-//     // Specialize BlockScan for a 1D block of 32 threads on type int
-//     typedef cub::BlockScan<int, 32> BlockScan;
-//     // Allocate shared memory for BlockScan
-//     __shared__ typename BlockScan::TempStorage temp_storage;
-//     // Obtain input item for each thread
-//     int thread_data = threadIdx.x < numQueries ? resultCounts[threadIdx.x] : 0;
-
-//     // Collectively compute the block-wide inclusive prefix sum
-//     BlockScan(temp_storage).InclusiveSum(thread_data, thread_data);
-
-//     if(threadIdx.x < numQueries)
-//         resultCounts[threadIdx.x] = thread_data;
-// }
-
-// __global__
-// void prefix_sum_kernel_64(
-//     uint32_t numQueries,
-//     int *  resultCounts)
-// {
-//     // Specialize BlockScan for a 1D block of 64 threads on type int
-//     typedef cub::BlockScan<int, 64> BlockScan;
-//     // Allocate shared memory for BlockScan
-//     __shared__ typename BlockScan::TempStorage temp_storage;
-//     // Obtain input item for each thread
-//     int thread_data = threadIdx.x < numQueries ? resultCounts[threadIdx.x] : 0;
-
-//     // Collectively compute the block-wide inclusive prefix sum
-//     BlockScan(temp_storage).InclusiveSum(thread_data, thread_data);
-
-//     if(threadIdx.x < numQueries)
-//         resultCounts[threadIdx.x] = thread_data;
-// }
-
-
-// __global__
-// void prefix_sum_kernel_128(
-//     uint32_t numQueries,
-//     int *  resultCounts)
-// {
-//     // Specialize BlockScan for a 1D block of 128 threads on type int
-//     typedef cub::BlockScan<int, 128> BlockScan;
-//     // Allocate shared memory for BlockScan
-//     __shared__ typename BlockScan::TempStorage temp_storage;
-//     // Obtain input item for each thread
-//     int thread_data = threadIdx.x < numQueries ? resultCounts[threadIdx.x] : 0;
-
-//     // Collectively compute the block-wide inclusive prefix sum
-//     BlockScan(temp_storage).InclusiveSum(thread_data, thread_data);
-
-//     if(threadIdx.x < numQueries)
-//         resultCounts[threadIdx.x] = thread_data;
-// }
 
 
 template<class id_type, class result_type>
