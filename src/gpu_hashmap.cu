@@ -162,6 +162,8 @@ public:
         //TODO tune sizes
         const size_t valBatchSize = 1UL << 20;
 
+        cudaStream_t stream = 0;
+
         {//load hash table
             //allocate insert buffers
             key_type * h_keyBuffer;
@@ -210,10 +212,9 @@ public:
                             cudaMemcpyHostToDevice);
                 // insert(d_keyBuffer, d_offsetBuffer, keyBatchSize);
                 hashTable_.template insert<handler_type>(
-                    d_keyBuffer, d_offsetBuffer, keyBatchSize, probingLength, 0, status);
-                cudaDeviceSynchronize();
+                    d_keyBuffer, d_offsetBuffer, keyBatchSize, probingLength, stream, status);
 
-                const auto tableStatus = hashTable_.pop_status();
+                const auto tableStatus = hashTable_.pop_status(stream);
                 if(tableStatus.has_any()) {
                     std::cerr << tableStatus << '\n';
                     for(size_t j=0; j<keyBatchSize; ++j) {
@@ -247,10 +248,9 @@ public:
                             cudaMemcpyHostToDevice);
                 // insert(d_keyBuffer, d_offsetBuffer, remainingSize);
                 hashTable_.template insert<handler_type>(
-                    d_keyBuffer, d_offsetBuffer, remainingSize, probingLength, 0, status);
-                cudaDeviceSynchronize();
+                    d_keyBuffer, d_offsetBuffer, remainingSize, probingLength, stream, status);
 
-                const auto tableStatus = hashTable_.pop_status();
+                const auto tableStatus = hashTable_.pop_status(stream);
                 if(tableStatus.has_any()) {
                     std::cerr << tableStatus << '\n';
                     for(size_t j=0; j<keyBatchSize; ++j) {
@@ -273,26 +273,44 @@ public:
             cudaMalloc(&locations_, nlocations*sizeof(location));
 
             //allocate buffer
-            location * valueBuffer;
-            cudaMallocHost(&valueBuffer, valBatchSize*sizeof(location));
+            location * valueBuffers[2];
+            cudaMallocHost(&valueBuffers[0], valBatchSize*sizeof(location));
+            cudaMallocHost(&valueBuffers[1], valBatchSize*sizeof(location));
 
-            //read batch of locations and copy to device
-            //TODO overlap async
+            cudaEvent_t events[2];
+            cudaEventCreate(&events[0]);
+            cudaEventCreate(&events[1]);
+
+            //read batches of locations and copy to device
             auto locsOffset = locations_;
-            for(size_t i = 0; i < nlocations/valBatchSize; ++i) {
-                read_binary(is, valueBuffer, valBatchSize);
-                cudaMemcpy(locsOffset, valueBuffer, valBatchSize*sizeof(location),
-                            cudaMemcpyHostToDevice);
+            const len_t numBatches = nlocations / valBatchSize;
+            for(len_t i = 0; i < numBatches; ++i) {
+                const len_t id = i % 2;
+                cudaEventSynchronize(events[id]);
+                read_binary(is, valueBuffers[id], valBatchSize);
+                cudaMemcpyAsync(locsOffset, valueBuffers[id], valBatchSize*sizeof(location),
+                                cudaMemcpyHostToDevice, stream);
+                cudaEventRecord(events[id], stream);
+
                 locsOffset += valBatchSize;
             }
             //read remaining locations and copy to device
             const size_t remainingSize = nlocations % valBatchSize;
-            read_binary(is, valueBuffer, remainingSize);
-            cudaMemcpy(locsOffset, valueBuffer, remainingSize*sizeof(location),
-                        cudaMemcpyHostToDevice);
+            const len_t id = numBatches % 2;
+            cudaEventSynchronize(events[id]);
+            read_binary(is, valueBuffers[id], remainingSize);
+            cudaMemcpyAsync(locsOffset, valueBuffers[id], remainingSize*sizeof(location),
+                            cudaMemcpyHostToDevice, stream);
 
-            cudaFreeHost(valueBuffer);
+            cudaStreamSynchronize(stream);
+
+            cudaFreeHost(valueBuffers[0]);
+            cudaFreeHost(valueBuffers[1]);
+
+            cudaEventDestroy(events[0]);
+            cudaEventDestroy(events[1]);
         }
+        CUERR
 
         numKeys_ = nkeys;
         numLocations_ = nlocations;
