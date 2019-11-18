@@ -109,23 +109,12 @@ public:
         return numLocations_;
     }
 
-
-    //---------------------------------------------------------------
-    void insert(key_type *keys_in, value_type *values_in, size_type size_in)
-    {
-        size_type probingLength = 4*hashTable_.capacity();
-        //TODO
-        cudaStream_t stream = 0;
-        hashTable_.insert(keys_in, values_in, size_in, probingLength, stream);
-    }
-
     //---------------------------------------------------------------
     template<class result_type>
     void query(query_batch<result_type>& batch,
                const sketcher& querySketcher,
                bucket_size_type maxLocationPerFeature) const
     {
-        //TODO
         const cudaStream_t stream = batch.stream();
         batch.copy_queries_to_device_async();
 
