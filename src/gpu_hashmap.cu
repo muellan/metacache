@@ -129,7 +129,6 @@ public:
             hashTable_,
             probingLength,
             batch.num_queries(),
-            batch.query_ids_device(),
             batch.encode_offsets_device(),
             batch.encoded_seq_device(),
             batch.encoded_ambig_device(),
@@ -140,8 +139,7 @@ public:
             locations_,
             maxLocationPerFeature,
             batch.query_results_device(),
-            batch.result_counts_device(),
-            batch.result_offsets_device()
+            batch.result_counts_device()
         );
 
         batch.compact_sort_and_copy_results_async();

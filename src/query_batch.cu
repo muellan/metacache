@@ -150,11 +150,11 @@ void query_batch<result_type>::compact_sort_and_copy_results_async() {
         compact_kernel<<<numQueries_,32,0,stream_>>>(
             numQueries_,
             d_resultCounts_,
-            d_resultOffsets_,
             maxResultsPerQuery_,
-            d_queryIds_,
             d_queryResults_,
-            d_queryResultsTmp_
+            d_queryResultsTmp_,
+            d_queryIds_,
+            d_resultOffsets_
         );
 
         cudaMemcpyAsync(h_resultOffsets_, d_resultOffsets_,

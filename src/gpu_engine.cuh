@@ -110,18 +110,19 @@ template<
 __global__
 void extract_features(
     size_t numTargets,
-    target_id * const targetIds,
-    window_id * const winOffsets,
-    encodinglen_t * const encodeOffsets,
-    encodedseq_t * const encodedSeq,
-    encodedambig_t * const encodedAmbig,
+    const target_id * targetIds,
+    const window_id * winOffsets,
+    const encodinglen_t * encodeOffsets,
+    const encodedseq_t * encodedSeq,
+    const encodedambig_t * encodedAmbig,
     numk_t k,
     uint32_t sketchSize,
     size_t windowSize,
     size_t windowStride,
     feature * features_out,
     location * locations_out,
-    uint32_t * size_out)
+    uint32_t * size_out
+)
 {
     for(size_t tgt = blockIdx.y; tgt < numTargets; tgt += gridDim.y) {
         const encodinglen_t encodingLength = encodeOffsets[tgt+1] - encodeOffsets[tgt];
@@ -240,7 +241,6 @@ template<
     int BLOCK_THREADS,
     int ITEMS_PER_THREAD,
     class Hashtable,
-    class id_type,
     class bucket_size_type,
     class result_type>
 __global__
@@ -248,19 +248,18 @@ void gpu_hahstable_query(
     Hashtable hashtable,
     size_t probingLength,
     uint32_t numQueries,
-    id_type        * segmentIds,
-    encodinglen_t  * const encodeOffsets,
-    encodedseq_t   * const encodedSeq,
-    encodedambig_t * const encodedAmbig,
+    const encodinglen_t  * encodeOffsets,
+    const encodedseq_t   * encodedSeq,
+    const encodedambig_t * encodedAmbig,
     numk_t k,
     uint32_t sketchSize,
     uint32_t windowSize,
     uint32_t windowStride,
-    location * const locations,
+    const location * locations,
     bucket_size_type maxLocationsPerFeature,
     result_type * results_out,
-    int         * resultCounts,
-    int         * resultOffsets)
+    int         * resultCounts
+)
 {
     //each block processes one query
     for(size_t queryId = blockIdx.x; queryId < numQueries; queryId += gridDim.x) {
@@ -422,12 +421,12 @@ template<class id_type, class result_type>
 __global__
 void compact_kernel(
     uint32_t numQueries,
-    int * const resultPrefixScan,
-    int * segmentOffsets,
+    const int * resultPrefixScan,
     uint32_t maxResultsPerQuery,
-    id_type     * const segmentIds,
-    result_type * const results_in,
-    result_type * results_out
+    const result_type * results_in,
+    result_type * results_out,
+    const id_type * segmentIds,
+    int * segmentOffsets
 )
 {
     for(int bid = blockIdx.x; bid < numQueries; bid += gridDim.x) {
@@ -435,7 +434,7 @@ void compact_kernel(
         const int end   = resultPrefixScan[bid];
         const int numResults = end - begin;
 
-        result_type * const inPtr  = results_in + bid*maxResultsPerQuery;
+        const result_type * inPtr  = results_in + bid*maxResultsPerQuery;
         result_type * outPtr = results_out + begin;
 
         for(int tid = threadIdx.x; tid < numResults; tid += blockDim.x) {
@@ -470,9 +469,9 @@ template<class id_type>
 __global__
 void segment_kernel(
     uint32_t numQueries,
-    int * const resultPrefixScan,
-    int * segmentOffsets,
-    id_type * const segmentIds
+    const int * resultPrefixScan,
+    const id_type * segmentIds,
+    int * segmentOffsets
 )
 {
     for(int tid = threadIdx.x + blockIdx.x * blockDim.x; tid < numQueries; tid += blockDim.x * gridDim.x) {
