@@ -122,9 +122,9 @@ public:
         #define BLOCK_THREADS 32
         #define ITEMS_PER_THREAD 4
 
-        size_type probingLength = 4*hashTable_.capacity();
-        //TODO increase grid size
-        constexpr size_t numBlocks = 32;
+        const size_type probingLength = 4*hashTable_.capacity();
+
+        const size_t numBlocks = batch.num_queries();
         gpu_hahstable_query<BLOCK_THREADS,ITEMS_PER_THREAD><<<numBlocks,BLOCK_THREADS,0,stream>>>(
             hashTable_,
             probingLength,
