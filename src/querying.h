@@ -191,7 +191,7 @@ query_id query_batched(
                     //could not add read, send full batch to gpu
                     if(gpuBatches[id]->num_queries() > 0) {
                         // std::cout << "send batch to gpu\n";
-                        db.accumulate_matches_gpu(*(gpuBatches[id]));
+                        db.query_gpu(*(gpuBatches[id]));
 
                         process_batch_results(batch, *(gpuBatches[id]), targetMatches,
                                               resultsBuffer, update, outIndex);
@@ -221,7 +221,7 @@ query_id query_batched(
 
             if(gpuBatches[id]->num_queries() > 0) {
                 // std::cout << "send final batch to gpu\n";
-                db.accumulate_matches_gpu(*(gpuBatches[id]));
+                db.query_gpu(*(gpuBatches[id]));
 
                 process_batch_results(batch, *(gpuBatches[id]), targetMatches,
                                       resultsBuffer, update, outIndex);

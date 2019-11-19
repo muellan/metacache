@@ -144,9 +144,8 @@ public:
             batch.result_offsets_device()
         );
 
-        batch.sort_results();
+        batch.compact_sort_and_copy_results_async();
 
-        batch.copy_results_to_host_async();
         //TODO async
         batch.sync_stream();
         CUERR

@@ -53,6 +53,7 @@ query_batch<result_type>::query_batch(
     CUERR
 
     cudaStreamCreate(&stream_);
+    cudaEventCreate(&event_);
     CUERR
 }
 //---------------------------------------------------------------
@@ -86,6 +87,7 @@ query_batch<result_type>::~query_batch() {
     CUERR
 
     cudaStreamDestroy(stream_);
+    cudaEventDestroy(event_);
     CUERR
 }
 
@@ -112,24 +114,6 @@ void query_batch<result_type>::copy_queries_to_device_async() {
 
 //---------------------------------------------------------------
 template<class result_type>
-void query_batch<result_type>::copy_results_to_host_async() {
-    //TODO copy offsets earlier, sync event before using h_resultOffsets_ below
-    cudaMemcpyAsync(h_resultOffsets_, d_resultOffsets_,
-                   (numSegments_+1)*sizeof(int),
-                   cudaMemcpyDeviceToHost, stream_);
-    cudaStreamSynchronize(stream_);
-
-    cudaMemcpyAsync(h_queryResults_, d_queryResults_,
-                    // numQueries_*maxResultsPerQuery_*sizeof(result_type),
-                    h_resultOffsets_[numSegments_]*sizeof(result_type),
-                    cudaMemcpyDeviceToHost, stream_);
-    // cudaStreamSynchronize(stream_);
-    // CUERR
-}
-
-
-//---------------------------------------------------------------
-template<class result_type>
 void query_batch<result_type>::sync_stream() {
     cudaStreamSynchronize(stream_);
 }
@@ -137,7 +121,7 @@ void query_batch<result_type>::sync_stream() {
 
 //---------------------------------------------------------------
 template<class result_type>
-void query_batch<result_type>::sort_results() {
+void query_batch<result_type>::compact_sort_and_copy_results_async() {
 
     {
         size_t tempStorageBytes = maxQueries_*maxResultsPerQuery_*sizeof(result_type);
@@ -173,9 +157,11 @@ void query_batch<result_type>::sort_results() {
             d_queryResultsTmp_
         );
 
-        // cudaMemcpyAsync(h_resultOffsets_, d_resultOffsets_,
-        //     (numSegments_+1)*sizeof(int),
-        //     cudaMemcpyDeviceToHost, stream_);
+        cudaMemcpyAsync(h_resultOffsets_, d_resultOffsets_,
+                        (numSegments_+1)*sizeof(int),
+                        cudaMemcpyDeviceToHost, stream_);
+
+        cudaEventRecord(event_, stream_);
 
         // cudaStreamSynchronize(stream_);
         // CUERR
@@ -215,6 +201,14 @@ void query_batch<result_type>::sort_results() {
 
     d_queryResults_    = (result_type*)d_keys.Current();
     d_queryResultsTmp_ = (result_type*)d_keys.Alternate();
+
+
+    cudaEventSynchronize(event_);
+
+    cudaMemcpyAsync(h_queryResults_, d_queryResults_,
+        // numQueries_*maxResultsPerQuery_*sizeof(result_type),
+        h_resultOffsets_[numSegments_]*sizeof(result_type),
+        cudaMemcpyDeviceToHost, stream_);
 }
 
 

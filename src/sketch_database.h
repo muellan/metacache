@@ -837,7 +837,7 @@ public:
 
     //---------------------------------------------------------------
     void
-    accumulate_matches_gpu(query_batch<location>& queryBatch) const
+    query_gpu(query_batch<location>& queryBatch) const
     {
         featureStoreGPU_.query(queryBatch, query_sketcher(), max_locations_per_feature());
     }

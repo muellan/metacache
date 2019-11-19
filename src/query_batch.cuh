@@ -160,14 +160,10 @@ public:
     /** @brief asynchronously copy queries to device using stream_ */
     void copy_queries_to_device_async();
     //---------------------------------------------------------------
-    /** @brief asynchronously copy results to host using stream_ */
-    void copy_results_to_host_async();
-    void copy_results_to_host_tmp_async();
+    /** @brief asynchronously compact, sort and copy results to host using stream_ */
+    void compact_sort_and_copy_results_async();
     //---------------------------------------------------------------
     void sync_stream();
-
-    //---------------------------------------------------------------
-    void sort_results();
 
     /*************************************************************************//**
     *
@@ -363,6 +359,7 @@ private:
     int            * d_resultCounts_;
 
     cudaStream_t stream_;
+    cudaEvent_t event_;
 };
 
 
