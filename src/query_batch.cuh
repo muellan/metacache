@@ -10,6 +10,18 @@
 
 namespace mc {
 
+
+struct candidate_target {
+    using count_type   = std::uint32_t;
+
+    target_id  tgt;
+    window_id  beg;
+    window_id  end;
+    count_type hits;
+};
+
+
+
 /*************************************************************************//**
  *
  * @brief batch contains sequence data & query results of multiple reads,
@@ -368,6 +380,9 @@ private:
     int            * h_resultOffsets_;
     int            * d_resultOffsets_;
     int            * d_resultCounts_;
+
+    candidate_target * h_topCandidates_;
+    candidate_target * d_topCandidates_;
 
     cudaStream_t stream_;
     cudaEvent_t event_;

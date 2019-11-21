@@ -49,6 +49,9 @@ query_batch<result_type>::query_batch(
         cudaMemcpy(d_resultOffsets_, h_resultOffsets_, sizeof(int), cudaMemcpyHostToDevice);
 
         cudaMalloc    (&d_resultCounts_, maxQueries_*sizeof(int));
+
+        cudaMallocHost(&h_topCandidates_, maxQueries_*sizeof(candidate_target));
+        cudaMalloc    (&d_topCandidates_, maxQueries_*sizeof(candidate_target));
     }
     CUERR
 
@@ -83,6 +86,9 @@ query_batch<result_type>::~query_batch() {
         cudaFree    (d_resultOffsets_);
 
         cudaFree    (d_resultCounts_);
+
+        cudaFreeHost(h_topCandidates_);
+        cudaFree    (d_topCandidates_);
     }
     CUERR
 
@@ -209,6 +215,21 @@ void query_batch<result_type>::compact_sort_and_copy_results_async() {
         // numQueries_*maxResultsPerQuery_*sizeof(result_type),
         h_resultOffsets_[numSegments_]*sizeof(result_type),
         cudaMemcpyDeviceToHost, stream_);
+
+
+
+    #define MAX_CANDIDATES 8
+
+    window_id maxWindowsInRange = 3;
+
+    generate_top_candidates<MAX_CANDIDATES><<<1,32,0,stream_>>>(
+        numSegments_,
+        d_resultOffsets_,
+        d_queryResults_,
+        maxWindowsInRange,
+        d_topCandidates_);
+
+    cudaStreamSynchronize(stream_);
 }
 
 

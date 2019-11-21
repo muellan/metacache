@@ -3,6 +3,7 @@
 
 #include "config.h"
 #include "dna_encoding.h"
+#include "query_batch.cuh"
 #include "sketch_database.h"
 
 #include "../dep/cudahelpers/cuda_helpers.cuh"
@@ -271,6 +272,7 @@ void gpu_hahstable_query(
 
             __shared__ union {
                 typename BlockRadixSortT::TempStorage sort;
+                //TODO MAX_SKETCH_SIZE
                 uint64_t sketch[16];
             } tempStorage;
 
@@ -484,6 +486,133 @@ void segment_kernel(
             segmentOffsets[segmentId+1] = end;
     }
 }
+
+
+
+/*************************************************************************//**
+ *
+ * @brief  produces all contiguous window ranges of matches
+ *         that are at most 'numWindows' long;
+ *         the main loop is aborted if 'consume' returns false
+ *
+ * @pre    matches must be sorted by taxon (first) and window (second)
+ *
+ * @tparam Consumer : function object that processes one match_candidate
+ *                    and returns a bool indicating, if loop should be continued
+ *
+ *****************************************************************************/
+ template<class result_type, class Consumer>
+ __device__
+ void for_all_contiguous_window_ranges(const result_type * matchesBegin,
+                                       const result_type * matchesEnd,
+                                       window_id numWindows,
+                                       Consumer&& consume)
+{
+    using hit_count = candidate_target::count_type;
+
+    //list empty?
+    if(matchesBegin == matchesEnd) return;
+
+    auto fst = matchesBegin;
+
+    //first entry in list
+    hit_count hits = 1;
+    candidate_target curBest;
+    curBest.tgt  = fst->tgt;
+    curBest.beg  = fst->win;
+    curBest.end  = fst->win;
+    curBest.hits = hits;
+    auto lst = fst;
+    ++lst;
+
+    //rest of list: check hits per query sequence
+    while(lst != matchesEnd) {
+        //look for neighboring windows with the highest total hit count
+        //as long as we are in the same target and the windows are in a
+        //contiguous range
+        if(lst->tgt == curBest.tgt) {
+            //add new hits to the right
+            hits++;
+            //subtract hits to the left that fall out of range
+            while(fst != lst &&
+                (lst->win - fst->win) >= numWindows)
+            {
+                hits--;
+                //move left side of range
+                ++fst;
+            }
+            //track best of the local sub-ranges
+            if(hits > curBest.hits) {
+                curBest.beg  = fst->win;
+                curBest.end  = lst->win;
+                curBest.hits = hits;
+            }
+        }
+        else { //end of current target
+            consume(curBest);
+            //reset to new target
+            fst = lst;
+            hits = 1;
+            curBest.tgt  = fst->tgt;
+            curBest.beg  = fst->win;
+            curBest.end  = fst->win;
+            curBest.hits = hits;
+        }
+
+        ++lst;
+    }
+    consume(curBest);
+}
+
+
+
+
+template<
+    int MAX_CANDIDATES,
+    class result_type>
+__global__
+void generate_top_candidates(
+    uint32_t numSegments,
+    const int * segmentOffsets,
+    const result_type * locations,
+    window_id maxWindowsInRange,
+    candidate_target * topCandidates
+)
+{
+    using hit_count = candidate_target::count_type;
+
+    candidate_target top[MAX_CANDIDATES];
+
+    for(int tid = threadIdx.x + blockIdx.x * blockDim.x; tid < numSegments; tid += blockDim.x * gridDim.x) {
+        auto begin = locations + segmentOffsets[tid];
+        auto end = locations + segmentOffsets[tid+1];
+
+        for_all_contiguous_window_ranges(begin, end, maxWindowsInRange, [&] (candidate_target& cand) {
+            int pos = MAX_CANDIDATES;
+            // find insert position of cand
+            for(int i = 0; i < MAX_CANDIDATES; ++i) {
+                if(cand.hits > top[i].hits) {
+                    pos = i;
+                    break;
+                }
+            }
+            // move smaller candidates backwards
+            for(int i = MAX_CANDIDATES-1; i > pos; --i) {
+                top[i] = top[i-1];
+            }
+            // insert cand
+            top[pos] = cand;
+        });
+
+        for(int i = 0; i < MAX_CANDIDATES; ++i) {
+            // topCandidates[i] = top[i];
+            printf("tid: %d tgt: %d hits: %d\n", tid, top[i].tgt, top[i].hits);
+        }
+    }
+
+}
+
+
 
 
 } // namespace mc
