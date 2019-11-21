@@ -34,6 +34,7 @@
 
 #include "chunk_allocator.h"
 #include "io_serialize.h"
+#include "cmdline_utility.h"
 
 
 namespace mc {
@@ -926,11 +927,17 @@ private:
         using len_t = std::uint64_t;
 
         clear();
+        std::cerr << '\n';
+        show_progress_indicator(std::cerr, 0);
 
         len_t nkeys = 0;
         read_binary(is, nkeys);
         len_t nvalues = 0;
         read_binary(is, nvalues);
+
+        len_t totalSize = nkeys*(sizeof(key_type)+sizeof(bucket_size_type))
+                        + nvalues*sizeof(value_type);
+        len_t indicator = 0;
 
         len_t batchSize = 0;
         read_binary(is, batchSize);
@@ -971,6 +978,9 @@ private:
                             valuesOffset += nvals;
                         }
                     }
+
+                    indicator += batchSize*(sizeof(key_type)+sizeof(bucket_size_type));
+                    show_progress_indicator(std::cerr, float(indicator)/totalSize);
                 }
 
                 //load last batch
@@ -991,6 +1001,9 @@ private:
                         valuesOffset += nvals;
                     }
                 }
+
+                indicator += remainder*(sizeof(key_type)+sizeof(bucket_size_type));
+                show_progress_indicator(std::cerr, float(indicator)/totalSize);
             }
 
             {//read values
@@ -1002,8 +1015,13 @@ private:
                 for(len_t i = 0; i < numCycles; ++i) {
                     read_binary(is, valuesOffset, batchSize);
                     valuesOffset += batchSize;
+
+                    indicator += batchSize*sizeof(value_type);
+                    show_progress_indicator(std::cerr, float(indicator)/totalSize);
                 }
                 read_binary(is, valuesOffset, remainder);
+
+                clear_current_line(std::cerr);
             }
 
             numKeys_ = nkeys;
