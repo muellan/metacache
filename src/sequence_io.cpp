@@ -93,7 +93,10 @@ sequence_reader::next_data()
 sequence_reader::index_type
 sequence_reader::next_data(sequence::data_type& data)
 {
-    if(!has_next()) return 0;
+    if(!has_next()) {
+        data.clear();
+        return index();
+    }
 
     ++index_;
     read_next(nullptr, &data, nullptr);
@@ -107,7 +110,11 @@ sequence_reader::index_type
 sequence_reader::next_header_and_data(sequence::header_type& header,
                                       sequence::data_type& data)
 {
-    if(!has_next()) return 0;
+    if(!has_next()) {
+        header.clear();
+        data.clear();
+        return index();
+    }
 
     ++index_;
     read_next(&header, &data, nullptr);
@@ -482,7 +489,7 @@ sequence_pair_reader::index_type
 sequence_pair_reader::next_data(sequence::data_type& data1,
                                 sequence::data_type& data2)
 {
-    if(!has_next()) return 0;
+    if(!has_next()) return index();
 
     // only one sequence per call
     if(singleMode_) {
@@ -512,7 +519,7 @@ sequence_pair_reader::next_header_and_data(sequence::header_type& header1,
                                            sequence::data_type& data1,
                                            sequence::data_type& data2)
 {
-    if(!has_next()) return 0;
+    if(!has_next()) return index();
 
     // only one sequence per call
     if(singleMode_) {
@@ -528,7 +535,7 @@ sequence_pair_reader::next_header_and_data(sequence::header_type& header1,
 
     // pair = 2 consecutive sequences from same file
     const auto idx = reader1_->index();
-    reader1_->next_data(data1);
+    reader1_->next_header_and_data(header1, data1);
     //make sure the index is only increased after the 2nd 'next()'
     reader1_->index_offset(idx);
     return reader1_->next_data(data2);

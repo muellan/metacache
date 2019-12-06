@@ -47,6 +47,12 @@ namespace mc {
  *****************************************************************************/
 struct sequence_query
 {
+    sequence_query() = default;
+    sequence_query(const sequence_query&) = default;
+    sequence_query(sequence_query&&) = default;
+    sequence_query& operator = (const sequence_query&) = default;
+    sequence_query& operator = (sequence_query&&) = default;
+
     explicit
     sequence_query(query_id qid, std::string headerText,
                    sequence s1, sequence s2 = sequence{}) noexcept
@@ -58,11 +64,11 @@ struct sequence_query
 
     bool empty() const noexcept { return header.empty() || seq1.empty(); }
 
-    query_id id;
+    query_id id = 0;
     std::string header;
     sequence seq1;
-    sequence seq2;  //2nd part of paired-end read
-    const taxon* groundTruth;
+    sequence seq2;  // 2nd part of paired-end read
+    const taxon* groundTruth = nullptr;
 };
 
 
@@ -91,7 +97,7 @@ void process_sequence_batch(
     sequence_batch& batch, const database& db, std::mutex& finalizeMtx,
     BufferSource& getBuffer, BufferUpdate& update, BufferSink& finalize)
 {
-    auto batchBuffer = getBuffer();
+    auto resultsBuffer = getBuffer();
     match_locations matches;
     match_target_locations targetMatches;
 
@@ -103,16 +109,15 @@ void process_sequence_batch(
         targetMatches.sort();
 
         matches.clear();
-        for(auto& m : targetMatches)
+        for(auto& m : targetMatches) {
             matches.emplace_back(db.taxon_of_target(m.tgt), m.win);
+        }
 
-        update(batchBuffer, std::move(seq), matches);
+        update(resultsBuffer, seq, matches);
     }
 
-    batch.clear();
-
     std::lock_guard<std::mutex> lock(finalizeMtx);
-    finalize(std::move(batchBuffer));
+    finalize(std::move(resultsBuffer));
 }
 
 
@@ -146,32 +151,35 @@ query_id query_batched(
 
     using batch_queue = moodycamel::ConcurrentQueue<sequence_batch>;
 
+    if(opt.queryLimit < 1) return startId;
+    const auto queryLimit = size_t(opt.queryLimit > 0 ? opt.queryLimit : std::numeric_limits<size_t>::max());
+    const auto queueSize = opt.numThreads > 1 ? opt.numThreads+ 4 : 0;
+
     // queue for batches that can be reused
-    batch_queue storageQueue(opt.numThreads + 4);
-    for(auto i = opt.numThreads; i > 0; --i) {
+    batch_queue storageQueue(queueSize);
+    for(auto i = 0; i < queueSize; ++i) {
         sequence_batch batch;
-        batch.reserve(opt.batchSize);
+        batch.resize(opt.batchSize);
         storageQueue.enqueue(std::move(batch));
     }
 
     // queue for batches awaiting processing
-    batch_queue workQueue(opt.numThreads + 4);
+    batch_queue workQueue(queueSize);
     moodycamel::ProducerToken ptok(workQueue);
 
     // spawn consumers
     std::vector<std::future<void>> threads;
     for(int i = 0; i < opt.numThreads-1; ++i) {
         threads.emplace_back(std::async(std::launch::async, [&] {
-            sequence_batch sequenceBatch;
+            sequence_batch batch;
             while(!queryingDone.load() || workQueue.size_approx() > 0) {
-                // get next work item
-                if(workQueue.try_dequeue_from_producer(ptok, sequenceBatch)) {
+                if(workQueue.try_dequeue_from_producer(ptok, batch)) {
                     process_sequence_batch(
-                        sequenceBatch, db, finalizeMtx,
+                        batch, db, finalizeMtx,
                         bufsrc, bufupdate, bufsink);
 
                     // put batch storage back
-                    storageQueue.enqueue(std::move(sequenceBatch));
+                    storageQueue.enqueue(std::move(batch));
                 }
                 else {
                     std::this_thread::sleep_for(std::chrono::milliseconds{10});
@@ -180,7 +188,6 @@ query_id query_batched(
         }));
     }
 
-    std::int_least64_t queryLimit = opt.queryLimit;
     query_id endId = startId;
 
     // read sequences from file
@@ -188,39 +195,42 @@ query_id query_batched(
         sequence_pair_reader reader{filename1, filename2};
         reader.index_offset(startId);
 
-        sequence_batch sequenceBatch;
+        sequence_batch batch;
 
-        while(reader.has_next() && queryLimit > 0) {
-            while(!storageQueue.try_dequeue(sequenceBatch)) {
-                std::this_thread::sleep_for(std::chrono::milliseconds{10});
-            }
-
-            // fill batch with sequences
-            for(std::size_t i = 0; i < opt.batchSize && queryLimit > 0; ++i, --queryLimit) {
-                if(!reader.has_next()) break;
-
-                auto seq = reader.next();
-
-                if(!seq.first.header.empty()) {
-                    sequenceBatch.emplace_back(
-                        seq.first.index,
-                        std::move(seq.first.header),
-                        std::move(seq.first.data),
-                        std::move(seq.second.data));
+        while(reader.has_next()) {
+            if(opt.numThreads > 1) {
+                // get batch storage
+                while(!storageQueue.try_dequeue(batch)) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds{10});
                 }
             }
 
-            if(sequenceBatch.size() > 0) {
+            if(batch.size() < opt.batchSize) { batch.resize(opt.batchSize); }
+
+            // fill batch with sequences
+            std::size_t i = 0;
+            for(auto& query : batch) {
+                if(i > queryLimit || !reader.has_next()) break;
+
+                query.id = reader.next_header_and_data(query.header, query.seq1, query.seq2);
+                query.groundTruth = nullptr;
+
+                ++i;
+            }
+
+            if(i < batch.size()) { batch.resize(i); }
+
+            if(!batch.empty()) {
                 // either enqueue batch...
                 if(opt.numThreads > 1) {
-                    while(!workQueue.try_enqueue(ptok, std::move(sequenceBatch))) {
+                    while(!workQueue.try_enqueue(ptok, std::move(batch))) {
                         std::this_thread::sleep_for(std::chrono::milliseconds{10});
                     };
                 }
                 // ... or process directly if single threaded
                 else {
                     process_sequence_batch(
-                        sequenceBatch, db, finalizeMtx,
+                        batch, db, finalizeMtx,
                         bufsrc, bufupdate, bufsink);
                 }
             }
