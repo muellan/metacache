@@ -798,6 +798,7 @@ void map_queries_to_targets_default(
             sequence_query qinfo;
             qinfo.id = query.id;
             qinfo.header = query.header;
+            qinfo.groundTruth = query.groundTruth;
             //save query mapping for post processing
             buf.queryMappings.emplace_back(query_mapping{std::move(qinfo), std::move(cls)});
         }
