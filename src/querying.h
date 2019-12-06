@@ -66,6 +66,11 @@ struct sequence_query
 };
 
 
+/** @brief batch of sequence queries */
+using sequence_batch = std::vector<sequence_query>;
+
+
+
 
 /*************************************************************************//**
  *
@@ -83,15 +88,14 @@ template<
     class BufferSource, class BufferUpdate, class BufferSink
 >
 void process_sequence_batch(
-    std::vector<sequence_query>& sequenceBatch,
-    const database& db, std::mutex& finalizeMtx,
+    sequence_batch& batch, const database& db, std::mutex& finalizeMtx,
     BufferSource& getBuffer, BufferUpdate& update, BufferSink& finalize)
 {
     auto batchBuffer = getBuffer();
     match_locations matches;
     match_target_locations targetMatches;
 
-    for(auto& seq : sequenceBatch) {
+    for(auto& seq : batch) {
         targetMatches.clear();
 
         db.accumulate_matches(seq.seq1, targetMatches);
@@ -105,7 +109,7 @@ void process_sequence_batch(
         update(batchBuffer, std::move(seq), matches);
     }
 
-    sequenceBatch.clear();
+    batch.clear();
 
     std::lock_guard<std::mutex> lock(finalizeMtx);
     finalize(std::move(batchBuffer));
@@ -137,45 +141,61 @@ query_id query_batched(
     BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
     LogCallback&& log)
 {
-    using sequence_batch = std::vector<sequence_query>;
-
     std::mutex finalizeMtx;
     std::atomic_bool queryingDone{0};
-    moodycamel::ConcurrentQueue<sequence_batch> queue(opt.numThreads);
-    moodycamel::ProducerToken ptok(queue);
 
-    //spawn consumers
+    using batch_queue = moodycamel::ConcurrentQueue<sequence_batch>;
+
+    // queue for batches that can be reused
+    batch_queue storageQueue(opt.numThreads + 4);
+    for(auto i = opt.numThreads; i > 0; --i) {
+        sequence_batch batch;
+        batch.reserve(opt.batchSize);
+        storageQueue.enqueue(std::move(batch));
+    }
+
+    // queue for batches awaiting processing
+    batch_queue workQueue(opt.numThreads + 4);
+    moodycamel::ProducerToken ptok(workQueue);
+
+    // spawn consumers
     std::vector<std::future<void>> threads;
     for(int i = 0; i < opt.numThreads-1; ++i) {
         threads.emplace_back(std::async(std::launch::async, [&] {
-                sequence_batch sequenceBatch;
+            sequence_batch sequenceBatch;
+            while(!queryingDone.load() || workQueue.size_approx() > 0) {
+                // get next work item
+                if(workQueue.try_dequeue_from_producer(ptok, sequenceBatch)) {
+                    process_sequence_batch(
+                        sequenceBatch, db, finalizeMtx,
+                        bufsrc, bufupdate, bufsink);
 
-                while(!queryingDone.load() || queue.size_approx() > 0) {
-                    if(queue.try_dequeue_from_producer(ptok, sequenceBatch)) {
-                        process_sequence_batch(
-                            sequenceBatch, db, finalizeMtx,
-                            bufsrc, bufupdate, bufsink);
-                    }
-                    else {
-                        std::this_thread::sleep_for(std::chrono::milliseconds{10});
-                    }
+                    // put batch storage back
+                    storageQueue.enqueue(std::move(sequenceBatch));
                 }
-            }));
+                else {
+                    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+                }
+            }
+        }));
     }
 
     std::int_least64_t queryLimit = opt.queryLimit;
     query_id endId = startId;
 
-    //read sequences from file
+    // read sequences from file
     try {
         sequence_pair_reader reader{filename1, filename2};
         reader.index_offset(startId);
 
-        while(reader.has_next() && queryLimit > 0) {
-            sequence_batch sequenceBatch;
-            sequenceBatch.reserve(opt.batchSize);
+        sequence_batch sequenceBatch;
 
-            //fill batch with sequences
+        while(reader.has_next() && queryLimit > 0) {
+            while(!storageQueue.try_dequeue(sequenceBatch)) {
+                std::this_thread::sleep_for(std::chrono::milliseconds{10});
+            }
+
+            // fill batch with sequences
             for(std::size_t i = 0; i < opt.batchSize && queryLimit > 0; ++i, --queryLimit) {
                 if(!reader.has_next()) break;
 
@@ -191,12 +211,13 @@ query_id query_batched(
             }
 
             if(sequenceBatch.size() > 0) {
-                //enqueue batch or process if single threaded
+                // either enqueue batch...
                 if(opt.numThreads > 1) {
-                    while(!queue.try_enqueue(ptok, std::move(sequenceBatch))) {
+                    while(!workQueue.try_enqueue(ptok, std::move(sequenceBatch))) {
                         std::this_thread::sleep_for(std::chrono::milliseconds{10});
                     };
                 }
+                // ... or process directly if single threaded
                 else {
                     process_sequence_batch(
                         sequenceBatch, db, finalizeMtx,
