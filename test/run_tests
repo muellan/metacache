@@ -43,7 +43,7 @@ tar zxvf taxonomy.tar.gz
 # ---------------------------------------------------------
 pushd .
 cd ..
-make -j8
+make -j
 popd
 
 

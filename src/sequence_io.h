@@ -48,15 +48,24 @@ namespace mc {
 class sequence_reader
 {
 public:
-    using index_type = std::uint_least64_t;
+    using index_type     = std::uint_least64_t;
+    using header_type    = std::string;
+    using data_type      = std::string;
+    using qualities_type = std::string;
 
+    /** @brief data associated with one sequence */
     struct sequence {
-        using data_type = std::string;
-        index_type  index;       //number of sequence in file (+ offset)
-        std::string header;      //meta information (FASTA >, FASTQ @)
-        data_type   data;        //actual sequence data
-        data_type   qualities;   //quality scores (FASTQ)
+        using index_type     = sequence_reader::index_type;
+        using header_type    = sequence_reader::header_type;
+        using data_type      = sequence_reader::data_type;
+        using qualities_type = sequence_reader::qualities_type;
+
+        index_type  index;      // number of sequence in file (+ offset)
+        header_type header;     // meta information (FASTA >, FASTQ @)
+        data_type   data;       // actual sequence data
+        data_type   qualities;  // quality scores (FASTQ)
     };
+
 
     sequence_reader(): index_{0}, valid_{true} {}
 
@@ -66,8 +75,29 @@ public:
 
     virtual ~sequence_reader() = default;
 
+
     /** @brief read & return next sequence */
     sequence next();
+
+    /** @brief read next header only */
+    header_type next_header();
+
+    /** @brief read next sequence data only */
+    data_type next_data();
+
+
+    /** @brief read next sequence re-using external storage */
+    void next(sequence&);
+
+    /** @brief read next header only, re-uses external storage */
+    index_type next_header(header_type&);
+
+    /** @brief read next sequence data only, re-uses external storage */
+    index_type next_data(data_type&);
+
+    /** @brief read next sequence data & header, re-uses external storage */
+    index_type next_header_and_data(header_type&, data_type&);
+
 
     /** @brief skip n sequences */
     void skip(index_type n);
@@ -81,19 +111,21 @@ public:
     void seek(std::streampos pos) { do_seek(pos); }
     std::streampos tell()         { return do_tell(); }
 
+
 protected:
     void invalidate() { valid_ = false; }
 
+
+private:
+    // derived readers have to implement these
     virtual std::streampos do_tell() = 0;
 
     virtual void do_seek(std::streampos) = 0;
 
-    //derived readers have to implement this
-    virtual void read_next(sequence&) = 0;
+    virtual void read_next(header_type*, data_type*, qualities_type*) = 0;
 
     virtual void skip_next() = 0;
 
-private:
     index_type index_;
     bool valid_;
 };
@@ -113,10 +145,11 @@ public:
     explicit
     fasta_reader(const std::string& filename);
 
-protected:
+private:
     std::streampos do_tell() override;
+
     void do_seek(std::streampos) override;
-    void read_next(sequence&) override;
+    void read_next(header_type*, data_type*, qualities_type*) override;
     void skip_next() override;
 
 private:
@@ -140,40 +173,17 @@ public:
     explicit
     fastq_reader(const std::string& filename);
 
-protected:
+private:
     std::streampos do_tell() override;
+
     void do_seek(std::streampos) override;
-    void read_next(sequence&) override;
+    void read_next(header_type*, data_type*, qualities_type*) override;
     void skip_next() override;
 
 private:
     std::ifstream file_;
+    std::string linebuffer_;
     std::streampos pos_;
-};
-
-
-
-
-/*************************************************************************//**
- *
- *
- *
- *****************************************************************************/
-class sequence_header_reader :
-    public sequence_reader
-{
-public:
-    explicit
-    sequence_header_reader(const std::string& filename);
-
-protected:
-    std::streampos do_tell() override;
-    void do_seek(std::streampos) override;
-    void read_next(sequence&) override;
-    void skip_next() override;
-
-private:
-    std::ifstream file_;
 };
 
 
@@ -189,11 +199,14 @@ private:
 class sequence_pair_reader
 {
 public:
-    using index_type       = std::uint_least64_t;
-    using string_type      = std::string;
-    using stream_positions = std::pair<std::streampos,std::streampos>;
+    using index_type       = sequence_reader::index_type;
+    using data_type        = sequence_reader::data_type;
+    using header_type      = sequence_reader::header_type;
     using sequence         = sequence_reader::sequence;
+
+    using stream_positions = std::pair<std::streampos,std::streampos>;
     using sequence_pair    = std::pair<sequence,sequence>;
+
 
     /** @brief if filename2 empty : single sequence mode
      *         if filename1 == filename2 : read consecutive pairs in one file
@@ -208,8 +221,28 @@ public:
 
     ~sequence_pair_reader() = default;
 
+
     /** @brief read & return next sequence */
     sequence_pair next();
+
+    /** @brief read next header only */
+    header_type next_header();
+
+    /** @brief read next sequence re-using external storage */
+    void next(sequence_pair&);
+
+    /** @brief read next header only, re-uses external storage */
+    index_type next_header(sequence::header_type&);
+
+    /** @brief read next sequence data only, re-uses external storage */
+    index_type next_data(sequence::data_type&, sequence::data_type&);
+
+    /** @brief read next header from 1st sequence and data from both sequences
+               re-using external storage */
+    index_type next_header_and_data(sequence::header_type&,
+                                    sequence::data_type&,
+                                    sequence::data_type&);
+
 
     /** @brief skip n sequences */
     void skip(index_type n);
