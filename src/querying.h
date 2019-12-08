@@ -134,6 +134,10 @@ void process_sequence_batch(
  *
  * @tparam BufferSink    recieves buffer after batch is finished
  *
+ * @param  idOffset      first query id in this run = idOffset + 1
+ *
+ * @return id of last query
+ *
  *****************************************************************************/
 template<
     class BufferSource, class BufferUpdate, class BufferSink,
@@ -142,20 +146,22 @@ template<
 query_id query_batched(
     const std::string& filename1, const std::string& filename2,
     const database& db, const query_processing_options& opt,
-    const query_id& startId,
+    const query_id& idOffset,
     BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
     LogCallback&& log)
 {
     std::mutex finalizeMtx;
-    std::atomic_bool queryingDone{0};
+    std::atomic_bool fileReadingDone{false};
 
     using batch_queue = moodycamel::ConcurrentQueue<sequence_batch>;
 
-    if(opt.queryLimit < 1) return startId;
+    if(opt.queryLimit < 1) return idOffset;
     const auto queryLimit = size_t(opt.queryLimit > 0 ? opt.queryLimit : std::numeric_limits<size_t>::max());
     const auto queueSize = opt.numThreads > 1 ? opt.numThreads+ 4 : 0;
 
-    // queue for batches that can be reused
+    // queue for batch storage that can be reused
+    // we want to re-use the individual sequence_query members
+    // => minimize/avoid batch-resizing during processing
     batch_queue storageQueue(queueSize);
     for(auto i = 0; i < queueSize; ++i) {
         sequence_batch batch;
@@ -167,12 +173,12 @@ query_id query_batched(
     batch_queue workQueue(queueSize);
     moodycamel::ProducerToken ptok(workQueue);
 
-    // spawn consumers
+    // spawn consumer threads (database query & classification)
     std::vector<std::future<void>> threads;
     for(int i = 0; i < opt.numThreads-1; ++i) {
         threads.emplace_back(std::async(std::launch::async, [&] {
             sequence_batch batch;
-            while(!queryingDone.load() || workQueue.size_approx() > 0) {
+            while(!fileReadingDone.load() || workQueue.size_approx() > 0) {
                 if(workQueue.try_dequeue_from_producer(ptok, batch)) {
                     process_sequence_batch(
                         batch, db, finalizeMtx,
@@ -188,12 +194,12 @@ query_id query_batched(
         }));
     }
 
-    query_id endId = startId;
+    query_id endId = idOffset;
 
-    // read sequences from file
+    // producer thread reads sequences from file
     try {
         sequence_pair_reader reader{filename1, filename2};
-        reader.index_offset(startId);
+        reader.index_offset(idOffset);
 
         sequence_batch batch;
 
@@ -211,10 +217,9 @@ query_id query_batched(
             std::size_t i = 0;
             for(auto& query : batch) {
                 if(i > queryLimit || !reader.has_next()) break;
-
+                // read from file(pair), re-using header & sequence data storage
                 query.id = reader.next_header_and_data(query.header, query.seq1, query.seq2);
                 query.groundTruth = nullptr;
-
                 ++i;
             }
 
@@ -245,7 +250,7 @@ query_id query_batched(
         log(std::string("FAIL: ") + e.what());
     }
 
-    queryingDone.store(1);
+    fileReadingDone.store(true);
     // wait for all threads to finish
     for(unsigned int threadId = 0; threadId < threads.size(); ++threadId) {
         if(threads[threadId].valid()) {
