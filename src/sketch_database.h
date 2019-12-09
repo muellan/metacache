@@ -194,13 +194,10 @@ private:
         window_id win;
         sketch sk;
     };
-public:
-    using sketch_batch = std::vector<window_sketch>;
 
+    using sketch_batch = std::vector<window_sketch>;
     using sketch_queue = moodycamel::BlockingReaderWriterQueue<sketch_batch>;
 
-
-private:
     //-----------------------------------------------------
     //"heart of the database": maps features to target locations
     using feature_store = hash_multimap<feature,target_location, //key, value

@@ -44,6 +44,8 @@
 #include "sequence_io.h"
 #include "taxonomy_io.h"
 
+#include "../dep/queue/concurrentqueue.h"
+
 
 namespace mc {
 
@@ -339,6 +341,73 @@ taxon_id find_taxon_id(
 
 
 /*************************************************************************//**
+*
+* @brief batch of input sequences
+*
+*****************************************************************************/
+struct input_batch {
+    std::vector<sequence_reader::sequence> sequences;
+    database::file_source fileSource;
+    taxon_id fileTaxId = 0;
+};
+
+
+
+/*************************************************************************//**
+ *
+ * @brief add batch of reference targets to database
+ *
+ * @return false, if database not ready / insertion error
+ *
+ *****************************************************************************/
+bool add_targets_to_database(
+    database& db,
+    const input_batch& batch,
+    const std::map<string,taxon_id>& sequ2taxid,
+    info_level infoLvl = info_level::moderate)
+{
+    // and insert the contained sequences into the database
+    for(const auto& seq : batch.sequences) {
+        if(!seq.data.empty()) {
+            auto seqId = extract_accession_string(
+                             seq.header, sequence_id_type::any);
+
+            // make sure sequence id is not empty,
+            // use entire header if neccessary
+            if(seqId.empty()) seqId = seq.header;
+
+            taxon_id parentTaxId = batch.fileTaxId;
+
+            if(parentTaxId == taxonomy::none_id())
+                parentTaxId = find_taxon_id(sequ2taxid, seqId);
+
+            if(parentTaxId == taxonomy::none_id())
+                parentTaxId = extract_taxon_id(seq.header);
+
+            if(infoLvl == info_level::verbose) {
+                cout << "[" << seqId;
+                if(parentTaxId > 0) cout << ":" << parentTaxId;
+                cout << "] ";
+            }
+
+            // try to add to database
+            bool added = db.add_target(
+                seq.data, seqId, parentTaxId, batch.fileSource);
+
+            if(infoLvl == info_level::verbose && !added) {
+                cout << seqId << " not added to database" << endl;
+            }
+        }
+        // abort, if we can't insert into DB
+        if(db.add_target_terminated()) return false;
+    }
+
+    return true; // success
+}
+
+
+
+/*************************************************************************//**
  *
  * @brief adds reference sequences from *several* files to database
  *
@@ -351,7 +420,44 @@ void add_targets_to_database(database& db,
     int n = infiles.size();
     int i = 0;
 
-    //read sequences
+    // read buffers
+    using batch_queue = moodycamel::ConcurrentQueue<input_batch>;
+    batch_queue readQueue;
+    batch_queue addQueue;
+
+    constexpr std::size_t numBatches = 4;
+    constexpr std::size_t batchSize = 8;
+    for(std::size_t i = 0; i < numBatches; ++i) {
+        input_batch buf;
+        buf.sequences.resize(batchSize);
+        readQueue.enqueue(std::move(buf));
+    }
+
+    std::atomic_bool fileReadingDone{false};
+
+
+    // thread that adds batches of target sequences to database
+    std::future<void> addTargetThread = std::async(std::launch::async, [&]() {
+        input_batch batch;
+        while(!fileReadingDone.load() || addQueue.size_approx() > 0) {
+            // get new batch of input sequences
+            if(addQueue.try_dequeue(batch)) {
+                if(!add_targets_to_database(db, batch, sequ2taxid, infoLvl)) {
+                    return;
+                }
+                // make batch storage available for reader
+                readQueue.enqueue(std::move(batch));
+            }
+            else {
+                std::this_thread::sleep_for(std::chrono::milliseconds{10});
+            }
+        }
+    });
+
+
+    // read sequences in main thread
+    input_batch batch;
+
     for(const auto& filename : infiles) {
         if(infoLvl == info_level::verbose) {
             cout << "  " << filename << " ... " << flush;
@@ -362,59 +468,44 @@ void add_targets_to_database(database& db,
         try {
             auto fileId = extract_accession_string(filename,
                                                    sequence_id_type::acc_ver);
+
             taxon_id fileTaxId = find_taxon_id(sequ2taxid, fileId);
 
             auto reader = make_sequence_reader(filename);
+
             while(reader->has_next()) {
-
-                auto sequ = reader->next();
-                if(!sequ.data.empty()) {
-                    auto seqId = extract_accession_string(sequ.header,
-                                                          sequence_id_type::any);
-
-                    //make sure sequence id is not empty,
-                    //use entire header if neccessary
-                    if(seqId.empty()) seqId = sequ.header;
-
-                    taxon_id parentTaxId = fileTaxId;
-
-                    if(parentTaxId == taxonomy::none_id())
-                        parentTaxId = find_taxon_id(sequ2taxid, seqId);
-
-                    if(parentTaxId == taxonomy::none_id())
-                        parentTaxId = extract_taxon_id(sequ.header);
-
-                    if(infoLvl == info_level::verbose) {
-                        cout << "[" << seqId;
-                        if(parentTaxId > 0) cout << ":" << parentTaxId;
-                        cout << "] ";
-                    }
-
-                    //try to add to database
-                    bool added = db.add_target(
-                        sequ.data, seqId, parentTaxId,
-                        database::file_source{filename, reader->index()});
-
-                    if(infoLvl == info_level::verbose && !added) {
-                        cout << seqId << " not added to database" << endl;
-                    }
+                // get batch storage from queue
+                while(!readQueue.try_dequeue(batch)) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds{10});
                 }
 
-                if(db.add_target_terminated()) break;
+                if(batch.sequences.size() < batchSize) {
+                    batch.sequences.resize(batchSize);
+                }
+                batch.fileSource.filename = filename;
+                batch.fileSource.index = reader->index();
+                batch.fileTaxId = fileTaxId;
+
+                std::size_t j = 0;
+                for(auto& seq : batch.sequences) {
+                    if(!reader->has_next()) break;
+                    reader->next(seq);
+                    ++j;
+                }
+
+                if(j < batch.sequences.size()) {
+                    batch.sequences.resize(j);
+                }
+
+                // make batch available for insertion
+                addQueue.enqueue(std::move(batch));
+
+                if(db.add_target_terminated()) break;  // can't insert into DB
             }
 
             if(infoLvl == info_level::verbose) {
                 cout << "done." << endl;
             }
-        }
-        catch(database::target_limit_exceeded_error&) {
-            cout << endl;
-            cerr << "Reached maximum number of targets per database ("
-                    << db.max_target_count() << ").\n"
-                    << "See 'README.md' on how to compile MetaCache with "
-                    << "support for databases with more reference targets.\n"
-                    << endl;
-            break;
         }
         catch(std::exception& e) {
             if(infoLvl == info_level::verbose) {
@@ -422,14 +513,27 @@ void add_targets_to_database(database& db,
             }
         }
 
-        if(db.add_target_terminated()) break;
+        if(db.add_target_terminated()) break;  // can't insert into DB
 
         ++i;
     }
 
+    fileReadingDone.store(true);
+
     try {
-        //last batch
+        if(addTargetThread.valid()) {
+            addTargetThread.get();
+        }
+
         db.wait_until_add_target_complete();
+    }
+    catch(database::target_limit_exceeded_error&) {
+        cout << endl;
+        cerr << "Reached maximum number of targets per database ("
+                << db.max_target_count() << ").\n"
+                << "See 'README.md' on how to compile MetaCache with "
+                << "support for databases with more reference targets.\n"
+                << endl;
     }
     catch(std::exception& e) {
         if(infoLvl == info_level::verbose) {

@@ -228,9 +228,7 @@ query_id query_batched(
             if(!batch.empty()) {
                 // either enqueue batch...
                 if(opt.numThreads > 1) {
-                    while(!workQueue.try_enqueue(ptok, std::move(batch))) {
-                        std::this_thread::sleep_for(std::chrono::milliseconds{10});
-                    };
+                    workQueue.enqueue(ptok, std::move(batch));
                 }
                 // ... or process directly if single threaded
                 else {
@@ -242,9 +240,6 @@ query_id query_batched(
         }
 
         endId = reader.index();
-    }
-    catch(file_access_error& e) {
-        log(std::string("FAIL: ") + e.what());
     }
     catch(std::exception& e) {
         log(std::string("FAIL: ") + e.what());
