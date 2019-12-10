@@ -44,7 +44,7 @@
 #include "sequence_io.h"
 #include "taxonomy_io.h"
 
-#include "../dep/queue/concurrentqueue.h"
+#include "batch_processing.h"
 
 
 namespace mc {
@@ -340,16 +340,15 @@ taxon_id find_taxon_id(
 
 
 
-/*************************************************************************//**
-*
-* @brief batch of input sequences
-*
-*****************************************************************************/
-struct input_batch {
-    std::vector<sequence_reader::sequence> sequences;
+// ---------------------------------------------------------------------------
+struct input_sequence {
+    sequence_reader::header_type header;
+    sequence_reader::data_type data;
     database::file_source fileSource;
     taxon_id fileTaxId = 0;
 };
+
+using input_batch = std::vector<input_sequence>;
 
 
 
@@ -360,14 +359,13 @@ struct input_batch {
  * @return false, if database not ready / insertion error
  *
  *****************************************************************************/
-bool add_targets_to_database(
+void add_targets_to_database(
     database& db,
     const input_batch& batch,
     const std::map<string,taxon_id>& sequ2taxid,
     info_level infoLvl = info_level::moderate)
 {
-    // and insert the contained sequences into the database
-    for(const auto& seq : batch.sequences) {
+    for(const auto& seq : batch) {
         if(!seq.data.empty()) {
             auto seqId = extract_accession_string(
                              seq.header, sequence_id_type::any);
@@ -376,7 +374,7 @@ bool add_targets_to_database(
             // use entire header if neccessary
             if(seqId.empty()) seqId = seq.header;
 
-            taxon_id parentTaxId = batch.fileTaxId;
+            taxon_id parentTaxId = seq.fileTaxId;
 
             if(parentTaxId == taxonomy::none_id())
                 parentTaxId = find_taxon_id(sequ2taxid, seqId);
@@ -392,17 +390,14 @@ bool add_targets_to_database(
 
             // try to add to database
             bool added = db.add_target(
-                seq.data, seqId, parentTaxId, batch.fileSource);
+                seq.data, seqId, parentTaxId, seq.fileSource);
 
             if(infoLvl == info_level::verbose && !added) {
                 cout << seqId << " not added to database" << endl;
             }
         }
-        // abort, if we can't insert into DB
-        if(db.add_target_terminated()) return false;
+        if(db.add_target_failed()) break;
     }
-
-    return true; // success
 }
 
 
@@ -420,44 +415,36 @@ void add_targets_to_database(database& db,
     int n = infiles.size();
     int i = 0;
 
-    // read buffers
-    using batch_queue = moodycamel::ConcurrentQueue<input_batch>;
-    batch_queue readQueue;
-    batch_queue addQueue;
+    // make executor that runs database insertion (concurrently) in batches
+    // IMPORTANT: do not use more than one worker thread!
+    batch_processing_options execOpt;
+    execOpt.batch_size(8);
+    execOpt.queue_size(4);
+    execOpt.concurrency(1);
 
-    constexpr std::size_t numBatches = 4;
-    constexpr std::size_t batchSize = 8;
-    for(std::size_t i = 0; i < numBatches; ++i) {
-        input_batch buf;
-        buf.sequences.resize(batchSize);
-        readQueue.enqueue(std::move(buf));
-    }
+    execOpt.abort_if([&] { return db.add_target_failed(); });
 
-    std::atomic_bool fileReadingDone{false};
-
-
-    // thread that adds batches of target sequences to database
-    std::future<void> addTargetThread = std::async(std::launch::async, [&]() {
-        input_batch batch;
-        while(!fileReadingDone.load() || addQueue.size_approx() > 0) {
-            // get new batch of input sequences
-            if(addQueue.try_dequeue(batch)) {
-                if(!add_targets_to_database(db, batch, sequ2taxid, infoLvl)) {
-                    return;
-                }
-                // make batch storage available for reader
-                readQueue.enqueue(std::move(batch));
-            }
-            else {
-                std::this_thread::sleep_for(std::chrono::milliseconds{10});
-            }
+    execOpt.on_error([&] (std::exception& e) {
+        if(dynamic_cast<database::target_limit_exceeded_error*>(&e)) {
+            cout << endl;
+            cerr << "Reached maximum number of targets per database ("
+                 << db.max_target_count() << ").\n"
+                 << "See 'README.md' on how to compile MetaCache with "
+                 << "support for databases with more reference targets.\n";
+        }
+        else if(infoLvl == info_level::verbose) {
+            cout << "FAIL: " << e.what() << endl;
         }
     });
 
+    execOpt.on_work_done([&] { db.wait_until_add_target_complete(); });
+
+    batch_executor<input_sequence> executor { execOpt,
+        [&] (const auto& batch) {
+            add_targets_to_database(db, batch, sequ2taxid, infoLvl);
+        }};
 
     // read sequences in main thread
-    input_batch batch;
-
     for(const auto& filename : infiles) {
         if(infoLvl == info_level::verbose) {
             cout << "  " << filename << " ... " << flush;
@@ -466,41 +453,20 @@ void add_targets_to_database(database& db,
         }
 
         try {
-            auto fileId = extract_accession_string(filename,
-                                                   sequence_id_type::acc_ver);
+            const auto fileId = extract_accession_string(
+                                    filename, sequence_id_type::acc_ver);
 
-            taxon_id fileTaxId = find_taxon_id(sequ2taxid, fileId);
+            const taxon_id fileTaxId = find_taxon_id(sequ2taxid, fileId);
 
             auto reader = make_sequence_reader(filename);
 
-            while(reader->has_next()) {
-                // get batch storage from queue
-                while(!readQueue.try_dequeue(batch)) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds{10});
-                }
-
-                if(batch.sequences.size() < batchSize) {
-                    batch.sequences.resize(batchSize);
-                }
-                batch.fileSource.filename = filename;
-                batch.fileSource.index = reader->index();
-                batch.fileTaxId = fileTaxId;
-
-                std::size_t j = 0;
-                for(auto& seq : batch.sequences) {
-                    if(!reader->has_next()) break;
-                    reader->next(seq);
-                    ++j;
-                }
-
-                if(j < batch.sequences.size()) {
-                    batch.sequences.resize(j);
-                }
-
-                // make batch available for insertion
-                addQueue.enqueue(std::move(batch));
-
-                if(db.add_target_terminated()) break;  // can't insert into DB
+            while(reader->has_next() && executor.valid()) {
+                // get (ref to) next input sequence storage and fill it
+                auto& seq = executor.next_item();
+                seq.fileSource.filename = filename;
+                seq.fileSource.index = reader->index();
+                seq.fileTaxId = fileTaxId;
+                reader->next_header_and_data(seq.header, seq.data);
             }
 
             if(infoLvl == info_level::verbose) {
@@ -512,33 +478,7 @@ void add_targets_to_database(database& db,
                 cout << "FAIL: " << e.what() << endl;
             }
         }
-
-        if(db.add_target_terminated()) break;  // can't insert into DB
-
         ++i;
-    }
-
-    fileReadingDone.store(true);
-
-    try {
-        if(addTargetThread.valid()) {
-            addTargetThread.get();
-        }
-
-        db.wait_until_add_target_complete();
-    }
-    catch(database::target_limit_exceeded_error&) {
-        cout << endl;
-        cerr << "Reached maximum number of targets per database ("
-                << db.max_target_count() << ").\n"
-                << "See 'README.md' on how to compile MetaCache with "
-                << "support for databases with more reference targets.\n"
-                << endl;
-    }
-    catch(std::exception& e) {
-        if(infoLvl == info_level::verbose) {
-            cout << "FAIL: " << e.what() << endl;
-        }
     }
 }
 

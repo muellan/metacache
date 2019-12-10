@@ -147,16 +147,18 @@ public:
         {}
     };
 
-
     const taxon* taxon_of_target(target_id id) const {return targets_[id]; }
+
 private:
+    static constexpr std::size_t insert_batch_size() noexcept { return 10000; };
+
     //use negative numbers for sequence level taxon ids
     static constexpr taxon_id
     taxon_id_of_target(target_id id) noexcept { return -taxon_id(id)-1; }
 
 
     //-----------------------------------------------------
-    /** @brief internal location representation = (target index, window index)
+    /** @brief internal location representation = (window index, target index)
      *         these are stored in the in-memory database and on disk
      */
     #pragma pack(push, 1)
@@ -314,7 +316,7 @@ public:
         name2tax_{},
         batch_{},
         queue_(10),
-        sketchingDone_(1),
+        sketchingDone_{true},
         inserterThread_{}
     {
         features_.max_load_factor(default_max_load_factor());
@@ -338,6 +340,12 @@ public:
 
     sketch_database& operator = (const sketch_database&) = delete;
     sketch_database& operator = (sketch_database&&)      = default;
+
+    ~sketch_database() {
+        if(inserterThread_ && inserterThread_->valid()) {
+            inserterThread_->get();
+        }
+    }
 
 
     //---------------------------------------------------------------
@@ -996,7 +1004,50 @@ public:
     }
 
 
+    //---------------------------------------------------------------
+    void wait_until_add_target_complete() {
+        enqueue_insertion_of_sketch_batch();
+        sketchingDone_.store(true);
+        if(inserterThread_ && inserterThread_->valid()) {
+            inserterThread_->get();
+        }
+    }
+
+
+    //---------------------------------------------------------------
+    bool add_target_failed() {
+        if(!inserterThread_) return false;
+
+        if(inserterThread_->valid()) {
+            auto status = inserterThread_->wait_for(std::chrono::minutes::zero());
+            if(status == std::future_status::timeout) return false;
+        }
+        return true;
+    }
+
+
 private:
+    //---------------------------------------------------------------
+    window_id add_all_window_sketches(const sequence& seq, target_id tgt)
+    {
+        window_id win = 0;
+        targetSketcher_.for_each_sketch(seq,
+            [&, this] (auto sk) {
+                //insert sketch into batch
+                batch_.emplace_back(tgt, win, std::move(sk));
+
+                //enqueue full batch and reset
+                if(batch_.size() >= insert_batch_size()) {
+                    this->enqueue_insertion_of_sketch_batch();
+                    batch_.clear();
+                }
+
+                ++win;
+            });
+        return win;
+    }
+
+
     //---------------------------------------------------------------
     void add_sketch_batch(const sketch_batch& batch) {
         for(const auto& windowSketch : batch) {
@@ -1013,7 +1064,9 @@ private:
 
 
     //---------------------------------------------------------------
-    void spawn_inserter() {
+    void spawn_sketch_inserter() {
+        if(inserterThread_) return;
+
         inserterThread_ = std::make_unique<std::future<void>>(
             std::async(std::launch::async, [&]() {
                 sketch_batch batch;
@@ -1023,71 +1076,23 @@ private:
                         add_sketch_batch(batch);
                     }
                 }
+
             })
         );
     }
 
 
     //---------------------------------------------------------------
-    void enqueue_batch() {
+    void enqueue_insertion_of_sketch_batch() {
+        if(batch_.empty()) return;
+
         if(sketchingDone_.load()) {
-            sketchingDone_.store(0);
-            spawn_inserter();
+            sketchingDone_.store(false);
+            spawn_sketch_inserter();
         }
 
         //allow queue to grow
         queue_.enqueue(batch_);
-
-        //don't allow queue to grow
-        // while(!queue_.try_enqueue(batch_)) {
-        //     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        // }
-    }
-
-
-    //---------------------------------------------------------------
-    window_id add_all_window_sketches(
-        const sequence& seq, target_id tgt)
-    {
-        window_id win = 0;
-        targetSketcher_.for_each_sketch(seq,
-            [&, this] (auto sk) {
-                //insert sketch into batch
-                batch_.emplace_back(tgt, win, std::move(sk));
-
-                //enqueue full batch and reset
-                if(batch_.size() == 10000) {
-                    this->enqueue_batch();
-                    batch_.clear();
-                }
-
-                ++win;
-            });
-        return win;
-    }
-
-
-public:
-    //---------------------------------------------------------------
-    void wait_until_add_target_complete() {
-        enqueue_batch();
-        sketchingDone_.store(1);
-        if(inserterThread_ && inserterThread_->valid())
-            inserterThread_->get();
-    }
-
-
-    //---------------------------------------------------------------
-    bool add_target_terminated() {
-        if(!inserterThread_)
-            return false;
-
-        if(inserterThread_->valid()) {
-            auto status = inserterThread_->wait_for(std::chrono::minutes::zero());
-            if (status == std::future_status::timeout)
-                return false;
-        }
-        return true;
     }
 
 
