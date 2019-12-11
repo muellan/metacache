@@ -575,7 +575,7 @@ void generate_top_candidates(
     uint32_t numSegments,
     const int * segmentOffsets,
     const result_type * locations,
-    window_id maxWindowsInRange,
+    window_id * maxWindowsInRange,
     candidate_target * topCandidates
 )
 {
@@ -587,7 +587,11 @@ void generate_top_candidates(
         auto begin = locations + segmentOffsets[tid];
         auto end = locations + segmentOffsets[tid+1];
 
-        for_all_contiguous_window_ranges(begin, end, maxWindowsInRange, [&] (candidate_target& cand) {
+        for(int i = 0; i < MAX_CANDIDATES; ++i) {
+            top[i].hits = 0;
+        }
+
+        for_all_contiguous_window_ranges(begin, end, maxWindowsInRange[tid], [&] (candidate_target& cand) {
             int pos = MAX_CANDIDATES;
             // find insert position of cand
             for(int i = 0; i < MAX_CANDIDATES; ++i) {
@@ -602,11 +606,13 @@ void generate_top_candidates(
             }
             // insert cand
             top[pos] = cand;
+            // printf("cand tid: %d tgt: %d hits: %d\n", tid, cand.tgt, cand.hits);
         });
 
         for(int i = 0; i < MAX_CANDIDATES; ++i) {
             // topCandidates[i] = top[i];
-            printf("tid: %d tgt: %d hits: %d\n", tid, top[i].tgt, top[i].hits);
+            if(top[i].hits > 0)
+                printf("top: %d tid: %d tgt: %d hits: %d\n", i, tid, top[i].tgt, top[i].hits);
         }
     }
 

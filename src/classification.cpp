@@ -793,7 +793,7 @@ void map_queries_to_targets_default(
     };
 
     //run (parallel) database queries according to processing options
-    query_database(infiles, db, opt.process,
+    query_database(infiles, db, opt,
                    makeBatchBuffer, processQuery, finalizeBatch,
                    appendToOutput);
 

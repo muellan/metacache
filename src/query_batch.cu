@@ -52,6 +52,9 @@ query_batch<result_type>::query_batch(
 
         cudaMallocHost(&h_topCandidates_, maxQueries_*sizeof(candidate_target));
         cudaMalloc    (&d_topCandidates_, maxQueries_*sizeof(candidate_target));
+
+        cudaMallocHost(&h_maxWindowsInRange_, maxQueries_*sizeof(window_id));
+        cudaMalloc    (&d_maxWindowsInRange_, maxQueries_*sizeof(window_id));
     }
     CUERR
 
@@ -89,6 +92,9 @@ query_batch<result_type>::~query_batch() {
 
         cudaFreeHost(h_topCandidates_);
         cudaFree    (d_topCandidates_);
+
+        cudaFreeHost(h_maxWindowsInRange_);
+        cudaFree    (d_maxWindowsInRange_);
     }
     CUERR
 
@@ -113,9 +119,13 @@ void query_batch<result_type>::copy_queries_to_device_async() {
     cudaMemcpyAsync(d_encodedAmbig_, h_encodedAmbig_,
                     h_encodeOffsets_[numQueries_]*sizeof(encodedambig_t),
                     cudaMemcpyHostToDevice, stream_);
+    cudaMemcpyAsync(d_maxWindowsInRange_, h_maxWindowsInRange_,
+                    numSegments_*sizeof(window_id),
+                    cudaMemcpyHostToDevice, stream_);
     // cudaStreamSynchronize(stream_);
     // CUERR
 }
+
 
 
 //---------------------------------------------------------------
@@ -217,16 +227,16 @@ void query_batch<result_type>::compact_sort_and_copy_results_async() {
         cudaMemcpyDeviceToHost, stream_);
 
 
-
+    //TODO max cand as template?
     #define MAX_CANDIDATES 8
 
-    window_id maxWindowsInRange = 3;
+    const size_t numBlocks = SDIV(numSegments_, 32);
 
-    generate_top_candidates<MAX_CANDIDATES><<<1,32,0,stream_>>>(
+    generate_top_candidates<MAX_CANDIDATES><<<numBlocks,32,0,stream_>>>(
         numSegments_,
         d_resultOffsets_,
         d_queryResults_,
-        maxWindowsInRange,
+        d_maxWindowsInRange_,
         d_topCandidates_);
 
     cudaStreamSynchronize(stream_);

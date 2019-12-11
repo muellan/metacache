@@ -162,7 +162,9 @@ template<
 >
 query_id query_batched(
     const std::string& filename1, const std::string& filename2,
-    const database& db, const query_processing_options& opt,
+    const database& db,
+    const query_processing_options& opt,
+    const classification_options& classifyOpt,
     query_id idOffset,
     BufferSource&& getBuffer, BufferUpdate&& update, BufferSink&& finalize,
     ErrorHandler&& handleErrors)
@@ -197,11 +199,11 @@ query_id query_batched(
             size_t outIndex = 0;
 
             for(const auto& seq : batch) {
-                if(!gpuBatches[id]->add_paired_read(seq.seq1, seq.seq2, db.query_sketcher())) {
+                if(!gpuBatches[id]->add_paired_read(seq.seq1, seq.seq2, db.query_sketcher(), classifyOpt.insertSizeMax)) {
                     //could not add read, send full batch to gpu
                     process_gpu_batch(db, batch, *(gpuBatches[id]), resultsBuffer, update, outIndex);
                     //try to add read again
-                    if(!gpuBatches[id]->add_paired_read(seq.seq1, seq.seq2, db.query_sketcher()))
+                    if(!gpuBatches[id]->add_paired_read(seq.seq1, seq.seq2, db.query_sketcher(), classifyOpt.insertSizeMax))
                         std::cerr << "query batch is too small for a single read!" << std::endl;
                 }
             }
@@ -264,12 +266,12 @@ template<
 void query_database(
     const std::vector<std::string>& infilenames,
     const database& db,
-    const query_processing_options& opt,
+    const query_options& opt,
     BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
     InfoCallback&& showInfo, ProgressHandler&& showProgress,
     ErrorHandler&& errorHandler)
 {
-    const size_t stride = opt.pairing == pairing_mode::files ? 1 : 0;
+    const size_t stride = opt.process.pairing == pairing_mode::files ? 1 : 0;
     const std::string nofile;
     query_id queryIdOffset = 0;
 
@@ -282,17 +284,17 @@ void query_database(
         //pair up reads from two consecutive files in the list
         const auto& fname1 = infilenames[i];
 
-        const auto& fname2 = (opt.pairing == pairing_mode::none)
+        const auto& fname2 = (opt.process.pairing == pairing_mode::none)
                              ? nofile : infilenames[i+stride];
 
-        if(opt.pairing == pairing_mode::files) {
+        if(opt.process.pairing == pairing_mode::files) {
             showInfo(fname1 + " + " + fname2);
         } else {
             showInfo(fname1);
         }
         showProgress(infilenames.size() > 1 ? i/float(infilenames.size()) : -1);
 
-        queryIdOffset = query_batched(fname1, fname2, db, opt, queryIdOffset,
+        queryIdOffset = query_batched(fname1, fname2, db, opt.process, opt.classify, queryIdOffset,
                                      std::forward<BufferSource>(bufsrc),
                                      std::forward<BufferUpdate>(bufupdate),
                                      std::forward<BufferSink>(bufsink),
@@ -322,7 +324,7 @@ template<
 void query_database(
     const std::vector<std::string>& infilenames,
     const database& db,
-    const query_processing_options& opt,
+    const query_options& opt,
     BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
     InfoCallback&& showInfo)
 {

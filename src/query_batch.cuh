@@ -257,7 +257,8 @@ public:
     bool add_paired_read(
         InputIterator first1, InputIterator last1,
         InputIterator first2, InputIterator last2,
-        const sketcher& querySketcher
+        const sketcher& querySketcher,
+        size_t insertSizeMax
     ) {
         using std::distance;
 
@@ -336,6 +337,10 @@ public:
             }
         );
 
+        h_maxWindowsInRange_[numSegments_] = window_id( 2 + (
+            std::max(seqLength1 + seqLength2, insertSizeMax) /
+            windowStride ));
+
         ++numSegments_;
 
         return true;
@@ -345,14 +350,16 @@ public:
     template<class Sequence>
     bool add_paired_read(
         Sequence seq1, Sequence seq2,
-        const sketcher& querySketcher
+        const sketcher& querySketcher,
+        size_t insertSizeMax
     ) {
         using std::begin;
         using std::end;
 
         return add_paired_read(begin(seq1), end(seq1),
                                begin(seq2), end(seq2),
-                               querySketcher);
+                               querySketcher,
+                               insertSizeMax);
     }
 
 
@@ -362,6 +369,7 @@ private:
     id_type maxQueries_;
     size_t maxEncodeLength_;
     size_t maxResultsPerQuery_;
+    size_t maxCandidatesPerQuery_;
 
     id_type        * h_queryIds_;
     id_type        * d_queryIds_;
@@ -383,6 +391,9 @@ private:
 
     candidate_target * h_topCandidates_;
     candidate_target * d_topCandidates_;
+
+    window_id * h_maxWindowsInRange_;
+    window_id * d_maxWindowsInRange_;
 
     cudaStream_t stream_;
     cudaEvent_t event_;
