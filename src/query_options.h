@@ -144,8 +144,6 @@ struct evaluation_options
     //test precision (ground truth must be available)
     bool precision = false;
     bool taxonCoverage = false;
-    //ground truth rank to exclude (for clade exclusion test)
-    taxon_rank excludeRank = taxon_rank::none;
 
     //show known taxon (or complete lineage if 'showLineage' on)
     bool determineGroundTruth = false;

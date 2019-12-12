@@ -157,6 +157,7 @@ private:
     taxon_id_of_target(target_id id) noexcept { return -taxon_id(id)-1; }
 
 
+public:
     //-----------------------------------------------------
     /** @brief internal location representation = (window index, target index)
      *         these are stored in the in-memory database and on disk
@@ -169,6 +170,11 @@ private:
         target_id tgt;
 
         friend bool
+        operator == (const target_location& a, const target_location& b) noexcept {
+            return (a.tgt == b.tgt) && (a.win == b.win);
+        }
+
+        friend bool
         operator < (const target_location& a, const target_location& b) noexcept {
             if(a.tgt < b.tgt) return true;
             if(a.tgt > b.tgt) return false;
@@ -179,7 +185,6 @@ private:
     #pragma pack(pop)
 
 
-public:
     //-----------------------------------------------------
     using sketch  = typename sketcher::sketch_type;  //range of features
     using feature = typename sketch::value_type;
@@ -313,6 +318,7 @@ public:
         targets_{},
         taxa_{},
         ranksCache_{taxa_, taxon_rank::Sequence},
+        targetLineages_{taxa_},
         name2tax_{},
         batch_{},
         queue_(10),
@@ -331,6 +337,7 @@ public:
         targets_{std::move(other.targets_)},
         taxa_{std::move(other.taxa_)},
         ranksCache_{std::move(other.ranksCache_)},
+        targetLineages_{std::move(other.targetLineages_)},
         name2tax_{std::move(other.name2tax_)},
         batch_{std::move(other.batch_)},
         queue_{std::move(other.queue_)},
@@ -461,7 +468,7 @@ public:
                 if(!i->empty()) {
                     std::set<const taxon*> taxa;
                     for(auto loc : *i) {
-                        taxa.insert(ranksCache_[*targets_[loc.tgt]][int(r)]);
+                        taxa.insert(targetLineages_[loc.tgt][int(r)]);
                         if(taxa.size() > maxambig) {
                             features_.clear(i);
                             ++rem;
@@ -517,6 +524,8 @@ public:
         //target id -> taxon lookup table
         targets_.push_back(newtax);
 
+        targetLineages_.mark_outdated();
+
         return true;
     }
 
@@ -544,6 +553,7 @@ public:
     //---------------------------------------------------------------
     void clear() {
         ranksCache_.clear();
+        targetLineages_.clear();
         name2tax_.clear();
         features_.clear();
     }
@@ -555,6 +565,7 @@ public:
      */
     void clear_without_deallocation() {
         ranksCache_.clear();
+        targetLineages_.clear();
         name2tax_.clear();
         features_.clear_without_deallocation();
     }
@@ -604,7 +615,7 @@ public:
             taxa_.insert_or_replace(std::move(t));
         }
         //re-initialize ranks cache
-        ranksCache_.update();
+        update_cached_lineages();
     }
 
 
@@ -628,15 +639,25 @@ public:
 
     //---------------------------------------------------------------
     void reset_parent(const taxon& tax, taxon_id parentId) {
-        if(taxa_.reset_parent(tax.id(), parentId)) {
-            ranksCache_.update(tax);
-        }
+        taxa_.reset_parent(tax.id(), parentId);
+        mark_cached_lineages_outdated();
     }
     //-----------------------------------------------------
     void reset_parent(const taxon& tax, const taxon& parent) {
-        if(taxa_.reset_parent(tax.id(), parent.id())) {
-            ranksCache_.update(tax);
-        }
+        taxa_.reset_parent(tax.id(), parent.id());
+        mark_cached_lineages_outdated();
+    }
+
+    //---------------------------------------------------------------
+    void mark_cached_lineages_outdated() {
+        ranksCache_.mark_outdated();
+        targetLineages_.mark_outdated();
+    }
+
+    //---------------------------------------------------------------
+    void update_cached_lineages(taxon_rank rank = taxon_rank::Sequence) const {
+        ranksCache_.update(rank);
+        targetLineages_.update(target_count());
     }
 
     //-----------------------------------------------------
@@ -657,6 +678,10 @@ public:
     ranks(const taxon& tax) const noexcept {
         return ranksCache_[tax];
     }
+    const ranked_lineage&
+    ranks(target_id tgt) const noexcept {
+        return targetLineages_[tgt];
+    }
 
     //-----------------------------------------------------
     const taxon*
@@ -676,6 +701,10 @@ public:
     ancestor(const taxon& tax, taxon_rank r) const noexcept {
         return ranksCache_[tax][int(r)];
     }
+    const taxon*
+    ancestor(target_id tgt, taxon_rank r) const noexcept {
+        return targetLineages_[tgt][int(r)];
+    }
 
     //-----------------------------------------------------
     const taxon*
@@ -684,14 +713,20 @@ public:
     }
     const taxon*
     next_ranked_ancestor(const taxon& tax) const noexcept {
-        if(tax.rank() == taxon_rank::Sequence) {
-            for(const taxon* a : ranksCache_[tax]) {
-                if(a && a->rank() != taxon_rank::none && a->rank() > tax.rank())
-                    return a;
-            }
-            return nullptr;
+        for(const taxon* a : ranksCache_[tax]) {
+            if(a && a->rank() != taxon_rank::none && a->rank() > tax.rank())
+                return a;
         }
-        return taxa_.next_ranked_ancestor(tax);
+        return nullptr;
+    }
+    const taxon*
+    lowest_ranked_ancestor(target_id tgt, taxon_rank lowest) const noexcept {
+        auto ranks = targetLineages_[tgt];
+        for(int rank = int(lowest); rank < int(taxon_rank::none); ++rank) {
+            if(ranks[rank])
+                return ranks[rank];
+        }
+        return nullptr;
     }
 
     //---------------------------------------------------------------
@@ -712,6 +747,10 @@ public:
     const taxon*
     ranked_lca(const taxon& ta, const taxon& tb) const {
         return ranksCache_.ranked_lca(ta,tb);
+    }
+    const taxon*
+    ranked_lca(target_id ta, target_id tb, taxon_rank lowest) const {
+        return targetLineages_.ranked_lca(ta, tb, lowest);
     }
 
 
@@ -893,8 +932,7 @@ public:
             }
         }
 
-        //ranked linage cache
-        ranksCache_.update();
+        update_cached_lineages();
 
         if(what == scope::metadata_only) return;
 
@@ -1096,6 +1134,92 @@ private:
     }
 
 
+    /*************************************************************************//**
+    *
+    * @brief concurrency-safe ranked lineage cache
+    *
+    *****************************************************************************/
+    class ranked_lineages_of_targets
+    {
+    public:
+        //---------------------------------------------------------------
+        using ranked_lineage = taxonomy::ranked_lineage;
+        using taxon_rank     = taxonomy::rank;
+
+    public:
+        //---------------------------------------------------------------
+        explicit
+        ranked_lineages_of_targets(const taxonomy& taxa)
+        :
+            taxa_(taxa),
+            lins_{},
+            outdated_(true)
+        {}
+
+        //---------------------------------------------------------------
+        ranked_lineages_of_targets(const ranked_lineages_of_targets&) = delete;
+
+        ranked_lineages_of_targets(ranked_lineages_of_targets&& src):
+            taxa_(src.taxa_),
+            lins_{std::move(src.lins_)},
+            outdated_(src.outdated_)
+        {}
+
+        ranked_lineages_of_targets& operator = (const ranked_lineages_of_targets&) = delete;
+
+        ranked_lineages_of_targets& operator = (ranked_lineages_of_targets&& src) {
+            taxa_ = src.taxa_;
+            lins_ = std::move(src.lins_);
+            outdated_ = src.outdated_;
+            return *this;
+        }
+
+
+        //---------------------------------------------------------------
+        void mark_outdated() {
+            outdated_ = true;
+        }
+
+        //---------------------------------------------------------------
+        void update(target_id numTargets = 0) {
+            if(!outdated_) return;
+
+            if(numTargets == 0) numTargets = lins_.size();
+            lins_.clear();
+            for(size_t tgt = 0; tgt < numTargets; ++tgt) {
+                lins_.emplace_back(taxa_.ranks(taxon_id_of_target(tgt)));
+            }
+            outdated_ = false;
+        }
+
+        //-----------------------------------------------------
+        void clear() {
+            lins_.clear();
+            outdated_ = true;
+        }
+
+        //---------------------------------------------------------------
+        const ranked_lineage&
+        operator [] (target_id tgt) const {
+            assert(outdated_ == false);
+            return lins_[tgt];
+        }
+
+        //---------------------------------------------------------------
+        const taxon*
+        ranked_lca(target_id a, target_id b, taxon_rank lowest) const {
+            assert(outdated_ == false);
+            return taxa_.ranked_lca(lins_[a], lins_[b], lowest);
+        }
+
+    private:
+        //---------------------------------------------------------------
+        const taxonomy& taxa_;
+        std::vector<ranked_lineage> lins_;
+        bool outdated_;
+    };
+
+
 private:
     //---------------------------------------------------------------
     sketcher targetSketcher_;
@@ -1105,7 +1229,8 @@ private:
     feature_store features_;
     std::vector<const taxon*> targets_;
     taxonomy taxa_;
-    ranked_lineages_cache ranksCache_;
+    mutable ranked_lineages_cache ranksCache_;
+    mutable ranked_lineages_of_targets targetLineages_;
     std::map<taxon_name,const taxon*> name2tax_;
 
     sketch_batch batch_;

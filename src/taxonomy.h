@@ -30,6 +30,7 @@
 #include <cstdint>
 #include <iostream>
 #include <mutex>
+#include <cassert>
 
 #include "io_serialize.h"
 
@@ -530,9 +531,13 @@ public:
     }
     //-----------------------------------------------------
     const taxon*
-    ranked_lca(const ranked_lineage& lina, const ranked_lineage& linb) const
+    ranked_lca(const ranked_lineage& lina, const ranked_lineage& linb,
+               rank lowest = rank::Sequence) const
     {
-        for(int i = 0; i <= static_cast<int>(rank::root); ++i) {
+        for(int i  = static_cast<int>(lowest);
+                i <= static_cast<int>(rank::root);
+                ++i)
+        {
             if(lina[i] && (lina[i] == linb[i])) return lina[i];
         }
         return nullptr;
@@ -719,7 +724,8 @@ public:
                           taxon_rank highestRank = taxon_rank::none)
     :
         taxa_(taxa), highestRank_{highestRank},
-        empty_{}, lins_{}, mutables_{}
+        empty_{}, lins_{}, mutables_{},
+        outdated_(true)
     {
         for(auto& x : empty_) x = nullptr;
         update();
@@ -731,7 +737,8 @@ public:
 
     ranked_lineages_cache(ranked_lineages_cache&& src):
         taxa_(src.taxa_), highestRank_{src.highestRank_},
-        lins_{std::move(src.lins_)}, mutables_{}
+        lins_{std::move(src.lins_)}, mutables_{},
+        outdated_(src.outdated_)
     {}
 
     ranked_lineages_cache& operator = (const ranked_lineages_cache&) = delete;
@@ -739,23 +746,29 @@ public:
     ranked_lineages_cache& operator = (ranked_lineages_cache&& src) {
         highestRank_ = src.highestRank_;
         lins_ = std::move(src.lins_);
+        outdated_ = src.outdated_;
         return *this;
     }
 
 
     //---------------------------------------------------------------
-    void update(const taxon& tax) {
-        std::lock_guard<std::mutex> lock(mutables_);
+    void mark_outdated() {
+        outdated_ = true;
+    }
+
+private:
+    //---------------------------------------------------------------
+    void insert(const taxon& tax) {
         auto i = lins_.find(&tax);
-        if(i != lins_.end()) {
-            i->second = taxa_.ranks(tax);
-        }
-        else {
+        if(i == lins_.end()) {
             lins_.emplace(&tax, taxa_.ranks(tax));
         }
     }
+public:
     //-----------------------------------------------------
     void update() {
+        if(!outdated_) return;
+
         std::lock_guard<std::mutex> lock(mutables_);
         lins_.clear();
         if(highestRank_ != taxon_rank::none) {
@@ -763,15 +776,20 @@ public:
                 if(t.rank() <= highestRank_) {
                     auto& lin = lins_.emplace(&t, taxa_.ranks(t)).first->second;
                     for(const auto& tax : lin) {
-                        operator[](tax);
+                        if(tax)
+                            insert(*tax);
                     }
                 }
             }
         }
+        outdated_ = false;
     }
     //-----------------------------------------------------
     void update(taxon_rank highestRank) {
-        highestRank_ = highestRank;
+        if(highestRank_ < highestRank) {
+            highestRank_ = highestRank;
+            outdated_ = true;
+        }
         update();
     }
 
@@ -779,22 +797,25 @@ public:
     void clear() {
         std::lock_guard<std::mutex> lock(mutables_);
         lins_.clear();
+        outdated_ = true;
     }
 
 
     //---------------------------------------------------------------
-    /// @brief not concurrency safe! - call update first if you need concurrent access
+    /// @brief only works if tax is cached - make sure to call update first
     const ranked_lineage&
     operator [] (const taxon* tax) const {
         return tax ? operator[](*tax) : empty_;
     }
     //-----------------------------------------------------
-    /// @brief not concurrency safe! - call update first if you need concurrent access
+    /// @brief only works if tax is cached - make sure to call update first
     const ranked_lineage&
     operator [] (const taxon& tax) const {
+        assert(outdated_ == false);
         auto i = lins_.find(&tax);
         if(i != lins_.end()) return i->second;
-        return lins_.emplace(&tax, taxa_.ranks(tax)).first->second;
+        assert(false);
+        return empty_;
     }
 
     //---------------------------------------------------------------
@@ -810,6 +831,7 @@ private:
     ranked_lineage empty_;
     mutable std::unordered_map<const taxon*,ranked_lineage> lins_;
     mutable std::mutex mutables_;
+    bool outdated_;
 };
 
 

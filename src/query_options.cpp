@@ -193,13 +193,6 @@ get_evaluation_options(const args_parser& args,
 
     opt.precision = defaults.precision || opt.taxonCoverage || args.contains("precision");
 
-    opt.excludeRank = defaults.excludeRank;
-    auto excludedRank = args.get<string>("exclude", "");
-    if(!excludedRank.empty()) {
-        auto r = taxonomy::rank_from_name(excludedRank);
-        if(r < taxon_rank::root) opt.excludeRank = r;
-    }
-
     return opt;
 }
 

@@ -74,11 +74,14 @@ struct match_candidate
     match_candidate() noexcept = default;
 
     match_candidate(const taxon* tax, count_type hits) :
-        tax{tax}, origtax{tax}, hits{hits}, pos{}
+        tax{tax},
+        tgt{std::numeric_limits<target_id>::max()},
+        hits{hits},
+        pos{}
     {};
 
     const taxon* tax = nullptr;
-    const taxon* origtax = nullptr;
+    target_id    tgt = std::numeric_limits<target_id>::max();
     count_type   hits = 0;
     window_range pos;
 };
@@ -119,7 +122,7 @@ struct candidate_generation_rules
  *
  *****************************************************************************/
 template<class Consumer>
-void for_all_contiguous_window_ranges(const match_locations& matches,
+void for_all_contiguous_window_ranges(const match_target_locations& matches,
                                       window_id numWindows,
                                       Consumer&& consume)
 {
@@ -136,8 +139,7 @@ void for_all_contiguous_window_ranges(const match_locations& matches,
     //first entry in list
     hit_count hits = 1;
     match_candidate curBest;
-    curBest.tax     = fst->tax;
-    curBest.origtax = fst->tax;
+    curBest.tgt     = fst->tgt;
     curBest.hits    = hits;
     curBest.pos.beg = fst->win;
     curBest.pos.end = fst->win;
@@ -149,7 +151,7 @@ void for_all_contiguous_window_ranges(const match_locations& matches,
         //look for neighboring windows with the highest total hit count
         //as long as we are in the same target and the windows are in a
         //contiguous range
-        if(lst->tax == curBest.tax) {
+        if(lst->tgt == curBest.tgt) {
             //add new hits to the right
             hits++;
             //subtract hits to the left that fall out of range
@@ -162,7 +164,7 @@ void for_all_contiguous_window_ranges(const match_locations& matches,
             }
             //track best of the local sub-ranges
             if(hits > curBest.hits) {
-                curBest.hits = hits;
+                curBest.hits    = hits;
                 curBest.pos.beg = fst->win;
                 curBest.pos.end = lst->win;
             }
@@ -172,8 +174,7 @@ void for_all_contiguous_window_ranges(const match_locations& matches,
             //reset to new target
             fst = lst;
             hits = 1;
-            curBest.tax     = fst->tax;
-            curBest.origtax = fst->tax;
+            curBest.tgt     = fst->tgt;
             curBest.hits    = hits;
             curBest.pos.beg = fst->win;
             curBest.pos.end = fst->win;
@@ -213,7 +214,7 @@ public:
      */
     best_distinct_matches_in_contiguous_window_ranges(
         const database& db,
-        const match_locations& matches,
+        const match_target_locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
     :
         top_{}
@@ -244,12 +245,9 @@ public:
                 const database& db,
                 const candidate_generation_rules& rules = candidate_generation_rules{})
     {
-        if(!cand.tax) return true;
+        cand.tax = db.lowest_ranked_ancestor(cand.tgt, rules.mergeBelow);
 
-        if(rules.mergeBelow > taxon_rank::Sequence) {
-            auto ancestor = db.ancestor(cand.tax, rules.mergeBelow);
-            if(ancestor) cand.tax = ancestor;
-        }
+        if(!cand.tax) return true;
 
         auto greater = [] (const match_candidate& a, const match_candidate& b) {
                            return a.hits > b.hits;
@@ -324,7 +322,7 @@ public:
      */
     distinct_matches_in_contiguous_window_ranges(
         const database& db,
-        const match_locations& matches,
+        const match_target_locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
     :
         cand_{}
@@ -340,9 +338,10 @@ public:
      * @brief insert candidate and keep list sorted
      */
     bool insert(match_candidate cand,
-                const database&, // not needed here
+                const database& db,
                 const candidate_generation_rules& = candidate_generation_rules{})
     {
+        cand.tax = db.taxon_of_target(cand.tgt);
         cand_.push_back(cand);
         return true;
     }

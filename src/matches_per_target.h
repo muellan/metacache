@@ -48,6 +48,7 @@ public:
     using window_id        = database::window_id;
     using match_count_type = database::match_count_type;
     using location         = database::match_locations::value_type;
+    using target_location  = database::target_location;
     using taxon            = database::taxon;
     using taxon_rank       = database::taxon_rank;
 
@@ -84,7 +85,7 @@ public:
 
 private:
     using hits_per_target =
-        std::unordered_map<const taxon*, std::vector<candidate>>;
+        std::unordered_map<target_id, std::vector<candidate>>;
 
 public:
     using iterator        = hits_per_target::iterator;
@@ -100,8 +101,8 @@ public:
         return hitsPerTarget_.size();
     }
 
-    const_iterator find(const taxon* tax) const {
-        return hitsPerTarget_.find(tax);
+    const_iterator find(target_id tgt) const {
+        return hitsPerTarget_.find(tgt);
     }
 
     const_iterator begin() const noexcept { return hitsPerTarget_.begin(); }
@@ -115,7 +116,7 @@ public:
 
     //---------------------------------------------------------------
     void insert(query_id qid,
-                const match_locations& matches,
+                const match_target_locations& matches,
                 const classification_candidates& candidates,
                 match_count_type minHitsPerCandidate = 0)
     {
@@ -123,40 +124,30 @@ public:
 
             if(cand.tax && cand.hits >= minHitsPerCandidate) {
 
-                auto tax = cand.tax;
-                // try to get sequence-level taxon if neccessary
-                if(tax->rank() != taxon_rank::Sequence) tax = cand.origtax;
+                auto tgt = cand.tgt;
 
-                if(tax && tax->rank() == taxon_rank::Sequence) {
-                    // find candidate in matches
-                    location lm{tax, cand.pos.beg};
-                    auto it = std::lower_bound(matches.begin(), matches.end(), lm,
-                        [] (const location& a, const location& b) {
-                            //assumes that sequence level taxa have negative taxids
-                            if(a.tax->id() < b.tax->id()) return false;
-                            if(a.tax->id() > b.tax->id()) return true;
-                            return (a.win < b.win);
-                        });
-                    // fill window vector
-                    if(it == matches.end()) return;
+                // find candidate in matches
+                target_location lm{cand.pos.beg, tgt};
+                auto it = std::lower_bound(matches.begin(), matches.end(), lm);
+                // fill window vector
+                if(it == matches.end()) return;
 
-                    // create new window vector
-                    matches_per_window mpw;
-                    mpw.reserve(cand.pos.end - cand.pos.beg + 1);
+                // create new window vector
+                matches_per_window mpw;
+                mpw.reserve(cand.pos.end - cand.pos.beg + 1);
 
-                    while(it != matches.end() &&
-                          it->tax == tax &&
-                          it->win <= cand.pos.end)
-                    {
-                        if(mpw.size() > 0 && mpw.back().win == it->win)
-                            mpw.back().hits++;
-                        else
-                            mpw.emplace_back(it->win, 1);
-                        ++it;
-                    }
-                    // insert into map
-                    hitsPerTarget_[tax].emplace_back(qid, std::move(mpw));
+                while(it != matches.end() &&
+                        it->tgt == tgt &&
+                        it->win <= cand.pos.end)
+                {
+                    if(mpw.size() > 0 && mpw.back().win == it->win)
+                        mpw.back().hits++;
+                    else
+                        mpw.emplace_back(it->win, 1);
+                    ++it;
                 }
+                // insert into map
+                hitsPerTarget_[tgt].emplace_back(qid, std::move(mpw));
             }
         }
     }

@@ -72,11 +72,6 @@ void show_query_parameters(std::ostream& os, const query_options& opt)
        << opt.classify.maxNumCandidatesPerQuery
        << " classification candidates will be considered per query.\n";
 
-    if(opt.evaluate.excludeRank != taxon_rank::none) {
-        os << comment << "Clade Exclusion on Rank: "
-           << taxonomy::rank_name(opt.evaluate.excludeRank);
-    }
-
     if(opt.process.pairing == pairing_mode::files) {
         os << comment << "File based paired-end mode:\n"
            << comment << "  Reads from two consecutive files will be interleaved.\n"
@@ -364,7 +359,7 @@ void show_matches(std::ostream& os,
 //-------------------------------------------------------------------
 void show_matches(std::ostream& os,
                   const database& db,
-                  const match_locations& matches,
+                  const match_target_locations& matches,
                   taxon_rank lowest)
 {
     if(matches.empty()) return;
@@ -376,7 +371,7 @@ void show_matches(std::ostream& os,
             if(*cur == *it)
                 ++count;
             else {
-                const taxon* tax = cur->tax;
+                const taxon* tax = db.taxon_of_target(cur->tgt);
                 if(tax) os << tax->name()
                            << '/' << int(cur->win)
                            << ':' << count << ',';
@@ -384,7 +379,7 @@ void show_matches(std::ostream& os,
                 count = 1;
             }
         }
-        const taxon* tax = cur->tax;
+        const taxon* tax = db.taxon_of_target(cur->tgt);
         if(tax) os << tax->name()
                    << '/' << int(cur->win)
                    << ':' << count << ',';
@@ -396,22 +391,21 @@ void show_matches(std::ostream& os,
             if(*cur == *it)
                 ++count;
             else {
-                const taxon* tax = db.ancestor(cur->tax, lowest);
-                if(tax) {
-                    os << tax->name() << ':' << count << ',';
-                } else {
-                    os << cur->tax->name() << ':' << count << ',';
+                const taxon* tax = db.ancestor(cur->tgt, lowest);
+                if(!tax) {
+                    tax = db.taxon_of_target(cur->tgt);
                 }
+                os << tax->name() << ':' << count << ',';
+
                 cur = it;
                 count = 1;
             }
         }
-        const taxon* tax = db.ancestor(cur->tax, lowest);
-        if(tax) {
-            os << tax->name() << ':' << count << ',';
-        } else {
-            os << cur->tax->name() << ':' << count << ',';
+        const taxon* tax = db.ancestor(cur->tgt, lowest);
+        if(!tax) {
+            tax = db.taxon_of_target(cur->tgt);
         }
+        os << tax->name() << ':' << count << ',';
     }
 }
 
@@ -455,7 +449,7 @@ void show_matches_per_targets(std::ostream& os,
 
     for(const auto& mapping : tgtMatches) {
         show_lineage(os, db.ranks(mapping.first), opt.showTaxaAs, rmin, rmax, opt.format);
-        os << opt.format.column << mapping.first->source().windows
+        os << opt.format.column << db.taxon_of_target(mapping.first)->source().windows
            << opt.format.column;
 
         bool first = true;

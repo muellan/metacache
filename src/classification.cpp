@@ -136,58 +136,6 @@ ground_truth(const database& db, const string& header)
 
 /*************************************************************************//**
  *
- * @brief removes hits of a specific taxon (on a rank) from database matches;
- *        can be very slow!
- *
- *****************************************************************************/
-void remove_hits_on_rank(const database& db,
-                         const taxon& tax, taxon_rank rank,
-                         match_locations& hits)
-{
-    const taxon* excl = db.ancestor(tax,rank);
-
-    match_locations maskedHits;
-    for(const auto& hit : hits) {
-        auto t = db.ancestor(hit.tax, rank);
-        if(t != excl) {
-            // maskedHits.push_back(hit);
-            maskedHits.insert(maskedHits.end(),hit);
-        }
-    }
-
-    hits.swap(maskedHits);
-}
-
-
-
-/*************************************************************************//**
- *
- * @brief prepares ground truth based evaluation;
- *        might remove hits from 'allhits' if clade exclusion is turned on
- *
- *****************************************************************************/
-void prepare_evaluation(const database& db,
-                        const evaluation_options& opt,
-                        sequence_query& query,
-                        match_locations& allhits)
-{
-    if(opt.precision ||
-       (opt.determineGroundTruth) ||
-       (opt.excludeRank != taxon_rank::none) )
-    {
-        query.groundTruth = ground_truth(db, query.header);
-    }
-
-    //clade exclusion
-    if(opt.excludeRank != taxon_rank::none && query.groundTruth) {
-        remove_hits_on_rank(db, *query.groundTruth, opt.excludeRank, allhits);
-    }
-}
-
-
-
-/*************************************************************************//**
- *
  * @brief classification cadidates + derived best classification
  *
  *****************************************************************************/
@@ -212,7 +160,7 @@ classification_candidates
 make_classification_candidates(const database& db,
                                const classification_options& opt,
                                const sequence_query& query,
-                               const match_locations& allhits)
+                               const match_target_locations& allhits)
 {
     candidate_generation_rules rules;
 
@@ -255,7 +203,8 @@ classify(const database& db, const classification_options& opt,
         // include all candidates with hits above threshold
         if(i->hits > threshold) {
             // include candidate in lca
-            lca = db.ranked_lca(lca, i->tax);
+            // lca lives on lineage of first cand, its rank can only increase
+            lca = db.ranked_lca(cand[0].tgt, i->tgt, lca->rank());
             // exit early if lca rank already too high
             if(!lca || lca->rank() > opt.highestRank)
                 return nullptr;
@@ -277,7 +226,7 @@ classification
 classify(const database& db,
          const classification_options& opt,
          const sequence_query& query,
-         const match_locations& allhits)
+         const match_target_locations& allhits)
 {
     classification cls { make_classification_candidates(db, opt, query, allhits) };
 
@@ -300,7 +249,7 @@ update_classification(const database& db,
                       const matches_per_target& tgtMatches)
 {
     for(auto it = cls.candidates.begin(); it != cls.candidates.end();) {
-        if(tgtMatches.find(it->origtax) == tgtMatches.end())
+        if(tgtMatches.find(it->tgt) == tgtMatches.end())
             it = cls.candidates.erase(it);
         else
             ++it;
@@ -353,10 +302,13 @@ void update_coverage_statistics(const database& db,
 void evaluate_classification(
     const database& db,
     const evaluation_options& opt,
-    const sequence_query& query,
+    sequence_query& query,
     const classification& cls,
     classification_statistics& statistics)
 {
+    if(opt.precision || opt.determineGroundTruth)
+        query.groundTruth = ground_truth(db, query.header);
+
     if(opt.precision) {
         auto lca = db.ranked_lca(cls.best, query.groundTruth);
         auto lowestCorrectRank = lca ? lca->rank() : taxon_rank::none;
@@ -548,7 +500,7 @@ void show_query_mapping(
     const classification_output_options& opt,
     const sequence_query& query,
     const classification& cls,
-    const match_locations& allhits)
+    const match_target_locations& allhits)
 {
     if(opt.mapViewMode == map_view_mode::none ||
         (opt.mapViewMode == map_view_mode::mapped_only && !cls.best))
@@ -607,10 +559,11 @@ void show_query_mapping(
  *
  *****************************************************************************/
 void filter_targets_by_coverage(
+    const database& db,
     matches_per_target& tgtMatches,
     const float percentile)
 {
-    using coverage_percentage = std::pair<const taxon*, float>;
+    using coverage_percentage = std::pair<target_id, float>;
 
     vector<coverage_percentage> coveragePercentages;
     coveragePercentages.reserve(tgtMatches.size());
@@ -619,8 +572,9 @@ void filter_targets_by_coverage(
 
     //calculate coverage percentages
     for(const auto& mapping : tgtMatches) {
-        const taxon* target = mapping.first;
-        const window_id targetSize = target->source().windows;
+        target_id target = mapping.first;
+        const taxon* tax = db.taxon_of_target(target);
+        const window_id targetSize = tax->source().windows;
         std::unordered_set<window_id> hitWindows;
         for(const auto& candidate : mapping.second) {
             for(const auto& windowMatch : candidate.matches) {
@@ -699,7 +653,7 @@ void redo_classification_batched(
 
                         evaluate_classification(db, opt.evaluate, mapping.query, mapping.cls, results.statistics);
 
-                        show_query_mapping(bufout, db, opt.output, mapping.query, mapping.cls, match_locations{});
+                        show_query_mapping(bufout, db, opt.output, mapping.query, mapping.cls, match_target_locations{});
 
                         if(opt.output.makeTaxCounts && mapping.cls.best) {
                             ++taxCounts[mapping.cls.best];
@@ -758,6 +712,12 @@ void map_queries_to_targets_default(
     //global taxon -> read count
     taxon_count_map allTaxCounts;
 
+    if(opt.evaluate.precision || opt.evaluate.determineGroundTruth) {
+        //groundtruth may be outside of target lineages
+        //cache lineages of *all* taxa
+        db.update_cached_lineages(taxon_rank::root);
+    }
+
     //input queries are divided into batches;
     //each batch might be processed by a different thread;
     //the following 4 lambdas define actions that should be performed
@@ -769,11 +729,9 @@ void map_queries_to_targets_default(
 
     //updates buffer with the database answer of a single query
     const auto processQuery = [&] (mappings_buffer& buf,
-        sequence_query& query, match_locations& allhits)
+        sequence_query& query, match_target_locations& allhits)
     {
         if(query.empty()) return;
-
-        prepare_evaluation(db, opt.evaluate, query, allhits);
 
         auto cls = classify(db, opt.classify, query, allhits);
 
@@ -838,7 +796,7 @@ void map_queries_to_targets_default(
 
     //filter all matches by coverage
     if(opt.classify.covPercentile > 0) {
-        filter_targets_by_coverage(tgtMatches, opt.classify.covPercentile);
+        filter_targets_by_coverage(db, tgtMatches, opt.classify.covPercentile);
 
         redo_classification_batched(queryMappingsQueue, tgtMatches, db, opt, results, allTaxCounts);
     }
@@ -903,8 +861,6 @@ void map_candidates_to_targets(const vector<string>& queryHeaders,
     for(size_t i = 0; i < queryHeaders.size(); ++i) {
         sequence_query query{i+1, std::move(queryHeaders[i]), {}};
 
-        // prepare_evaluation(db, opt.evaluate, query, allhits);
-
         classification cls { queryCandidates[i] };
         cls.best = classify(db, opt.classify, cls.candidates);
 
@@ -914,7 +870,7 @@ void map_candidates_to_targets(const vector<string>& queryHeaders,
 
         evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
 
-        show_query_mapping(results.perReadOut, db, opt.output, query, cls, match_locations{});
+        show_query_mapping(results.perReadOut, db, opt.output, query, cls, match_target_locations{});
     }
 
     if(opt.output.showTaxAbundances) {
