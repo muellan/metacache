@@ -769,7 +769,7 @@ void map_queries_to_targets_default(
 
     //updates buffer with the database answer of a single query
     const auto processQuery = [&] (mappings_buffer& buf,
-        sequence_query&& query, match_locations& allhits)
+        sequence_query& query, match_locations& allhits)
     {
         if(query.empty()) return;
 
@@ -795,13 +795,12 @@ void map_queries_to_targets_default(
             show_query_mapping(buf.out, db, opt.output, query, cls, allhits);
         }
         else {
-            //delete sequence strings
-            sequence().swap(query.seq1);
-            if(query.seq2.size())
-                sequence().swap(query.seq2);
-
+            sequence_query qinfo;
+            qinfo.id = query.id;
+            qinfo.header = query.header;
+            qinfo.groundTruth = query.groundTruth;
             //save query mapping for post processing
-            buf.queryMappings.emplace_back(query_mapping{std::move(query), std::move(cls)});
+            buf.queryMappings.emplace_back(query_mapping{std::move(qinfo), std::move(cls)});
         }
     };
 

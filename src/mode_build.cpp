@@ -44,6 +44,8 @@
 #include "sequence_io.h"
 #include "taxonomy_io.h"
 
+#include "batch_processing.h"
+
 
 namespace mc {
 
@@ -338,6 +340,68 @@ taxon_id find_taxon_id(
 
 
 
+// ---------------------------------------------------------------------------
+struct input_sequence {
+    sequence_reader::header_type header;
+    sequence_reader::data_type data;
+    database::file_source fileSource;
+    taxon_id fileTaxId = 0;
+};
+
+using input_batch = std::vector<input_sequence>;
+
+
+
+/*************************************************************************//**
+ *
+ * @brief add batch of reference targets to database
+ *
+ * @return false, if database not ready / insertion error
+ *
+ *****************************************************************************/
+void add_targets_to_database(
+    database& db,
+    const input_batch& batch,
+    const std::map<string,taxon_id>& sequ2taxid,
+    info_level infoLvl = info_level::moderate)
+{
+    for(const auto& seq : batch) {
+        if(!seq.data.empty()) {
+            auto seqId = extract_accession_string(
+                             seq.header, sequence_id_type::any);
+
+            // make sure sequence id is not empty,
+            // use entire header if neccessary
+            if(seqId.empty()) seqId = seq.header;
+
+            taxon_id parentTaxId = seq.fileTaxId;
+
+            if(parentTaxId == taxonomy::none_id())
+                parentTaxId = find_taxon_id(sequ2taxid, seqId);
+
+            if(parentTaxId == taxonomy::none_id())
+                parentTaxId = extract_taxon_id(seq.header);
+
+            if(infoLvl == info_level::verbose) {
+                cout << "[" << seqId;
+                if(parentTaxId > 0) cout << ":" << parentTaxId;
+                cout << "] ";
+            }
+
+            // try to add to database
+            bool added = db.add_target(
+                seq.data, seqId, parentTaxId, seq.fileSource);
+
+            if(infoLvl == info_level::verbose && !added) {
+                cout << seqId << " not added to database" << endl;
+            }
+        }
+        if(db.add_target_failed()) break;
+    }
+}
+
+
+
 /*************************************************************************//**
  *
  * @brief adds reference sequences from *several* files to database
@@ -351,7 +415,36 @@ void add_targets_to_database(database& db,
     int n = infiles.size();
     int i = 0;
 
-    //read sequences
+    // make executor that runs database insertion (concurrently) in batches
+    // IMPORTANT: do not use more than one worker thread!
+    batch_processing_options execOpt;
+    execOpt.batch_size(8);
+    execOpt.queue_size(4);
+    execOpt.concurrency(1);
+
+    execOpt.abort_if([&] { return db.add_target_failed(); });
+
+    execOpt.on_error([&] (std::exception& e) {
+        if(dynamic_cast<database::target_limit_exceeded_error*>(&e)) {
+            cout << endl;
+            cerr << "Reached maximum number of targets per database ("
+                 << db.max_target_count() << ").\n"
+                 << "See 'README.md' on how to compile MetaCache with "
+                 << "support for databases with more reference targets.\n";
+        }
+        else if(infoLvl == info_level::verbose) {
+            cout << "FAIL: " << e.what() << endl;
+        }
+    });
+
+    execOpt.on_work_done([&] { db.wait_until_add_target_complete(); });
+
+    batch_executor<input_sequence> executor { execOpt,
+        [&] (const auto& batch) {
+            add_targets_to_database(db, batch, sequ2taxid, infoLvl);
+        }};
+
+    // read sequences in main thread
     for(const auto& filename : infiles) {
         if(infoLvl == info_level::verbose) {
             cout << "  " << filename << " ... " << flush;
@@ -360,81 +453,32 @@ void add_targets_to_database(database& db,
         }
 
         try {
-            auto fileId = extract_accession_string(filename,
-                                                   sequence_id_type::acc_ver);
-            taxon_id fileTaxId = find_taxon_id(sequ2taxid, fileId);
+            const auto fileId = extract_accession_string(
+                                    filename, sequence_id_type::acc_ver);
+
+            const taxon_id fileTaxId = find_taxon_id(sequ2taxid, fileId);
 
             auto reader = make_sequence_reader(filename);
-            while(reader->has_next()) {
 
-                auto sequ = reader->next();
-                if(!sequ.data.empty()) {
-                    auto seqId = extract_accession_string(sequ.header,
-                                                          sequence_id_type::any);
-
-                    //make sure sequence id is not empty,
-                    //use entire header if neccessary
-                    if(seqId.empty()) seqId = sequ.header;
-
-                    taxon_id parentTaxId = fileTaxId;
-
-                    if(parentTaxId == taxonomy::none_id())
-                        parentTaxId = find_taxon_id(sequ2taxid, seqId);
-
-                    if(parentTaxId == taxonomy::none_id())
-                        parentTaxId = extract_taxon_id(sequ.header);
-
-                    if(infoLvl == info_level::verbose) {
-                        cout << "[" << seqId;
-                        if(parentTaxId > 0) cout << ":" << parentTaxId;
-                        cout << "] ";
-                    }
-
-                    //try to add to database
-                    bool added = db.add_target(
-                        sequ.data, seqId, parentTaxId,
-                        database::file_source{filename, reader->index()});
-
-                    if(infoLvl == info_level::verbose && !added) {
-                        cout << seqId << " not added to database" << endl;
-                    }
-                }
-
-                if(db.add_target_terminated()) break;
+            while(reader->has_next() && executor.valid()) {
+                // get (ref to) next input sequence storage and fill it
+                auto& seq = executor.next_item();
+                seq.fileSource.filename = filename;
+                seq.fileSource.index = reader->index();
+                seq.fileTaxId = fileTaxId;
+                reader->next_header_and_data(seq.header, seq.data);
             }
 
             if(infoLvl == info_level::verbose) {
                 cout << "done." << endl;
             }
         }
-        catch(database::target_limit_exceeded_error&) {
-            cout << endl;
-            cerr << "Reached maximum number of targets per database ("
-                    << db.max_target_count() << ").\n"
-                    << "See 'README.md' on how to compile MetaCache with "
-                    << "support for databases with more reference targets.\n"
-                    << endl;
-            break;
-        }
         catch(std::exception& e) {
             if(infoLvl == info_level::verbose) {
                 cout << "FAIL: " << e.what() << endl;
             }
         }
-
-        if(db.add_target_terminated()) break;
-
         ++i;
-    }
-
-    try {
-        //last batch
-        db.wait_until_add_target_complete();
-    }
-    catch(std::exception& e) {
-        if(infoLvl == info_level::verbose) {
-            cout << "FAIL: " << e.what() << endl;
-        }
     }
 }
 
@@ -557,14 +601,14 @@ void add_to_database(database& db, const build_options& opt)
     time.start();
 
     if(!opt.infiles.empty()) {
-        if(notSilent) cout << "Processing reference sequences." << endl;
-
         const auto initNumTargets = db.target_count();
 
         auto taxonMap = make_sequence_to_taxon_id_map(
                             opt.taxonomy.mappingPreFilesLocal,
                             opt.taxonomy.mappingPreFilesGlobal,
                             opt.infiles, opt.infoLevel);
+
+        if(notSilent) cout << "Processing reference sequences." << endl;
 
         add_targets_to_database(db, opt.infiles, taxonMap, opt.infoLevel);
 

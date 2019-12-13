@@ -3,6 +3,7 @@
  * MetaCache - Meta-Genomic Classification Tool
  *
  * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ *                       & Robin Kobus  (rkobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,16 +25,13 @@
 
 #include <vector>
 #include <iostream>
-#include <future>
-#include <chrono>
 
 #include "config.h"
 #include "sequence_io.h"
 #include "cmdline_utility.h"
 #include "query_options.h"
 #include "cmdline_utility.h"
-
-#include "../dep/queue/concurrentqueue.h"
+#include "batch_processing.h"
 
 
 namespace mc {
@@ -41,11 +39,17 @@ namespace mc {
 
 /*************************************************************************//**
  *
- * @brief
+ * @brief single query = id + header + read(pair)
  *
  *****************************************************************************/
 struct sequence_query
 {
+    sequence_query() = default;
+    sequence_query(const sequence_query&) = default;
+    sequence_query(sequence_query&&) = default;
+    sequence_query& operator = (const sequence_query&) = default;
+    sequence_query& operator = (sequence_query&&) = default;
+
     explicit
     sequence_query(query_id qid, std::string headerText,
                    sequence s1, sequence s2 = sequence{}) noexcept
@@ -57,201 +61,150 @@ struct sequence_query
 
     bool empty() const noexcept { return header.empty() || seq1.empty(); }
 
-    query_id id;
+    query_id id = 0;
     std::string header;
     sequence seq1;
-    sequence seq2;  //2nd part of paired-end read
-    const taxon* groundTruth;
+    sequence seq2;  // 2nd part of paired-end read
+    const taxon* groundTruth = nullptr;
 };
 
 
 
-/*************************************************************************//**
+ /*************************************************************************//**
  *
- * @brief queries database with a batch of reads
+ * @brief queries database with batches of reads from ONE sequence source (pair)
+ *        produces batch buffers with one match list per sequence
  *
- * @tparam BufferSource  returns a per-batch buffer object
+ * @tparam BufferSource     returns a per-batch buffer object
  *
- * @tparam BufferUpdate  takes database matches of one query and a buffer;
- *                       must be thread-safe (only const operations on DB!)
+ * @tparam BufferUpdate     takes database matches of one query and a buffer;
+ *                          must be thread-safe (only const operations on DB!)
  *
- * @tparam BufferSink    recieves buffer after batch is finished
+ * @tparam BufferSink       recieves buffer after batch is finished
  *
- *****************************************************************************/
-template<
-    class BufferSource, class BufferUpdate, class BufferSink
->
-void process_sequence_batch(
-    std::vector<sequence_query>& sequenceBatch,
-    const database& db, std::mutex& finalizeMtx,
-    BufferSource& getBuffer, BufferUpdate& update, BufferSink& finalize)
-{
-    auto batchBuffer = getBuffer();
-    match_locations matches;
-    match_target_locations targetMatches;
-
-    for(auto& seq : sequenceBatch) {
-        targetMatches.clear();
-
-        db.accumulate_matches(seq.seq1, targetMatches);
-        db.accumulate_matches(seq.seq2, targetMatches);
-        targetMatches.sort();
-
-        matches.clear();
-        for(auto& m : targetMatches)
-            matches.emplace_back(db.taxon_of_target(m.tgt), m.win);
-
-        update(batchBuffer, std::move(seq), matches);
-    }
-
-    sequenceBatch.clear();
-
-    std::lock_guard<std::mutex> lock(finalizeMtx);
-    finalize(std::move(batchBuffer));
-}
-
-
-
-/*************************************************************************//**
+ * @tparam InfoCallback     prints messages
  *
- * @brief queries database with batches of reads from one sequence source
- *        produces one match list per sequence
+ * @tparam ProgressHandler  prints progress messages
  *
- * @tparam BufferSource  returns a per-batch buffer object
- *
- * @tparam BufferUpdate  takes database matches of one query and a buffer;
- *                       must be thread-safe (only const operations on DB!)
- *
- * @tparam BufferSink    recieves buffer after batch is finished
+ * @tparam ErrorHandler     handles exceptions
  *
  *****************************************************************************/
 template<
     class BufferSource, class BufferUpdate, class BufferSink,
-    class LogCallback
+    class ErrorHandler
 >
 query_id query_batched(
     const std::string& filename1, const std::string& filename2,
     const database& db, const query_processing_options& opt,
-    const query_id& startId,
-    BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
-    LogCallback&& log)
+    query_id idOffset,
+    BufferSource&& getBuffer, BufferUpdate&& update, BufferSink&& finalize,
+    ErrorHandler&& handleErrors)
 {
-    using sequence_batch = std::vector<sequence_query>;
+    if(opt.queryLimit < 1) return idOffset;
+    auto queryLimit = size_t(opt.queryLimit > 0 ? opt.queryLimit : std::numeric_limits<size_t>::max());
 
     std::mutex finalizeMtx;
-    std::atomic_bool queryingDone{0};
-    moodycamel::ConcurrentQueue<sequence_batch> queue(opt.numThreads);
-    moodycamel::ProducerToken ptok(queue);
 
-    //spawn consumers
-    std::vector<std::future<void>> threads;
-    for(int i = 0; i < opt.numThreads-1; ++i) {
-        threads.emplace_back(std::async(std::launch::async, [&] {
-                sequence_batch sequenceBatch;
+    // get executor that runs classification in batches
+    batch_processing_options execOpt;
+    execOpt.concurrency(opt.numThreads - 1);
+    execOpt.batch_size(opt.batchSize);
+    execOpt.queue_size(opt.numThreads > 1 ? opt.numThreads + 4 : 0);
+    execOpt.on_error(handleErrors);
 
-                while(!queryingDone.load() || queue.size_approx() > 0) {
-                    if(queue.try_dequeue_from_producer(ptok, sequenceBatch)) {
-                        process_sequence_batch(
-                            sequenceBatch, db, finalizeMtx,
-                            bufsrc, bufupdate, bufsink);
-                    }
-                    else {
-                        std::this_thread::sleep_for(std::chrono::milliseconds{10});
-                    }
+    batch_executor<sequence_query> executor {
+        execOpt,
+        // classifies a batch of input queries
+        [&](std::vector<sequence_query>& batch) {
+            auto resultsBuffer = getBuffer();
+            match_locations matches;
+            match_target_locations targetMatches;
+
+            for(auto& seq : batch) {
+                targetMatches.clear();
+
+                db.accumulate_matches(seq.seq1, targetMatches);
+                db.accumulate_matches(seq.seq2, targetMatches);
+                targetMatches.sort();
+
+                matches.clear();
+                for(auto& m : targetMatches) {
+                    matches.emplace_back(db.taxon_of_target(m.tgt), m.win);
                 }
-            }));
-    }
 
-    std::int_least64_t queryLimit = opt.queryLimit;
-    query_id endId = startId;
+                update(resultsBuffer, seq, matches);
+            }
 
-    //read sequences from file
+            std::lock_guard<std::mutex> lock(finalizeMtx);
+            finalize(std::move(resultsBuffer));
+        }};
+
+    // read sequences from file
     try {
         sequence_pair_reader reader{filename1, filename2};
-        reader.index_offset(startId);
+        reader.index_offset(idOffset);
 
-        while(reader.has_next() && queryLimit > 0) {
-            sequence_batch sequenceBatch;
-            sequenceBatch.reserve(opt.batchSize);
+        while(reader.has_next()) {
+            if(queryLimit < 1) break;
 
-            //fill batch with sequences
-            for(std::size_t i = 0; i < opt.batchSize && queryLimit > 0; ++i, --queryLimit) {
-                if(!reader.has_next()) break;
+            // get (ref to) next query sequence storage and fill it
+            auto& query = executor.next_item();
+            query.id = reader.next_header_and_data(query.header, query.seq1, query.seq2);
+            query.groundTruth = nullptr;
 
-                auto seq = reader.next();
-
-                if(!seq.first.header.empty()) {
-                    sequenceBatch.emplace_back(
-                        seq.first.index,
-                        std::move(seq.first.header),
-                        std::move(seq.first.data),
-                        std::move(seq.second.data));
-                }
-            }
-
-            if(sequenceBatch.size() > 0) {
-                //enqueue batch or process if single threaded
-                if(opt.numThreads > 1) {
-                    while(!queue.try_enqueue(ptok, std::move(sequenceBatch))) {
-                        std::this_thread::sleep_for(std::chrono::milliseconds{10});
-                    };
-                }
-                else {
-                    process_sequence_batch(
-                        sequenceBatch, db, finalizeMtx,
-                        bufsrc, bufupdate, bufsink);
-                }
-            }
+            --queryLimit;
         }
 
-        endId = reader.index();
-    }
-    catch(file_access_error& e) {
-        log(std::string("FAIL: ") + e.what());
+        idOffset = reader.index();
     }
     catch(std::exception& e) {
-        log(std::string("FAIL: ") + e.what());
+        handleErrors(e);
     }
 
-    queryingDone.store(1);
-    // wait for all threads to finish
-    for(unsigned int threadId = 0; threadId < threads.size(); ++threadId) {
-        if(threads[threadId].valid()) {
-            threads[threadId].get();
-        }
-    }
-
-    return endId;
+    return idOffset;
 }
 
 
 
-/*************************************************************************//**
+
+ /*************************************************************************//**
  *
- * @brief queries database
+ * @brief queries database with batches of reads from multiple sequence sources
  *
- * @tparam BufferSource  returns a per-batch buffer object
+ * @tparam BufferSource     returns a per-batch buffer object
  *
- * @tparam BufferUpdate  takes database matches of one query and a buffer;
- *                       must be thread-safe (only const operations on DB!)
+ * @tparam BufferUpdate     takes database matches of one query and a buffer;
+ *                          must be thread-safe (only const operations on DB!)
  *
- * @tparam BufferSink    recieves buffer after batch is finished
+ * @tparam BufferSink       recieves buffer after batch is finished
+ *
+ * @tparam InfoCallback     prints messages
+ *
+ * @tparam ProgressHandler  prints progress messages
+ *
+ * @tparam ErrorHandler     handles exceptions
  *
  *****************************************************************************/
 template<
     class BufferSource, class BufferUpdate, class BufferSink,
-    class InfoCallback, class ProgressHandler, class LogHandler
+    class InfoCallback, class ProgressHandler, class ErrorHandler
 >
 void query_database(
     const std::vector<std::string>& infilenames,
     const database& db,
     const query_processing_options& opt,
     BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
-    InfoCallback&& showInfo, ProgressHandler&& showProgress, LogHandler&& log)
+    InfoCallback&& showInfo, ProgressHandler&& showProgress,
+    ErrorHandler&& errorHandler)
 {
     const size_t stride = opt.pairing == pairing_mode::files ? 1 : 0;
     const std::string nofile;
-    query_id readIdOffset = 0;
+    query_id queryIdOffset = 0;
+
+    // input filenames passed to sequence reader depend on pairing mode:
+    // none     -> infiles[i], ""
+    // sequence -> infiles[i], infiles[i]
+    // files    -> infiles[i], infiles[i+1]
 
     for(size_t i = 0; i < infilenames.size(); i += stride+1) {
         //pair up reads from two consecutive files in the list
@@ -267,11 +220,11 @@ void query_database(
         }
         showProgress(infilenames.size() > 1 ? i/float(infilenames.size()) : -1);
 
-        readIdOffset = query_batched(fname1, fname2, db, opt, readIdOffset,
+        queryIdOffset = query_batched(fname1, fname2, db, opt, queryIdOffset,
                                      std::forward<BufferSource>(bufsrc),
                                      std::forward<BufferUpdate>(bufupdate),
                                      std::forward<BufferSink>(bufsink),
-                                     std::forward<LogHandler>(log));
+                                     errorHandler);
     }
 }
 
@@ -288,6 +241,8 @@ void query_database(
  *
  * @tparam BufferSink    recieves buffer after batch is finished
  *
+ * @tparam InfoCallback  prints status messages
+ *
  *****************************************************************************/
 template<
     class BufferSource, class BufferUpdate, class BufferSink, class InfoCallback
@@ -300,13 +255,13 @@ void query_database(
     InfoCallback&& showInfo)
 {
     query_database(infilenames, db, opt,
-                   std::forward<BufferSource>(bufsrc),
-                   std::forward<BufferUpdate>(bufupdate),
-                   std::forward<BufferSink>(bufsink),
-                   std::forward<InfoCallback>(showInfo),
-                   [] (float p) { show_progress_indicator(std::cerr, p); },
-                   [] (const std::string& s) {std::cerr << s << '\n'; }
-                   );
+       std::forward<BufferSource>(bufsrc),
+       std::forward<BufferUpdate>(bufupdate),
+       std::forward<BufferSink>(bufsink),
+       std::forward<InfoCallback>(showInfo),
+       [] (float p) { show_progress_indicator(std::cerr, p); },
+       [] (std::exception& e) { std::cerr << "FAIL: " << e.what() << '\n'; }
+    );
 }
 
 
