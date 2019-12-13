@@ -601,14 +601,14 @@ void add_to_database(database& db, const build_options& opt)
     time.start();
 
     if(!opt.infiles.empty()) {
-        if(notSilent) cout << "Processing reference sequences." << endl;
-
         const auto initNumTargets = db.target_count();
 
         auto taxonMap = make_sequence_to_taxon_id_map(
                             opt.taxonomy.mappingPreFilesLocal,
                             opt.taxonomy.mappingPreFilesGlobal,
                             opt.infiles, opt.infoLevel);
+
+        if(notSilent) cout << "Processing reference sequences." << endl;
 
         add_targets_to_database(db, opt.infiles, taxonMap, opt.infoLevel);
 
