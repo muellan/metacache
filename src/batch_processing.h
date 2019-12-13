@@ -14,7 +14,11 @@ namespace mc {
 // forward declarations
 template<class WorkItem> class batch_executor;
 
-/** @brief */
+/*************************************************************************//**
+ *
+ * @brief configuration for batch_executor
+ *
+ *****************************************************************************/
 class batch_processing_options {
 public:
     template<class T> friend class batch_executor;
@@ -57,9 +61,9 @@ private:
 
 /*************************************************************************//**
  *
- * @brief  single producer, multiple consumer parallel batch processing
+ * @brief  single producer, multiple consumer parallel batch processing;
  *         uses batch storage recycling strategy to avoid frequent allocations;
- *         runs sequentially if number of consumer threads is 1
+ *         runs sequentially if concurrency is set to 0
  *
  * @tparam WorkItem
  *
@@ -158,6 +162,14 @@ public:
 
 
     // -----------------------------------------------------------------------
+    const batch_processing_options&
+    param() const noexcept {
+        return param_;
+    }
+
+
+    // -----------------------------------------------------------------------
+    /** @return false, if abort condition was met or destruction in progress */
     bool valid() const noexcept {
         return keepWorking_.load();
     }

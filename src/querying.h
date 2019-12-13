@@ -70,21 +70,23 @@ struct sequence_query
 
 
 
-/*************************************************************************//**
+ /*************************************************************************//**
  *
- * @brief queries database with batches of reads from one sequence source
- *        produces one match list per sequence
+ * @brief queries database with batches of reads from ONE sequence source (pair)
+ *        produces batch buffers with one match list per sequence
  *
- * @tparam BufferSource  returns a per-batch buffer object
+ * @tparam BufferSource     returns a per-batch buffer object
  *
- * @tparam BufferUpdate  takes database matches of one query and a buffer;
- *                       must be thread-safe (only const operations on DB!)
+ * @tparam BufferUpdate     takes database matches of one query and a buffer;
+ *                          must be thread-safe (only const operations on DB!)
  *
- * @tparam BufferSink    recieves buffer after batch is finished
+ * @tparam BufferSink       recieves buffer after batch is finished
  *
- * @param  idOffset      first query id in this run = idOffset + 1
+ * @tparam InfoCallback     prints messages
  *
- * @return id of last query
+ * @tparam ProgressHandler  prints progress messages
+ *
+ * @tparam ErrorHandler     handles exceptions
  *
  *****************************************************************************/
 template<
@@ -164,16 +166,23 @@ query_id query_batched(
 
 
 
-/*************************************************************************//**
+
+ /*************************************************************************//**
  *
- * @brief queries database
+ * @brief queries database with batches of reads from multiple sequence sources
  *
- * @tparam BufferSource  returns a per-batch buffer object
+ * @tparam BufferSource     returns a per-batch buffer object
  *
- * @tparam BufferUpdate  takes database matches of one query and a buffer;
- *                       must be thread-safe (only const operations on DB!)
+ * @tparam BufferUpdate     takes database matches of one query and a buffer;
+ *                          must be thread-safe (only const operations on DB!)
  *
- * @tparam BufferSink    recieves buffer after batch is finished
+ * @tparam BufferSink       recieves buffer after batch is finished
+ *
+ * @tparam InfoCallback     prints messages
+ *
+ * @tparam ProgressHandler  prints progress messages
+ *
+ * @tparam ErrorHandler     handles exceptions
  *
  *****************************************************************************/
 template<
@@ -190,7 +199,12 @@ void query_database(
 {
     const size_t stride = opt.pairing == pairing_mode::files ? 1 : 0;
     const std::string nofile;
-    query_id readIdOffset = 0;
+    query_id queryIdOffset = 0;
+
+    // input filenames passed to sequence reader depend on pairing mode:
+    // none     -> infiles[i], ""
+    // sequence -> infiles[i], infiles[i]
+    // files    -> infiles[i], infiles[i+1]
 
     for(size_t i = 0; i < infilenames.size(); i += stride+1) {
         //pair up reads from two consecutive files in the list
@@ -206,7 +220,7 @@ void query_database(
         }
         showProgress(infilenames.size() > 1 ? i/float(infilenames.size()) : -1);
 
-        readIdOffset = query_batched(fname1, fname2, db, opt, readIdOffset,
+        queryIdOffset = query_batched(fname1, fname2, db, opt, queryIdOffset,
                                      std::forward<BufferSource>(bufsrc),
                                      std::forward<BufferUpdate>(bufupdate),
                                      std::forward<BufferSink>(bufsink),
@@ -226,6 +240,8 @@ void query_database(
  *                       must be thread-safe (only const operations on DB!)
  *
  * @tparam BufferSink    recieves buffer after batch is finished
+ *
+ * @tparam InfoCallback  prints status messages
  *
  *****************************************************************************/
 template<
