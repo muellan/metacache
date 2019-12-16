@@ -564,9 +564,11 @@ public:
     {
         while(id != none_id()) {
             auto it = taxa_.find(taxon{id});
-            if(it == taxa_.end()) return nullptr;
-            if(it->rank() != rank::none) return operator[](it->id());
-            if(it->parent_ == id) return nullptr;
+            if(it == taxa_.end()) break;
+            if(it->rank() != rank::none) {
+                return &(*it);
+            }
+            if(it->parent_ == id) break; //break cycles
             id = it->parent_;
         }
         return nullptr;
@@ -587,18 +589,12 @@ public:
 
         while(id != none_id()) {
             auto it = taxa_.find(taxon{id});
-            if(it != taxa_.end()) {
-                if(it->rank() != rank::none) {
-                    lin[static_cast<int>(it->rank())] = &(*it);
-                }
-                if(it->parent_ != id) { //break cycles
-                    id = it->parent_;
-                } else {
-                    id = none_id();
-                }
-            } else {
-                id = none_id();
+            if(it == taxa_.end()) break;
+            if(it->rank() != rank::none) {
+                lin[static_cast<int>(it->rank())] = &(*it);
             }
+            if(it->parent_ == id) break; //break cycles
+            id = it->parent_;
         }
         return lin;
     }
@@ -717,7 +713,8 @@ public:
 public:
     //---------------------------------------------------------------
     /**
-     * @param highestRank  initialize cache with lineages below and at this rank
+     * @param highestRank  initialize cache for taxa below and at this rank
+     *                     and for their ranked ancestors
      */
     explicit
     ranked_lineages_cache(const taxonomy& taxa,
@@ -758,38 +755,52 @@ public:
 
 private:
     //---------------------------------------------------------------
-    void insert(const taxon& tax) {
+    const ranked_lineage&
+    insert(const taxon& tax) {
         auto i = lins_.find(&tax);
-        if(i == lins_.end()) {
-            lins_.emplace(&tax, taxa_.ranks(tax));
-        }
+        if(i != lins_.end())
+            return i->second;
+        else
+            return lins_.emplace(&tax, taxa_.ranks(tax)).first->second;
     }
 public:
     //-----------------------------------------------------
+    /**
+     * @param brief  if cache is outdated, clear it, then reinitialize it
+     */
     void update() {
         if(!outdated_) return;
 
         std::lock_guard<std::mutex> lock(mutables_);
         lins_.clear();
-        if(highestRank_ != taxon_rank::none) {
-            for(const auto& t : taxa_) {
-                if(t.rank() <= highestRank_) {
-                    auto& lin = lins_.emplace(&t, taxa_.ranks(t)).first->second;
-                    for(const auto& tax : lin) {
-                        if(tax)
-                            insert(*tax);
-                    }
+        for(const auto& t : taxa_) {
+            if(t.rank() <= highestRank_) {
+                // insert lineage of taxon
+                auto& lin = insert(t);
+                // and all its ranked ancestors
+                for(const auto& tax : lin) {
+                    if(tax)
+                        insert(*tax);
                 }
             }
         }
         outdated_ = false;
     }
     //-----------------------------------------------------
+    /**
+     * @brief    set highest rank of cache, then update
+     *
+     * @details  if new rank is not higher than previous rank,
+     *           only update if already outdated
+     *
+     * @param highestRank  initialize cache for taxa below and at this rank
+     *                     and for their ranked ancestors
+     */
     void update(taxon_rank highestRank) {
         if(highestRank_ < highestRank) {
-            highestRank_ = highestRank;
             outdated_ = true;
         }
+        highestRank_ = highestRank;
         update();
     }
 
@@ -814,7 +825,6 @@ public:
         assert(outdated_ == false);
         auto i = lins_.find(&tax);
         if(i != lins_.end()) return i->second;
-        assert(false);
         return empty_;
     }
 

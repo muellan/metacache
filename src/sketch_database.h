@@ -615,7 +615,8 @@ public:
             taxa_.insert_or_replace(std::move(t));
         }
         //re-initialize ranks cache
-        update_cached_lineages();
+        mark_cached_lineages_outdated();
+        update_cached_lineages(taxon_rank::Sequence);
     }
 
 
@@ -655,7 +656,7 @@ public:
     }
 
     //---------------------------------------------------------------
-    void update_cached_lineages(taxon_rank rank = taxon_rank::Sequence) const {
+    void update_cached_lineages(taxon_rank rank) const {
         ranksCache_.update(rank);
         targetLineages_.update(target_count());
     }
@@ -713,18 +714,18 @@ public:
     }
     const taxon*
     next_ranked_ancestor(const taxon& tax) const noexcept {
+        if(tax.rank() != taxon_rank::none) return &tax;
         for(const taxon* a : ranksCache_[tax]) {
-            if(a && a->rank() != taxon_rank::none && a->rank() > tax.rank())
-                return a;
+            if(a) return a;
         }
         return nullptr;
     }
     const taxon*
     lowest_ranked_ancestor(target_id tgt, taxon_rank lowest) const noexcept {
-        auto ranks = targetLineages_[tgt];
+        auto lineage = targetLineages_[tgt];
         for(int rank = int(lowest); rank < int(taxon_rank::none); ++rank) {
-            if(ranks[rank])
-                return ranks[rank];
+            if(lineage[rank])
+                return lineage[rank];
         }
         return nullptr;
     }
@@ -932,7 +933,8 @@ public:
             }
         }
 
-        update_cached_lineages();
+        mark_cached_lineages_outdated();
+        update_cached_lineages(taxon_rank::Sequence);
 
         if(what == scope::metadata_only) return;
 

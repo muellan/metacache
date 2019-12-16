@@ -715,7 +715,7 @@ void map_queries_to_targets_default(
     if(opt.evaluate.precision || opt.evaluate.determineGroundTruth) {
         //groundtruth may be outside of target lineages
         //cache lineages of *all* taxa
-        db.update_cached_lineages(taxon_rank::root);
+        db.update_cached_lineages(taxon_rank::none);
     }
 
     //input queries are divided into batches;
