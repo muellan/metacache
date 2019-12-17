@@ -3,7 +3,7 @@
  * MetaCache - Meta-Genomic Classification Tool
  *
  * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
- *                       & Robin Kobus  (rkobus@uni-mainz.de)
+ *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,6 +41,7 @@
 #include <chrono>
 
 #include "version.h"
+#include "config.h"
 #include "io_error.h"
 #include "io_options.h"
 #include "stat_combined.h"
@@ -83,60 +84,49 @@ namespace mc {
  *  ranked_lineage  main rank taxon ids (array of const taxon*);
  *                  has fixed length; each index always refers to the same rank
  *
- * @tparam SequenceType  reference and query sequence type, usually std::string
+ *  sketcher        function object type, that maps reference sequence
+ *                      windows (= sequence interval) to
+ *                      sketches (= collection of features of the same type)
  *
- * @tparam Sketcher      function object type, that maps reference sequence
- *                       windows (= sequence interval) to
- *                       sketches (= collection of features of the same type)
+ *  feature         single part of a sketch
  *
- * @tparam FeatureHash   hash function for feature map
- *                       (default: identity for integer features,
- *                       so h(x) = x mod tablesize)
+ *  feature_hash    hash function for (feature -> location) map
  *
- * @tparam TargetId      internal target (reference sequence) identification
+ *  target id        internal target (reference sequence) identification
 
- * @tparam WindowId      target window identification
+ *  window id        target window identification
  *
- * @tparam BucketSizeT   bucket (location list) size tracking
+ *  loclist_size_t   bucket (location list) size tracking type
  *
  *****************************************************************************/
-template<
-    class SequenceType,
-    class Sketcher,
-    class FeatureHash = std::hash<typename Sketcher::feature_type>,
-    class TargetId = std::uint16_t,
-    class WindowId = std::uint16_t,
-    class BucketSizeT = std::uint8_t
->
-class sketch_database
+class database
 {
 public:
     //---------------------------------------------------------------
-    using sequence = SequenceType;
-    using sketcher = Sketcher;
-    using feature_hash = FeatureHash;
+    // from global config
+    using sequence         = mc::sequence;
+    using sketcher         = mc::sketcher;
+    using feature_hash     = mc::feature_hash;
+    using target_id        = mc::target_id;
+    using window_id        = mc::window_id;
+    using bucket_size_type = mc::loclist_size_t;
     //-----------------------------------------------------
-    using target_id = TargetId;
-    using window_id = WindowId;
-    using bucket_size_type = BucketSizeT;
-    using match_count_type = std::uint16_t;
-    //-----------------------------------------------------
-    using taxon_id    = taxonomy::taxon_id;
-    using taxon       = taxonomy::taxon;
-    using taxon_rank  = taxonomy::rank;
-    using taxon_name  = taxonomy::taxon_name;
-    //-----------------------------------------------------
+    // from taxonomy
+    using taxon_id       = taxonomy::taxon_id;
+    using taxon          = taxonomy::taxon;
+    using taxon_rank     = taxonomy::rank;
+    using taxon_name     = taxonomy::taxon_name;
     using ranked_lineage = taxonomy::ranked_lineage;
     using full_lineage   = taxonomy::full_lineage;
     using file_source    = taxonomy::file_source;
     using taxon_iterator = taxonomy::const_iterator;
     using taxon_range    = taxonomy::const_range;
 
+    //-----------------------------------------------------
+    using match_count_type = std::uint16_t;
 
     //---------------------------------------------------------------
-    enum class scope {
-        everything, metadata_only
-    };
+    enum class scope { everything, metadata_only };
 
 
     //-----------------------------------------------------
@@ -149,15 +139,6 @@ public:
 
     const taxon* taxon_of_target(target_id id) const {return targets_[id]; }
 
-private:
-    static constexpr std::size_t insert_batch_size() noexcept { return 10000; };
-
-    //use negative numbers for sequence level taxon ids
-    static constexpr taxon_id
-    taxon_id_of_target(target_id id) noexcept { return -taxon_id(id)-1; }
-
-
-public:
     //-----------------------------------------------------
     /** @brief internal location representation = (window index, target index)
      *         these are stored in the in-memory database and on disk
@@ -191,9 +172,29 @@ public:
 
 
 private:
+    static constexpr std::size_t insert_batch_size() noexcept { return 10000; };
+
+    //use negative numbers for sequence level taxon ids
+    static constexpr taxon_id
+    taxon_id_of_target(target_id id) noexcept { return -taxon_id(id)-1; }
+
+
+    //-----------------------------------------------------
+    /// @brief "heart of the database": maps features to target locations
+    using feature_store = hash_multimap<feature,target_location, //key, value
+                              feature_hash,               //key hasher
+                              std::equal_to<feature>,     //key comparator
+                              chunk_allocator<target_location>,  //value allocator
+                              std::allocator<feature>,    //bucket+key allocator
+                              bucket_size_type>;          //location list size
+
+
+    //-----------------------------------------------------
+    /// @brief needed for batched, asynchonous insertion into feature_store
     struct window_sketch
     {
         window_sketch() = default;
+
         window_sketch(target_id tgt, window_id win, sketch sk) :
             tgt{tgt}, win{win}, sk{std::move(sk)} {};
 
@@ -204,15 +205,6 @@ private:
 
     using sketch_batch = std::vector<window_sketch>;
     using sketch_queue = moodycamel::BlockingReaderWriterQueue<sketch_batch>;
-
-    //-----------------------------------------------------
-    //"heart of the database": maps features to target locations
-    using feature_store = hash_multimap<feature,target_location, //key, value
-                              feature_hash,               //key hasher
-                              std::equal_to<feature>,     //key comparator
-                              chunk_allocator<target_location>,  //value allocator
-                              std::allocator<feature>,    //bucket+key allocator
-                              bucket_size_type>;          //location list size
 
 
 public:
@@ -255,7 +247,7 @@ public:
     /** @brief used for query result storage/accumulation
      */
     class match_target_locations {
-        friend class sketch_database;
+        friend class database;
 
     public:
         void sort() {
@@ -305,15 +297,16 @@ public:
 
     //---------------------------------------------------------------
     explicit
-    sketch_database(sketcher targetSketcher = sketcher{}) :
-        sketch_database{targetSketcher, targetSketcher}
+    database(sketcher targetSketcher = sketcher{}) :
+        database{targetSketcher, targetSketcher}
     {}
     //-----------------------------------------------------
     explicit
-    sketch_database(sketcher targetSketcher, sketcher querySketcher) :
+    database(sketcher targetSketcher, sketcher querySketcher) :
         targetSketcher_{std::move(targetSketcher)},
         querySketcher_{std::move(querySketcher)},
         maxLocsPerFeature_(max_supported_locations_per_feature()),
+        targetCount_{0},
         features_{},
         targets_{},
         taxa_{},
@@ -328,11 +321,12 @@ public:
         features_.max_load_factor(default_max_load_factor());
     }
 
-    sketch_database(const sketch_database&) = delete;
-    sketch_database(sketch_database&& other) :
+    database(const database&) = delete;
+    database(database&& other) :
         targetSketcher_{std::move(other.targetSketcher_)},
         querySketcher_{std::move(other.querySketcher_)},
         maxLocsPerFeature_(other.maxLocsPerFeature_),
+        targetCount_{other.targetCount_},
         features_{std::move(other.features_)},
         targets_{std::move(other.targets_)},
         taxa_{std::move(other.taxa_)},
@@ -345,10 +339,10 @@ public:
         inserterThread_{std::move(other.inserterThread_)}
     {}
 
-    sketch_database& operator = (const sketch_database&) = delete;
-    sketch_database& operator = (sketch_database&&)      = default;
+    database& operator = (const database&) = delete;
+    database& operator = (database&&)      = default;
 
-    ~sketch_database() {
+    ~database() {
         if(inserterThread_ && inserterThread_->valid()) {
             inserterThread_->get();
         }
@@ -1168,13 +1162,7 @@ private:
         {}
 
         ranked_lineages_of_targets& operator = (const ranked_lineages_of_targets&) = delete;
-
-        ranked_lineages_of_targets& operator = (ranked_lineages_of_targets&& src) {
-            taxa_ = src.taxa_;
-            lins_ = std::move(src.lins_);
-            outdated_ = src.outdated_;
-            return *this;
-        }
+        ranked_lineages_of_targets& operator = (ranked_lineages_of_targets&&) = delete;
 
 
         //---------------------------------------------------------------
@@ -1244,125 +1232,27 @@ private:
 
 
 
+/*************************************************************************//**
+ *
+ * @brief pull some types into global namespace
+ *
+ *****************************************************************************/
+using match_locations        = database::match_locations;
+using match_target_locations = database::match_target_locations;
+
+
+
 
 /*************************************************************************//**
  *
  * @brief reads database from file
  *
  *****************************************************************************/
-template<class Database>
-Database
+database
 make_database(const std::string& filename,
-              typename Database::scope what = Database::scope::everything,
-              info_level info = info_level::moderate)
-{
-    if(filename.empty()) throw file_access_error{"No database name given"};
+              database::scope = database::scope::everything,
+              info_level = info_level::moderate);
 
-    Database db;
-
-    const bool showInfo = info != info_level::silent;
-
-    if(showInfo) {
-        std::cerr << "Reading database from file '"
-                  << filename << "' ... " << std::flush;
-    }
-    try {
-        db.read(filename, what);
-        if(showInfo) std::cerr << "done." << std::endl;
-    }
-    catch(const file_access_error& e) {
-        std::cerr << "FAIL" << std::endl;
-        throw file_access_error{"Could not read database file '" + filename + "'"};
-    }
-
-    return db;
-}
-
-
-
-/*************************************************************************//**
- *
- * @brief prints database properties to stdout
- *
- *****************************************************************************/
-template<class S, class K, class H, class G, class W, class L>
-void print_static_properties(const sketch_database<S,K,H,G,W,L>& db)
-{
-    using db_t = sketch_database<S,K,H,G,W,L>;
-    using target_id = typename db_t::target_id;
-    using window_id = typename db_t::window_id;
-    using feature_t = typename db_t::feature;
-    using bkt_sz_t  = typename db_t::bucket_size_type;
-
-    std::cout
-        << "------------------------------------------------\n"
-        << "MetaCache version    " << MC_VERSION_STRING << " (" << MC_VERSION << ")\n"
-        << "database version     " << MC_DB_VERSION << '\n'
-        << "------------------------------------------------\n"
-        << "sequence type        " << type_name<typename db_t::sequence>() << '\n'
-        << "target id type       " << type_name<target_id>() << " " << (sizeof(target_id)*CHAR_BIT) << " bits\n"
-        << "target limit         " << std::uint64_t(db.max_target_count()) << '\n'
-        << "------------------------------------------------\n"
-        << "window id type       " << type_name<window_id>() << " " << (sizeof(window_id)*CHAR_BIT) << " bits\n"
-        << "window limit         " << std::uint64_t(db.max_windows_per_target()) << '\n'
-        << "window length        " << db.target_sketcher().window_size() << '\n'
-        << "window stride        " << db.target_sketcher().window_stride() << '\n'
-        << "------------------------------------------------\n"
-        << "sketcher type        " << type_name<typename db_t::sketcher>() << '\n'
-        << "feature type         " << type_name<feature_t>() << " " << (sizeof(feature_t)*CHAR_BIT) << " bits\n"
-        << "feature hash         " << type_name<typename db_t::feature_hash>() << '\n'
-        << "kmer size            " << std::uint64_t(db.target_sketcher().kmer_size()) << '\n'
-        << "kmer limit           " << std::uint64_t(db.target_sketcher().max_kmer_size()) << '\n'
-        << "sketch size          " << db.target_sketcher().sketch_size() << '\n'
-        << "------------------------------------------------\n"
-        << "bucket size type     " << type_name<bkt_sz_t>() << " " << (sizeof(bkt_sz_t)*CHAR_BIT) << " bits\n"
-        << "max. locations       " << std::uint64_t(db.max_locations_per_feature()) << '\n'
-        << "location limit       " << std::uint64_t(db.max_supported_locations_per_feature()) << '\n'
-        << "------------------------------------------------"
-        << std::endl;
-}
-
-
-
-
-/*************************************************************************//**
- *
- * @brief prints database properties to stdout
- *
- *****************************************************************************/
-template<class S, class K, class H, class G, class W, class L>
-void print_content_properties(const sketch_database<S,K,H,G,W,L>& db)
-{
-    if(db.target_count() > 0) {
-
-        std::uint64_t numRankedTargets = 0;
-        for(const auto& t : db.target_taxa()) {
-            if(t.has_parent()) ++numRankedTargets;
-        }
-
-        std::cout
-        << "targets              " << db.target_count() << '\n'
-        << "ranked targets       " << numRankedTargets << '\n'
-        << "taxa in tree         " << db.non_target_taxon_count() << '\n';
-    }
-
-    if(db.feature_count() > 0) {
-        auto lss = db.location_list_size_statistics();
-
-        std::cout
-        << "------------------------------------------------\n"
-        << "buckets              " << db.bucket_count() << '\n'
-        << "bucket size          " << "max: " << lss.max()
-                                   << " mean: " << lss.mean()
-                                   << " +/- " << lss.stddev()
-                                   << " <> " << lss.skewness() << '\n'
-        << "features             " << db.feature_count() << '\n'
-        << "dead features        " << db.dead_feature_count() << '\n'
-        << "locations            " << db.location_count() << '\n';
-    }
-    std::cout
-        << "------------------------------------------------\n";
-}
 
 
 } // namespace mc

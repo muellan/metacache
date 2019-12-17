@@ -3,7 +3,7 @@
  * MetaCache - Meta-Genomic Classification Tool
  *
  * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
- *                       & Robin Kobus  (rkobus@uni-mainz.de)
+ *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@
 #include <vector>
 #include <iostream>
 
-#include "config.h"
+#include "sketch_database.h"
 #include "sequence_io.h"
 #include "cmdline_utility.h"
 #include "query_options.h"
@@ -117,7 +117,7 @@ query_id query_batched(
         // classifies a batch of input queries
         [&](std::vector<sequence_query>& batch) {
             auto resultsBuffer = getBuffer();
-            match_target_locations targetMatches;
+            database::match_target_locations targetMatches;
 
             for(auto& seq : batch) {
                 targetMatches.clear();

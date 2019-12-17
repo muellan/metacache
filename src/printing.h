@@ -3,7 +3,7 @@
  * MetaCache - Meta-Genomic Classification Tool
  *
  * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
- *                       & Robin Kobus  (rkobus@uni-mainz.de)
+ *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,6 +27,7 @@
 #include <iosfwd>
 
 #include "config.h"
+#include "taxonomy.h"
 #include "classification.h"
 #include "classification_statistics.h"
 #include "matches_per_target.h"
@@ -34,6 +35,9 @@
 
 
 namespace mc {
+
+// forward declaration
+class database;
 
 
 /*************************************************************************//**
@@ -148,6 +152,22 @@ void show_taxon_statistics(std::ostream&,
  *****************************************************************************/
 void show_summary(const query_options& opt,
                   const classification_results& results);
+
+
+/*************************************************************************//**
+ *
+ * @brief prints database properties to stdout
+ *
+ *****************************************************************************/
+void print_static_properties(const database&);
+
+
+/*************************************************************************//**
+ *
+ * @brief prints database properties to stdout
+ *
+ *****************************************************************************/
+void print_content_properties(const database&);
 
 
 } // namespace mc

@@ -30,7 +30,8 @@
 #include "args_handling.h"
 #include "query_options.h"
 #include "candidates.h"
-#include "config.h"
+#include "sketch_database.h"
+#include "printing.h"
 #include "typename.h"
 
 
@@ -53,7 +54,7 @@ make_database(const args_parser& args,
     if(dbfilename.empty()) {
         throw std::invalid_argument{"No database filename provided."};
     }
-    return make_database<database>(dbfilename, scope);
+    return make_database(dbfilename, scope);
 }
 
 

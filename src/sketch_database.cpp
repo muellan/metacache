@@ -20,15 +20,39 @@
  *
  *****************************************************************************/
 
-#ifndef MC_VERSION_H_
-#define MC_VERSION_H_
+#include "sketch_database.h"
 
 
-#define MC_VERSION 20191029
-
-#define MC_DB_VERSION 20191115
-
-#define MC_VERSION_STRING "0.8.0"
+namespace mc {
 
 
-#endif
+// ----------------------------------------------------------------------------
+database
+make_database(const std::string& filename, database::scope what, info_level info)
+{
+    if(filename.empty()) throw file_access_error{"No database name given"};
+
+    database db;
+
+    const bool showInfo = info != info_level::silent;
+
+    if(showInfo) {
+        std::cerr << "Reading database from file '"
+                  << filename << "' ... " << std::flush;
+    }
+    try {
+        db.read(filename, what);
+        if(showInfo) std::cerr << "done." << std::endl;
+    }
+    catch(const file_access_error& e) {
+        std::cerr << "FAIL" << std::endl;
+        throw file_access_error{"Could not read database file '" + filename + "'"};
+    }
+
+    return db;
+}
+
+
+
+
+} // namespace mc

@@ -68,6 +68,7 @@ SOURCES = \
           src/printing.cpp \
           src/query_options.cpp \
           src/sequence_io.cpp \
+          src/sketch_database.cpp \
           src/taxonomy_io.cpp
 
 
@@ -151,6 +152,9 @@ $(REL_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 $(REL_DIR)/taxonomy_io.o : src/taxonomy_io.cpp $(HEADERS)
 	$(REL_COMPILE)
 
+$(REL_DIR)/sketch_database.o : src/sketch_database.cpp $(HEADERS)
+	$(REL_COMPILE)
+
 $(REL_DIR)/mode_help.o : src/mode_help.cpp src/modes.h src/args_handling.h src/filesys_utility.h
 	$(REL_COMPILE)
 
@@ -206,6 +210,9 @@ $(DBG_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 $(DBG_DIR)/taxonomy_io.o : src/taxonomy_io.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
+$(DBG_DIR)/sketch_database.o : src/sketch_database.cpp $(HEADERS)
+	$(DBG_COMPILE)
+
 $(DBG_DIR)/mode_help.o : src/mode_help.cpp src/modes.h src/args_handling.h src/filesys_utility.h
 	$(DBG_COMPILE)
 
@@ -259,6 +266,9 @@ $(PRF_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 	$(PRF_COMPILE)
 
 $(PRF_DIR)/taxonomy_io.o : src/taxonomy_io.cpp $(HEADERS)
+	$(PRF_COMPILE)
+
+$(PRF_DIR)/sketch_database.o : src/sketch_database.cpp $(HEADERS)
 	$(PRF_COMPILE)
 
 $(PRF_DIR)/mode_help.o : src/mode_help.cpp src/modes.h src/args_handling.h src/filesys_utility.h

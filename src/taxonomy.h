@@ -739,14 +739,7 @@ public:
     {}
 
     ranked_lineages_cache& operator = (const ranked_lineages_cache&) = delete;
-
-    ranked_lineages_cache& operator = (ranked_lineages_cache&& src) {
-        highestRank_ = src.highestRank_;
-        lins_ = std::move(src.lins_);
-        outdated_ = src.outdated_;
-        return *this;
-    }
-
+    ranked_lineages_cache& operator = (ranked_lineages_cache&&) = delete;
 
     //---------------------------------------------------------------
     void mark_outdated() {
@@ -843,6 +836,18 @@ private:
     mutable std::mutex mutables_;
     bool outdated_;
 };
+
+
+
+/*************************************************************************//**
+ *
+ * @brief pull some types from taxonomy into global namespace
+ *
+ *****************************************************************************/
+using taxon          = taxonomy::taxon;
+using taxon_rank     = taxonomy::rank;
+using taxon_id       = taxonomy::taxon_id;
+using ranked_lineage = taxonomy::ranked_lineage;
 
 
 } // namespace mc

@@ -3,7 +3,7 @@
  * MetaCache - Meta-Genomic Classification Tool
  *
  * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
- *                       & Robin Kobus  (rkobus@uni-mainz.de)
+ *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 #include <cstdint>
 #include <limits>
 
-#include "config.h"
+#include "sketch_database.h"
 
 
 namespace mc {
@@ -122,9 +122,10 @@ struct candidate_generation_rules
  *
  *****************************************************************************/
 template<class Consumer>
-void for_all_contiguous_window_ranges(const match_target_locations& matches,
-                                      window_id numWindows,
-                                      Consumer&& consume)
+void for_all_contiguous_window_ranges(
+    const match_target_locations& matches,
+    window_id numWindows,
+    Consumer&& consume)
 {
     using hit_count = match_candidate::count_type;
 

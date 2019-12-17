@@ -3,7 +3,7 @@
  * MetaCache - Meta-Genomic Classification Tool
  *
  * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
- *                       & Robin Kobus  (rkobus@uni-mainz.de)
+ *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 #include <ostream>
 #include <utility>
 
+#include "sketch_database.h"
 #include "candidates.h"
 #include "classification.h"
 #include "classification_statistics.h"
@@ -36,7 +37,7 @@
 
 namespace mc {
 
-//-------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 void show_query_parameters(std::ostream& os, const query_options& opt)
 {
     const auto& comment = opt.output.format.comment;
@@ -651,5 +652,80 @@ void show_summary(const query_options& opt,
         results.status << comment << "No valid query sequences found.\n";
     }
 }
+
+
+
+//-------------------------------------------------------------------
+void print_static_properties(const database& db)
+{
+    using target_id = database::target_id;
+    using window_id = database::window_id;
+    using feature_t = database::feature;
+    using bkt_sz_t  = database::bucket_size_type;
+
+    std::cout
+        << "------------------------------------------------\n"
+        << "MetaCache version    " << MC_VERSION_STRING << " (" << MC_VERSION << ")\n"
+        << "database version     " << MC_DB_VERSION << '\n'
+        << "------------------------------------------------\n"
+        << "sequence type        " << type_name<database::sequence>() << '\n'
+        << "target id type       " << type_name<target_id>() << " " << (sizeof(target_id)*CHAR_BIT) << " bits\n"
+        << "target limit         " << std::uint64_t(db.max_target_count()) << '\n'
+        << "------------------------------------------------\n"
+        << "window id type       " << type_name<window_id>() << " " << (sizeof(window_id)*CHAR_BIT) << " bits\n"
+        << "window limit         " << std::uint64_t(db.max_windows_per_target()) << '\n'
+        << "window length        " << db.target_sketcher().window_size() << '\n'
+        << "window stride        " << db.target_sketcher().window_stride() << '\n'
+        << "------------------------------------------------\n"
+        << "sketcher type        " << type_name<database::sketcher>() << '\n'
+        << "feature type         " << type_name<feature_t>() << " " << (sizeof(feature_t)*CHAR_BIT) << " bits\n"
+        << "feature hash         " << type_name<database::feature_hash>() << '\n'
+        << "kmer size            " << std::uint64_t(db.target_sketcher().kmer_size()) << '\n'
+        << "kmer limit           " << std::uint64_t(db.target_sketcher().max_kmer_size()) << '\n'
+        << "sketch size          " << db.target_sketcher().sketch_size() << '\n'
+        << "------------------------------------------------\n"
+        << "bucket size type     " << type_name<bkt_sz_t>() << " " << (sizeof(bkt_sz_t)*CHAR_BIT) << " bits\n"
+        << "max. locations       " << std::uint64_t(db.max_locations_per_feature()) << '\n'
+        << "location limit       " << std::uint64_t(db.max_supported_locations_per_feature()) << '\n'
+        << "------------------------------------------------"
+        << std::endl;
+}
+
+
+
+//-----------------------------------------------------------------------------
+void print_content_properties(const database& db)
+{
+    if(db.target_count() > 0) {
+
+        std::uint64_t numRankedTargets = 0;
+        for(const auto& t : db.target_taxa()) {
+            if(t.has_parent()) ++numRankedTargets;
+        }
+
+        std::cout
+        << "targets              " << db.target_count() << '\n'
+        << "ranked targets       " << numRankedTargets << '\n'
+        << "taxa in tree         " << db.non_target_taxon_count() << '\n';
+    }
+
+    if(db.feature_count() > 0) {
+        auto lss = db.location_list_size_statistics();
+
+        std::cout
+        << "------------------------------------------------\n"
+        << "buckets              " << db.bucket_count() << '\n'
+        << "bucket size          " << "max: " << lss.max()
+                                   << " mean: " << lss.mean()
+                                   << " +/- " << lss.stddev()
+                                   << " <> " << lss.skewness() << '\n'
+        << "features             " << db.feature_count() << '\n'
+        << "dead features        " << db.dead_feature_count() << '\n'
+        << "locations            " << db.location_count() << '\n';
+    }
+    std::cout
+        << "------------------------------------------------\n";
+}
+
 
 } // namespace mc

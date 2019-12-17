@@ -3,7 +3,7 @@
  * MetaCache - Meta-Genomic Classification Tool
  *
  * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
- *                       & Robin Kobus  (rkobus@uni-mainz.de)
+ *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,7 +31,6 @@
 #define MC_CONFIG_H_
 
 
-#include "sketch_database.h"
 #include "hash_dna.h"
 
 
@@ -102,22 +101,6 @@ using sketcher = single_function_unique_min_hasher<kmer_type,sketching_hash>;
  */
 //using feature_hash = std::hash<typename sketcher::feature_type>;
 using feature_hash = same_size_hash<typename sketcher::feature_type>;
-
-
-/**************************************************************************
- * @brief stores a multimap that maps features to locations
- *        within targets (= reference sequences)
- */
-using database = sketch_database<sequence,sketcher,feature_hash,
-                                 target_id,window_id,loclist_size_t>;
-
-/** @brief pull some types from database into global namespace */
-using taxon                  = database::taxon;
-using taxon_rank             = database::taxon_rank;
-using taxon_id               = database::taxon_id;
-using ranked_lineage         = database::ranked_lineage;
-using match_locations        = database::match_locations;
-using match_target_locations = database::match_target_locations;
 
 
 /**************************************************************************

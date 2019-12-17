@@ -40,7 +40,8 @@
 #include "cmdline_utility.h"
 #include "io_error.h"
 #include "io_options.h"
-#include "config.h"
+#include "sketch_database.h"
+#include "printing.h"
 #include "sequence_io.h"
 #include "taxonomy_io.h"
 
@@ -665,7 +666,7 @@ void main_mode_build_modify(const args_parser& args)
 
     cout << "Modify database " << dbfile << endl;
 
-    auto db = make_database<database>(dbfile);
+    auto db = make_database(dbfile);
 
     auto opt = get_build_options(args, get_build_options_from_db(db));
 
