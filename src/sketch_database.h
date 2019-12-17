@@ -722,7 +722,7 @@ public:
     }
     const taxon*
     lowest_ranked_ancestor(target_id tgt, taxon_rank lowest) const noexcept {
-        auto lineage = targetLineages_[tgt];
+        const auto& lineage = targetLineages_[tgt];
         for(int rank = int(lowest); rank < int(taxon_rank::none); ++rank) {
             if(lineage[rank])
                 return lineage[rank];

@@ -245,7 +245,10 @@ public:
                 const database& db,
                 const candidate_generation_rules& rules = candidate_generation_rules{})
     {
-        cand.tax = db.lowest_ranked_ancestor(cand.tgt, rules.mergeBelow);
+        if(rules.mergeBelow > taxon_rank::Sequence)
+            cand.tax = db.lowest_ranked_ancestor(cand.tgt, rules.mergeBelow);
+        else
+            cand.tax = db.taxon_of_target(cand.tgt);
 
         if(!cand.tax) return true;
 
