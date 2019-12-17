@@ -272,8 +272,10 @@ public:
 
             if(i != top_.end()) {
                 //taxon already in list, update, if more hits
-                if(cand.hits > i->hits) *i = cand;
-                std::sort(top_.begin(), i+1, greater);
+                if(cand.hits > i->hits) {
+                    *i = cand;
+                    std::sort(top_.begin(), i+1, greater);
+                }
             }
             //taxon not in list yet
             else  {
