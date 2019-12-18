@@ -442,7 +442,7 @@ void add_targets_to_database(database& db,
     execOpt.on_work_done([&] { db.wait_until_add_target_complete(); });
 
     batch_executor<input_sequence> executor { execOpt,
-        [&] (const auto& batch) {
+        [&] (int, const auto& batch) {
             add_targets_to_database(db, batch, sequ2taxid, infoLvl);
         }};
 

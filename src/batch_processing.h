@@ -74,7 +74,7 @@ class batch_executor
 public:
 
     using batch_type      = std::vector<WorkItem>;
-    using batch_consumer  = std::function<void(batch_type&)>;
+    using batch_consumer  = std::function<void(int,batch_type&)>;
     using error_handler   = batch_processing_options::error_handler;
     using abort_condition = batch_processing_options::abort_condition;
     using finalizer       = batch_processing_options::finalizer;
@@ -111,12 +111,12 @@ public:
             // spawn consumer threads
             workers_.reserve(param_.concurrency());
             for(int i = 0; i < param_.concurrency(); ++i) {
-                workers_.emplace_back(std::async(std::launch::async, [&] {
+                workers_.emplace_back(std::async(std::launch::async, [&,i] {
                     batch_type batch;
                     validate();
                     while(valid() || workQueue_.size_approx() > 0) {
                         if(workQueue_.try_dequeue_from_producer(prodToken_, batch)) {
-                            consume_(batch);
+                            consume_(i, batch);
                             // put batch storage back
                             storageQueue_.enqueue(std::move(batch));
                             validate();
@@ -208,7 +208,7 @@ private:
         // ... or consume directly if single-threaded
         else {
             validate();
-            if(valid()) consume_(currentBatch_);
+            if(valid()) consume_(0, currentBatch_);
             validate();
             if(!valid()) param_.finalize_();
         }

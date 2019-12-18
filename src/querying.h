@@ -115,7 +115,7 @@ query_id query_batched(
     batch_executor<sequence_query> executor {
         execOpt,
         // classifies a batch of input queries
-        [&](std::vector<sequence_query>& batch) {
+        [&](int, std::vector<sequence_query>& batch) {
             auto resultsBuffer = getBuffer();
             database::match_target_locations targetMatches;
 
