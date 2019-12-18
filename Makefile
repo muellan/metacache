@@ -5,16 +5,16 @@ PRF_ARTIFACT  = metacache_prf
 COMPILER     = $(CXX)
 DIALECT      = -std=c++14
 WARNINGS     = -Wall -Wextra -Wpedantic
-OPTIMIZATION = -O3 
-#-march native -fomit-frame-pointer 
+OPTIMIZATION = -O3
+#-march native -fomit-frame-pointer
 
 REL_FLAGS   = $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) $(WARNINGS)
 DBG_FLAGS   = $(INCLUDES) $(MACROS) $(DIALECT) -O0 -g $(WARNINGS)
 PRF_FLAGS   = $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) -g $(WARNINGS)
 
 REL_LDFLAGS  = -pthread -s
-DBG_LDFLAGS  = -pthread 
-PRF_LDFLAGS  = -pthread 
+DBG_LDFLAGS  = -pthread
+PRF_LDFLAGS  = -pthread
 
 
 #--------------------------------------------------------------------
@@ -22,6 +22,7 @@ HEADERS = \
           src/alignment.h \
           src/args_handling.h \
           src/args_parser.h \
+          src/batch_processing.h \
           src/bitmanip.h \
           src/candidates.h \
           src/chunk_allocator.h \
@@ -94,8 +95,8 @@ PRF_COMPILE  = $(COMPILER) $(PRF_FLAGS) -c $< -o $@
 #--------------------------------------------------------------------
 # main targets
 #--------------------------------------------------------------------
-.PHONY: all clean 
-	
+.PHONY: all clean
+
 release: $(REL_DIR) $(REL_ARTIFACT)
 
 debug: $(DBG_DIR) $(DBG_ARTIFACT)
@@ -104,7 +105,7 @@ profile: $(PRF_DIR) $(PRF_ARTIFACT)
 
 all: release debug profile test
 
-clean : 
+clean :
 	rm -rf build_*
 	rm -f *.exe
 	rm -f *.json
@@ -117,12 +118,12 @@ clean :
 # release (out-of-place build)
 #--------------------------------------------------------------------
 $(REL_DIR):
-	mkdir $(REL_DIR) 
+	mkdir $(REL_DIR)
 
 $(REL_ARTIFACT): $(REL_OBJS)
 	$(COMPILER) -o $(REL_ARTIFACT) $(REL_OBJS) $(REL_LDFLAGS)
 
-$(REL_DIR)/main.o : src/main.cpp src/modes.h 
+$(REL_DIR)/main.o : src/main.cpp src/modes.h
 	$(REL_COMPILE)
 
 $(REL_DIR)/printing.o : src/printing.cpp $(HEADERS)
@@ -133,13 +134,13 @@ $(REL_DIR)/classification.o : src/classification.cpp $(HEADERS)
 
 $(REL_DIR)/query_options.o : src/query_options.cpp $(HEADERS)
 	$(REL_COMPILE)
-	
+
 $(REL_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)
 	$(REL_COMPILE)
-	
+
 $(REL_DIR)/mode_build.o : src/mode_build.cpp $(HEADERS)
 	$(REL_COMPILE)
-	
+
 $(REL_DIR)/mode_info.o : src/mode_info.cpp $(HEADERS)
 	$(REL_COMPILE)
 
@@ -175,12 +176,12 @@ $(REL_DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.h
 # debug (out-of-place build)
 #--------------------------------------------------------------------
 $(DBG_DIR):
-	mkdir $(DBG_DIR) 
+	mkdir $(DBG_DIR)
 
 $(DBG_ARTIFACT): $(DBG_OBJS)
 	$(COMPILER) -o $(DBG_ARTIFACT) $(DBG_OBJS) $(DBG_LDFLAGS)
 
-$(DBG_DIR)/main.o : src/main.cpp src/modes.h 
+$(DBG_DIR)/main.o : src/main.cpp src/modes.h
 	$(DBG_COMPILE)
 
 $(DBG_DIR)/printing.o : src/printing.cpp $(HEADERS)
@@ -188,16 +189,16 @@ $(DBG_DIR)/printing.o : src/printing.cpp $(HEADERS)
 
 $(DBG_DIR)/classification.o : src/classification.cpp $(HEADERS)
 	$(DBG_COMPILE)
-	
+
 $(DBG_DIR)/query_options.o : src/query_options.cpp $(HEADERS)
 	$(DBG_COMPILE)
-	
+
 $(DBG_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)
 	$(DBG_COMPILE)
-	
+
 $(DBG_DIR)/mode_build.o : src/mode_build.cpp $(HEADERS)
 	$(DBG_COMPILE)
-	
+
 $(DBG_DIR)/mode_info.o : src/mode_info.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
@@ -233,12 +234,12 @@ $(DBG_DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.h
 # profile (out-of-place build)
 #--------------------------------------------------------------------
 $(PRF_DIR):
-	mkdir $(PRF_DIR) 
+	mkdir $(PRF_DIR)
 
 $(PRF_ARTIFACT): $(PRF_OBJS)
 	$(COMPILER) -o $(PRF_ARTIFACT) $(PRF_OBJS) $(PRF_LDFLAGS)
 
-$(PRF_DIR)/main.o : src/main.cpp src/modes.h 
+$(PRF_DIR)/main.o : src/main.cpp src/modes.h
 	$(PRF_COMPILE)
 
 $(PRF_DIR)/printing.o : src/printing.cpp $(HEADERS)
@@ -249,13 +250,13 @@ $(PRF_DIR)/classification.o : src/classification.cpp $(HEADERS)
 
 $(PRF_DIR)/query_options.o : src/query_options.cpp $(HEADERS)
 	$(PRF_COMPILE)
-	
+
 $(PRF_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)
 	$(PRF_COMPILE)
-	
+
 $(PRF_DIR)/mode_build.o : src/mode_build.cpp $(HEADERS)
 	$(PRF_COMPILE)
-	
+
 $(PRF_DIR)/mode_info.o : src/mode_info.cpp $(HEADERS)
 	$(PRF_COMPILE)
 
