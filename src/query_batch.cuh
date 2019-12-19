@@ -256,8 +256,19 @@ public:
         const size_t seqLength1 = distance(first1, last1);
         const size_t seqLength2 = distance(first2, last2);
 
-        // no kmers in sequence, nothing to do here
-        if(seqLength1 < kmerSize && seqLength2 < kmerSize) return true;
+        // no kmers in sequence
+        if(seqLength1 < kmerSize && seqLength2 < kmerSize) {
+            // batch full, nothing processed
+            if(numQueries_ + 1 > maxQueries_) return false;
+
+            // insert empty query
+            h_queryIds_[numQueries_] = numSegments_;
+            h_encodeOffsets_[numQueries_+1] = h_encodeOffsets_[numQueries_];
+
+            ++numQueries_;
+            ++numSegments_;
+            return true;
+        }
 
         const window_id numWindows1 = (seqLength1-kmerSize + windowStride) / windowStride;
         const window_id numWindows2 = (seqLength2-kmerSize + windowStride) / windowStride;

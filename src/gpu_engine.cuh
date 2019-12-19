@@ -261,38 +261,37 @@ void gpu_hahstable_query(
     int         * resultCounts
 )
 {
-    //each block processes one query
+    //each block processes one query (= one window)
     for(size_t queryId = blockIdx.x; queryId < numQueries; queryId += gridDim.x) {
         const encodinglen_t encodingLength = encodeOffsets[queryId+1] - encodeOffsets[queryId];
 
-        typedef cub::BlockRadixSort<feature, BLOCK_THREADS, ITEMS_PER_THREAD> BlockRadixSortT;
+        //only process non-empty queries
+        if(encodingLength) {
+            typedef cub::BlockRadixSort<feature, BLOCK_THREADS, ITEMS_PER_THREAD> BlockRadixSortT;
 
-        __shared__ union {
-            typename BlockRadixSortT::TempStorage sort;
-            uint64_t sketch[16];
-        } tempStorage;
+            __shared__ union {
+                typename BlockRadixSortT::TempStorage sort;
+                uint64_t sketch[16];
+            } tempStorage;
 
-        constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
-        constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
+            constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
+            constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
 
-        //letters stored from high to low bits
-        //masks get highest bits
-        const encodedseq_t   kmerMask  = encodedseq_t(~0) << (encBits - 2*k);
-        const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - k);
+            //letters stored from high to low bits
+            //masks get highest bits
+            const encodedseq_t   kmerMask  = encodedseq_t(~0) << (encBits - 2*k);
+            const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - k);
 
-        const size_t last = encodingLength * ambigBits - k + 1;
+            const size_t last = encodingLength * ambigBits - k + 1;
 
-        const encodedseq_t   * const seq   = encodedSeq   + encodeOffsets[queryId];
-        const encodedambig_t * const ambig = encodedAmbig + encodeOffsets[queryId];
+            const encodedseq_t   * const seq   = encodedSeq   + encodeOffsets[queryId];
+            const encodedambig_t * const ambig = encodedAmbig + encodeOffsets[queryId];
 
-        //each block processes one window
-        {
-            feature items[ITEMS_PER_THREAD];
             uint8_t numItems = 0;
+            //initialize thread local feature sotre
+            feature items[ITEMS_PER_THREAD];
             for(int i=0; i<ITEMS_PER_THREAD; ++i)
-            {
                 items[i] = feature(~0);
-            }
 
             //each thread extracts one feature
             for(size_t tid  = threadIdx.x;
