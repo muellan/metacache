@@ -55,8 +55,7 @@ struct sequence_query
                    sequence s1, sequence s2 = sequence{}) noexcept
     :
         id{qid}, header(std::move(headerText)),
-        seq1(std::move(s1)), seq2(std::move(s2)),
-        groundTruth{nullptr}
+        seq1(std::move(s1)), seq2(std::move(s2))
     {}
 
     bool empty() const noexcept { return header.empty() || seq1.empty(); }
@@ -65,7 +64,6 @@ struct sequence_query
     std::string header;
     sequence seq1;
     sequence seq2;  // 2nd part of paired-end read
-    const taxon* groundTruth = nullptr;
 };
 
 
@@ -144,7 +142,6 @@ query_id query_batched(
             // get (ref to) next query sequence storage and fill it
             auto& query = executor.next_item();
             query.id = reader.next_header_and_data(query.header, query.seq1, query.seq2);
-            query.groundTruth = nullptr;
 
             --queryLimit;
         }

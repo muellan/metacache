@@ -143,11 +143,12 @@ ground_truth(const database& db, const string& header)
 struct classification
 {
     classification(classification_candidates cand):
-        candidates{std::move(cand)}, best{nullptr}
+        candidates{std::move(cand)}, best{nullptr}, groundTruth{nullptr}
     {}
 
     classification_candidates candidates;
     const taxon* best;
+    const taxon* groundTruth;
 };
 
 
@@ -266,13 +267,12 @@ update_classification(const database& db,
  *
  *****************************************************************************/
 void update_coverage_statistics(const database& db,
-                                const sequence_query& query,
                                 const classification& cls,
                                 classification_statistics& stats)
 {
-    if(!query.groundTruth) return;
+    if(!cls.groundTruth) return;
     //check if taxa are covered in DB
-    for(const taxon* tax : db.ranks(query.groundTruth)) {
+    for(const taxon* tax : db.ranks(cls.groundTruth)) {
         if(tax) {
             auto r = tax->rank();
             if(db.covers(*tax)) {
@@ -303,25 +303,25 @@ void update_coverage_statistics(const database& db,
 void evaluate_classification(
     const database& db,
     const evaluation_options& opt,
-    sequence_query& query,
-    const classification& cls,
+    const sequence_query& query,
+    classification& cls,
     classification_statistics& statistics)
 {
     if(opt.precision || opt.determineGroundTruth)
-        query.groundTruth = ground_truth(db, query.header);
+        cls.groundTruth = ground_truth(db, query.header);
 
     if(opt.precision) {
-        auto lca = db.ranked_lca(cls.best, query.groundTruth);
+        auto lca = db.ranked_lca(cls.best, cls.groundTruth);
         auto lowestCorrectRank = lca ? lca->rank() : taxon_rank::none;
 
         statistics.assign_known_correct(
             cls.best ? cls.best->rank() : taxon_rank::none,
-            query.groundTruth ? query.groundTruth->rank() : taxon_rank::none,
+            cls.groundTruth ? cls.groundTruth->rank() : taxon_rank::none,
             lowestCorrectRank);
 
         //check if taxa of assigned target are covered
         if(opt.taxonCoverage) {
-            update_coverage_statistics(db, query, cls, statistics);
+            update_coverage_statistics(db, cls, statistics);
         }
 
     } else {
@@ -525,7 +525,7 @@ void show_query_mapping(
     os << colsep;
 
     if(opt.showGroundTruth) {
-        show_taxon(os, db, opt, query.groundTruth);
+        show_taxon(os, db, opt, cls.groundTruth);
         os << colsep;
     }
 
@@ -730,7 +730,7 @@ void map_queries_to_targets_default(
 
     //updates buffer with the database answer of a single query
     const auto processQuery = [&] (mappings_buffer& buf,
-        sequence_query& query, const match_locations& allhits)
+        const sequence_query& query, const match_locations& allhits)
     {
         if(query.empty()) return;
 
@@ -757,7 +757,6 @@ void map_queries_to_targets_default(
             sequence_query qinfo;
             qinfo.id = query.id;
             qinfo.header = query.header;
-            qinfo.groundTruth = query.groundTruth;
             //save query mapping for post processing
             buf.queryMappings.emplace_back(query_mapping{std::move(qinfo), std::move(cls)});
         }
