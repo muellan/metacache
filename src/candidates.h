@@ -123,7 +123,7 @@ struct candidate_generation_rules
  *****************************************************************************/
 template<class Consumer>
 void for_all_contiguous_window_ranges(
-    const match_target_locations& matches,
+    const match_locations& matches,
     window_id numWindows,
     Consumer&& consume)
 {
@@ -215,7 +215,7 @@ public:
      */
     best_distinct_matches_in_contiguous_window_ranges(
         const database& db,
-        const match_target_locations& matches,
+        const match_locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
     :
         top_{}
@@ -328,7 +328,7 @@ public:
      */
     distinct_matches_in_contiguous_window_ranges(
         const database& db,
-        const match_target_locations& matches,
+        const match_locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
     :
         cand_{}

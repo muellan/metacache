@@ -76,7 +76,7 @@ namespace mc {
  *
  *  window_id       window index (starting with 0) within a target
  *
- *  location        (const taxon*, window_id) = "window within a target sequence"
+ *  location        (window_id, target id) = "window within a target sequence"
  *
  *  full_lineage    path from root -> lowest taxon (vector of const taxon*);
  *                  may have arbitrary length
@@ -145,18 +145,18 @@ public:
      */
     #pragma pack(push, 1)
     //avoid padding bits
-    struct target_location
+    struct location
     {
         window_id win;
         target_id tgt;
 
         friend bool
-        operator == (const target_location& a, const target_location& b) noexcept {
+        operator == (const location& a, const location& b) noexcept {
             return (a.tgt == b.tgt) && (a.win == b.win);
         }
 
         friend bool
-        operator < (const target_location& a, const target_location& b) noexcept {
+        operator < (const location& a, const location& b) noexcept {
             if(a.tgt < b.tgt) return true;
             if(a.tgt > b.tgt) return false;
             return (a.win < b.win);
@@ -164,6 +164,8 @@ public:
     };
     //avoid padding bits
     #pragma pack(pop)
+
+    using match_locations = std::vector<location>;
 
 
     //-----------------------------------------------------
@@ -181,10 +183,10 @@ private:
 
     //-----------------------------------------------------
     /// @brief "heart of the database": maps features to target locations
-    using feature_store = hash_multimap<feature,target_location, //key, value
+    using feature_store = hash_multimap<feature,location, //key, value
                               feature_hash,               //key hasher
                               std::equal_to<feature>,     //key comparator
-                              chunk_allocator<target_location>,  //value allocator
+                              chunk_allocator<location>,  //value allocator
                               std::allocator<feature>,    //bucket+key allocator
                               bucket_size_type>;          //location list size
 
@@ -212,41 +214,10 @@ public:
     using feature_count_type = typename feature_store::size_type;
 
 
-    //-----------------------------------------------------
-    /** @brief external location represenation
-     *         = (target sequence taxon pointer, window index)
-     *         these are used to return match results
-     */
-    struct location
-    {
-        constexpr
-        location(const taxon* t = nullptr, window_id w = 0) noexcept :
-            tax{t}, win{w}
-        {}
-
-        const taxon* tax;
-        window_id win;
-
-        friend bool
-        operator == (const location& a, const location& b) noexcept {
-            return (a.tax == b.tax) && (a.win == b.win);
-        }
-
-        friend bool
-        operator < (const location& a, const location& b) noexcept {
-            if(a.tax < b.tax) return true;
-            if(a.tax > b.tax) return false;
-            return (a.win < b.win);
-        }
-    };
-
-    using match_locations = std::vector<location>;
-
-
     //---------------------------------------------------------------
     /** @brief used for query result storage/accumulation
      */
-    class match_target_locations {
+    class matches_sorter {
         friend class database;
 
     public:
@@ -266,11 +237,14 @@ public:
         auto begin() const noexcept { return locs_.begin(); }
         auto end()   const noexcept { return locs_.end(); }
 
+        const match_locations&
+        locations() const noexcept { return locs_; }
+
     private:
         static void
-        merge_sort(std::vector<target_location>& inout,
+        merge_sort(match_locations& inout,
                    std::vector<size_t>& offsets,
-                   std::vector<target_location>& temp)
+                   match_locations& temp)
         {
             if(offsets.size() < 3) return;
             temp.resize(inout.size());
@@ -289,9 +263,9 @@ public:
             }
         }
 
-        std::vector<target_location> locs_; // match locations from hashmap
+        match_locations locs_; // match locations from hashmap
         std::vector<std::size_t> offsets_;  // bucket sizes for merge sort
-        std::vector<target_location> temp_; // temp buffer for merge sort
+        match_locations temp_; // temp buffer for merge sort
     };
 
 
@@ -796,7 +770,7 @@ public:
     template<class InputIterator>
     void
     accumulate_matches(InputIterator queryBegin, InputIterator queryEnd,
-                       match_target_locations& res) const
+                       matches_sorter& res) const
     {
         querySketcher_.for_each_sketch(queryBegin, queryEnd,
             [this, &res] (auto sk) {
@@ -815,7 +789,7 @@ public:
     //---------------------------------------------------------------
     void
     accumulate_matches(const sequence& query,
-                       match_target_locations& res) const
+                       matches_sorter& res) const
     {
         using std::begin;
         using std::end;
@@ -1017,7 +991,7 @@ public:
         for(const auto& bucket : features_) {
             if(!bucket.empty()) {
                 os << std::int_least64_t(bucket.key()) << " -> ";
-                for(target_location p : bucket) {
+                for(location p : bucket) {
                     os << '(' << std::int_least64_t(p.tgt)
                        << ',' << std::int_least64_t(p.win) << ')';
                 }
@@ -1088,7 +1062,7 @@ private:
             //insert features from sketch into database
             for(const auto& f : windowSketch.sk) {
                 auto it = features_.insert(
-                    f, target_location{windowSketch.win, windowSketch.tgt});
+                    f, location{windowSketch.win, windowSketch.tgt});
                 if(it->size() > maxLocsPerFeature_) {
                     features_.shrink(it, maxLocsPerFeature_);
                 }
@@ -1237,8 +1211,7 @@ private:
  * @brief pull some types into global namespace
  *
  *****************************************************************************/
-using match_locations        = database::match_locations;
-using match_target_locations = database::match_target_locations;
+using match_locations = database::match_locations;
 
 
 

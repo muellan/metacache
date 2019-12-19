@@ -117,7 +117,7 @@ query_id query_batched(
         // classifies a batch of input queries
         [&](int, std::vector<sequence_query>& batch) {
             auto resultsBuffer = getBuffer();
-            database::match_target_locations targetMatches;
+            database::matches_sorter targetMatches;
 
             for(auto& seq : batch) {
                 targetMatches.clear();
@@ -126,7 +126,7 @@ query_id query_batched(
                 db.accumulate_matches(seq.seq2, targetMatches);
                 targetMatches.sort();
 
-                update(resultsBuffer, seq, targetMatches);
+                update(resultsBuffer, seq, targetMatches.locations());
             }
 
             std::lock_guard<std::mutex> lock(finalizeMtx);

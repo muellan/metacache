@@ -360,7 +360,7 @@ void show_matches(std::ostream& os,
 //-------------------------------------------------------------------
 void show_matches(std::ostream& os,
                   const database& db,
-                  const match_target_locations& matches,
+                  const match_locations& matches,
                   taxon_rank lowest)
 {
     if(matches.empty()) return;

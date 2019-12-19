@@ -48,7 +48,6 @@ public:
     using window_id        = database::window_id;
     using match_count_type = database::match_count_type;
     using location         = database::match_locations::value_type;
-    using target_location  = database::target_location;
     using taxon            = database::taxon;
     using taxon_rank       = database::taxon_rank;
 
@@ -116,7 +115,7 @@ public:
 
     //---------------------------------------------------------------
     void insert(query_id qid,
-                const match_target_locations& matches,
+                const match_locations& matches,
                 const classification_candidates& candidates,
                 match_count_type minHitsPerCandidate = 0)
     {
@@ -127,7 +126,7 @@ public:
                 auto tgt = cand.tgt;
 
                 // find candidate in matches
-                target_location lm{cand.pos.beg, tgt};
+                location lm{cand.pos.beg, tgt};
                 auto it = std::lower_bound(matches.begin(), matches.end(), lm);
                 // fill window vector
                 if(it == matches.end()) return;

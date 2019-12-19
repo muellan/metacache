@@ -161,7 +161,7 @@ classification_candidates
 make_classification_candidates(const database& db,
                                const classification_options& opt,
                                const sequence_query& query,
-                               const match_target_locations& allhits)
+                               const match_locations& allhits)
 {
     candidate_generation_rules rules;
 
@@ -227,7 +227,7 @@ classification
 classify(const database& db,
          const classification_options& opt,
          const sequence_query& query,
-         const match_target_locations& allhits)
+         const match_locations& allhits)
 {
     classification cls { make_classification_candidates(db, opt, query, allhits) };
 
@@ -501,7 +501,7 @@ void show_query_mapping(
     const classification_output_options& opt,
     const sequence_query& query,
     const classification& cls,
-    const match_target_locations& allhits)
+    const match_locations& allhits)
 {
     if(opt.mapViewMode == map_view_mode::none ||
         (opt.mapViewMode == map_view_mode::mapped_only && !cls.best))
@@ -654,7 +654,7 @@ void redo_classification_batched(
 
                         evaluate_classification(db, opt.evaluate, mapping.query, mapping.cls, results.statistics);
 
-                        show_query_mapping(bufout, db, opt.output, mapping.query, mapping.cls, match_target_locations{});
+                        show_query_mapping(bufout, db, opt.output, mapping.query, mapping.cls, match_locations{});
 
                         if(opt.output.makeTaxCounts && mapping.cls.best) {
                             ++taxCounts[mapping.cls.best];
@@ -730,7 +730,7 @@ void map_queries_to_targets_default(
 
     //updates buffer with the database answer of a single query
     const auto processQuery = [&] (mappings_buffer& buf,
-        sequence_query& query, match_target_locations& allhits)
+        sequence_query& query, const match_locations& allhits)
     {
         if(query.empty()) return;
 
@@ -871,7 +871,7 @@ void map_candidates_to_targets(const vector<string>& queryHeaders,
 
         evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
 
-        show_query_mapping(results.perReadOut, db, opt.output, query, cls, match_target_locations{});
+        show_query_mapping(results.perReadOut, db, opt.output, query, cls, match_locations{});
     }
 
     if(opt.output.showTaxAbundances) {
