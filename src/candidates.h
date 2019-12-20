@@ -121,9 +121,9 @@ struct candidate_generation_rules
  *                    and returns a bool indicating, if loop should be continued
  *
  *****************************************************************************/
-template<class Consumer>
+template<class Locations, class Consumer>
 void for_all_contiguous_window_ranges(
-    const match_locations& matches,
+    const Locations& matches,
     window_id numWindows,
     Consumer&& consume)
 {
@@ -213,9 +213,10 @@ public:
     /****************************************************************
      * @pre matches must be sorted by taxon (first) and window (second)
      */
+    template<class Locations>
     best_distinct_matches_in_contiguous_window_ranges(
         const database& db,
-        const match_locations& matches,
+        const Locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
     :
         top_{}

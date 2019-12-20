@@ -158,11 +158,12 @@ struct classification
  * @brief generate classification candidates
  *
  *****************************************************************************/
+template<class Locations>
 classification_candidates
 make_classification_candidates(const database& db,
                                const classification_options& opt,
                                const sequence_query& query,
-                               const match_locations& allhits)
+                               const Locations& allhits)
 {
     candidate_generation_rules rules;
 
@@ -224,11 +225,12 @@ classify(const database& db, const classification_options& opt,
  * @brief classify using all database matches
  *
  *****************************************************************************/
+template<class Locations>
 classification
 classify(const database& db,
          const classification_options& opt,
          const sequence_query& query,
-         const match_locations& allhits)
+         const Locations& allhits)
 {
     classification cls { make_classification_candidates(db, opt, query, allhits) };
 
@@ -495,13 +497,14 @@ void show_query_mapping_header(std::ostream& os,
  *        [query id], query_header, classification [, [top|all]hits list]
  *
  *****************************************************************************/
+template<class Locations>
 void show_query_mapping(
     std::ostream& os,
     const database& db,
     const classification_output_options& opt,
     const sequence_query& query,
     const classification& cls,
-    const match_locations& allhits)
+    const Locations& allhits)
 {
     if(opt.mapViewMode == map_view_mode::none ||
         (opt.mapViewMode == map_view_mode::mapped_only && !cls.best))
@@ -534,7 +537,7 @@ void show_query_mapping(
         os << colsep;
     }
     if(opt.showTopHits) {
-        show_matches(os, db, cls.candidates, opt.lowestRank);
+        show_candidates(os, db, cls.candidates, opt.lowestRank);
         os << colsep;
     }
     if(opt.showLocations) {
@@ -729,8 +732,8 @@ void map_queries_to_targets_default(
     const auto makeBatchBuffer = [] { return mappings_buffer(); };
 
     //updates buffer with the database answer of a single query
-    const auto processQuery = [&] (mappings_buffer& buf,
-        const sequence_query& query, const match_locations& allhits)
+    const auto processQuery = [&](mappings_buffer& buf,
+        const sequence_query& query, const auto& allhits)
     {
         if(query.empty()) return;
 

@@ -326,10 +326,10 @@ void show_taxon(std::ostream& os,
 
 
 //-------------------------------------------------------------------
-void show_matches(std::ostream& os,
-                  const database& db,
-                  const classification_candidates& cand,
-                  taxon_rank lowest)
+void show_candidates(std::ostream& os,
+                     const database& db,
+                     const classification_candidates& cand,
+                     taxon_rank lowest)
 {
     using size_t = classification_candidates::size_type;
 
@@ -358,9 +358,10 @@ void show_matches(std::ostream& os,
 
 
 //-------------------------------------------------------------------
+template<class Locations>
 void show_matches(std::ostream& os,
                   const database& db,
-                  const match_locations& matches,
+                  const Locations& matches,
                   taxon_rank lowest)
 {
     if(matches.empty()) return;
@@ -410,6 +411,11 @@ void show_matches(std::ostream& os,
     }
 }
 
+template void show_matches<match_locations>(
+    std::ostream& os,
+    const database& db,
+    const match_locations& matches,
+    taxon_rank lowest);
 
 
 

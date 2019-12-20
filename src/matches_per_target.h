@@ -114,8 +114,9 @@ public:
     }
 
     //---------------------------------------------------------------
+    template<class Locations>
     void insert(query_id qid,
-                const match_locations& matches,
+                const Locations& matches,
                 const classification_candidates& candidates,
                 match_count_type minHitsPerCandidate = 0)
     {

@@ -74,10 +74,10 @@ void show_taxon_header(std::ostream&,
  * @brief prints top classification candidates
  *
  *****************************************************************************/
-void show_matches(std::ostream&,
-                  const database&,
-                  const classification_candidates&,
-                  taxon_rank lowest = taxon_rank::Sequence);
+void show_candidates(std::ostream&,
+                     const database&,
+                     const classification_candidates&,
+                     taxon_rank lowest = taxon_rank::Sequence);
 
 
 /*************************************************************************//**
@@ -85,9 +85,10 @@ void show_matches(std::ostream&,
  * @brief prints target.window hit matches
  *
  *****************************************************************************/
+template<class Locations>
 void show_matches(std::ostream&,
                   const database&,
-                  const match_locations&,
+                  const Locations&,
                   taxon_rank lowest = taxon_rank::Sequence);
 
 
