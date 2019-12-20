@@ -102,12 +102,8 @@ void process_batch_results(
 
         auto& seq = sequenceBatch[outIndex+s];
 
-        auto it = std::find_if(resultsBegin, resultsEnd, [](const auto& loc) {
-            return loc.tgt == std::numeric_limits<target_id>::max();
-        });
-
         targetMatches.clear();
-        targetMatches.insert(resultsBegin, it);
+        targetMatches.insert(resultsBegin, resultsEnd);
 
         // std::cout << s << ". targetMatches:    ";
         // for(const auto& m : targetMatches)
