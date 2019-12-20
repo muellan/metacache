@@ -31,6 +31,7 @@
 #include "sketch_database.h"
 #include "stat_confusion.h"
 #include "taxonomy.h"
+#include "querying.h"
 
 #include "printing.h"
 
@@ -415,6 +416,12 @@ template void show_matches<match_locations>(
     std::ostream& os,
     const database& db,
     const match_locations& matches,
+    taxon_rank lowest);
+
+template void show_matches<span<location>>(
+    std::ostream& os,
+    const database& db,
+    const span<location>& matches,
     taxon_rank lowest);
 
 

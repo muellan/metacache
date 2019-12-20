@@ -71,6 +71,23 @@ struct sequence_query
 
 
 
+template<class value_type>
+struct span {
+
+    value_type * begin() const noexcept { return begin_; }
+
+    value_type * end() const noexcept { return end_; }
+
+    size_t size() const noexcept { return end_ - begin_; }
+
+    bool empty() const noexcept { return begin_ == end_; }
+
+    value_type * begin_;
+    value_type * end_;
+};
+
+
+
 /*************************************************************************//**
  *
  * @brief process batch of results from database query
@@ -85,7 +102,6 @@ template<class Buffer, class BufferUpdate>
 void process_batch_results(
     std::vector<sequence_query>& sequenceBatch,
     query_batch<location>& queryBatch,
-    database::matches_sorter& targetMatches,
     Buffer& batchBuffer, BufferUpdate& update,
     size_t& outIndex)
 {
@@ -102,15 +118,14 @@ void process_batch_results(
 
         auto& seq = sequenceBatch[outIndex+s];
 
-        targetMatches.clear();
-        targetMatches.insert(resultsBegin, resultsEnd);
+        span<location> results{resultsBegin, resultsEnd};
 
         // std::cout << s << ". targetMatches:    ";
-        // for(const auto& m : targetMatches)
+        // for(const auto& m : results)
         //     std::cout << m.tgt << ':' << m.win << ' ';
         // std::cout << '\n';
 
-        update(batchBuffer, seq, targetMatches.locations());
+        update(batchBuffer, seq, results);
     }
     // std::cout << '\n';
     outIndex += queryBatch.num_segments();
@@ -168,7 +183,6 @@ query_id query_batched(
         // classifies a batch of input queries
         [&](int id, std::vector<sequence_query>& batch) {
             auto resultsBuffer = getBuffer();
-            database::matches_sorter targetMatches;
 
             size_t outIndex = 0;
 
@@ -187,7 +201,7 @@ query_id query_batched(
                         // std::cout << "send batch to gpu\n";
                         db.query_gpu(*(gpuBatches[id]));
 
-                        process_batch_results(batch, *(gpuBatches[id]), targetMatches,
+                        process_batch_results(batch, *(gpuBatches[id]),
                                               resultsBuffer, update, outIndex);
 
                         gpuBatches[id]->clear();
@@ -206,7 +220,7 @@ query_id query_batched(
                 // std::cout << "send final batch to gpu\n";
                 db.query_gpu(*(gpuBatches[id]));
 
-                process_batch_results(batch, *(gpuBatches[id]), targetMatches,
+                process_batch_results(batch, *(gpuBatches[id]),
                                       resultsBuffer, update, outIndex);
 
                 gpuBatches[id]->clear();

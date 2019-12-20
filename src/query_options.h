@@ -107,6 +107,7 @@ struct query_processing_options
     //number of reads per batch handled by cpu threads
     std::size_t batchSize = 4096;
     //number of windows per gpu batch
+    //TODO increase
     std::size_t gpuBatchSize = 100;
 
     //limits number of reads per sequence source (file)
