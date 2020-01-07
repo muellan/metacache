@@ -4,7 +4,7 @@
 #include "hash_dna.h"
 #include "hash_int.h"
 #include "sketch_database.h"
-#include "gpu_engine.cuh"
+#include "gpu_hashmap_operations.cuh"
 
 #include "../dep/warpcore/include/warpcore.cuh"
 
@@ -115,7 +115,8 @@ public:
     template<class result_type>
     void query(query_batch<result_type>& batch,
                const sketcher& querySketcher,
-               bucket_size_type maxLocationPerFeature) const
+               bucket_size_type maxLocationPerFeature,
+               taxon_rank lowestRank) const
     {
         const cudaStream_t stream = batch.stream();
         batch.copy_queries_to_device_async();
@@ -146,7 +147,7 @@ public:
 
         batch.compact_sort_and_copy_results_async();
 
-        batch.generate_and_copy_top_candidates_async(lineages_);
+        batch.generate_and_copy_top_candidates_async(lineages_, lowestRank);
 
         //TODO async
         batch.sync_stream();
@@ -557,8 +558,13 @@ template<
     class KeyEqual,
     class BucketSizeT
 >
-void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::query(query_batch<value_type>& batch, const sketcher& querySketcher, bucket_size_type maxLocationPerFeature) const {
-    hashTable_->query(batch, querySketcher, maxLocationPerFeature);
+void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::query(
+    query_batch<value_type>& batch,
+    const sketcher& querySketcher,
+    bucket_size_type maxLocationPerFeature,
+    taxon_rank lowestRank) const
+{
+    hashTable_->query(batch, querySketcher, maxLocationPerFeature, lowestRank);
 }
 
 

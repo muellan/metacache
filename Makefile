@@ -8,7 +8,7 @@ WARNINGS     = -Xcompiler="-Wall -Wextra -Wpedantic"
 WARNINGS_NP  = -Xcompiler="-Wall -Wextra"
 OPTIMIZATION = -O3
 #-march native -fomit-frame-pointer
-NVCC_FLAGS  = -arch=sm_61 -lineinfo
+NVCC_FLAGS  = -arch=sm_61 -lineinfo --expt-relaxed-constexpr
 
 REL_FLAGS   = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) $(WARNINGS)
 DBG_FLAGS   = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) -O0 -g $(WARNINGS)
@@ -39,8 +39,9 @@ HEADERS = \
           src/config.h \
           src/dna_encoding.h \
           src/filesys_utility.h \
-          src/gpu_engine.cuh \
           src/gpu_hashmap.cuh \
+          src/gpu_hashmap_operations.cuh \
+          src/gpu_result_processing.cuh \
           src/hash_dna.h \
           src/hash_int.h \
           src/hash_multimap.h \

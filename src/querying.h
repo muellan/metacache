@@ -101,6 +101,7 @@ struct span {
 template<class Buffer, class BufferUpdate>
 void process_gpu_batch(
     const database& db,
+    const classification_options& classifyOpt,
     const std::vector<sequence_query>& sequenceBatch,
     query_batch<location>& queryBatch,
     Buffer& batchBuffer, BufferUpdate& update,
@@ -108,7 +109,7 @@ void process_gpu_batch(
 {
     if(queryBatch.num_queries() > 0) {
 
-        db.query_gpu(queryBatch);
+        db.query_gpu(queryBatch, classifyOpt.lowestRank);
 
         // std::cout << "segment offsets: ";
         // for(size_t i = 0; i < queryBatch.num_segments()+1; ++i) {
@@ -201,14 +202,14 @@ query_id query_batched(
             for(const auto& seq : batch) {
                 if(!gpuBatches[id]->add_paired_read(seq.seq1, seq.seq2, db.query_sketcher(), classifyOpt.insertSizeMax)) {
                     //could not add read, send full batch to gpu
-                    process_gpu_batch(db, batch, *(gpuBatches[id]), resultsBuffer, update, outIndex);
+                    process_gpu_batch(db, classifyOpt, batch, *(gpuBatches[id]), resultsBuffer, update, outIndex);
                     //try to add read again
                     if(!gpuBatches[id]->add_paired_read(seq.seq1, seq.seq2, db.query_sketcher(), classifyOpt.insertSizeMax))
                         std::cerr << "query batch is too small for a single read!" << std::endl;
                 }
             }
             // std::cout << "send final batch to gpu\n";
-            process_gpu_batch(db, batch, *(gpuBatches[id]), resultsBuffer, update, outIndex);
+            process_gpu_batch(db, classifyOpt, batch, *(gpuBatches[id]), resultsBuffer, update, outIndex);
 
             std::lock_guard<std::mutex> lock(finalizeMtx);
             finalize(std::move(resultsBuffer));

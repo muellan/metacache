@@ -26,6 +26,7 @@ class query_batch
 {
     using id_type = uint32_t;
 
+    using taxon_rank     = taxonomy::rank;
     using ranked_lineage = taxonomy::ranked_lineage;
 
 public:
@@ -172,7 +173,9 @@ public:
     void compact_sort_and_copy_results_async();
     //---------------------------------------------------------------
     /** @brief asynchronously generate and copy top candidates using stream_ */
-    void generate_and_copy_top_candidates_async(const ranked_lineage * lineages);
+    void generate_and_copy_top_candidates_async(
+        const ranked_lineage * lineages,
+        taxon_rank lowestRank);
 
     /*************************************************************************//**
     *

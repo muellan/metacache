@@ -1,7 +1,7 @@
 
 #include "query_batch.cuh"
 #include "sketch_database.h"
-#include "gpu_engine.cuh"
+#include "gpu_result_processing.cuh"
 
 #include "../dep/cub/cub/device/device_segmented_radix_sort.cuh"
 #include "../dep/cub/cub/device/device_scan.cuh"
@@ -231,7 +231,8 @@ void query_batch<result_type>::compact_sort_and_copy_results_async() {
 //---------------------------------------------------------------
 template<class result_type>
 void query_batch<result_type>::generate_and_copy_top_candidates_async(
-    const ranked_lineage * lineages)
+    const ranked_lineage * lineages,
+    taxon_rank lowestRank)
 {
     //TODO max cand as template?
     constexpr int maxCandidates = 8;
@@ -244,6 +245,7 @@ void query_batch<result_type>::generate_and_copy_top_candidates_async(
         d_queryResults_,
         d_maxWindowsInRange_,
         lineages,
+        lowestRank,
         d_topCandidates_);
 
     // cudaStreamSynchronize(stream_);
