@@ -955,6 +955,8 @@ public:
 
         //hash table
         read_binary(is, featureStoreGPU_);
+
+        featureStoreGPU_.copy_target_lineages_to_gpu(targetLineages_.lineages());
     }
 
 
@@ -1348,6 +1350,11 @@ private:
         ranked_lca(target_id a, target_id b, taxon_rank lowest) const {
             assert(outdated_ == false);
             return taxa_.ranked_lca(lins_[a], lins_[b], lowest);
+        }
+
+        //---------------------------------------------------------------
+        const std::vector<ranked_lineage>& lineages() const {
+            return lins_;
         }
 
     private:

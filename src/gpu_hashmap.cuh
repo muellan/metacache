@@ -7,6 +7,7 @@
 #include "config.h"
 #include "sequence_batch.cuh"
 #include "query_batch.cuh"
+#include "taxonomy.h"
 
 namespace mc {
 
@@ -48,6 +49,8 @@ public:
     using bucket_size_type = BucketSizeT;
 
     using size_type        = size_t;
+
+    using ranked_lineage = taxonomy::ranked_lineage;
 
 public:
     //---------------------------------------------------------------
@@ -165,6 +168,9 @@ public:
     friend void write_binary(std::ostream& os, const gpu_hashmap& m) {
         m.serialize(os);
     }
+
+    //---------------------------------------------------------------
+    void copy_target_lineages_to_gpu(const std::vector<ranked_lineage>& lins);
 
 
 private:

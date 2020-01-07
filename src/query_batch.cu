@@ -50,8 +50,8 @@ query_batch<result_type>::query_batch(
 
         cudaMalloc    (&d_resultCounts_, maxQueries_*sizeof(int));
 
-        cudaMallocHost(&h_topCandidates_, maxQueries_*sizeof(candidate_target));
-        cudaMalloc    (&d_topCandidates_, maxQueries_*sizeof(candidate_target));
+        cudaMallocHost(&h_topCandidates_, maxQueries_*sizeof(match_candidate));
+        cudaMalloc    (&d_topCandidates_, maxQueries_*sizeof(match_candidate));
 
         cudaMallocHost(&h_maxWindowsInRange_, maxQueries_*sizeof(window_id));
         cudaMalloc    (&d_maxWindowsInRange_, maxQueries_*sizeof(window_id));
@@ -225,21 +225,31 @@ void query_batch<result_type>::compact_sort_and_copy_results_async() {
         // numQueries_*maxResultsPerQuery_*sizeof(result_type),
         h_resultOffsets_[numSegments_]*sizeof(result_type),
         cudaMemcpyDeviceToHost, stream_);
+}
 
 
+//---------------------------------------------------------------
+template<class result_type>
+void query_batch<result_type>::generate_and_copy_top_candidates_async(
+    const ranked_lineage * lineages)
+{
     //TODO max cand as template?
-    #define MAX_CANDIDATES 8
+    constexpr int maxCandidates = 8;
 
     const size_t numBlocks = SDIV(numSegments_, 32);
 
-    generate_top_candidates<MAX_CANDIDATES><<<numBlocks,32,0,stream_>>>(
+    generate_top_candidates<maxCandidates><<<numBlocks,32,0,stream_>>>(
         numSegments_,
         d_resultOffsets_,
         d_queryResults_,
         d_maxWindowsInRange_,
+        lineages,
         d_topCandidates_);
 
-    cudaStreamSynchronize(stream_);
+    // cudaStreamSynchronize(stream_);
+    // CUERR
+
+    //TODO copy candidates to host
 }
 
 

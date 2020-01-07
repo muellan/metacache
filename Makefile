@@ -31,6 +31,7 @@ HEADERS = \
           src/batch_processing.h \
           src/bitmanip.h \
           src/candidates.h \
+          src/candidate_generation.h \
           src/chunk_allocator.h \
           src/classification.h \
           src/classification_statistics.h \

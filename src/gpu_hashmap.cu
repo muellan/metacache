@@ -73,6 +73,8 @@ class gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::hash_table {
     using location_type = ValueT;
     using size_type  = size_t;
 
+    using ranked_lineage = taxonomy::ranked_lineage;
+
     // using hasher_t = warpcore::hashers::MuellerHash;
     using hasher_t = warpcore::defaults::hasher_t<Key>;
 
@@ -143,6 +145,8 @@ public:
         );
 
         batch.compact_sort_and_copy_results_async();
+
+        batch.generate_and_copy_top_candidates_async(lineages_);
 
         //TODO async
         batch.sync_stream();
@@ -328,12 +332,21 @@ public:
         numLocations_ = nlocations;
     }
 
+    //---------------------------------------------------------------
+    void copy_target_lineages_to_gpu(const std::vector<ranked_lineage>& lins) {
+        const size_t size = lins.size()*sizeof(ranked_lineage);
+        cudaMalloc(&lineages_, size);
+        cudaMemcpy(lineages_, lins.data(), size, cudaMemcpyHostToDevice);
+    }
+
 private:
     hash_table_t hashTable_;
 
     size_type numKeys_;
     size_type numLocations_;
     location * locations_;
+
+    ranked_lineage * lineages_;
 };
 
 
@@ -593,6 +606,21 @@ void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::serialize(
     std::ostream& os) const
 {
     //TODO
+}
+
+
+//---------------------------------------------------------------
+template<
+    class Key,
+    class ValueT,
+    class Hash,
+    class KeyEqual,
+    class BucketSizeT
+>
+void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::copy_target_lineages_to_gpu(
+    const std::vector<ranked_lineage>& lins)
+{
+    hashTable_->copy_target_lineages_to_gpu(lins);
 }
 
 

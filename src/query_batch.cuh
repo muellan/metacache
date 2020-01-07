@@ -6,20 +6,11 @@
 #include "cuda_runtime.h"
 
 #include "config.h"
+#include "candidate_generation.h"
 #include "hash_dna.h"
+#include "taxonomy.h"
 
 namespace mc {
-
-
-struct candidate_target {
-    using count_type   = std::uint32_t;
-
-    target_id  tgt;
-    window_id  beg;
-    window_id  end;
-    count_type hits;
-};
-
 
 
 /*************************************************************************//**
@@ -32,8 +23,11 @@ struct candidate_target {
  *****************************************************************************/
  template<class result_type>
 class query_batch
- {
-     using id_type = uint32_t;
+{
+    using id_type = uint32_t;
+
+    using ranked_lineage = taxonomy::ranked_lineage;
+
 public:
     //---------------------------------------------------------------
     /** @brief allocate memory on host and device */
@@ -161,6 +155,8 @@ public:
     const cudaStream_t& stream() const noexcept {
         return stream_;
     }
+    //---------------------------------------------------------------
+    void sync_stream();
 
     //---------------------------------------------------------------
     void clear() noexcept {
@@ -175,7 +171,8 @@ public:
     /** @brief asynchronously compact, sort and copy results to host using stream_ */
     void compact_sort_and_copy_results_async();
     //---------------------------------------------------------------
-    void sync_stream();
+    /** @brief asynchronously generate and copy top candidates using stream_ */
+    void generate_and_copy_top_candidates_async(const ranked_lineage * lineages);
 
     /*************************************************************************//**
     *
@@ -389,8 +386,8 @@ private:
     int            * d_resultOffsets_;
     int            * d_resultCounts_;
 
-    candidate_target * h_topCandidates_;
-    candidate_target * d_topCandidates_;
+    match_candidate * h_topCandidates_;
+    match_candidate * d_topCandidates_;
 
     window_id * h_maxWindowsInRange_;
     window_id * d_maxWindowsInRange_;
