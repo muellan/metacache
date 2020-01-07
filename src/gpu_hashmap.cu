@@ -119,13 +119,13 @@ public:
         batch.copy_queries_to_device_async();
 
         // max 32*4 features => max window size is 128
-        #define BLOCK_THREADS 32
-        #define ITEMS_PER_THREAD 4
+        constexpr int threadsPerBlock = 32;
+        constexpr int itemsPerThread = 4;
 
         const size_type probingLength = 4*hashTable_.capacity();
 
-        const size_t numBlocks = batch.num_queries();
-        gpu_hahstable_query<BLOCK_THREADS,ITEMS_PER_THREAD><<<numBlocks,BLOCK_THREADS,0,stream>>>(
+        const int numBlocks = batch.num_queries();
+        gpu_hahstable_query<threadsPerBlock,itemsPerThread><<<numBlocks,threadsPerBlock,0,stream>>>(
             hashTable_,
             probingLength,
             batch.num_queries(),
@@ -473,12 +473,12 @@ std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
     // CUERR
 
     // max 32*4 features => max window size is 128
-    #define BLOCK_THREADS 32
-    #define ITEMS_PER_THREAD 4
+    constexpr int threadsPerBlock = 32;
+    constexpr int itemsPerThread = 4;
 
     //TODO increase grid in x and y dim
     constexpr dim3 numBlocks{1,1};
-    extract_features<BLOCK_THREADS,ITEMS_PER_THREAD><<<numBlocks,BLOCK_THREADS,0,stream>>>(
+    extract_features<threadsPerBlock,itemsPerThread><<<numBlocks,threadsPerBlock,0,stream>>>(
         seqBatches_[0].num_targets(),
         seqBatches_[0].target_ids(),
         seqBatches_[0].window_offsets(),
