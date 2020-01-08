@@ -32,7 +32,10 @@ class query_batch
 public:
     //---------------------------------------------------------------
     /** @brief allocate memory on host and device */
-    query_batch(id_type maxQueries = 0, size_t maxEncodeLength = 0, size_t maxResultsPerQuery = 0);
+    query_batch(id_type maxQueries,
+                size_t maxEncodeLength,
+                size_t maxResultsPerQuery,
+                uint32_t maxCandidatesPerQuery);
     //-----------------------------------------------------
     query_batch(const query_batch&) = delete;
     //-----------------------------------------------------
@@ -369,7 +372,7 @@ private:
     id_type maxQueries_;
     size_t maxEncodeLength_;
     size_t maxResultsPerQuery_;
-    size_t maxCandidatesPerQuery_;
+    uint32_t maxCandidatesPerQuery_;
 
     id_type        * h_queryIds_;
     id_type        * d_queryIds_;

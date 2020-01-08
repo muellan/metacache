@@ -113,8 +113,8 @@ void generate_top_candidates(
     const window_id * maxWindowsInRange,
     const ranked_lineage * lineages,
     taxon_rank mergeBelow,
-    match_candidate * topCandidates
-)
+    uint32_t maxCandidatesPerQuery,
+    match_candidate * topCandidates)
 {
     using hit_count = match_candidate::count_type;
 
@@ -138,30 +138,44 @@ void generate_top_candidates(
                 else
                     cand.tax = taxon_of_target(lineages, cand.tgt);
 
+                if(!cand.tax) return true;
 
-                int pos = MAX_CANDIDATES;
+                int insertPos = MAX_CANDIDATES;
+                int taxPos = MAX_CANDIDATES-1;
                 // find insert position of cand
                 for(int i = 0; i < MAX_CANDIDATES; ++i) {
                     if(cand.hits > top[i].hits) {
-                        pos = i;
+                        insertPos = i;
                         break;
                     }
                 }
-                // move smaller candidates backwards
-                for(int i = MAX_CANDIDATES-1; i > pos; --i) {
-                    top[i] = top[i-1];
+                // above sequence level, taxa can occur more than once
+                if(mergeBelow != taxon_rank::Sequence) {
+                    // find same taxon
+                    for(int i = 0; i < MAX_CANDIDATES; ++i) {
+                        if(cand.tax == top[i].tax) {
+                            taxPos = i;
+                            break;
+                        }
+                    }
                 }
-                // insert cand
-                top[pos] = cand;
-                // printf("cand tid: %d tgt: %d hits: %d\n", tid, cand.tgt, cand.hits);
+                // insert except if the same taxon with more hits already exists
+                if(taxPos >= insertPos) {
+                    // move smaller candidates backwards until taxPos
+                    for(int i = taxPos; i > insertPos; --i) {
+                        top[i] = top[i-1];
+                    }
+                    // insert cand
+                    top[insertPos] = cand;
+                }
 
                 return true;
         });
 
-        for(int i = 0; i < MAX_CANDIDATES; ++i) {
-            // topCandidates[i] = top[i];
+        for(int i = 0; i < maxCandidatesPerQuery; ++i) {
+            topCandidates[tid*maxCandidatesPerQuery+i] = top[i];
             if(top[i].hits > 0)
-                printf("top: %d tid: %d tgt: %d hits: %d\n", i, tid, top[i].tgt, top[i].hits);
+                printf("top: %d tid: %d tgt: %d hits: %d tax: %llu\n", i, tid, top[i].tgt, top[i].hits, top[i].tax);
             else
                 break;
         }

@@ -14,12 +14,15 @@ template<class result_type>
 query_batch<result_type>::query_batch(
     id_type maxQueries,
     size_t maxEncodeLength,
-    size_t maxResultsPerQuery) :
+    size_t maxResultsPerQuery,
+    uint32_t maxCandidatesPerQuery
+) :
     numSegments_{0},
     numQueries_{0},
     maxQueries_{maxQueries},
     maxEncodeLength_{maxEncodeLength},
-    maxResultsPerQuery_{maxResultsPerQuery}
+    maxResultsPerQuery_{maxResultsPerQuery},
+    maxCandidatesPerQuery_{maxCandidatesPerQuery}
 {
     //TODO reuse/combine device arrays:
     // d_encodeOffsets_ + d_resultOffsets_
@@ -50,8 +53,8 @@ query_batch<result_type>::query_batch(
 
         cudaMalloc    (&d_resultCounts_, maxQueries_*sizeof(int));
 
-        cudaMallocHost(&h_topCandidates_, maxQueries_*sizeof(match_candidate));
-        cudaMalloc    (&d_topCandidates_, maxQueries_*sizeof(match_candidate));
+        cudaMallocHost(&h_topCandidates_, maxQueries_*maxCandidatesPerQuery_*sizeof(match_candidate));
+        cudaMalloc    (&d_topCandidates_, maxQueries_*maxCandidatesPerQuery_*sizeof(match_candidate));
 
         cudaMallocHost(&h_maxWindowsInRange_, maxQueries_*sizeof(window_id));
         cudaMalloc    (&d_maxWindowsInRange_, maxQueries_*sizeof(window_id));
@@ -218,13 +221,14 @@ void query_batch<result_type>::compact_sort_and_copy_results_async() {
     d_queryResults_    = (result_type*)d_keys.Current();
     d_queryResultsTmp_ = (result_type*)d_keys.Alternate();
 
-
     cudaEventSynchronize(event_);
 
     cudaMemcpyAsync(h_queryResults_, d_queryResults_,
-        // numQueries_*maxResultsPerQuery_*sizeof(result_type),
-        h_resultOffsets_[numSegments_]*sizeof(result_type),
-        cudaMemcpyDeviceToHost, stream_);
+                    h_resultOffsets_[numSegments_]*sizeof(result_type),
+                    cudaMemcpyDeviceToHost, stream_);
+
+    // cudaStreamSynchronize(stream_);
+    // CUERR
 }
 
 
@@ -234,24 +238,33 @@ void query_batch<result_type>::generate_and_copy_top_candidates_async(
     const ranked_lineage * lineages,
     taxon_rank lowestRank)
 {
-    //TODO max cand as template?
-    constexpr int maxCandidates = 8;
-
     const size_t numBlocks = SDIV(numSegments_, 32);
 
-    generate_top_candidates<maxCandidates><<<numBlocks,32,0,stream_>>>(
-        numSegments_,
-        d_resultOffsets_,
-        d_queryResults_,
-        d_maxWindowsInRange_,
-        lineages,
-        lowestRank,
-        d_topCandidates_);
+    //TODO different max cand cases
+    if(maxCandidatesPerQuery_ <= 4) {
+        constexpr int maxCandidates = 4;
+
+        generate_top_candidates<maxCandidates><<<numBlocks,32,0,stream_>>>(
+            numSegments_,
+            d_resultOffsets_,
+            d_queryResults_,
+            d_maxWindowsInRange_,
+            lineages,
+            lowestRank,
+            maxCandidatesPerQuery_,
+            d_topCandidates_);
+
+        // cudaStreamSynchronize(stream_);
+        // CUERR
+    }
+
+    //TODO copy candidates to host
+    cudaMemcpyAsync(h_topCandidates_, d_topCandidates_,
+                    maxQueries_*maxCandidatesPerQuery_*sizeof(match_candidate),
+                    cudaMemcpyDeviceToHost, stream_);
 
     // cudaStreamSynchronize(stream_);
     // CUERR
-
-    //TODO copy candidates to host
 }
 
 

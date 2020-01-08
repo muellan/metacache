@@ -103,7 +103,7 @@ public:
                            return a.hits > b.hits;
                        };
 
-        if(cand.tax->rank() == taxon_rank::Sequence) {
+        if(rules.mergeBelow == taxon_rank::Sequence) {
             auto i = std::upper_bound(top_.begin(), top_.end(), cand, greater);
 
             if(i != top_.end() || top_.size() < rules.maxCandidates) {
@@ -128,7 +128,7 @@ public:
                 }
             }
             //taxon not in list yet
-            else  {
+            else {
                 auto j = std::upper_bound(top_.begin(), top_.end(), cand, greater);
 
                 if(j != top_.end() || top_.size() < rules.maxCandidates) {
@@ -138,8 +138,8 @@ public:
                         top_.resize(rules.maxCandidates);
                 }
             }
-
         }
+
         return true;
     };
 

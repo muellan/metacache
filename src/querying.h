@@ -195,7 +195,8 @@ query_id query_batched(
                 gpuBatches[id] = std::make_unique<query_batch<location>>(
                     opt.gpuBatchSize,
                     opt.gpuBatchSize*db.query_sketcher().window_size()/(sizeof(encodedambig_t)*CHAR_BIT),
-                    db.query_sketcher().sketch_size()*db.max_locations_per_feature());
+                    db.query_sketcher().sketch_size()*db.max_locations_per_feature(),
+                    classifyOpt.maxNumCandidatesPerQuery);
 
             size_t outIndex = 0;
 
