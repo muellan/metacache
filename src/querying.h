@@ -71,23 +71,6 @@ struct sequence_query
 
 
 
-template<class value_type>
-struct span {
-
-    value_type * begin() const noexcept { return begin_; }
-
-    value_type * end() const noexcept { return end_; }
-
-    size_t size() const noexcept { return end_ - begin_; }
-
-    bool empty() const noexcept { return begin_ == end_; }
-
-    value_type * begin_;
-    value_type * end_;
-};
-
-
-
 /*************************************************************************//**
  *
  * @brief process batch of results from database query
@@ -118,17 +101,27 @@ void process_gpu_batch(
         // std::cout << '\n';
 
         for(size_t s = 0; s < queryBatch.num_segments(); ++s, ++index) {
-            auto resultsBegin = queryBatch.query_results_host()+queryBatch.result_offsets_host()[s];
-            auto resultsEnd   = queryBatch.query_results_host()+queryBatch.result_offsets_host()[s+1];
-
-            span<location> results{resultsBegin, resultsEnd};
+            span<location> results = queryBatch.results(s);
 
             // std::cout << s << ". targetMatches:    ";
             // for(const auto& m : results)
             //     std::cout << m.tgt << ':' << m.win << ' ';
             // std::cout << '\n';
 
-            update(batchBuffer, sequenceBatch[index], results);
+            span<match_candidate> tophits = queryBatch.top_candidates(s);
+
+            // std::cout << s << ". top hits: ";
+            // for(const auto& t : tophits) {
+            //     if(t.hits > 0) {
+            //         if(t.tax)
+            //             std::cout << t.tax->id() << ':' << t.hits << ' ';
+            //         else
+            //             std::cout << "notax:"  << t.hits << ' ';
+            //     }
+            // }
+            // std::cout << '\n';
+
+            update(batchBuffer, sequenceBatch[index], results, tophits);
         }
         // std::cout << '\n';
 

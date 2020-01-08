@@ -146,6 +146,10 @@ struct classification
         candidates{std::move(cand)}, best{nullptr}, groundTruth{nullptr}
     {}
 
+    classification(const span<match_candidate>& cand):
+        candidates{cand}, best{nullptr}, groundTruth{nullptr}
+    {}
+
     classification_candidates candidates;
     const taxon* best;
     const taxon* groundTruth;
@@ -732,12 +736,19 @@ void map_queries_to_targets_default(
     const auto makeBatchBuffer = [] { return mappings_buffer(); };
 
     //updates buffer with the database answer of a single query
-    const auto processQuery = [&](mappings_buffer& buf,
-        const sequence_query& query, const auto& allhits)
+    const auto processQuery = [&](
+        mappings_buffer& buf,
+        const sequence_query& query,
+        const auto& allhits,
+        const auto& tophits)
     {
         if(query.empty()) return;
 
-        auto cls = classify(db, opt.classify, query, allhits);
+        // auto cls = classify(db, opt.classify, query, allhits);
+
+        classification cls { tophits };
+
+        cls.best = classify(db, opt.classify, cls.candidates);
 
         if(opt.output.showHitsPerTargetList || opt.classify.covPercentile > 0) {
             //insert all candidates with at least 'hitsMin' hits into

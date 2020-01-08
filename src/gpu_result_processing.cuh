@@ -174,10 +174,10 @@ void generate_top_candidates(
 
         for(int i = 0; i < maxCandidatesPerQuery; ++i) {
             topCandidates[tid*maxCandidatesPerQuery+i] = top[i];
-            if(top[i].hits > 0)
-                printf("top: %d tid: %d tgt: %d hits: %d tax: %llu\n", i, tid, top[i].tgt, top[i].hits, top[i].tax);
-            else
-                break;
+            // if(top[i].hits > 0)
+            //     printf("top: %d tid: %d tgt: %d hits: %d tax: %llu\n", i, tid, top[i].tgt, top[i].hits, top[i].tax);
+            // else
+            //     break;
         }
     }
 

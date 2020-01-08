@@ -35,6 +35,22 @@
 namespace mc {
 
 
+template<class value_type>
+struct span {
+
+    value_type * begin() const noexcept { return begin_; }
+
+    value_type * end() const noexcept { return end_; }
+
+    size_t size() const noexcept { return end_ - begin_; }
+
+    bool empty() const noexcept { return begin_ == end_; }
+
+    value_type * begin_;
+    value_type * end_;
+};
+
+
 /*************************************************************************//**
  *
  * @brief inclusive index range: [beg,end]

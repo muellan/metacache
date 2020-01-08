@@ -56,6 +56,13 @@ public:
     best_distinct_matches_in_contiguous_window_ranges() = default;
 
     /****************************************************************
+     * @brief copy candidates from span
+     */
+    best_distinct_matches_in_contiguous_window_ranges(const span<match_candidate>& cand) {
+        top_.assign(cand.begin(), cand.end());
+    }
+
+    /****************************************************************
      * @pre matches must be sorted by taxon (first) and window (second)
      */
     template<class Locations>

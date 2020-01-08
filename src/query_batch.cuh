@@ -38,46 +38,6 @@ public:
                 uint32_t maxCandidatesPerQuery);
     //-----------------------------------------------------
     query_batch(const query_batch&) = delete;
-    //-----------------------------------------------------
-    query_batch(query_batch&& other) {
-        numSegments_        = other.numSegments_;
-        maxQueries_         = other.maxQueries_;
-        maxEncodeLength_    = other.maxEncodeLength_;
-        numQueries_         = other.numQueries_;
-        maxResultsPerQuery_ = other.maxResultsPerQuery_;
-
-        other.numSegments_        = 0;
-        other.maxQueries_         = 0;
-        other.maxEncodeLength_    = 0;
-        other.numQueries_         = 0;
-        other.maxResultsPerQuery_ = 0;
-
-        h_queryIds_      = other.h_queryIds_;
-        d_queryIds_      = other.d_queryIds_;
-
-        h_encodeOffsets_ = other.h_encodeOffsets_;
-        d_encodeOffsets_ = other.d_encodeOffsets_;
-
-        h_encodedSeq_    = other.h_encodedSeq_;
-        d_encodedSeq_    = other.d_encodedSeq_;
-
-        h_encodedAmbig_  = other.h_encodedAmbig_;
-        d_encodedAmbig_  = other.d_encodedAmbig_;
-
-        h_queryResults_  = other.h_queryResults_;
-        d_queryResults_  = other.d_queryResults_;
-
-        d_queryResultsTmp_ = other.d_queryResultsTmp_;
-
-        h_resultOffsets_ = other.h_resultOffsets_;
-        d_resultOffsets_ = other.d_resultOffsets_;
-
-        d_resultCounts_  = other.d_resultCounts_;
-
-        stream_ = other.stream_;
-        other.stream_ = 0;
-    };
-
     //---------------------------------------------------------------
     /** @brief free memory allocation */
     ~query_batch();
@@ -154,6 +114,26 @@ public:
     //---------------------------------------------------------------
     int * result_counts_device() const noexcept {
         return d_resultCounts_;
+    }
+    //---------------------------------------------------------------
+    span<result_type> results(id_type id) const noexcept {
+        if(id < numSegments_)
+            return span<result_type>{
+                h_queryResults_+h_resultOffsets_[id],
+                h_queryResults_+h_resultOffsets_[id+1]
+            };
+        else
+            return span<result_type>{};
+    }
+    //---------------------------------------------------------------
+    span<match_candidate> top_candidates(id_type id) const noexcept {
+        if(id < numSegments_)
+            return span<match_candidate>{
+                h_topCandidates_+id*maxCandidatesPerQuery_,
+                h_topCandidates_+(id+1)*maxCandidatesPerQuery_
+            };
+        else
+            return span<match_candidate>{};
     }
     //---------------------------------------------------------------
     const cudaStream_t& stream() const noexcept {
