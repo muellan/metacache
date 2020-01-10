@@ -168,8 +168,8 @@ int reduce_locations(Iterator begin, Iterator end, match * matches, int numLocat
     if(predicate) {
         matches[locPos] = {myLocation, hits};
 
-        printf("tid: %d tgt: %d win: %d hits: %d\n",
-            tid, myLocation.tgt, myLocation.win, hits);
+        // printf("tid: %d tgt: %d win: %d hits: %d\n",
+            // tid, myLocation.tgt, myLocation.win, hits);
     }
 
     return numLocations + count;
@@ -183,13 +183,15 @@ int reduce_locations(Iterator begin, Iterator end, match * matches, int numLocat
  *
  *****************************************************************************/
 __device__
-int process_matches(match * matches, int numLocations, window_id maxWin) {
+int process_matches(match * matches, int numLocations, window_id maxWin, match_candidate * top) {
+    using hit_count = match_candidate::count_type;
+
     const int tid = threadIdx.x;
     const int numProcessed = min(32, numLocations);
 
+    match_candidate candidate;
     if(tid < numProcessed) {
         match m = matches[tid];
-        match_candidate candidate;
         candidate.tgt = m.loc.tgt;
         candidate.hits = m.hits;
         candidate.pos.beg = m.loc.win;
@@ -206,9 +208,31 @@ int process_matches(match * matches, int numLocations, window_id maxWin) {
                 break;
             }
         }
-        printf("tid: %d tgt: %d beg: %d end: %d hits: %d\n",
-            tid, candidate.tgt, candidate.pos.beg, candidate.pos.end, candidate.hits);
+        // printf("tid: %d tgt: %d beg: %d end: %d hits: %d\n",
+            // tid, candidate.tgt, candidate.pos.beg, candidate.pos.end, candidate.hits);
+
+        top[0] = candidate;
     }
+
+    //TODO segmented max reduction to find candidate with max hits for each target
+    const uint32_t mask = (1 << numProcessed) - 1;
+
+    const target_id myTarget = candidate.tgt;
+    hit_count maxHits = (candidate.hits << 5) + tid;
+
+    // find max hits of same tgt run
+    for(int i = 1; i < 32; i *= 2) {
+        target_id otherTarget;
+        //TODO shfl up and down instead of xor
+        otherTarget = __shfl_xor_sync(mask, myTarget, i);
+        hit_count otherHits = __shfl_xor_sync(mask, maxHits, i);
+        if(myTarget == otherTarget && maxHits < otherHits)
+            maxHits = otherHits;
+    }
+    bool predicate = (tid < numProcessed) && (tid == (maxHits & ((1 << 5) - 1)));
+    if(predicate)
+        printf("max -- tid: %d tgt: %d beg: %d end: %d hits: %d\n",
+            tid, candidate.tgt, candidate.pos.beg, candidate.pos.end, candidate.hits);
 
     return numProcessed;
 }
@@ -265,10 +289,10 @@ void generate_top_candidates(
 
             // process matches
             const int numProcessed = process_matches(
-                matches, (begin < end) ? numLocations-1 : numLocations, maxWin);
+                matches, (begin < end) ? numLocations-1 : numLocations, maxWin, top);
 
-            if(tid == 0)
-                printf("#locs: %d #processed: %d\n", numLocations, numProcessed);
+            // if(tid == 0)
+                // printf("#locs: %d #processed: %d\n", numLocations, numProcessed);
 
             // remove processed matches from shared memory
             numLocations -= numProcessed;
