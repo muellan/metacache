@@ -241,8 +241,8 @@ void query_batch<result_type>::generate_and_copy_top_candidates_async(
     const size_t numBlocks = SDIV(numSegments_, 32);
 
     //TODO different max cand cases
-    if(maxCandidatesPerQuery_ <= 4) {
-        constexpr int maxCandidates = 4;
+    if(maxCandidatesPerQuery_ <= 2) {
+        constexpr int maxCandidates = 2;
 
         generate_top_candidates<maxCandidates><<<numBlocks,32,0,stream_>>>(
             numSegments_,

@@ -155,6 +155,7 @@ public:
         window_id win;
         target_id tgt;
 
+        HOSTDEVICEQUALIFIER
         friend bool
         operator == (const location& a, const location& b) noexcept {
             return (a.tgt == b.tgt) && (a.win == b.win);
