@@ -88,7 +88,7 @@ struct match_candidate
     using window_range = mc::window_range;
     using count_type   = std::uint32_t;
 
-    constexpr
+    // constexpr
     match_candidate() noexcept = default;
 
     match_candidate(const taxon* tax, count_type hits) :
@@ -98,9 +98,12 @@ struct match_candidate
         pos{}
     {};
 
-    const taxon* tax = nullptr;
-    target_id    tgt = std::numeric_limits<target_id>::max();
-    count_type   hits = 0;
+    // const taxon* tax = nullptr;
+    const taxon* tax;
+    // target_id    tgt = std::numeric_limits<target_id>::max();
+    target_id    tgt;
+    // count_type   hits = 0;
+    count_type   hits;
     window_range pos;
 };
 

@@ -178,12 +178,68 @@ int reduce_locations(Iterator begin, Iterator end, match * matches, int numLocat
 
 /*************************************************************************//**
  *
+ * @brief  insert candidate into local tophits list
+ *
+ *****************************************************************************/
+ template<int MAX_CANDIDATES>
+__device__
+bool insert_into_tophits(
+    match_candidate& cand, match_candidate * top,
+    const ranked_lineage * lineages, taxon_rank mergeBelow)
+{
+    if(mergeBelow > taxon_rank::Sequence)
+        cand.tax = lowest_ranked_ancestor(lineages, cand.tgt, mergeBelow);
+    else
+        cand.tax = taxon_of_target(lineages, cand.tgt);
+
+    if(!cand.tax) return true;
+
+    int insertPos = MAX_CANDIDATES;
+    int taxPos = MAX_CANDIDATES-1;
+    // find insert position of cand
+    for(int i = 0; i < MAX_CANDIDATES; ++i) {
+        if(cand.hits > top[i].hits) {
+            insertPos = i;
+            break;
+        }
+    }
+    // above sequence level, taxa can occur more than once
+    if(mergeBelow != taxon_rank::Sequence) {
+        // find same taxon
+        for(int i = 0; i < MAX_CANDIDATES; ++i) {
+            if(cand.tax == top[i].tax) {
+                taxPos = i;
+                break;
+            }
+        }
+    }
+    // insert except if the same taxon with more hits already exists
+    if(taxPos >= insertPos) {
+        // move smaller candidates backwards until taxPos
+        for(int i = taxPos; i > insertPos; --i) {
+            top[i] = top[i-1];
+        }
+        // insert cand
+        top[insertPos] = cand;
+    }
+
+    return true;
+}
+
+
+/*************************************************************************//**
+ *
  * @brief  produces contiguous window ranges of matches
  *         that are at most 'maxWin' long;
  *
  *****************************************************************************/
-__device__
-int process_matches(match * matches, int numLocations, window_id maxWin, match_candidate * top) {
+ template<int MAX_CANDIDATES>
+ __device__
+int process_matches(
+    match * matches, int numLocations, window_id maxWin,
+    match_candidate * top,
+    const ranked_lineage * lineages, taxon_rank mergeBelow)
+{
     using hit_count = match_candidate::count_type;
 
     const int tid = threadIdx.x;
@@ -211,28 +267,38 @@ int process_matches(match * matches, int numLocations, window_id maxWin, match_c
         // printf("tid: %d tgt: %d beg: %d end: %d hits: %d\n",
             // tid, candidate.tgt, candidate.pos.beg, candidate.pos.end, candidate.hits);
 
-        top[0] = candidate;
+        // top[0] = candidate;
     }
 
     //TODO segmented max reduction to find candidate with max hits for each target
     const uint32_t mask = (1 << numProcessed) - 1;
 
     const target_id myTarget = candidate.tgt;
+    // add thread id to make hit count unique
     hit_count maxHits = (candidate.hits << 5) + tid;
 
     // find max hits of same tgt run
     for(int i = 1; i < 32; i *= 2) {
-        target_id otherTarget;
-        //TODO shfl up and down instead of xor
-        otherTarget = __shfl_xor_sync(mask, myTarget, i);
-        hit_count otherHits = __shfl_xor_sync(mask, maxHits, i);
+        target_id otherTarget = __shfl_up_sync(mask, myTarget, i);
+        hit_count otherHits = __shfl_up_sync(mask, maxHits, i);
+        if(myTarget == otherTarget && maxHits < otherHits)
+            maxHits = otherHits;
+
+        // propagate max hits
+        otherTarget = __shfl_down_sync(mask, myTarget, i);
+        otherHits = __shfl_down_sync(mask, maxHits, i);
         if(myTarget == otherTarget && maxHits < otherHits)
             maxHits = otherHits;
     }
-    bool predicate = (tid < numProcessed) && (tid == (maxHits & ((1 << 5) - 1)));
-    if(predicate)
-        printf("max -- tid: %d tgt: %d beg: %d end: %d hits: %d\n",
-            tid, candidate.tgt, candidate.pos.beg, candidate.pos.end, candidate.hits);
+    const bool predicate = (tid < numProcessed) && (tid == (maxHits & ((1 << 5) - 1)));
+
+    if(predicate) {
+        // printf("max -- tid: %d tgt: %d beg: %d end: %d hits: %d\n",
+        //        tid, candidate.tgt, candidate.pos.beg, candidate.pos.end, candidate.hits);
+
+        //TODO save max candidates: local or shared?
+        insert_into_tophits<MAX_CANDIDATES>(candidate, top, lineages, mergeBelow);
+    }
 
     return numProcessed;
 }
@@ -256,6 +322,7 @@ void generate_top_candidates(
 
     //TODO reduce size
     __shared__ match matches[96];
+    __shared__ match_candidate topShared[MAX_CANDIDATES];
 
     for(int bid = blockIdx.x;
             bid < numSegments;
@@ -273,6 +340,11 @@ void generate_top_candidates(
             top[i].hits = 0;
         }
 
+        if(tid < maxCandidatesPerQuery) {
+            topShared[tid].hits = 0;
+        }
+
+
         int numLocations = 0;
         const window_id maxWin = maxWindowsInRange[bid];
         // if(tid == 0) printf("bid: %d maxWin: %d\n", bid, maxWin);
@@ -281,15 +353,16 @@ void generate_top_candidates(
             for(; (begin < end) && (numLocations <= 32+maxWin-1); begin += 32) {
                 numLocations = reduce_locations(begin, end, matches, numLocations);
 
-                for(int i = tid; i < numLocations; i += 32) {
-                    printf("bid %d tid: %d tgt: %d win: %d hits: %d\n",
-                        bid, tid, matches[tid].loc.tgt, matches[tid].loc.win, matches[tid].hits);
-                }
+                // for(int i = tid; i < numLocations; i += 32) {
+                //     printf("bid %d tid: %d tgt: %d win: %d hits: %d\n",
+                //         bid, tid, matches[tid].loc.tgt, matches[tid].loc.win, matches[tid].hits);
+                // }
             }
 
             // process matches
-            const int numProcessed = process_matches(
-                matches, (begin < end) ? numLocations-1 : numLocations, maxWin, top);
+            const int numProcessed = process_matches<MAX_CANDIDATES>(
+                matches, (begin < end) ? numLocations-1 : numLocations, maxWin,
+                top, lineages, mergeBelow);
 
             // if(tid == 0)
                 // printf("#locs: %d #processed: %d\n", numLocations, numProcessed);
@@ -304,51 +377,61 @@ void generate_top_candidates(
 
         // for_all_contiguous_window_ranges(
         //     begin, end, maxWindowsInRange[bid], [&] (match_candidate& cand) {
-        //         if(mergeBelow > taxon_rank::Sequence)
-        //             cand.tax = lowest_ranked_ancestor(lineages, cand.tgt, mergeBelow);
-        //         else
-        //             cand.tax = taxon_of_target(lineages, cand.tgt);
-
-        //         if(!cand.tax) return true;
-
-        //         int insertPos = MAX_CANDIDATES;
-        //         int taxPos = MAX_CANDIDATES-1;
-        //         // find insert position of cand
-        //         for(int i = 0; i < MAX_CANDIDATES; ++i) {
-        //             if(cand.hits > top[i].hits) {
-        //                 insertPos = i;
-        //                 break;
-        //             }
-        //         }
-        //         // above sequence level, taxa can occur more than once
-        //         if(mergeBelow != taxon_rank::Sequence) {
-        //             // find same taxon
-        //             for(int i = 0; i < MAX_CANDIDATES; ++i) {
-        //                 if(cand.tax == top[i].tax) {
-        //                     taxPos = i;
-        //                     break;
-        //                 }
-        //             }
-        //         }
-        //         // insert except if the same taxon with more hits already exists
-        //         if(taxPos >= insertPos) {
-        //             // move smaller candidates backwards until taxPos
-        //             for(int i = taxPos; i > insertPos; --i) {
-        //                 top[i] = top[i-1];
-        //             }
-        //             // insert cand
-        //             top[insertPos] = cand;
-        //         }
-
-        //         return true;
+        //         insert_into_tophits(cand, top, lineages, mergeBelow);
         // });
 
-        for(int i = 0; i < maxCandidatesPerQuery; ++i) {
-            // topCandidates[bid*maxCandidatesPerQuery+i] = top[i];
-            // if(top[i].hits > 0)
-            //     printf("top: %d tid: %d tgt: %d hits: %d tax: %llu\n", i, tid, top[i].tgt, top[i].hits, top[i].tax);
-            // else
-            //     break;
+        // int tophitsCount = 0;
+        // for(int i = 0; i < maxCandidatesPerQuery; ++i) {
+        //     if(top[i].hits > 0)
+        //         ++tophitsCount;
+        // }
+        // printf("bid: %d tid: %d: tophits: %d\n", bid, tid, tophitsCount);
+
+
+        int tophitsUsed = 0;
+        int tophitsTotal = 0;
+
+        hit_count hits = top[0].hits;
+
+        while(__ballot_sync(0xFFFFFFFF, hits > 0) && tophitsTotal < maxCandidatesPerQuery) {
+            const match_candidate& candidate = top[tophitsUsed];
+
+            // add thread id to make hit count unique
+            hit_count maxHits = (candidate.hits << 5) + tid;
+
+            // find top candidates in whole warp
+            for(int i = 1; i < 32; i *= 2) {
+                hit_count otherHits = __shfl_up_sync(0xFFFFFFFF, maxHits, i);
+                if(maxHits < otherHits)
+                    maxHits = otherHits;
+            }
+            maxHits = __shfl_sync(0xFFFFFFFF, maxHits, 32-1);
+
+            bool inserted = false;
+            if(tid == (maxHits & ((1 << 5) - 1))) {
+                bool sameTaxPresent = false;
+                for(int i = 0; i < tophitsTotal; ++i) {
+                    if(candidate.tax == topShared[i].tax) {
+                        sameTaxPresent = true;
+                        break;
+                    }
+                }
+                if(!sameTaxPresent) {
+                    topShared[tophitsTotal] = candidate;
+                }
+                ++tophitsUsed;
+                inserted = true;
+            }
+            if(__ballot_sync(0xFFFFFFFF, inserted))
+                ++tophitsTotal;
+
+            hits = top[tophitsUsed].hits;
+        }
+
+        if(tid < maxCandidatesPerQuery) {
+            topCandidates[bid*maxCandidatesPerQuery+tid] = topShared[tid];
+            // if(topShared[tid].hits > 0)
+            //     printf("bid: %d top: %d tgt: %d hits: %d tax: %llu\n", bid, tid, topShared[tid].tgt, topShared[tid].hits, topShared[tid].tax);
         }
     }
 
