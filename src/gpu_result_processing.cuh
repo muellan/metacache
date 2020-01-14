@@ -178,7 +178,7 @@ int reduce_locations(Iterator begin, Iterator end, match * matches, int numLocat
 
 /*************************************************************************//**
  *
- * @brief  insert candidate into local tophits list
+ * @brief  insert candidate into thread local tophits list
  *
  *****************************************************************************/
  template<int MAX_CANDIDATES>
@@ -270,33 +270,31 @@ int process_matches(
         // top[0] = candidate;
     }
 
-    //TODO segmented max reduction to find candidate with max hits for each target
-    const uint32_t mask = (1 << numProcessed) - 1;
 
-    const target_id myTarget = candidate.tgt;
+    const target_id myTarget = (tid < numProcessed) ? candidate.tgt : std::numeric_limits<target_id>::max();
     // add thread id to make hit count unique
-    hit_count maxHits = (candidate.hits << 5) + tid;
+    hit_count maxHits = (candidate.hits << 5) + 32-1 - tid;
 
-    // find max hits of same tgt run
+    // segmented max reduction to find candidate with max hits for each target
     for(int i = 1; i < 32; i *= 2) {
-        target_id otherTarget = __shfl_up_sync(mask, myTarget, i);
-        hit_count otherHits = __shfl_up_sync(mask, maxHits, i);
+        target_id otherTarget = __shfl_up_sync(0xFFFFFFFF, myTarget, i);
+        hit_count otherHits = __shfl_up_sync(0xFFFFFFFF, maxHits, i);
         if(myTarget == otherTarget && maxHits < otherHits)
             maxHits = otherHits;
 
         // propagate max hits
-        otherTarget = __shfl_down_sync(mask, myTarget, i);
-        otherHits = __shfl_down_sync(mask, maxHits, i);
+        otherTarget = __shfl_down_sync(0xFFFFFFFF, myTarget, i);
+        otherHits = __shfl_down_sync(0xFFFFFFFF, maxHits, i);
         if(myTarget == otherTarget && maxHits < otherHits)
             maxHits = otherHits;
     }
-    const bool predicate = (tid < numProcessed) && (tid == (maxHits & ((1 << 5) - 1)));
+    const bool predicate = (tid < numProcessed) && (32-1 - tid == (maxHits & ((1 << 5) - 1)));
 
     if(predicate) {
-        // printf("max -- tid: %d tgt: %d beg: %d end: %d hits: %d\n",
-        //        tid, candidate.tgt, candidate.pos.beg, candidate.pos.end, candidate.hits);
+        // printf("max -- tid: %d tgt: %d beg: %d end: %d hits: %d tid bits: %d\n",
+            //    tid, candidate.tgt, candidate.pos.beg, candidate.pos.end, candidate.hits, (maxHits & ((1 << 5) - 1)));
 
-        //TODO save max candidates: local or shared?
+        // save max candidates
         insert_into_tophits<MAX_CANDIDATES>(candidate, top, lineages, mergeBelow);
     }
 
@@ -332,8 +330,6 @@ void generate_top_candidates(
 
         auto begin = locations + segmentOffsets[bid];
         const auto end = locations + segmentOffsets[bid+1];
-        // early exit
-        if(begin >= end) continue;
 
         match_candidate top[MAX_CANDIDATES];
         for(int i = 0; i < MAX_CANDIDATES; ++i) {
@@ -341,15 +337,17 @@ void generate_top_candidates(
         }
 
         if(tid < maxCandidatesPerQuery) {
+            topShared[tid].tax = nullptr;
+            // topShared[tid].tgt = std::numeric_limits<target_id>::max();
             topShared[tid].hits = 0;
+            // topShared[tid].pos = {0, 0};
         }
-
 
         int numLocations = 0;
         const window_id maxWin = maxWindowsInRange[bid];
         // if(tid == 0) printf("bid: %d maxWin: %d\n", bid, maxWin);
 
-        while(begin < end) {
+        while(begin < end || numLocations > 0) {
             for(; (begin < end) && (numLocations <= 32+maxWin-1); begin += 32) {
                 numLocations = reduce_locations(begin, end, matches, numLocations);
 
@@ -397,7 +395,7 @@ void generate_top_candidates(
             const match_candidate& candidate = top[tophitsUsed];
 
             // add thread id to make hit count unique
-            hit_count maxHits = (candidate.hits << 5) + tid;
+            hit_count maxHits = (candidate.hits << 5) + 32-1 - tid;
 
             // find top candidates in whole warp
             for(int i = 1; i < 32; i *= 2) {
@@ -407,22 +405,23 @@ void generate_top_candidates(
             }
             maxHits = __shfl_sync(0xFFFFFFFF, maxHits, 32-1);
 
-            bool inserted = false;
-            if(tid == (maxHits & ((1 << 5) - 1))) {
-                bool sameTaxPresent = false;
+            //TODO use whole warp for insertion
+            bool insert = false;
+            if(32-1 - tid == (maxHits & ((1 << 5) - 1))) {
+                insert = true;
+                // if same tax already present, do not insert
                 for(int i = 0; i < tophitsTotal; ++i) {
                     if(candidate.tax == topShared[i].tax) {
-                        sameTaxPresent = true;
+                        insert = false;
                         break;
                     }
                 }
-                if(!sameTaxPresent) {
+                if(insert) {
                     topShared[tophitsTotal] = candidate;
                 }
                 ++tophitsUsed;
-                inserted = true;
             }
-            if(__ballot_sync(0xFFFFFFFF, inserted))
+            if(__ballot_sync(0xFFFFFFFF, insert))
                 ++tophitsTotal;
 
             hits = top[tophitsUsed].hits;

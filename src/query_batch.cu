@@ -258,9 +258,9 @@ void query_batch<result_type>::generate_and_copy_top_candidates_async(
         // CUERR
     }
 
-    //TODO copy candidates to host
+    // copy candidates to host
     cudaMemcpyAsync(h_topCandidates_, d_topCandidates_,
-                    maxQueries_*maxCandidatesPerQuery_*sizeof(match_candidate),
+                    numSegments_*maxCandidatesPerQuery_*sizeof(match_candidate),
                     cudaMemcpyDeviceToHost, stream_);
 
     // cudaStreamSynchronize(stream_);
