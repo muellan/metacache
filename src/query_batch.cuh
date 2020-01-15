@@ -51,53 +51,16 @@ public:
         return numQueries_;
     }
     //---------------------------------------------------------------
-    id_type max_queries() const noexcept {
-        return maxQueries_;
-    }
-    //---------------------------------------------------------------
-    size_t max_encode_length() const noexcept {
-        return maxEncodeLength_;
-    }
-    //---------------------------------------------------------------
-    size_t max_results_per_query() const noexcept {
-        return maxResultsPerQuery_;
-    }
-
-    //---------------------------------------------------------------
-    id_type * query_ids_host() const noexcept {
-        return h_queryIds_;
-    }
-    //---------------------------------------------------------------
-    id_type * query_ids_device() const noexcept {
-        return d_queryIds_;
-    }
-    //---------------------------------------------------------------
-    encodinglen_t * encode_offsets_host() const noexcept {
-        return h_encodeOffsets_;
-    }
-    //---------------------------------------------------------------
     encodinglen_t * encode_offsets_device() const noexcept {
         return d_encodeOffsets_;
-    }
-    //---------------------------------------------------------------
-    encodedseq_t * encoded_seq_host() const noexcept {
-        return h_encodedSeq_;
     }
     //---------------------------------------------------------------
     encodedseq_t * encoded_seq_device() const noexcept {
         return d_encodedSeq_;
     }
     //---------------------------------------------------------------
-    encodedambig_t * encoded_ambig_host() const noexcept {
-        return h_encodedAmbig_;
-    }
-    //---------------------------------------------------------------
     encodedambig_t * encoded_ambig_device() const noexcept {
         return d_encodedAmbig_;
-    }
-    //---------------------------------------------------------------
-    result_type * query_results_host() const noexcept {
-        return h_queryResults_;
     }
     //---------------------------------------------------------------
     result_type * query_results_device() const noexcept {
@@ -106,10 +69,6 @@ public:
     //---------------------------------------------------------------
     int * result_offsets_host() const noexcept {
         return h_resultOffsets_;
-    }
-    //---------------------------------------------------------------
-    int * result_offsets_device() const noexcept {
-        return d_resultOffsets_;
     }
     //---------------------------------------------------------------
     int * result_counts_device() const noexcept {
@@ -140,7 +99,8 @@ public:
         return stream_;
     }
     //---------------------------------------------------------------
-    void sync_stream();
+    void sync_streams();
+    void sync_result_stream();
 
     //---------------------------------------------------------------
     void clear() noexcept {
@@ -364,6 +324,9 @@ private:
     encodedambig_t * h_encodedAmbig_;
     encodedambig_t * d_encodedAmbig_;
 
+    window_id      * h_maxWindowsInRange_;
+    window_id      * d_maxWindowsInRange_;
+
     result_type    * h_queryResults_;
     result_type    * d_queryResults_;
     result_type    * d_queryResultsTmp_;
@@ -375,11 +338,10 @@ private:
     match_candidate * h_topCandidates_;
     match_candidate * d_topCandidates_;
 
-    window_id * h_maxWindowsInRange_;
-    window_id * d_maxWindowsInRange_;
-
     cudaStream_t stream_;
-    cudaEvent_t event_;
+    cudaStream_t resultCopyStream_;
+    cudaEvent_t offsetsCopiedEvent_;
+    cudaEvent_t resultReadyEvent_;
 };
 
 

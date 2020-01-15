@@ -150,7 +150,7 @@ public:
         batch.generate_and_copy_top_candidates_async(lineages_, lowestRank);
 
         //TODO async
-        batch.sync_stream();
+        batch.sync_result_stream();
         CUERR
     }
 
