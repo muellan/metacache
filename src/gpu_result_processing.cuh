@@ -10,6 +10,12 @@
 namespace mc {
 
 
+/*************************************************************************//**
+ *
+ * @brief  remove memory gaps between results of different queries;
+ *         determine segment offsets and store them in global memory
+ *
+ *****************************************************************************/
 template<class id_type, class result_type>
 __global__
 void compact_kernel(
@@ -58,6 +64,11 @@ void compact_kernel(
 }
 
 
+/*************************************************************************//**
+ *
+ * @brief  determine segment offsets and store them in global memory
+ *
+ *****************************************************************************/
 template<class id_type>
 __global__
 void segment_kernel(
