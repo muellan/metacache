@@ -17,8 +17,10 @@ query_batch<result_type>::query_batch(
     size_t maxResultsPerQuery,
     uint32_t maxCandidatesPerQuery
 ) :
-    numSegments_{0},
-    numQueries_{0},
+    h_numSegments_{0},
+    d_numSegments_{0},
+    h_numQueries_{0},
+    d_numQueries_{0},
     maxQueries_{maxQueries},
     maxEncodeLength_{maxEncodeLength},
     maxResultsPerQuery_{maxResultsPerQuery},
@@ -63,6 +65,8 @@ query_batch<result_type>::query_batch(
 
     cudaStreamCreate(&stream_);
     cudaStreamCreate(&resultCopyStream_);
+
+    cudaEventCreate(&queriesCopiedEvent_);
     cudaEventCreate(&offsetsCopiedEvent_);
     cudaEventCreate(&resultReadyEvent_);
     CUERR
@@ -105,6 +109,8 @@ query_batch<result_type>::~query_batch() {
 
     cudaStreamDestroy(stream_);
     cudaStreamDestroy(resultCopyStream_);
+
+    cudaEventDestroy(queriesCopiedEvent_);
     cudaEventDestroy(offsetsCopiedEvent_);
     cudaEventDestroy(resultReadyEvent_);
     CUERR
@@ -114,23 +120,35 @@ query_batch<result_type>::~query_batch() {
 //---------------------------------------------------------------
 template<class result_type>
 void query_batch<result_type>::copy_queries_to_device_async() {
+    d_numQueries_ = h_numQueries_;
+    d_numSegments_ = h_numSegments_;
+
     cudaMemcpyAsync(d_queryIds_, h_queryIds_,
-                    numQueries_*sizeof(id_type),
+                    d_numQueries_*sizeof(id_type),
                     cudaMemcpyHostToDevice, stream_);
     cudaMemcpyAsync(d_encodeOffsets_, h_encodeOffsets_,
-                    (numQueries_+1)*sizeof(encodinglen_t),
+                    (d_numQueries_+1)*sizeof(encodinglen_t),
                     cudaMemcpyHostToDevice, stream_);
     cudaMemcpyAsync(d_encodedSeq_, h_encodedSeq_,
-                    h_encodeOffsets_[numQueries_]*sizeof(encodedseq_t),
+                    h_encodeOffsets_[d_numQueries_]*sizeof(encodedseq_t),
                     cudaMemcpyHostToDevice, stream_);
     cudaMemcpyAsync(d_encodedAmbig_, h_encodedAmbig_,
-                    h_encodeOffsets_[numQueries_]*sizeof(encodedambig_t),
+                    h_encodeOffsets_[d_numQueries_]*sizeof(encodedambig_t),
                     cudaMemcpyHostToDevice, stream_);
     cudaMemcpyAsync(d_maxWindowsInRange_, h_maxWindowsInRange_,
-                    numSegments_*sizeof(window_id),
+                    d_numSegments_*sizeof(window_id),
                     cudaMemcpyHostToDevice, stream_);
+
+    cudaEventRecord(queriesCopiedEvent_, stream_);
+
     // cudaStreamSynchronize(stream_);
     // CUERR
+}
+
+//---------------------------------------------------------------
+template<class result_type>
+void query_batch<result_type>::wait_for_queries_copied() {
+    cudaEventSynchronize(queriesCopiedEvent_);
 }
 
 
@@ -159,7 +177,7 @@ void query_batch<result_type>::compact_sort_and_copy_results_async() {
 
         // std::cout << "temp size: " << tempStorageBytes << std::endl;
 
-        int numItems = numQueries_;
+        int numItems = d_numQueries_;
         // size_t tempStorageBytes = 767;
         cudaError_t err = cub::DeviceScan::InclusiveSum(
             d_tempStorage, tempStorageBytes,
@@ -177,8 +195,8 @@ void query_batch<result_type>::compact_sort_and_copy_results_async() {
             exit(1);                                                           \
         }
 
-        compact_kernel<<<numQueries_,32,0,stream_>>>(
-            numQueries_,
+        compact_kernel<<<d_numQueries_,32,0,stream_>>>(
+            d_numQueries_,
             d_resultCounts_,
             maxResultsPerQuery_,
             d_queryResults_,
@@ -191,7 +209,7 @@ void query_batch<result_type>::compact_sort_and_copy_results_async() {
         cudaStreamWaitEvent(resultCopyStream_, resultReadyEvent_, 0);
 
         cudaMemcpyAsync(h_resultOffsets_, d_resultOffsets_,
-                        (numSegments_+1)*sizeof(int),
+                        (d_numSegments_+1)*sizeof(int),
                         cudaMemcpyDeviceToHost, resultCopyStream_);
 
         cudaEventRecord(offsetsCopiedEvent_, resultCopyStream_);
@@ -211,13 +229,13 @@ void query_batch<result_type>::compact_sort_and_copy_results_async() {
     size_t tempStorageBytes = maxEncodeLength_*sizeof(encodedseq_t);
     void * d_tempStorage = (void*)(d_encodedSeq_);
 
-    int numItems = numQueries_*maxResultsPerQuery_;
-    // int numItems = h_resultOffsets_[numSegments_+1];
+    int numItems = d_numQueries_*maxResultsPerQuery_;
+    // int numItems = h_resultOffsets_[d_numSegments_+1];
     // size_t tempStorageBytes = 255;
     cudaError_t err = cub::DeviceSegmentedRadixSort::SortKeys(
         d_tempStorage, tempStorageBytes,
         d_keys,
-        numItems, numSegments_,
+        numItems, d_numSegments_,
         d_resultOffsets_, d_resultOffsets_ + 1,
         0, sizeof(result_type_equivalent) * CHAR_BIT,
         stream_
@@ -242,7 +260,7 @@ void query_batch<result_type>::compact_sort_and_copy_results_async() {
     cudaEventSynchronize(offsetsCopiedEvent_);
 
     cudaMemcpyAsync(h_queryResults_, d_queryResults_,
-                    h_resultOffsets_[numSegments_]*sizeof(result_type),
+                    h_resultOffsets_[d_numSegments_]*sizeof(result_type),
                     cudaMemcpyDeviceToHost, resultCopyStream_);
 
     // cudaStreamSynchronize(stream_);
@@ -256,14 +274,14 @@ void query_batch<result_type>::generate_and_copy_top_candidates_async(
     const ranked_lineage * lineages,
     taxon_rank lowestRank)
 {
-    const size_t numBlocks = numSegments_;
+    const size_t numBlocks = d_numSegments_;
 
     //TODO different max cand cases
     if(maxCandidatesPerQuery_ <= 2) {
         constexpr int maxCandidates = 2;
 
         generate_top_candidates<maxCandidates><<<numBlocks,32,0,stream_>>>(
-            numSegments_,
+            d_numSegments_,
             d_resultOffsets_,
             d_queryResults_,
             d_maxWindowsInRange_,
@@ -281,7 +299,7 @@ void query_batch<result_type>::generate_and_copy_top_candidates_async(
 
     // copy candidates to host
     cudaMemcpyAsync(h_topCandidates_, d_topCandidates_,
-                    numSegments_*maxCandidatesPerQuery_*sizeof(match_candidate),
+                    d_numSegments_*maxCandidatesPerQuery_*sizeof(match_candidate),
                     cudaMemcpyDeviceToHost, resultCopyStream_);
 
     // cudaStreamSynchronize(stream_);

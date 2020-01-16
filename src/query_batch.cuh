@@ -43,12 +43,20 @@ public:
     ~query_batch();
 
     //---------------------------------------------------------------
-    id_type num_segments() const noexcept {
-        return numSegments_;
+    id_type num_segments_host() const noexcept {
+        return h_numSegments_;
     }
     //---------------------------------------------------------------
-    id_type num_queries() const noexcept {
-        return numQueries_;
+    id_type num_segments_device() const noexcept {
+        return d_numSegments_;
+    }
+    //---------------------------------------------------------------
+    id_type num_queries_host() const noexcept {
+        return h_numQueries_;
+    }
+    //---------------------------------------------------------------
+    id_type num_queries_device() const noexcept {
+        return d_numQueries_;
     }
     //---------------------------------------------------------------
     encodinglen_t * encode_offsets_device() const noexcept {
@@ -76,7 +84,7 @@ public:
     }
     //---------------------------------------------------------------
     span<result_type> results(id_type id) const noexcept {
-        if(id < numSegments_)
+        if(id < d_numSegments_)
             return span<result_type>{
                 h_queryResults_+h_resultOffsets_[id],
                 h_queryResults_+h_resultOffsets_[id+1]
@@ -86,7 +94,7 @@ public:
     }
     //---------------------------------------------------------------
     span<match_candidate> top_candidates(id_type id) const noexcept {
-        if(id < numSegments_)
+        if(id < d_numSegments_)
             return span<match_candidate>{
                 h_topCandidates_+id*maxCandidatesPerQuery_,
                 h_topCandidates_+(id+1)*maxCandidatesPerQuery_
@@ -103,14 +111,20 @@ public:
     void sync_result_stream();
 
     //---------------------------------------------------------------
-    void clear() noexcept {
-        numSegments_ = 0;
-        numQueries_ = 0;
+    void clear_host() noexcept {
+        h_numSegments_ = 0;
+        h_numQueries_ = 0;
+    }
+
+    void clear_device() noexcept {
+        d_numSegments_ = 0;
+        d_numQueries_ = 0;
     }
 
     //---------------------------------------------------------------
     /** @brief asynchronously copy queries to device using stream_ */
     void copy_queries_to_device_async();
+    void wait_for_queries_copied();
     //---------------------------------------------------------------
     /** @brief asynchronously compact, sort and copy results to host using stream_ */
     void compact_sort_and_copy_results_async();
@@ -147,9 +161,9 @@ public:
         const window_id numWindows = (seqLength-kmerSize + windowStride) / windowStride;
 
         // batch full, nothing processed
-        if(numQueries_ + numWindows > maxQueries_) return false;
+        if(h_numQueries_ + numWindows > maxQueries_) return false;
 
-        const auto availableBlocks = maxEncodeLength_ - h_encodeOffsets_[numQueries_];
+        const auto availableBlocks = maxEncodeLength_ - h_encodeOffsets_[h_numQueries_];
         constexpr auto lettersPerBlock = sizeof(encodedambig_t)*CHAR_BIT;
         const auto blocksPerWindow = (windowSize-1) / lettersPerBlock + 1;
         // batch full, nothing processed
@@ -158,21 +172,21 @@ public:
         // insert sequence into batch as separate windows
         for_each_window(first, last, windowSize, windowStride,
             [&] (InputIterator first, InputIterator last) {
-                h_queryIds_[numQueries_] = numSegments_;
-                h_encodeOffsets_[numQueries_+1] = h_encodeOffsets_[numQueries_];
+                h_queryIds_[h_numQueries_] = h_numSegments_;
+                h_encodeOffsets_[h_numQueries_+1] = h_encodeOffsets_[h_numQueries_];
 
                 for_each_consecutive_substring_2bit<encodedseq_t>(first, last,
                     [&, this] (encodedseq_t substring, encodedambig_t ambig) {
-                        auto& index = h_encodeOffsets_[numQueries_+1];
+                        auto& index = h_encodeOffsets_[h_numQueries_+1];
                         h_encodedSeq_[index] = substring;
                         h_encodedAmbig_[index] = ambig;
                         ++index;
                     });
 
-                ++numQueries_;
+                ++h_numQueries_;
             });
 
-        ++numSegments_;
+        ++h_numSegments_;
 
         return true;
     }
@@ -215,14 +229,14 @@ public:
         // no kmers in sequence
         if(seqLength1 < kmerSize && seqLength2 < kmerSize) {
             // batch full, nothing processed
-            if(numQueries_ + 1 > maxQueries_) return false;
+            if(h_numQueries_ + 1 > maxQueries_) return false;
 
             // insert empty query
-            h_queryIds_[numQueries_] = numSegments_;
-            h_encodeOffsets_[numQueries_+1] = h_encodeOffsets_[numQueries_];
+            h_queryIds_[h_numQueries_] = h_numSegments_;
+            h_encodeOffsets_[h_numQueries_+1] = h_encodeOffsets_[h_numQueries_];
 
-            ++numQueries_;
-            ++numSegments_;
+            ++h_numQueries_;
+            ++h_numSegments_;
             return true;
         }
 
@@ -230,9 +244,9 @@ public:
         const window_id numWindows2 = (seqLength2-kmerSize + windowStride) / windowStride;
 
         // batch full, nothing processed
-        if(numQueries_ + numWindows1 + numWindows2 > maxQueries_) return false;
+        if(h_numQueries_ + numWindows1 + numWindows2 > maxQueries_) return false;
 
-        const auto availableBlocks = maxEncodeLength_ - h_encodeOffsets_[numQueries_];
+        const auto availableBlocks = maxEncodeLength_ - h_encodeOffsets_[h_numQueries_];
         constexpr auto lettersPerBlock = sizeof(encodedambig_t)*CHAR_BIT;
         const auto blocksPerWindow = (windowSize-1) / lettersPerBlock + 1;
         // batch full, nothing processed
@@ -242,19 +256,19 @@ public:
         for_each_window(first1, last1, windowSize, windowStride,
             [&] (InputIterator first, InputIterator last) {
                 if(distance(first, last) >= kmerSize) {
-                    h_queryIds_[numQueries_] = numSegments_;
-                    h_encodeOffsets_[numQueries_+1] = h_encodeOffsets_[numQueries_];
+                    h_queryIds_[h_numQueries_] = h_numSegments_;
+                    h_encodeOffsets_[h_numQueries_+1] = h_encodeOffsets_[h_numQueries_];
 
                     for_each_consecutive_substring_2bit<encodedseq_t>(first, last,
                         [&, this] (encodedseq_t substring, encodedambig_t ambig) {
-                            auto& index = h_encodeOffsets_[numQueries_+1];
+                            auto& index = h_encodeOffsets_[h_numQueries_+1];
                             h_encodedSeq_[index] = substring;
                             h_encodedAmbig_[index] = ambig;
                             ++index;
                         }
                     );
 
-                    ++numQueries_;
+                    ++h_numQueries_;
                 }
             }
         );
@@ -263,28 +277,28 @@ public:
         for_each_window(first2, last2, windowSize, windowStride,
             [&] (InputIterator first, InputIterator last) {
                 if(distance(first, last) >= kmerSize) {
-                    h_queryIds_[numQueries_] = numSegments_;
-                    h_encodeOffsets_[numQueries_+1] = h_encodeOffsets_[numQueries_];
+                    h_queryIds_[h_numQueries_] = h_numSegments_;
+                    h_encodeOffsets_[h_numQueries_+1] = h_encodeOffsets_[h_numQueries_];
 
                     for_each_consecutive_substring_2bit<encodedseq_t>(first, last,
                         [&, this] (encodedseq_t substring, encodedambig_t ambig) {
-                            auto& index = h_encodeOffsets_[numQueries_+1];
+                            auto& index = h_encodeOffsets_[h_numQueries_+1];
                             h_encodedSeq_[index] = substring;
                             h_encodedAmbig_[index] = ambig;
                             ++index;
                         }
                     );
 
-                    ++numQueries_;
+                    ++h_numQueries_;
                 }
             }
         );
 
-        h_maxWindowsInRange_[numSegments_] = window_id( 2 + (
+        h_maxWindowsInRange_[h_numSegments_] = window_id( 2 + (
             std::max(seqLength1 + seqLength2, insertSizeMax) /
             windowStride ));
 
-        ++numSegments_;
+        ++h_numSegments_;
 
         return true;
     }
@@ -307,9 +321,12 @@ public:
 
 
 private:
-    id_type numSegments_;
-    id_type numQueries_;
+    id_type h_numSegments_;
+    id_type d_numSegments_;
+    id_type h_numQueries_;
+    id_type d_numQueries_;
     id_type maxQueries_;
+
     size_t maxEncodeLength_;
     size_t maxResultsPerQuery_;
     uint32_t maxCandidatesPerQuery_;
@@ -340,6 +357,7 @@ private:
 
     cudaStream_t stream_;
     cudaStream_t resultCopyStream_;
+    cudaEvent_t queriesCopiedEvent_;
     cudaEvent_t offsetsCopiedEvent_;
     cudaEvent_t resultReadyEvent_;
 };

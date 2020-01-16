@@ -838,9 +838,13 @@ public:
 
     //---------------------------------------------------------------
     void
-    query_gpu(query_batch<location>& queryBatch, taxon_rank lowestRank) const
+    query_gpu_async(query_batch<location>& queryBatch, taxon_rank lowestRank) const
     {
-        featureStoreGPU_.query(queryBatch, query_sketcher(), max_locations_per_feature(), lowestRank);
+        featureStoreGPU_.query_async(
+            queryBatch,
+            query_sketcher(),
+            max_locations_per_feature(),
+            lowestRank);
     }
 
 

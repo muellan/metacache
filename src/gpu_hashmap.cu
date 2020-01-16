@@ -113,13 +113,13 @@ public:
 
     //---------------------------------------------------------------
     template<class result_type>
-    void query(query_batch<result_type>& batch,
-               const sketcher& querySketcher,
-               bucket_size_type maxLocationPerFeature,
-               taxon_rank lowestRank) const
+    void query_async(
+        query_batch<result_type>& batch,
+        const sketcher& querySketcher,
+        bucket_size_type maxLocationPerFeature,
+        taxon_rank lowestRank) const
     {
         const cudaStream_t stream = batch.stream();
-        batch.copy_queries_to_device_async();
 
         // max 32*4 features => max window size is 128
         constexpr int threadsPerBlock = 32;
@@ -127,11 +127,11 @@ public:
 
         const size_type probingLength = 4*hashTable_.capacity();
 
-        const int numBlocks = batch.num_queries();
+        const int numBlocks = batch.num_queries_device();
         gpu_hahstable_query<threadsPerBlock,itemsPerThread><<<numBlocks,threadsPerBlock,0,stream>>>(
             hashTable_,
             probingLength,
-            batch.num_queries(),
+            batch.num_queries_device(),
             batch.encode_offsets_device(),
             batch.encoded_seq_device(),
             batch.encoded_ambig_device(),
@@ -149,9 +149,8 @@ public:
 
         batch.generate_and_copy_top_candidates_async(lineages_, lowestRank);
 
-        //TODO async
-        batch.sync_result_stream();
-        CUERR
+        // batch.sync_result_stream();
+        // CUERR
     }
 
     //---------------------------------------------------------------
@@ -558,13 +557,13 @@ template<
     class KeyEqual,
     class BucketSizeT
 >
-void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::query(
+void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::query_async(
     query_batch<value_type>& batch,
     const sketcher& querySketcher,
     bucket_size_type maxLocationPerFeature,
     taxon_rank lowestRank) const
 {
-    hashTable_->query(batch, querySketcher, maxLocationPerFeature, lowestRank);
+    hashTable_->query_async(batch, querySketcher, maxLocationPerFeature, lowestRank);
 }
 
 

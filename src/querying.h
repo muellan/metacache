@@ -73,7 +73,7 @@ struct sequence_query
 
 /*************************************************************************//**
  *
- * @brief process batch of results from database query
+ * @brief process batch of results from gpu database query
  *
  * @tparam Buffer        batch buffer object
  *
@@ -82,17 +82,14 @@ struct sequence_query
  *
  *****************************************************************************/
 template<class Buffer, class BufferUpdate>
-void process_gpu_batch(
-    const database& db,
-    const classification_options& classifyOpt,
+void process_gpu_batch_results(
     const std::vector<sequence_query>& sequenceBatch,
     query_batch<location>& queryBatch,
     Buffer& batchBuffer, BufferUpdate& update,
     size_t& index)
 {
-    if(queryBatch.num_queries() > 0) {
-
-        db.query_gpu(queryBatch, classifyOpt.lowestRank);
+    if(queryBatch.num_queries_device() > 0) {
+        queryBatch.sync_result_stream();
 
         // std::cout << "segment offsets: ";
         // for(size_t i = 0; i < queryBatch.num_segments()+1; ++i) {
@@ -100,7 +97,7 @@ void process_gpu_batch(
         // }
         // std::cout << '\n';
 
-        for(size_t s = 0; s < queryBatch.num_segments(); ++s, ++index) {
+        for(size_t s = 0; s < queryBatch.num_segments_device(); ++s, ++index) {
             span<location> results = queryBatch.results(s);
 
             // std::cout << s << ". targetMatches:    ";
@@ -125,7 +122,30 @@ void process_gpu_batch(
         }
         // std::cout << '\n';
 
-        queryBatch.clear();
+        queryBatch.clear_device();
+    }
+}
+
+/*************************************************************************//**
+ *
+ * @brief schedule batch of sequence data for gpu database query
+ *
+ *****************************************************************************/
+template<int I = 0>
+void schedule_gpu_batch(
+    const database& db,
+    const classification_options& classifyOpt,
+    query_batch<location>& queryBatch)
+{
+    if(queryBatch.num_queries_host() > 0) {
+
+        queryBatch.copy_queries_to_device_async();
+
+        db.query_gpu_async(queryBatch, classifyOpt.lowestRank);
+
+        queryBatch.wait_for_queries_copied();
+
+        queryBatch.clear_host();
     }
 }
 
@@ -195,15 +215,19 @@ query_id query_batched(
 
             for(const auto& seq : batch) {
                 if(!gpuBatches[id]->add_paired_read(seq.seq1, seq.seq2, db.query_sketcher(), classifyOpt.insertSizeMax)) {
+                    //process results from previous batch
+                    process_gpu_batch_results(batch, *(gpuBatches[id]), resultsBuffer, update, outIndex);
                     //could not add read, send full batch to gpu
-                    process_gpu_batch(db, classifyOpt, batch, *(gpuBatches[id]), resultsBuffer, update, outIndex);
+                    schedule_gpu_batch(db, classifyOpt, *(gpuBatches[id]));
                     //try to add read again
                     if(!gpuBatches[id]->add_paired_read(seq.seq1, seq.seq2, db.query_sketcher(), classifyOpt.insertSizeMax))
                         std::cerr << "query batch is too small for a single read!" << std::endl;
                 }
             }
+            process_gpu_batch_results(batch, *(gpuBatches[id]), resultsBuffer, update, outIndex);
             // std::cout << "send final batch to gpu\n";
-            process_gpu_batch(db, classifyOpt, batch, *(gpuBatches[id]), resultsBuffer, update, outIndex);
+            schedule_gpu_batch(db, classifyOpt, *(gpuBatches[id]));
+            process_gpu_batch_results(batch, *(gpuBatches[id]), resultsBuffer, update, outIndex);
 
             std::lock_guard<std::mutex> lock(finalizeMtx);
             finalize(std::move(resultsBuffer));
