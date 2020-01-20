@@ -159,7 +159,6 @@ auto cli_usage_formatting()
 
 
 
-
 //-------------------------------------------------------------------
 taxon_rank rank_from_name(const string& name, error_messages& err)
 {
@@ -173,6 +172,20 @@ taxon_rank rank_from_name(const string& name, error_messages& err)
     return r;
 }
 
+
+
+//-------------------------------------------------------------------
+void raise_default_error(const error_messages& err, const string& mode)
+{
+    auto msg = err.str();
+
+    if(!msg.empty()) msg += "\n";
+
+    msg += "View the "s + mode + " mode interface documentation with:\n"
+           "    metacache help " + mode;
+
+    throw std::invalid_argument{std::move(msg)};
+}
 
 
 
@@ -189,12 +202,29 @@ taxon_rank rank_from_name(const string& name, error_messages& err)
 clipp::parameter
 database_parameter(string& filename, error_messages& err)
 {
-    using namespace clipp;
-
-    return value(match::prefix_not{"-"}, "database")
+    return clipp::value("database")
         .call([&](const string& arg){ filename = sanitize_database_name(arg); })
         .if_missing([&]{ err += "Database filename is missing!"; })
         .doc("database file name\n");
+}
+
+
+
+//-------------------------------------------------------------------
+clipp::group
+info_level_cli(info_level& lvl, error_messages& err)
+{
+    using namespace clipp;
+
+    return one_of(
+                option("-silent").set(lvl, info_level::silent),
+                option("-verbose").set(lvl, info_level::verbose)
+                .if_conflicted([&]{
+                    err += "Info level must be either '-silent' or '-verbose'!";
+                })
+            )
+                % "information level during build:\n"
+                  "silent=none / verbose=most detailed";
 }
 
 
@@ -364,33 +394,23 @@ build_mode_cli(build_options& opt, error_messages& err)
     using namespace clipp;
 
     return (
-        "REQUIRED" %
+        "REQUIRED PARAMETERS" %
         (
             database_parameter(opt.dbfile, err)
             ,
-            values(match::prefix_not{"-"}, "reference sequence", opt.infiles)
+            values(match::prefix_not{"-"}, "sequence file/directory", opt.infiles)
+                .if_missing([&]{
+                    err += "No reference sequence files provided or found!";
+                })
                 % "FASTA or FASTQ files containing genomic sequences;\n"
                   "You can also provide names of directories that contain "
                   "sequence files instead of single filenames. MetaCache will "
                   "search at most 10 levels deep in the file hierarchy."
-
-// TODO
-//    if(opt.infiles.empty()) {
-//        throw std::invalid_argument{
-//            "Nothing to do - no reference sequences provided."};
-//    }
-
         ),
         "BASIC OPTIONS" %
         (
-            taxonomy_cli(opt.taxonomy, err)
-            ,
-            one_of(
-                option("-silent").set(opt.infoLevel, info_level::silent),
-                option("-verbose").set(opt.infoLevel, info_level::verbose)
-            )
-                % "information level during build:\n"
-                  "silent=none / verbose=most detailed"
+            taxonomy_cli(opt.taxonomy, err),
+            info_level_cli(opt.infoLevel, err)
         ),
         "SKETCHING OPTIONS" %
             sketching_options_cli(opt.sketching, err)
@@ -423,7 +443,7 @@ get_build_options(const cmdline_args& args, build_options opt)
     auto result = clipp::parse(args, cli);
 
     if(!result || err.any()) {
-        throw std::invalid_argument{err.str()};
+        raise_default_error(err, "build");
     }
 
     augment_taxonomy_options(opt.taxonomy);
@@ -450,7 +470,7 @@ string build_mode_docs() {
     string docs =
         "SYNOPSIS\n"
         "\n"
-        "    metacache build <database> <reference sequence>... [OPTION]...\n"
+        "    metacache build <database> <sequence file/directory>... [OPTION]...\n"
         "\n\n"
         "DESCRIPTION\n"
         "\n"
@@ -499,26 +519,23 @@ modify_mode_cli(build_options& opt, error_messages& err)
     using namespace clipp;
 
     return (
-        "REQUIRED" %
+        "REQUIRED PARAMETERS" %
         (
             database_parameter(opt.dbfile, err)
             ,
-            values(match::prefix_not{"-"}, "reference sequence", opt.infiles)
-                % "FASTA or FASTQ files containing genomic sequences\n"
+            values(match::prefix_not{"-"}, "sequence file/directory", opt.infiles)
+                .if_missing([&]{
+                    err += "No reference sequence files provided or found!";
+                })
+                % "FASTA or FASTQ files containing genomic sequences;\n"
                   "You can also provide names of directories that contain "
                   "sequence files instead of single filenames. MetaCache will "
                   "search at most 10 levels deep in the file hierarchy."
         ),
         "BASIC OPTIONS" %
         (
-            taxonomy_cli(opt.taxonomy, err)
-            ,
-            one_of(
-                option("-silent").set(opt.infoLevel, info_level::silent),
-                option("-verbose").set(opt.infoLevel, info_level::verbose)
-            )
-                % "information level during build:\n"
-                  "silent=none / verbose=most detailed"
+            taxonomy_cli(opt.taxonomy, err),
+            info_level_cli(opt.infoLevel, err)
         ),
         "ADVANCED OPTIONS" %
         (
@@ -548,7 +565,7 @@ get_modify_options(const cmdline_args& args, modify_options opt)
     auto result = clipp::parse(args, cli);
 
     if(!result || err.any()) {
-        throw std::invalid_argument{err.str()};
+        raise_default_error(err, "modify");
     }
 
     // use settings from database file as defaults
@@ -588,7 +605,7 @@ string modify_mode_docs() {
     string docs =
         "SYNOPSIS\n"
         "\n"
-        "    metacache modify <database> <reference sequence>... [OPTION]...\n"
+        "    metacache modify <database> <sequence file/directory>... [OPTION]...\n"
         "\n\n"
         "DESCRIPTION\n"
         "\n"
@@ -879,11 +896,14 @@ query_mode_cli(query_options& opt, error_messages& err)
     using namespace clipp;
 
     return (
-        "REQUIRED" %
+        "REQUIRED PARAMETERS" %
         (
             database_parameter(opt.dbfile, err)
             ,
-            values(match::prefix_not{"-"}, "query sequence", opt.infiles)
+            values(match::prefix_not{"-"}, "sequence file/directory", opt.infiles)
+                .if_missing([&]{
+                    err += "No query sequence files provided or found!";
+                })
                 % "FASTA or FASTQ files containing genomic sequences "
                   "(short reads, long reads, contigs, complete genomes, ...);\n"
                   "You can also provide names of directories that contain "
@@ -979,8 +999,7 @@ get_query_options(const cmdline_args& args, query_options opt)
     auto result = clipp::parse(args, cli);
 
     if(!result || err.any()) {
-        string msg = err.str();
-        throw std::invalid_argument{msg};
+        raise_default_error(err, "query");
     }
 
     replace_directories_with_contained_files(opt.infiles);
@@ -1068,7 +1087,7 @@ string query_mode_docs() {
     string docs =
         "SYNOPSIS\n"
         "\n"
-        "    metacache query <database> [<query file/directory>...] [OPTION]...\n"
+        "    metacache query <database> <sequence file/directory>... [OPTION]...\n"
         "\n\n"
         "DESCRIPTION\n"
         "\n"
@@ -1161,9 +1180,10 @@ merge_mode_cli(merge_options& opt, error_messages& err)
     auto& qry = opt.query;
 
     return (
-        "REQUIRED" %
+        "REQUIRED PARAMETERS" %
         (
             values(match::prefix_not{"-"}, "result file", opt.infiles)
+                .if_missing([&]{ err += "No result filenames provided!"; })
                 % "MetaCache result files.\n"
                   "You can also provide names of directories that contain "
                   "sequence files instead of single filenames. MetaCache will "
@@ -1175,24 +1195,17 @@ merge_mode_cli(merge_options& opt, error_messages& err)
                   "like, e.g.: -nomap, -no-summary, -separator, etc.\n"
             ,
             (required("-taxonomy") &
-             value("path", opt.taxonomy.path).if_missing([&]{ err += "Taxonomy path is missing!"; }))
+             value("path", opt.taxonomy.path)
+                .if_missing([&]{ err += "Taxonomy path is missing!"; }))
                 % "directory with taxonomic hierarchy data (see NCBI's taxonomic data files)"
-        )
-        ,
-        "BASIC OPTIONS" %
-        group(
-            one_of(
-                option("-silent").set(opt.infoLevel, info_level::silent),
-                option("-verbose").set(opt.infoLevel, info_level::verbose)
-            )
-                % "information level during build:\n"
-                  "silent=none / verbose=most detailed"
         )
         ,
         "CLASSIFICATION OPTIONS" %
             classification_params_cli(qry.classify, err)
         ,
-        "GENERAL OUTPUT FORMATTING OPTIONS" % (
+        "GENERAL OUTPUT OPTIONS" % (
+            info_level_cli(opt.infoLevel, err)
+            ,
             option("-no-summary").set(qry.output.showSummary,false)
                 %("Dont't show result summary & mapping statistics at the "
                   "end of the mapping output\n"
@@ -1240,7 +1253,7 @@ get_merge_options(const cmdline_args& args, merge_options opt)
     auto result = clipp::parse(args, cli);
 
     if(!result || err.any()) {
-        throw std::invalid_argument{err.str()};
+        raise_default_error(err, "merge");
     }
 
     replace_directories_with_contained_files(opt.infiles);
@@ -1269,32 +1282,32 @@ get_merge_options(const cmdline_args& args, merge_options opt)
 //-------------------------------------------------------------------
 string merge_mode_docs() {
 
-    query_options opt;
+    merge_options opt;
     error_messages err;
-    auto cli = query_mode_cli(opt, err);
+    auto cli = merge_mode_cli(opt, err);
 
     string docs =
         "SYNOPSIS\n"
         "\n"
-        "    metacache merge <results_file>... -taxonomy <path> [OPTION]...\n"
+        "    metacache merge <result file>... -taxonomy <path> [OPTION]...\n"
         "\n\n"
         "DESCRIPTION\n"
         "\n"
-        "    This mode classifies reads by merging the results of multiple, independent "
-        "    queries. These might have been obtained by querying one database with "
-        "    different parameters or by querying different databases with different "
+        "    This mode classifies reads by merging the results of multiple, independent\n"
+        "    queries. These might have been obtained by querying one database with\n"
+        "    different parameters or by querying different databases with different\n"
         "    reference targets or build options.\n"
         "\n"
-        "    IMPORTANT: In order to be mergable, independent queries "
+        "    IMPORTANT: In order to be mergable, independent queries\n"
         "    need to be run with options:\n"
         "        -tophits -queryids -lowest species\n"
-        "    and must NOT be run with options that suppress or alter default output "
+        "    and must NOT be run with options that suppress or alter default output\n"
         "    like, e.g.: -nomap, -no-summary, -separator, etc.\n"
         "\n"
         "    Possible Use Case:\n"
-        "    If your system has not enough memory for one large database, you can "
-        "    split up the set of reference genomes into several databases and query these "
-        "    in succession. The results of these independent query runs can then be  "
+        "    If your system has not enough memory for one large database, you can\n"
+        "    split up the set of reference genomes into several databases and query these\n"
+        "    in succession. The results of these independent query runs can then be\n"
         "    merged to obtain a classification based on the whole set of genomes.\n"
         "\n\n";
 
@@ -1375,18 +1388,11 @@ get_info_options(const cmdline_args& args)
     auto result = clipp::parse(args, cli);
 
     if(!result || err.any()) {
-        auto errMsg = err.str();
-        if(errMsg.empty()) {
-            errMsg = "Invalid command line arguments!\n\n"
-                     "Usage:\n";
 
-            errMsg += clipp::usage_lines(cli, "metacache info",
-                                         cli_usage_formatting()).str();
+        err += "Usage:\n"s + clipp::usage_lines(cli, "metacache info",
+                                                cli_usage_formatting()).str();
 
-            errMsg += "\n\nSee also:\n    metacache help info";
-        }
-
-        throw std::invalid_argument{std::move(errMsg)};
+        raise_default_error(err, "info");
     }
 
     return opt;

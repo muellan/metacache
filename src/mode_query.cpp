@@ -373,8 +373,6 @@ void main_mode_query(const cmdline_args& args)
 {
     auto opt = get_query_options(args);
 
-    if(opt.dbfile.empty()) throw file_access_error{"No database name given"};
-
     auto db = read_database(opt.dbfile, opt.dbconfig, opt.sketching);
 
     if(!opt.infiles.empty()) {

@@ -34,7 +34,7 @@ namespace mc {
 //-------------------------------------------------------------------
 void main_mode_help(const cmdline_args& args)
 {
-    if(args.size() < 3) {
+    if(args.size() < 3 || args[2] == "help") {
         std::cout <<
             "MetaCache  Copyright (C) 2016-2020  André Müller & Robin Kobus\n"
             "This program comes with ABSOLUTELY NO WARRANTY.\n"

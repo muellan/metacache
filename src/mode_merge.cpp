@@ -365,10 +365,6 @@ void main_mode_merge(const cmdline_args& args)
 {
     auto opt = get_merge_options(args);
 
-    if(opt.infiles.empty()) {
-        throw std::invalid_argument{"No input filenames provided!"};
-    }
-
     database db;
 
     if(!opt.taxonomy.path.empty()) {
@@ -381,10 +377,6 @@ void main_mode_merge(const cmdline_args& args)
         if(opt.infoLevel != info_level::silent) {
             cerr << "Applied taxonomy to database.\n";
         }
-    }
-    else {
-        throw std::invalid_argument{
-            "No taxonomy specified. Unable to perform merge."};
     }
 
     //TODO parallelize?

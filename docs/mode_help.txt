@@ -1,0 +1,40 @@
+MetaCache  Copyright (C) 2016-2020  André Müller & Robin Kobus
+This program comes with ABSOLUTELY NO WARRANTY.
+This is free software, and you are welcome to redistribute it
+under certain conditions. See the file 'LICENSE' for details.
+
+USAGE:
+
+    metacache <MODE> [OPTION...]
+
+    Available modes:
+
+    help        shows documentation 
+    query       classify read sequences using pre-built database
+    merge       merge classification results of independent queries
+    build       build new database from reference sequences (usually genomes)
+    modify      add reference sequences and/or taxonomy to existing database
+    info        show database and reference sequence properties
+
+
+EXAMPLES:
+
+    Query single FASTA file 'myreads.fna' against pre-built database 'refseq':
+        metacache query refseq myreads.fna -out results.txt
+    same with output to the console:
+        metacache query refseq myreads.fna
+
+    Query all sequence files in folder 'test' againgst database 'refseq':
+        metacache query refseq test -out results.txt
+
+    Query paired-end reads in separate files:
+        metacache query refseq reads1.fa reads2.fa -pairfiles -out results.txt
+
+    Query paired-end reads in one file (a1,a2,b1,b2,...):
+        metacache query refseq paired_reads.fa -pairseq -out results.txt
+    
+    View documentation for all query options:
+        metacache help query
+
+    View documentation on how to build databases:
+        metacache help build
