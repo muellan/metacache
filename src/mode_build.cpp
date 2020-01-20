@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -27,7 +27,6 @@
 #include <memory>
 #include <set>
 #include <stdexcept>
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -35,10 +34,9 @@
 #include <chrono>
 
 #include "timer.h"
-#include "args_handling.h"
-#include "args_parser.h"
-#include "filesys_utility.h"
+#include "options.h"
 #include "cmdline_utility.h"
+#include "filesys_utility.h"
 #include "io_error.h"
 #include "io_options.h"
 #include "sketch_database.h"
@@ -56,114 +54,6 @@ using std::cout;
 using std::cerr;
 using std::flush;
 using std::endl;
-
-
-
-/*************************************************************************//**
- *
- * @brief database creation parameters
- *
- *****************************************************************************/
-struct build_options
-{
-    int kmerlen = 16;
-    int sketchlen = 16;
-    int winlen = 128;
-    int winstride = 113;
-
-    float maxLoadFactor = -1;           //< 0 : use database default
-    int maxLocationsPerFeature = database::max_supported_locations_per_feature();
-    bool removeOverpopulatedFeatures = true;
-
-    taxon_rank removeAmbigFeaturesOnRank = taxon_rank::none;
-    int maxTaxaPerFeature = 1;
-
-    taxonomy_options taxonomy;
-    bool resetParents = false;
-
-    info_level infoLevel = info_level::moderate;
-
-    string dbfile;
-    std::vector<string> infiles;
-};
-
-
-
-/*************************************************************************//**
- *
- * @brief command line args -> database creation parameters
- *
- *****************************************************************************/
-build_options
-get_build_options(const args_parser& args, const build_options& defaults = {})
-{
-    build_options opt;
-
-    opt.dbfile = database_name(args);
-
-    opt.infiles = sequence_filenames(args);
-
-    if(args.contains("silent")) {
-        opt.infoLevel = info_level::silent;
-    } else if(args.contains("verbose")) {
-        opt.infoLevel = info_level::verbose;
-    }
-
-    opt.kmerlen   = args.get<int>({"kmerlen"}, defaults.kmerlen);
-    opt.sketchlen = args.get<int>({"sketchlen"}, defaults.sketchlen);
-    opt.winlen    = args.get<int>({"winlen"}, defaults.winlen);
-    opt.winstride = args.get<int>({"winstride"}, opt.winlen - opt.kmerlen + 1);
-
-    opt.maxLoadFactor = args.get<float>({"max-load-fac", "max_load_fac",
-                                         "maxloadfac"},
-                                        defaults.maxLoadFactor);
-
-    opt.maxLocationsPerFeature = args.get<int>({"max-locations-per-feature",
-                                                "max_locations_per_feature" },
-                                                 defaults.maxLocationsPerFeature);
-
-    opt.removeOverpopulatedFeatures = args.contains({"remove-overpopulated-features",
-                                                     "remove_overpopulated_features" });
-
-    opt.removeAmbigFeaturesOnRank = taxonomy::rank_from_name(
-        args.get<string>({"remove-ambig-features",
-                               "remove_ambig_features"},
-                    taxonomy::rank_name(defaults.removeAmbigFeaturesOnRank)));
-
-    opt.maxTaxaPerFeature = args.get<int>({"max-ambig-per-feature",
-                                           "max_ambig_per_feature"},
-                                            defaults.maxTaxaPerFeature);
-
-    opt.resetParents = args.contains({"reset-parents", "reset_parents"});
-
-    opt.taxonomy = get_taxonomy_options(args);
-
-    return opt;
-}
-
-
-
-/*************************************************************************//**
- *
- * @brief extract db creation parameters
- *
- *****************************************************************************/
-build_options
-get_build_options_from_db(const database& db)
-{
-    build_options opt;
-
-    opt.kmerlen   = db.target_sketcher().kmer_size();
-    opt.sketchlen = db.target_sketcher().sketch_size();
-    opt.winlen    = db.target_sketcher().window_size();
-    opt.winstride = db.target_sketcher().window_stride();
-
-    opt.maxLoadFactor = db.max_load_factor();
-
-    opt.maxLocationsPerFeature = db.max_locations_per_feature();
-
-    return opt;
-}
 
 
 
@@ -493,14 +383,15 @@ void add_targets_to_database(database& db,
  *****************************************************************************/
 void prepare_database(database& db, const build_options& opt)
 {
-    if(opt.maxLocationsPerFeature > 0) {
-        db.max_locations_per_feature(opt.maxLocationsPerFeature);
+    const auto dbconf = opt.dbconfig;
+    if(dbconf.maxLocationsPerFeature > 0) {
+        db.max_locations_per_feature(dbconf.maxLocationsPerFeature);
     }
 
-    if(opt.maxLoadFactor > 0.4 && opt.maxLoadFactor < 0.99) {
-        db.max_load_factor(opt.maxLoadFactor);
+    if(dbconf.maxLoadFactor > 0.4 && dbconf.maxLoadFactor < 0.99) {
+        db.max_load_factor(dbconf.maxLoadFactor);
         cerr << "Using custom hash table load factor of "
-             << opt.maxLoadFactor << endl;
+             << dbconf.maxLoadFactor << endl;
     }
 
     if(!opt.taxonomy.path.empty()) {
@@ -522,12 +413,12 @@ void prepare_database(database& db, const build_options& opt)
                   << endl;
     }
 
-    if(opt.removeAmbigFeaturesOnRank != taxon_rank::none &&
+    if(dbconf.removeAmbigFeaturesOnRank != taxon_rank::none &&
        opt.infoLevel != info_level::silent)
     {
         if(db.non_target_taxon_count() > 1) {
             cout << "Ambiguous features on rank "
-                      << taxonomy::rank_name(opt.removeAmbigFeaturesOnRank)
+                      << taxonomy::rank_name(dbconf.removeAmbigFeaturesOnRank)
                       << " will be removed afterwards.\n";
         } else {
             cout << "Could not determine amiguous features "
@@ -547,7 +438,9 @@ void post_process_features(database& db, const build_options& opt)
 {
     const bool notSilent = opt.infoLevel != info_level::silent;
 
-    if(opt.removeOverpopulatedFeatures) {
+    const auto& dbconf = opt.dbconfig;
+
+    if(dbconf.removeOverpopulatedFeatures) {
         auto old = db.feature_count();
         auto maxlpf = db.max_locations_per_feature() - 1;
         if(maxlpf > 0) { //always keep buckets with size 1
@@ -564,18 +457,18 @@ void post_process_features(database& db, const build_options& opt)
         }
     }
 
-    if(opt.removeAmbigFeaturesOnRank != taxon_rank::none &&
+    if(dbconf.removeAmbigFeaturesOnRank != taxon_rank::none &&
         db.non_target_taxon_count() > 1)
     {
         if(notSilent) {
             cout << "\nRemoving ambiguous features on rank "
-                 << taxonomy::rank_name(opt.removeAmbigFeaturesOnRank)
+                 << taxonomy::rank_name(dbconf.removeAmbigFeaturesOnRank)
                  << "... " << flush;
         }
 
         auto old = db.feature_count();
-        auto rem = db.remove_ambiguous_features(opt.removeAmbigFeaturesOnRank,
-                                                opt.maxTaxaPerFeature);
+        auto rem = db.remove_ambiguous_features(dbconf.removeAmbigFeaturesOnRank,
+                                                dbconf.maxTaxaPerFeature);
 
         if(notSilent) {
             cout << rem << " of " << old << "." << endl;
@@ -657,19 +550,13 @@ void add_to_database(database& db, const build_options& opt)
  * @brief adds reference sequences to an existing database
  *
  *****************************************************************************/
-void main_mode_build_modify(const args_parser& args)
+void main_mode_modify(const cmdline_args& args)
 {
-    auto dbfile = database_name(args);
+    auto opt = get_modify_options(args);
 
-    if(dbfile.empty()) {
-        throw std::invalid_argument{"No database filename provided."};
-    }
+    cout << "Modify database " << opt.dbfile << endl;
 
-    cout << "Modify database " << dbfile << endl;
-
-    auto db = make_database(dbfile);
-
-    auto opt = get_build_options(args, get_build_options_from_db(db));
+    auto db = make_database(opt.dbfile);
 
     if(opt.infoLevel != info_level::silent && !opt.infiles.empty()) {
         cout << "Adding reference sequences to database..." << endl;
@@ -685,29 +572,21 @@ void main_mode_build_modify(const args_parser& args)
  * @brief builds a database from reference input sequences
  *
  *****************************************************************************/
-void main_mode_build(const args_parser& args)
+void main_mode_build(const cmdline_args& args)
 {
     auto opt = get_build_options(args);
 
     if(opt.infoLevel != info_level::silent) {
-        cout << "Building new database from reference sequences." << endl;
-    }
-
-    if(opt.dbfile.empty()) {
-        throw std::invalid_argument{"No database filename provided."};
-    }
-
-    if(opt.infiles.empty()) {
-        throw std::invalid_argument{
-            "Nothing to do - no reference sequences provided."};
+        cout << "Building new database '" << opt.dbfile
+             << "' from reference sequences." << endl;
     }
 
     //configure sketching scheme
     auto sketcher = database::sketcher{};
-    sketcher.kmer_size(opt.kmerlen);
-    sketcher.sketch_size(opt.sketchlen);
-    sketcher.window_size(opt.winlen);
-    sketcher.window_stride(opt.winstride);
+    sketcher.kmer_size(opt.sketching.kmerlen);
+    sketcher.sketch_size(opt.sketching.sketchlen);
+    sketcher.window_size(opt.sketching.winlen);
+    sketcher.window_stride(opt.sketching.winstride);
 
     auto db = database{sketcher};
 

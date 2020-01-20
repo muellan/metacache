@@ -24,4 +24,4 @@ The following tables show some of the possible mapping layouts with their associ
 Note that the default lowest taxon rank is "sequence". Sequence-level taxon ids have negative numbers in order to not interfere with NCBI taxon ids. Each target sequence (reference genome) is added as its own taxon below the lowest known NCBI taxon for that sequence. If you do not want to classify at sequence-level, you can set a higher rank as lowest classification rank with the ```-lowest``` command line option: ```-lowest species``` or ```-lowest subspecies``` or ```-lowest genus```, etc.
 
 
-### [All query mode command line options...](query.txt)
+### [All query mode command line options...](mode_query.txt)

@@ -78,9 +78,9 @@ for optimal results. This tells MetaCache to consider the 4 best matching candid
 
 ### All Command Line Options
 
-* [for mode `build`](build.txt): build database(s) from reference genomes
-* [for mode `query`](query.txt): query reads against databases
-* [for mode `merge`](merge.txt): merge results of independent queries
-* [for mode `modify`](modify.txt): add reference genomes to database or update taxonomy
-* [for mode `info`](info.txt): get information about a database
+* [for mode `build`](mode_build.txt): build database(s) from reference genomes
+* [for mode `query`](mode_query.txt): query reads against databases
+* [for mode `merge`](mode_merge.txt): merge results of independent queries
+* [for mode `modify`](mode_modify.txt): add reference genomes to database or update taxonomy
+* [for mode `info`](mode_info.txt): get information about a database
 

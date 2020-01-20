@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -27,9 +27,8 @@
 #include <iostream>
 
 #include "sketch_database.h"
+#include "options.h"
 #include "sequence_io.h"
-#include "cmdline_utility.h"
-#include "query_options.h"
 #include "cmdline_utility.h"
 #include "batch_processing.h"
 
@@ -93,7 +92,7 @@ template<
 >
 query_id query_batched(
     const std::string& filename1, const std::string& filename2,
-    const database& db, const query_processing_options& opt,
+    const database& db, const performance_tuning_options& opt,
     query_id idOffset,
     BufferSource&& getBuffer, BufferUpdate&& update, BufferSink&& finalize,
     ErrorHandler&& handleErrors)
@@ -183,12 +182,13 @@ template<
 void query_database(
     const std::vector<std::string>& infilenames,
     const database& db,
-    const query_processing_options& opt,
+    pairing_mode pairing,
+    const performance_tuning_options& opt,
     BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
     InfoCallback&& showInfo, ProgressHandler&& showProgress,
     ErrorHandler&& errorHandler)
 {
-    const size_t stride = opt.pairing == pairing_mode::files ? 1 : 0;
+    const size_t stride = pairing == pairing_mode::files ? 1 : 0;
     const std::string nofile;
     query_id queryIdOffset = 0;
 
@@ -201,10 +201,10 @@ void query_database(
         //pair up reads from two consecutive files in the list
         const auto& fname1 = infilenames[i];
 
-        const auto& fname2 = (opt.pairing == pairing_mode::none)
+        const auto& fname2 = (pairing == pairing_mode::none)
                              ? nofile : infilenames[i+stride];
 
-        if(opt.pairing == pairing_mode::files) {
+        if(pairing == pairing_mode::files) {
             showInfo(fname1 + " + " + fname2);
         } else {
             showInfo(fname1);
@@ -241,11 +241,12 @@ template<
 void query_database(
     const std::vector<std::string>& infilenames,
     const database& db,
-    const query_processing_options& opt,
+    pairing_mode pairing,
+    const performance_tuning_options& opt,
     BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
     InfoCallback&& showInfo)
 {
-    query_database(infilenames, db, opt,
+    query_database(infilenames, db, pairing, opt,
        std::forward<BufferSource>(bufsrc),
        std::forward<BufferUpdate>(bufupdate),
        std::forward<BufferSink>(bufsink),

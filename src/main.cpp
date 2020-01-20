@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,65 +21,51 @@
 
 #include <iostream>
 #include <stdexcept>
-#include <string>
 
-#include "args_parser.h"
 #include "modes.h"
 
 
 /*************************************************************************//**
  *
- * @brief  select mode or display quick help
+ * @brief  selects & executes main mode / shows quick help
  *
  *****************************************************************************/
-int main(int argc, char* argv[])
+int main(int argc, char** argv)
 {
     using namespace mc;
 
-    args_parser args{argc, argv};
-    
-    bool nomode = false;
-    auto modestr = std::string{};
-    if(args.non_prefixed_count() > 0) {
-        modestr = args.non_prefixed(0);
-    }
+    std::string modestr;
+    if(argc > 1) { modestr = argv[1]; }
 
     try {
-        if(modestr == "help") {
-            main_mode_help(args);
-        }
-        else if(modestr == "build") {
-            main_mode_build(args);
+
+        if(modestr == "build") {
+            main_mode_build(make_args_list(argv+2, argv+argc));
         }
         else if(modestr == "modify") {
-            main_mode_build_modify(args);
+            main_mode_modify(make_args_list(argv+2, argv+argc));
         }
         else if(modestr == "query") {
-            main_mode_query(args);
-        }
-        else if(modestr == "info") {
-            main_mode_info(args);
-        }
-        else if(modestr == "annotate") {
-            main_mode_annotate(args);
+            main_mode_query(make_args_list(argv+2, argv+argc));
         }
         else if(modestr == "merge") {
-            main_mode_merge(args);
+            main_mode_merge(make_args_list(argv+2, argv+argc));
+        }
+        else if(modestr == "info") {
+            main_mode_info(make_args_list(argv+2, argv+argc));
         }
         else {
-            nomode = true;
+            main_mode_help(make_args_list(argv, argv+argc));
         }
     }
     catch(std::runtime_error& e) {
-        std::cerr << "\nABORT: " << e.what() << "!" << std::endl;
+        std::cerr << "\nABORT: " << e.what() << "!\n";
     }
     catch(std::invalid_argument& e) {
-        std::cerr << "\nABORT: " << e.what() << "!" << std::endl;
-        nomode = true;
+        std::cerr << "\nERROR: " << e.what() << "\n";
     }
-
-    if(nomode) {
-       main_mode_help(args);
+    catch(std::exception& e) {
+        std::cerr << e.what() << "\n\n";
     }
 
 }

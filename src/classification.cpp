@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -32,10 +32,10 @@
 #include "alignment.h"
 #include "candidates.h"
 #include "cmdline_utility.h"
+#include "options.h"
 #include "dna_encoding.h"
 #include "matches_per_target.h"
 #include "printing.h"
-#include "query_options.h"
 #include "querying.h"
 #include "sequence_io.h"
 #include "sequence_view.h"
@@ -304,13 +304,14 @@ void update_coverage_statistics(const database& db,
  *****************************************************************************/
 void evaluate_classification(
     const database& db,
-    const evaluation_options& opt,
-    const sequence_query& query,
+    const classification_evaluation_options& opt,
+    sequence_query& query,
     classification& cls,
     classification_statistics& statistics)
 {
-    if(opt.precision || opt.determineGroundTruth)
+    if(opt.precision || opt.determineGroundTruth) {
         cls.groundTruth = ground_truth(db, query.header);
+    }
 
     if(opt.precision) {
         auto lca = db.ranked_lca(cls.best, cls.groundTruth);
@@ -321,7 +322,7 @@ void evaluate_classification(
             cls.groundTruth ? cls.groundTruth->rank() : taxon_rank::none,
             lowestCorrectRank);
 
-        //check if taxa of assigned target are covered
+        // check if taxa of assigned target are covered
         if(opt.taxonCoverage) {
             update_coverage_statistics(db, cls, statistics);
         }
@@ -439,14 +440,15 @@ void show_alignment(std::ostream& os,
 
                 //print alignment to top candidate
                 const auto w = db.target_sketcher().window_stride();
+                const auto& comment = opt.format.tokens.comment;
                 os  << '\n'
-                    << opt.format.comment << "  score  " << align.score
+                    << comment << "  score  " << align.score
                     << "  aligned to "
                     << src.filename << " #" << src.index
                     << " in range [" << (w * tophits[0].pos.beg)
                     << ',' << (w * tophits[0].pos.end + w) << "]\n"
-                    << opt.format.comment << "  query  " << align.query << '\n'
-                    << opt.format.comment << "  target " << align.subject;
+                    << comment << "  query  " << align.query << '\n'
+                    << comment << "  target " << align.subject;
             }
         }
         catch(std::exception& e) {
@@ -465,26 +467,26 @@ void show_alignment(std::ostream& os,
 void show_query_mapping_header(std::ostream& os,
                                const classification_output_options& opt)
 {
-    if(opt.mapViewMode == map_view_mode::none) return;
+    if(opt.format.mapViewMode == map_view_mode::none) return;
 
-    const auto& colsep = opt.format.column;
+    const auto& colsep = opt.format.tokens.column;
 
-    os << opt.format.comment << "TABLE_LAYOUT: ";
+    os << opt.format.tokens.comment << "TABLE_LAYOUT: ";
 
-    if(opt.showQueryIds) os << "query_id" << colsep;
+    if(opt.format.showQueryIds) os << "query_id" << colsep;
 
     os << "query_header" << colsep;
 
-    if(opt.showGroundTruth) {
-        show_taxon_header(os, opt, "truth_");
+    if(opt.evaluate.showGroundTruth) {
+        show_taxon_header(os, opt.format, "truth_");
         os << colsep;
     }
 
-    if(opt.showAllHits) os << "all_hits" << colsep;
-    if(opt.showTopHits) os << "top_hits" << colsep;
-    if(opt.showLocations) os << "candidate_locations" << colsep;
+    if(opt.analysis.showAllHits) os << "all_hits" << colsep;
+    if(opt.analysis.showTopHits) os << "top_hits" << colsep;
+    if(opt.analysis.showLocations) os << "candidate_locations" << colsep;
 
-    show_taxon_header(os, opt);
+    show_taxon_header(os, opt.format);
 
     os << '\n';
 }
@@ -506,15 +508,17 @@ void show_query_mapping(
     const classification& cls,
     const Locations& allhits)
 {
-    if(opt.mapViewMode == map_view_mode::none ||
-        (opt.mapViewMode == map_view_mode::mapped_only && !cls.best))
+    const auto& fmt = opt.format;
+
+    if(fmt.mapViewMode == map_view_mode::none ||
+        (fmt.mapViewMode == map_view_mode::mapped_only && !cls.best))
     {
         return;
     }
 
-    const auto& colsep = opt.format.column;
+    const auto& colsep = fmt.tokens.column;
 
-    if(opt.showQueryIds) os << query.id << colsep;
+    if(fmt.showQueryIds) os << query.id << colsep;
 
     //print query header (first contiguous string only)
     auto l = query.header.find(' ');
@@ -527,27 +531,26 @@ void show_query_mapping(
     }
     os << colsep;
 
-    if(opt.showGroundTruth) {
-        show_taxon(os, db, opt, cls.groundTruth);
+    if(opt.evaluate.showGroundTruth) {
+        show_taxon(os, db, opt.format, cls.groundTruth);
         os << colsep;
     }
-
-    if(opt.showAllHits) {
-        show_matches(os, db, allhits, opt.lowestRank);
+    if(opt.analysis.showAllHits) {
+        show_matches(os, db, allhits, fmt.lowestRank);
         os << colsep;
     }
-    if(opt.showTopHits) {
-        show_candidates(os, db, cls.candidates, opt.lowestRank);
+    if(opt.analysis.showTopHits) {
+        show_candidates(os, db, cls.candidates, fmt.lowestRank);
         os << colsep;
     }
-    if(opt.showLocations) {
+    if(opt.analysis.showLocations) {
         show_candidate_ranges(os, db, cls.candidates);
         os << colsep;
     }
 
-    show_taxon(os, db, opt, cls.best);
+    show_taxon(os, db, fmt, cls.best);
 
-    if(opt.showAlignment && cls.best) {
+    if(opt.analysis.showAlignment && cls.best) {
         show_alignment(os, db, opt, query, cls.candidates);
     }
 
@@ -641,7 +644,7 @@ void redo_classification_batched(
     std::vector<std::future<void>> threads;
     std::mutex mtx;
 
-    for(int threadId = 0; threadId < opt.process.numThreads; ++threadId) {
+    for(int threadId = 0; threadId < opt.performance.numThreads; ++threadId) {
         threads.emplace_back(std::async(std::launch::async, [&, threadId] {
 
             query_mappings mappings;
@@ -655,16 +658,16 @@ void redo_classification_batched(
                         // classify using only targets left in tgtMatches
                         update_classification(db, opt.classify, mapping.cls, tgtMatches);
 
-                        evaluate_classification(db, opt.evaluate, mapping.query, mapping.cls, results.statistics);
+                        evaluate_classification(db, opt.output.evaluate, mapping.query, mapping.cls, results.statistics);
 
                         show_query_mapping(bufout, db, opt.output, mapping.query, mapping.cls, match_locations{});
 
-                        if(opt.output.makeTaxCounts && mapping.cls.best) {
+                        if(opt.make_tax_counts() && mapping.cls.best) {
                             ++taxCounts[mapping.cls.best];
                         }
                     }
                     std::lock_guard<std::mutex> lock(mtx);
-                    if(opt.output.makeTaxCounts) {
+                    if(opt.make_tax_counts()) {
                         //add batch (taxon->read count) to global counts
                         for(const auto& taxCount : taxCounts)
                             allTaxCounts[taxCount.first] += taxCount.second;
@@ -708,6 +711,8 @@ void map_queries_to_targets_default(
     const database& db, const query_options& opt,
     classification_results& results)
 {
+    const auto& fmt = opt.output.format;
+
     //global target -> query_id/win:hits... list
     matches_per_target tgtMatches;
 
@@ -716,7 +721,7 @@ void map_queries_to_targets_default(
     //global taxon -> read count
     taxon_count_map allTaxCounts;
 
-    if(opt.evaluate.precision || opt.evaluate.determineGroundTruth) {
+    if(opt.output.evaluate.precision || opt.output.evaluate.determineGroundTruth) {
         //groundtruth may be outside of target lineages
         //cache lineages of *all* taxa
         db.update_cached_lineages(taxon_rank::none);
@@ -739,7 +744,7 @@ void map_queries_to_targets_default(
 
         auto cls = classify(db, opt.classify, query, allhits);
 
-        if(opt.output.showHitsPerTargetList || opt.classify.covPercentile > 0) {
+        if(opt.output.analysis.showHitsPerTargetList || opt.classify.covPercentile > 0) {
             //insert all candidates with at least 'hitsMin' hits into
             //target -> match list
             buf.hitsPerTarget.insert(query.id, allhits, cls.candidates,
@@ -748,11 +753,11 @@ void map_queries_to_targets_default(
 
         if(opt.classify.covPercentile < 1e-8) {
             //use classification as is
-            if(opt.output.makeTaxCounts && cls.best) {
+            if(opt.make_tax_counts() && cls.best) {
                 ++buf.taxCounts[cls.best];
             }
 
-            evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
+            evaluate_classification(db, opt.output.evaluate, query, cls, results.statistics);
 
             show_query_mapping(buf.out, db, opt.output, query, cls, allhits);
         }
@@ -767,7 +772,7 @@ void map_queries_to_targets_default(
 
     //runs before a batch buffer is discarded
     const auto finalizeBatch = [&] (mappings_buffer&& buf) {
-        if(opt.output.showHitsPerTargetList || opt.classify.covPercentile > 0) {
+        if(opt.output.analysis.showHitsPerTargetList || opt.classify.covPercentile > 0) {
             //merge batch (target->hits) lists into global one
             tgtMatches.merge(std::move(buf.hitsPerTarget));
         }
@@ -777,7 +782,7 @@ void map_queries_to_targets_default(
             buf.queryMappings.clear();
         }
         else {
-            if(opt.output.makeTaxCounts) {
+            if(opt.make_tax_counts()) {
                 //add batch (taxon->read count) to global counts
                 for(const auto& taxCount : buf.taxCounts)
                     allTaxCounts[taxCount.first] += taxCount.second;
@@ -789,11 +794,11 @@ void map_queries_to_targets_default(
 
     //runs if something needs to be appended to the output
     const auto appendToOutput = [&] (const std::string& msg) {
-        results.perReadOut << opt.output.format.comment << msg << '\n';
+        results.perReadOut << fmt.tokens.comment << msg << '\n';
     };
 
     //run (parallel) database queries according to processing options
-    query_database(infiles, db, opt.process,
+    query_database(infiles, db, opt.pairing, opt.performance,
                    makeBatchBuffer, processQuery, finalizeBatch,
                    appendToOutput);
 
@@ -804,21 +809,24 @@ void map_queries_to_targets_default(
         redo_classification_batched(queryMappingsQueue, tgtMatches, db, opt, results, allTaxCounts);
     }
 
-    if(opt.output.showHitsPerTargetList) {
+    const auto& analysis = opt.output.analysis;
+
+    if(analysis.showHitsPerTargetList) {
         tgtMatches.sort_match_lists();
-        show_matches_per_targets(results.perTargetOut, db, tgtMatches, opt.output);
+        show_matches_per_targets(results.perTargetOut, db, tgtMatches, fmt);
     }
 
-    if(opt.output.showTaxAbundances) {
+    if(analysis.showTaxAbundances) {
         show_abundances(results.perTaxonOut, allTaxCounts,
-                        results.statistics, opt.output);
+                        results.statistics, fmt);
     }
 
-    if(opt.output.showAbundanceEstimatesOnRank != taxonomy::rank::none) {
-        estimate_abundance(db, allTaxCounts, opt.output.showAbundanceEstimatesOnRank);
+    if(analysis.showAbundanceEstimatesOnRank != taxonomy::rank::none) {
+        estimate_abundance(db, allTaxCounts, analysis.showAbundanceEstimatesOnRank);
 
-        show_abundance_estimates(results.perTaxonOut, allTaxCounts,
-                                 results.statistics, opt.output);
+        show_abundance_estimates(results.perTaxonOut,
+                                 analysis.showAbundanceEstimatesOnRank,
+                                 allTaxCounts, results.statistics, fmt);
     }
 }
 
@@ -834,7 +842,7 @@ void map_queries_to_targets(const vector<string>& infiles,
                             const database& db, const query_options& opt,
                             classification_results& results)
 {
-    if(opt.output.mapViewMode != map_view_mode::none) {
+    if(opt.output.format.mapViewMode != map_view_mode::none) {
         show_query_mapping_header(results.perReadOut, opt.output);
     }
 
@@ -854,7 +862,7 @@ void map_candidates_to_targets(const vector<string>& queryHeaders,
                                const database& db, const query_options& opt,
                                classification_results& results)
 {
-    if(opt.output.mapViewMode != map_view_mode::none) {
+    if(opt.output.format.mapViewMode != map_view_mode::none) {
         show_query_mapping_header(results.perReadOut, opt.output);
     }
 
@@ -867,25 +875,28 @@ void map_candidates_to_targets(const vector<string>& queryHeaders,
         classification cls { queryCandidates[i] };
         cls.best = classify(db, opt.classify, cls.candidates);
 
-        if(opt.output.makeTaxCounts && cls.best) {
+        if(opt.make_tax_counts() && cls.best) {
             ++allTaxCounts[cls.best];
         }
 
-        evaluate_classification(db, opt.evaluate, query, cls, results.statistics);
+        evaluate_classification(db, opt.output.evaluate, query, cls, results.statistics);
 
         show_query_mapping(results.perReadOut, db, opt.output, query, cls, match_locations{});
     }
 
-    if(opt.output.showTaxAbundances) {
+    const auto& analysis = opt.output.analysis;
+    if(analysis.showTaxAbundances) {
         show_abundances(results.perTaxonOut, allTaxCounts,
-                        results.statistics, opt.output);
+                        results.statistics, opt.output.format);
     }
 
-    if(opt.output.showAbundanceEstimatesOnRank != taxonomy::rank::none) {
-        estimate_abundance(db, allTaxCounts, opt.output.showAbundanceEstimatesOnRank);
+    if(analysis.showAbundanceEstimatesOnRank != taxonomy::rank::none) {
+        estimate_abundance(db, allTaxCounts, analysis.showAbundanceEstimatesOnRank);
 
-        show_abundance_estimates(results.perTaxonOut, allTaxCounts,
-                                 results.statistics, opt.output);
+        show_abundance_estimates(results.perTaxonOut,
+                                 analysis.showAbundanceEstimatesOnRank,
+                                 allTaxCounts,
+                                 results.statistics, opt.output.format);
     }
 }
 

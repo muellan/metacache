@@ -10,7 +10,7 @@ for more details.
 
 ------------------------
 
-MetaCache's [build mode](build.txt) is used for creating databases.
+MetaCache's [build mode](mode_build.txt) is used for creating databases.
 
 You need
 * taxonomic hierarchy files

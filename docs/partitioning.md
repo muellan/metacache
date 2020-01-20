@@ -27,7 +27,7 @@ metacache build mydb_3 path/to/mygenomes_3 ...
 
 ### See also
 * [Building Custom Databases](building.md)
-* [build mode man page](build.txt)
+* [build mode man page](mode_build.txt)
 
 
 
@@ -60,8 +60,8 @@ like, e.g.: `-nomap`, `-no-summary`, `-separator`, etc.
 
 
 ### See also
-* [all query mode command line options](query.txt)
-* [all merge mode command line options](merge.txt)
+* [all query mode command line options](mode_query.txt)
+* [all merge mode command line options](mode_merge.txt)
 * [output formatting](output.md)
 
 

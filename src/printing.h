@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -31,13 +31,13 @@
 #include "classification.h"
 #include "classification_statistics.h"
 #include "matches_per_target.h"
-#include "query_options.h"
 
 
 namespace mc {
 
 // forward declaration
 class database;
+class classification_output_formatting;
 
 
 /*************************************************************************//**
@@ -54,9 +54,9 @@ void show_query_parameters(std::ostream&, const query_options&);
  *
  *****************************************************************************/
 void show_taxon(std::ostream&,
-                         const database&,
-                         const classification_output_options&,
-                         const taxon* classified);
+                const database&,
+                const classification_output_formatting&,
+                const taxon* classified);
 
 
 /*************************************************************************//**
@@ -65,7 +65,7 @@ void show_taxon(std::ostream&,
  *
  *****************************************************************************/
 void show_taxon_header(std::ostream&,
-                       const classification_output_options&,
+                       const classification_output_formatting&,
                        const std::string& prefix = "");
 
 
@@ -110,7 +110,7 @@ void show_candidate_ranges(std::ostream&,
 void show_matches_per_targets(std::ostream&,
                               const database&,
                               const matches_per_target&,
-                              const classification_output_options&);
+                              const classification_output_formatting&);
 
 
 /*************************************************************************//**
@@ -121,7 +121,7 @@ void show_matches_per_targets(std::ostream&,
 void show_abundances(std::ostream&,
                      const taxon_count_map&,
                      const classification_statistics&,
-                     const classification_output_options&);
+                     const classification_output_formatting&);
 
 
 /*************************************************************************//**
@@ -131,9 +131,10 @@ void show_abundances(std::ostream&,
  *
  *****************************************************************************/
 void show_abundance_estimates(std::ostream&,
+                              taxon_rank,
                               const taxon_count_map&,
                               const classification_statistics&,
-                              const classification_output_options&);
+                              const classification_output_formatting&);
 
 
 /*************************************************************************//**

@@ -1,0 +1,304 @@
+SYNOPSIS
+
+    metacache merge <results_file>... -taxonomy <path> [OPTION]...
+
+
+DESCRIPTION
+
+    This mode classifies reads by merging the results of multiple, independent     queries. These might have been obtained by querying one database with     different parameters or by querying different databases with different     reference targets or build options.
+
+    IMPORTANT: In order to be mergable, independent queries     need to be run with options:
+        -tophits -queryids -lowest species
+    and must NOT be run with options that suppress or alter default output     like, e.g.: -nomap, -no-summary, -separator, etc.
+
+    Possible Use Case:
+    If your system has not enough memory for one large database, you can     split up the set of reference genomes into several databases and query these     in succession. The results of these independent query runs can then be      merged to obtain a classification based on the whole set of genomes.
+
+
+REQUIRED
+
+    <database>        database file name
+
+    <query sequence>...
+                      FASTA or FASTQ files containing genomic sequences (short
+                      reads, long reads, contigs, complete genomes, ...);
+                      You can also provide names of directories that contain
+                      sequence files instead of single filenames. MetaCache will
+                      search at most 10 levels deep in the file hierarchy.
+
+
+RESULT OUTPUT OPTIONS
+
+    -out <file>       Redirect output to file <file>.
+                      If not specified, output will be written to stdout. If
+                      more than one input file was given all output will be
+                      concatenated into one file.
+
+
+    -splitout <file>  Generate output and statistics for each input file
+                      separately. For each input file <in> an output file with
+                      name <file>_<in> will be written.
+
+
+PAIRED-END READ HANDLING OPTIONS
+
+    -pairfiles        Interleave paired-end reads from two consecutive files, so
+                      that the nth read from file m and the nth read from file
+                      m+1 will be treated as a pair. If more than two files are
+                      provided, their names will be sorted before processing.
+                      Thus, the order defined by the filenames determines the
+                      pairing not the order in which they were given in the
+                      command line.
+
+
+    -pairseq          Two consecutive sequences (1+2, 3+4, ...) from each file
+                      will be treated as paired-end reads.
+
+
+    -insertsize <#>   Maximum insert size to consider.
+                      default: sum of lengths of the individual reads
+
+
+CLASSIFICATION OPTIONS
+
+    -lowest <rank>    Do not classify on ranks below <rank>
+                      (Valid values: sequence, form, variety, subspecies,
+                      species, subgenus, genus, subtribe, tribe, subfamily,
+                      family, suborder, order, subclass, class, subphylum,
+                      phylum, subkingdom, kingdom, domain)
+                      default: sequence
+
+    -highest <rank>   Do not classify on ranks above <rank>
+                      (Valid values: sequence, form, variety, subspecies,
+                      species, subgenus, genus, subtribe, tribe, subfamily,
+                      family, suborder, order, subclass, class, subphylum,
+                      phylum, subkingdom, kingdom, domain)
+                      default: domain
+
+    -hitmin <t>       Sets classification threshhold to <t>.
+                      A read will not be classified if less than t features from
+                      the database match. Higher values will increase precision
+                      at the expense of sensitivity.
+                      default: 0
+
+    -maxcand <#>      maximum number of reference taxon candidates to consider
+                      for each query;
+                      A large value can significantly decrease the querying
+                      speed!.
+                      default: 2
+
+    -cov-percentile <p>
+                      Remove the p-th percentile of hit reference sequences with
+                      the lowest coverage. Classification is done using only the
+                      remaining reference sequences. This can help to reduce
+                      false positives, especially whenyour input data has a high
+                      sequencing coverage.
+                      This feature decreases the querying speed!
+                      default: off
+
+
+GENERAL OUTPUT FORMATTING OPTIONS
+
+    -no-summary       Dont't show result summary & mapping statistics at the end
+                      of the mapping output
+                      default: off
+
+    -no-query-params  Don't show query settings at the beginning of the mapping
+                      output
+                      default: off
+
+    -noerr            Suppress all error messages.
+                      default: off
+
+
+CLASSIFICATION RESULT FORMATTING OPTIONS
+
+    -nomap            Don't report classification for each individual query
+                      sequence; show summaries only (useful for quick tests).
+                      default: off
+
+    -mapped-only      Don't list unclassified reads/read pairs.
+                      default: off
+
+    -taxids           Print taxon ids in addition to taxon names.
+                      default: off
+
+    -taxids-only      Print taxon ids instead of taxon names.
+                      default: off
+
+    -omit-ranks       Do not print taxon rank names.
+                      default: off
+
+    -separate-cols    Prints *all* mapping information (rank, taxon name, taxon
+                      ids) in separate columns (see option '-separator').
+                      default: off
+
+    -separator <text> Sets string that separates output columns.
+                      default: '\t|\t'
+
+    -comment <text>   Sets string that precedes comment (non-mapping) lines.
+                      default: '# '
+
+    -queryids         Show a unique id for each query.
+                      Note that in paired-end mode a query is a pair of two read
+                      sequences. This option will always be activated if option
+                      '-hits-per-seq' is given.
+                      default: off
+
+    -lineage          Report complete lineage for per-read classification
+                      starting with the lowest rank found/allowed and ending
+                      with the highest rank allowed. See also options '-lowest'
+                      and '-highest'.
+                      default: off
+
+
+ANALYSIS: ABUNDANCES
+
+    -abundances <file>
+                      Show absolute and relative abundance of each taxon.
+                      If a valid filename is given, the list will be written to
+                      this file.
+                      default: off
+
+    -abundance-per <rank>
+                      Show absolute and relative abundances for each taxon on
+                      one specific rank.
+                      Classifications on higher ranks will be estimated by
+                      distributing them down according to the relative
+                      abundances of classifications on or below the given rank.
+                      (Valid values: sequence, form, variety, subspecies,
+                      species, subgenus, genus, subtribe, tribe, subfamily,
+                      family, suborder, order, subclass, class, subphylum,
+                      phylum, subkingdom, kingdom, domain)
+                      If '-abundances <file>' was given, this list will be
+                      printed to the same file.
+                      default: off
+
+
+ANALYSIS: RAW DATABASE HITS
+
+    -tophits          For each query, print top feature hits in database.
+                      default: off
+
+    -allhits          For each query, print all feature hits in database.
+                      default: off
+
+    -locations        Show locations in candidate reference sequences.
+                      Activates option '-tophits'.
+                      default: off
+
+    -hits-per-seq <file>
+                      Shows a list of all hits for each reference sequence.
+                      If this condensed list is all you need, you should
+                      deactive the per-read mapping output with '-nomap'.
+                      If a valid filename is given after '-hits-per-seq', the
+                      list will be written to a separate file.
+                      Option '-queryids' will be activated and the lowest
+                      classification rank will be set to 'sequence'.
+                      default: off
+
+
+ANALYSIS: ALIGNMENTS
+
+    -align            Show semi-global alignment to best candidate target.
+                      Original files of reference sequences must be available.
+                      This feature decreases the querying speed!
+                      default: off
+
+
+ADVANCED: GROUND TRUTH BASED EVALUATION
+
+    -ground-truth     Report correct query taxa if known.
+                      Queries need to have either a 'taxid|<number>' entry in
+                      their header or a sequence id that is also present in the
+                      database.
+                      This feature decreases the querying speed!
+                      default: off
+
+    -precision        Report precision & sensitivity by comparing query taxa
+                      (ground truth) and mapped taxa.
+                      Queries need to have either a 'taxid|<number>' entry in
+                      their header or a sequence id that is also found in the
+                      database.
+                      This feature decreases the querying speed!
+                      default: off
+
+    -taxon-coverage   Report true/false positives and true/false negatives.This
+                      option turns on '-precision', so ground truth data needs
+                      to be available.
+                      This feature decreases the querying speed!
+                      default: off
+
+
+ADVANCED: CUSTOM QUERY SKETCHING OPTIONS
+
+    -kmerlen <#>      number of nucleotides/characters in a k-mer
+                      default: determined by database
+
+    -sketchlen <#>    number of features (k-mer hashes) per sampling window
+                      default: determined by database
+
+    -winlen <#>       number of letters in each sampling window
+                      default: determined by database
+
+    -winstride <#>    distance between window starting positions
+                      default: determined by database
+
+
+ADVANCED: DATABASE MODIFICATION OPTIONS
+
+    -max-locations-per-feature <#>
+                      maximum number of target locations to be stored per
+                      feature;
+                      If the value is too high it will significantly impact
+                      querying speed. Note that an upper hard limit is always
+                      imposed by the data type used for the hash table bucket
+                      size (set with compilation macro
+                      '-DMC_LOCATION_LIST_SIZE_TYPE').
+                      default: 254
+
+    -remove-overpopulated-features
+                      Removes all features that have reached the maximum allowed
+                      amount of locations per feature. This can improve querying
+                      speed and can be used to remove non-discriminative
+                      features.
+                      default: off
+
+    -remove-ambig-features <rank>
+                      Removes all features that have more distinct targets on
+                      the given taxonomic rank than set by
+                      '-max-ambig-per-feature'. This can decrease the database
+                      size significantly at the expense of sensitivity. Note
+                      that the lower the given taxonomic rank is, the more
+                      pronounced the effect will be.
+                      Valid values: sequence, form, variety, subspecies,
+                      species, subgenus, genus, subtribe, tribe, subfamily,
+                      family, suborder, order, subclass, class, subphylum,
+                      phylum, subkingdom, kingdom, domain
+                      default: off
+
+    -max-ambig-per-feature <#>
+                      Maximum number of allowed different target taxa per
+                      feature if option '-remove-ambig-features' is used.
+
+    -max-load-fac <factor>
+                      maximum hash table load factor;
+                      This can be used to trade off larger memory consumption
+                      for speed and vice versa. A lower load factor will improve
+                      speed, a larger one will improve memory efficiency.
+                      default: 0.800000
+
+
+ADVANCED: PERFORMANCE TUNING / TESTING OPTIONS
+
+    -threads <#>      Sets the maximum number of parallel threads to use.default
+                      (on this machine): 4
+
+
+    -batch-size <#>   Process <#> many queries (reads or read pairs) per thread
+                      at once.
+                      default (on this machine): 4096
+
+    -query-limit <#>  Classify at max. <#> queries (reads or read pairs) per
+                      input file. and 
+                      default: 9223372036854775807

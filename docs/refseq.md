@@ -51,8 +51,8 @@ Build a database with bacteria, viruses, plant and fungal genomes from RefSeq:
 
 ### Command Line Options
 
-* [for mode `build`](build.txt)
-* [for mode `query`](query.txt)
-* [for mode `merge`](merge.txt)
+* [for mode `build`](mode_build.txt)
+* [for mode `query`](mode_query.txt)
+* [for mode `merge`](mode_merge.txt)
 
 

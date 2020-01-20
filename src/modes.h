@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,20 +22,11 @@
 #ifndef MC_MODES_H_
 #define MC_MODES_H_
 
-#include <string>
 
-#include "args_parser.h"
+#include "cmdline_utility.h"
+
 
 namespace mc {
-
-
-/*************************************************************************//**
- *
- * @brief prints sequence to property mapping
- *
- *****************************************************************************/
-void main_mode_annotate(const args_parser&);
-
 
 
 /*************************************************************************//**
@@ -43,7 +34,7 @@ void main_mode_annotate(const args_parser&);
  * @brief builds a database from reference input sequences (= targets)
  *
  *****************************************************************************/
-void main_mode_build(const args_parser&);
+void main_mode_build(const cmdline_args&);
 
 
 
@@ -52,26 +43,7 @@ void main_mode_build(const args_parser&);
  * @brief adds reference sequences (= targets) to an existing database
  *
  *****************************************************************************/
-void main_mode_build_modify(const args_parser&);
-
-
-
-/*************************************************************************//**
- *
- * @brief help
- *
- *****************************************************************************/
-void main_mode_help(const args_parser&);
-void show_help_for_topic(const std::string&);
-
-
-
-/*************************************************************************//**
- *
- * @brief shows database properties
- *
- *****************************************************************************/
-void main_mode_info(const args_parser&);
+void main_mode_modify(const cmdline_args&);
 
 
 
@@ -80,7 +52,7 @@ void main_mode_info(const args_parser&);
  * @brief run query reads against pre-built database
  *
  *****************************************************************************/
-void main_mode_query(const args_parser&);
+void main_mode_query(const cmdline_args&);
 
 
 
@@ -89,7 +61,25 @@ void main_mode_query(const args_parser&);
  * @brief merge classification result files
  *
  *****************************************************************************/
-void main_mode_merge(const args_parser&);
+void main_mode_merge(const cmdline_args&);
+
+
+
+/*************************************************************************//**
+ *
+ * @brief shows database properties
+ *
+ *****************************************************************************/
+void main_mode_info(const cmdline_args&);
+
+
+
+/*************************************************************************//**
+ *
+ * @brief help
+ *
+ *****************************************************************************/
+void main_mode_help(const cmdline_args&);
 
 
 } // namespace mc

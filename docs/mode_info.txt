@@ -1,14 +1,13 @@
-Documentation for MetaCache mode "info"
-
 SYNOPSIS
 
     metacache info 
     metacache info <database>
-    metacache info <database> target [<sequence_id>...] 
-    metacache info <database> lineages 
-    metacache info <database> rank <name>
+    metacache info <database> target [<sequence_id>]...
+    metacache info <database> lineages
+    metacache info <database> rank <taxonomic_rank>
     metacache info <database> statistics
-    metacache info <database> (featuremap|featurecounts)
+    metacache info <database> featuremap
+    metacache info <database> featurecounts
 
 
 DESCRIPTION
@@ -36,7 +35,7 @@ SUB-MODES
         print a table with ranked lineages for all reference sequences
         in <database>
 
-    metacache info <database> rank <rankname>
+    metacache info <database> rank <taxonomic_rank>
         list distribution of the number of sequences on rank <rankname>
 
     metacache info <database> statistics
@@ -49,8 +48,16 @@ SUB-MODES
         prints (feature -> target count) map
 
 
-EXAMPLES
+PARAMETERS
 
+    <database>        database file name
+
+    <taxonomic_rank>  Valid values: sequence, form, variety, subspecies,
+                      species, subgenus, genus, subtribe, tribe, subfamily,
+                      family, suborder, order, subclass, class, subphylum,
+                      phylum, subkingdom, kingdom, domain
+
+EXAMPLES
     List metadata for all reference sequences in database 'refseq':
         metacache info refseq.db target
 

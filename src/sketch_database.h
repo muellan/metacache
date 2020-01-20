@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -280,7 +280,6 @@ public:
         targetSketcher_{std::move(targetSketcher)},
         querySketcher_{std::move(querySketcher)},
         maxLocsPerFeature_(max_supported_locations_per_feature()),
-        targetCount_{0},
         features_{},
         targets_{},
         taxa_{},
@@ -300,7 +299,6 @@ public:
         targetSketcher_{std::move(other.targetSketcher_)},
         querySketcher_{std::move(other.querySketcher_)},
         maxLocsPerFeature_(other.maxLocsPerFeature_),
-        targetCount_{other.targetCount_},
         features_{std::move(other.features_)},
         targets_{std::move(other.targets_)},
         taxa_{std::move(other.taxa_)},
@@ -1189,7 +1187,6 @@ private:
     sketcher targetSketcher_;
     sketcher querySketcher_;
     std::uint64_t maxLocsPerFeature_;
-    target_id targetCount_;
     feature_store features_;
     std::vector<const taxon*> targets_;
     taxonomy taxa_;
