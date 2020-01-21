@@ -275,7 +275,7 @@ sketching_options_cli(sketching_options& opt, error_messages& err)
     using namespace clipp;
     return (
     (   option("-kmerlen") &
-        integer("#", opt.kmerlen)
+        integer("k", opt.kmerlen)
             .if_missing([&]{ err += "Number missing after '-kmerlen'!"; })
     )
         %("number of nucleotides/characters in a k-mer\n"
@@ -283,7 +283,7 @@ sketching_options_cli(sketching_options& opt, error_messages& err)
                                           : "determined by database"s))
     ,
     (   option("-sketchlen") &
-        integer("#", opt.sketchlen)
+        integer("s", opt.sketchlen)
             .if_missing([&]{ err += "Number missing after '-sketchlen'!"; })
     )
         %("number of features (k-mer hashes) per sampling window\n"
@@ -291,7 +291,7 @@ sketching_options_cli(sketching_options& opt, error_messages& err)
                                             : "determined by database"s))
     ,
     (   option("-winlen") &
-        integer("#", opt.winlen)
+        integer("w", opt.winlen)
             .if_missing([&]{ err += "Number missing after '-winlen'!"; })
     )
         %("number of letters in each sampling window\n"
@@ -299,13 +299,13 @@ sketching_options_cli(sketching_options& opt, error_messages& err)
                                          : "determined by database"s))
     ,
     (   option("-winstride") &
-        integer("#", opt.winstride)
+        integer("l", opt.winstride)
             .if_missing([&]{ err += "Number missing after '-winstride'!"; })
     )
         %("distance between window starting positions\n"
           "default: "s +
           (opt.winlen > 0 && opt.kmerlen > 0
-              ? to_string(opt.winlen - opt.kmerlen + 1)
+              ? (to_string(opt.winlen - opt.kmerlen + 1) + " (w-k+1)")
               : "determined by database"s)
     )
     );
@@ -721,9 +721,19 @@ classification_params_cli(classification_options& opt, error_messages& err)
           "(Valid values: "s + taxon_rank_names() + ")\n"s +
           "default: "s + taxonomy::rank_name(opt.highestRank))
     ,
-    (   option("-hitmin") &
+    (   option("-hitmin", "-hit-min", "-hits-min", "-hitsmin") &
         integer("t", opt.hitsMin)
             .if_missing([&]{ err += "Number missing after '-hitmin'!"; })
+    )
+        %("Sets classification threshhold to <t>.\n"
+          "A read will not be classified if less than t features "
+          "from the database match. Higher values will increase "
+          "precision at the expense of sensitivity.\n"
+          "default: "s + to_string(opt.hitsMin))
+    ,
+    (   option("-hitdiff", "-hit-diff", "-hitsdiff", "-hits-diff") &
+        number("t", opt.hitsDiffFraction)
+            .if_missing([&]{ err += "Number missing after '-hitdiff'!"; })
     )
         %("Sets classification threshhold to <t>.\n"
           "A read will not be classified if less than t features "
@@ -780,15 +790,15 @@ classification_output_format_cli(classification_output_formatting& opt,
             %("Print taxon ids in addition to taxon names.\n"
               "default: "s + (opt.taxonStyle.showId ? "on" : "off"))
         ,
-        option("-taxids-only", "-taxids_only").set(opt.taxonStyle.showId).set(opt.taxonStyle.showName,false)
+        option("-taxids-only", "-taxidsonly").set(opt.taxonStyle.showId).set(opt.taxonStyle.showName,false)
             %("Print taxon ids instead of taxon names.\n"
               "default: "s + (opt.taxonStyle.showId && !opt.taxonStyle.showName ? "on" : "off"))
         ,
-        option("-omit-ranks").set(opt.taxonStyle.showRankName,false)
+        option("-omit-ranks", "-omitranks").set(opt.taxonStyle.showRankName,false)
             %("Do not print taxon rank names.\n"
               "default: "s + (!opt.taxonStyle.showRankName ? "on" : "off"))
         ,
-        option("-separate-cols").set(opt.useSeparateCols)
+        option("-separate-cols", "-separatecols").set(opt.useSeparateCols)
             %("Prints *all* mapping information (rank, taxon name, taxon ids) "
               "in separate columns (see option '-separator').\n"
               "default: "s + (opt.useSeparateCols ? "on" : "off"))
@@ -807,14 +817,14 @@ classification_output_format_cli(classification_output_formatting& opt,
             %("Sets string that precedes comment (non-mapping) lines.\n"
               "default: '"s + opt.tokens.comment + "'")
         ,
-        option("-queryids").set(opt.showQueryIds)
+        option("-queryids", "-query-ids").set(opt.showQueryIds)
             %("Show a unique id for each query.\n"
               "Note that in paired-end mode a query is a pair of two "
               "read sequences. This option will always be activated if "
               "option '-hits-per-seq' is given.\n"
               "default: "s + (opt.showQueryIds ? "on" : "off"))
         ,
-        option("-lineage").set(opt.showLineage)
+        option("-lineage", "-lineages").set(opt.showLineage)
             %("Report complete lineage for per-read classification "
               "starting with the lowest rank found/allowed and "
               "ending with the highest rank allowed. See also "
@@ -862,11 +872,11 @@ classification_analysis_cli(classification_analysis_options& opt, error_messages
         "ANALYSIS: RAW DATABASE HITS" %
         (
             one_of(
-                option("-tophits").set(opt.showTopHits)
+                option("-tophits", "-top-hits").set(opt.showTopHits)
                 %("For each query, print top feature hits in database.\n"
                   "default: "s + (opt.showTopHits ? "on" : "off"))
             ,
-                option("-allhits").set(opt.showAllHits)
+                option("-allhits", "-all-hits").set(opt.showAllHits)
                 %("For each query, print all feature hits in database.\n"
                   "default: "s + (opt.showAllHits ? "on" : "off"))
             )
@@ -955,14 +965,14 @@ performance_options_cli(performance_tuning_options& opt, error_messages& err)
         %("Sets the maximum number of parallel threads to use."
           "default (on this machine): "s + to_string(opt.numThreads))
     ,
-    (   option("-batch-size") &
+    (   option("-batch-size", "-batchsize") &
         integer("#", opt.batchSize)
             .if_missing([&]{ err += "Number missing after '-batch-size'!"; })
     )
         %("Process <#> many queries (reads or read pairs) per thread at once.\n"
           "default (on this machine): "s + to_string(opt.batchSize))
     ,
-    (   option("-query-limit") &
+    (   option("-query-limit", "-querylimit") &
         integer("#", opt.queryLimit)
             .if_missing([&]{ err += "Number missing after '-query-limit'!"; })
     )
@@ -1008,7 +1018,7 @@ query_mode_cli(query_options& opt, error_messages& err)
               "If more than one input file was given all output "
               "will be concatenated into one file."
         ,
-        (   option("-splitout").set(opt.splitOutputPerInput) &
+        (   option("-splitout", "-split-out").set(opt.splitOutputPerInput) &
             value("file", opt.queryMappingsFile)
                 .if_missing([&]{ err += "Output filename missing after '-splitout'!"; })
         )
@@ -1154,7 +1164,7 @@ get_query_options(const cmdline_args& args, query_options opt)
 
     // modify output tokens for separate column printig
     if(fmt.useSeparateCols) {
-        fmt.collapseUnclassified = false;
+        fmt.collapseUnclassifiedLineages = false;
         fmt.tokens.taxSeparator = fmt.tokens.column;
         fmt.tokens.rankSuffix   = fmt.tokens.column;
         fmt.tokens.taxidPrefix  = fmt.tokens.column;
@@ -1311,17 +1321,18 @@ merge_mode_cli(merge_options& opt, error_messages& err)
     "GENERAL OUTPUT" % (
         info_level_cli(opt.infoLevel, err)
         ,
-        option("-no-summary").set(qry.output.showSummary,false)
+        option("-no-summary", "-nosummary").set(qry.output.showSummary,false)
             %("Dont't show result summary & mapping statistics at the "
               "end of the mapping output\n"
               "default: "s + (!qry.output.showSummary ? "on" : "off"))
         ,
-        option("-no-query-params").set(qry.output.showQueryParams,false)
+        option("-no-query-params", "-no-queryparams", "-noqueryparams")
+            .set(qry.output.showQueryParams,false)
             %("Don't show query settings at the beginning of the "
               "mapping output\n"
               "default: "s + (!qry.output.showQueryParams ? "on" : "off"))
         ,
-        option("-noerr", "-no-err", "-no-errors").set(qry.output.showErrors,false)
+        option("-no-err", "-noerr", "-no-errors").set(qry.output.showErrors,false)
             %("Suppress all error messages.\n"
               "default: "s + (!qry.output.showErrors ? "on" : "off"))
     )

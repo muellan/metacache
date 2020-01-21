@@ -316,7 +316,7 @@ struct classification_output_formatting
     //show all ranks that a sequence could be classified on
     bool showLineage = false;
     //don't print full lineage for unclassified queries
-    bool collapseUnclassified = true;
+    bool collapseUnclassifiedLineages = true;
     
     //print all classification info in separate columns
     bool useSeparateCols = false;

@@ -34,13 +34,20 @@ namespace mc {
 //-------------------------------------------------------------------
 void main_mode_help(const cmdline_args& args)
 {
-    if(args.size() < 3 || args[2] == "help") {
+    if(args.size() < 3 || args[1] != "help" || args[2] == "help") {
+
+        if(args[1] != "help") {
+            std::cerr << "ERROR: Invalid command line arguments!\n\n";
+        }
+        else {
+            std::cout <<
+                "MetaCache  Copyright (C) 2016-2020  André Müller & Robin Kobus\n"
+                "This program comes with ABSOLUTELY NO WARRANTY.\n"
+                "This is free software, and you are welcome to redistribute it\n"
+                "under certain conditions. See the file 'LICENSE' for details.\n\n";
+        }
+
         std::cout <<
-            "MetaCache  Copyright (C) 2016-2020  André Müller & Robin Kobus\n"
-            "This program comes with ABSOLUTELY NO WARRANTY.\n"
-            "This is free software, and you are welcome to redistribute it\n"
-            "under certain conditions. See the file 'LICENSE' for details.\n"
-            "\n"
             "USAGE:\n"
             "\n"
             "    metacache <MODE> [OPTION...]\n"

@@ -236,8 +236,8 @@ void show_taxon(std::ostream& os,
                 const taxon* tax)
 {
     if(!tax || tax->rank() > opt.highestRank) {
-        if(opt.collapseUnclassified) {
-            if(opt.taxonStyle.showId) {
+        if(opt.collapseUnclassifiedLineages) {
+            if(opt.taxonStyle.showId && !opt.taxonStyle.showName) {
                 os << taxonomy::none_id();
             } else {
                 os << opt.tokens.none;

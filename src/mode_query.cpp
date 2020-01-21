@@ -270,16 +270,14 @@ void run_interactive_query_mode(const database& db,
         }
         else {
             //tokenize input into whitespace-separated words and build args list
-            vector<string> args {"query", initOpt.dbfile};
+            vector<string> args {initOpt.dbfile};
             std::istringstream iss(input);
             while(iss >> input) { args.push_back(input); }
 
             //read command line options (use initial ones as defaults)
-            auto opt = get_query_options(args, initOpt);
-
-            adapt_options_to_database(opt.classify, db);
-
             try {
+                auto opt = get_query_options(args, initOpt);
+                adapt_options_to_database(opt.classify, db);
                 process_input_files(db, opt);
             }
             catch(std::exception& e) {

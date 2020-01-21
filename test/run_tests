@@ -95,7 +95,7 @@ function add_formatting_tests {
 query=data/fmt.fa
 
 tests=""
-add_formatting_tests $query "-nosummary -noqueryparams"
+add_formatting_tests $query "-no-summary -no-query-params"
 
 echo -e ${tests} | ../metacache query bacteria1 | grep "NC_" > results/fmt_fa.out
 
@@ -110,7 +110,7 @@ fi
 query=data/fmt.fa
 
 tests=""
-add_formatting_tests $query "-nosummary -noqueryparams"
+add_formatting_tests $query "-no-summary -no-query-params"
 
 echo -e ${tests} | ../metacache query bacteria1 | grep "NC_" > results/fmt_fq.out
 
@@ -125,7 +125,7 @@ fi
 # ---------------------------------------------------------
 # classification tests
 # ---------------------------------------------------------
-common="-noqueryparams -mapped-only -precision -ground-truth -tophits -allhits -hits-per-seq -abundances -abundance-per species"
+common="-no-query-params -mapped-only -precision -ground-truth -tophits -allhits -hits-per-seq -abundances -abundance-per species"
 
 # fasta -------------------------------
 tests_fa=""
