@@ -3,8 +3,8 @@ SYNOPSIS
     metacache info 
     metacache info <database>
     metacache info <database> target [<sequence_id>]...
-    metacache info <database> lineages
     metacache info <database> rank <taxonomic_rank>
+    metacache info <database> lineages
     metacache info <database> statistics
     metacache info <database> featuremap
     metacache info <database> featurecounts

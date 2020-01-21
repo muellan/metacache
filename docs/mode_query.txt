@@ -1,6 +1,6 @@
 SYNOPSIS
 
-    metacache query <database> [<query file/directory>...] [OPTION]...
+    metacache query <database> [<sequence file/directory>]... [OPTION]...
 
 
 DESCRIPTION
@@ -9,19 +9,22 @@ DESCRIPTION
     to their most likely taxon of origin.
 
 
-REQUIRED
+BASIC PARAMETERS
 
     <database>        database file name
 
-    <query sequence>...
+    <sequence file/directory>...
                       FASTA or FASTQ files containing genomic sequences (short
                       reads, long reads, contigs, complete genomes, ...);
-                      You can also provide names of directories that contain
-                      sequence files instead of single filenames. MetaCache will
-                      search at most 10 levels deep in the file hierarchy.
+                      * If directory names are given, they will be searched for
+                      sequence files (at most 10 levels deep).
+                      * If no input filenames or directories are given,
+                      MetaCache will run in interactive query mode. This can be
+                      used to load the database into memory only once and then
+                      query it multiple times with different query options. 
 
 
-RESULT OUTPUT OPTIONS
+MAPPING RESULTS OUTPUT
 
     -out <file>       Redirect output to file <file>.
                       If not specified, output will be written to stdout. If
@@ -34,7 +37,7 @@ RESULT OUTPUT OPTIONS
                       name <file>_<in> will be written.
 
 
-PAIRED-END READ HANDLING OPTIONS
+PAIRED-END READ HANDLING
 
     -pairfiles        Interleave paired-end reads from two consecutive files, so
                       that the nth read from file m and the nth read from file
@@ -53,7 +56,7 @@ PAIRED-END READ HANDLING OPTIONS
                       default: sum of lengths of the individual reads
 
 
-CLASSIFICATION OPTIONS
+CLASSIFICATION
 
     -lowest <rank>    Do not classify on ranks below <rank>
                       (Valid values: sequence, form, variety, subspecies,
@@ -91,7 +94,7 @@ CLASSIFICATION OPTIONS
                       default: off
 
 
-GENERAL OUTPUT FORMATTING OPTIONS
+GENERAL OUTPUT FORMATTING
 
     -no-summary       Dont't show result summary & mapping statistics at the end
                       of the mapping output
@@ -105,7 +108,7 @@ GENERAL OUTPUT FORMATTING OPTIONS
                       default: off
 
 
-CLASSIFICATION RESULT FORMATTING OPTIONS
+CLASSIFICATION RESULT FORMATTING
 
     -nomap            Don't report classification for each individual query
                       sequence; show summaries only (useful for quick tests).
@@ -224,7 +227,7 @@ ADVANCED: GROUND TRUTH BASED EVALUATION
                       default: off
 
 
-ADVANCED: CUSTOM QUERY SKETCHING OPTIONS
+ADVANCED: CUSTOM QUERY SKETCHING (SUBSAMPLING)
 
     -kmerlen <#>      number of nucleotides/characters in a k-mer
                       default: determined by database
@@ -239,7 +242,7 @@ ADVANCED: CUSTOM QUERY SKETCHING OPTIONS
                       default: determined by database
 
 
-ADVANCED: DATABASE MODIFICATION OPTIONS
+ADVANCED: DATABASE MODIFICATION
 
     -max-locations-per-feature <#>
                       maximum number of target locations to be stored per
@@ -283,7 +286,7 @@ ADVANCED: DATABASE MODIFICATION OPTIONS
                       default: 0.800000
 
 
-ADVANCED: PERFORMANCE TUNING / TESTING OPTIONS
+ADVANCED: PERFORMANCE TUNING / TESTING
 
     -threads <#>      Sets the maximum number of parallel threads to use.default
                       (on this machine): 4

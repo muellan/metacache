@@ -1,6 +1,6 @@
 SYNOPSIS
 
-    metacache merge <results_file>... -taxonomy <path> [OPTION]...
+    metacache merge <result file/directory>... -taxonomy <path> [OPTION]...
 
 
 DESCRIPTION
@@ -23,24 +23,23 @@ DESCRIPTION
     merged to obtain a classification based on the whole set of genomes.
 
 
-REQUIRED
+REQUIRED PARAMETERS
 
-    <result file>...  MetaCache result files.
-                      You can also provide names of directories that contain
-                      sequence files instead of single filenames. MetaCache will
-                      search at most 10 levels deep in the file hierarchy.
-                      IMPORTANT: In order to be mergable, independent queries
-                      need to be run with options:
+    <result file/directory>...
+                      MetaCache result files.
+                      If directory names are given, they will be searched for
+                      sequence files (at most 10 levels deep).
+                      IMPORTANT: Result files must have been produced with:
                       -tophits -queryids -lowest species
                       and must NOT be run with options that suppress or alter
-                      default output like, e.g.: -nomap, -no-summary,
+                      the default output like, e.g.: -nomap, -no-summary,
                       -separator, etc.
 
     -taxonomy <path>  directory with taxonomic hierarchy data (see NCBI's
                       taxonomic data files)
 
 
-CLASSIFICATION OPTIONS
+CLASSIFICATION
 
     -lowest <rank>    Do not classify on ranks below <rank>
                       (Valid values: sequence, form, variety, subspecies,
@@ -78,10 +77,11 @@ CLASSIFICATION OPTIONS
                       default: off
 
 
-GENERAL OUTPUT OPTIONS
+GENERAL OUTPUT
 
     -silent|-verbose  information level during build:
-                      silent=none / verbose=most detailed
+                      silent => none / verbose => most detailed
+                      default: neither => only errors/important info
 
     -no-summary       Dont't show result summary & mapping statistics at the end
                       of the mapping output
@@ -95,7 +95,7 @@ GENERAL OUTPUT OPTIONS
                       default: off
 
 
-CLASSIFICATION RESULT FORMATTING OPTIONS
+CLASSIFICATION RESULT FORMATTING
 
     -nomap            Don't report classification for each individual query
                       sequence; show summaries only (useful for quick tests).
@@ -136,7 +136,7 @@ CLASSIFICATION RESULT FORMATTING OPTIONS
                       default: off
 
 
-ANALYSIS OPTIONS
+ANALYSIS
 
 
     ANALYSIS: ABUNDANCES
@@ -217,7 +217,7 @@ ADVANCED: GROUND TRUTH BASED EVALUATION
                       default: off
 
 
-ADVANCED: CUSTOM QUERY SKETCHING OPTIONS
+ADVANCED: CUSTOM QUERY SKETCHING (SUBSAMPLING)
 
     -kmerlen <#>      number of nucleotides/characters in a k-mer
                       default: determined by database
@@ -232,7 +232,7 @@ ADVANCED: CUSTOM QUERY SKETCHING OPTIONS
                       default: determined by database
 
 
-ADVANCED: DATABASE MODIFICATION OPTIONS
+ADVANCED: DATABASE MODIFICATION
 
     -max-locations-per-feature <#>
                       maximum number of target locations to be stored per
@@ -276,7 +276,7 @@ ADVANCED: DATABASE MODIFICATION OPTIONS
                       default: 0.800000
 
 
-ADVANCED: PERFORMANCE TUNING / TESTING OPTIONS
+ADVANCED: PERFORMANCE TUNING / TESTING
 
     -threads <#>      Sets the maximum number of parallel threads to use.default
                       (on this machine): 4

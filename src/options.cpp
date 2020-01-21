@@ -36,12 +36,7 @@ namespace mc {
 using std::size_t;
 using std::vector;
 using std::string;
-
 using std::to_string;
-using std::cout;
-using std::cerr;
-using std::endl;
-using std::flush;
 
 using namespace std::string_literals;
 
@@ -160,6 +155,16 @@ auto cli_usage_formatting()
 
 
 //-------------------------------------------------------------------
+/// @brief adds 'parameter' that catches unknown args with '-' prefix
+clipp::parameter
+catch_unknown(error_messages& err) {
+    return clipp::any(clipp::match::prefix{"-"},
+        [&](const string& arg) { err += "unknown argument: "s + arg; });
+}
+
+
+
+//-------------------------------------------------------------------
 taxon_rank rank_from_name(const string& name, error_messages& err)
 {
     auto r = taxonomy::rank_from_name(name);
@@ -175,14 +180,17 @@ taxon_rank rank_from_name(const string& name, error_messages& err)
 
 
 //-------------------------------------------------------------------
-void raise_default_error(const error_messages& err, const string& mode)
+void raise_default_error(const error_messages& err,
+                         const string& mode, const string& usage)
 {
     auto msg = err.str();
 
     if(!msg.empty()) msg += "\n";
 
-    msg += "View the "s + mode + " mode interface documentation with:\n"
-           "    metacache help " + mode;
+    msg += "Usage:\n" + usage + "\n\n";
+
+    msg += "You can view the full interface documentation of mode '"s
+        + mode + "' with:\n    metacache help " + mode;
 
     throw std::invalid_argument{std::move(msg)};
 }
@@ -202,7 +210,9 @@ void raise_default_error(const error_messages& err, const string& mode)
 clipp::parameter
 database_parameter(string& filename, error_messages& err)
 {
-    return clipp::value("database")
+    using namespace clipp;
+
+    return value(match::prefix_not{"-"}, "database")
         .call([&](const string& arg){ filename = sanitize_database_name(arg); })
         .if_missing([&]{ err += "Database filename is missing!"; })
         .doc("database file name\n");
@@ -216,15 +226,16 @@ info_level_cli(info_level& lvl, error_messages& err)
 {
     using namespace clipp;
 
-    return one_of(
-                option("-silent").set(lvl, info_level::silent),
-                option("-verbose").set(lvl, info_level::verbose)
-                .if_conflicted([&]{
-                    err += "Info level must be either '-silent' or '-verbose'!";
-                })
-            )
-                % "information level during build:\n"
-                  "silent=none / verbose=most detailed";
+    return one_of (
+        option("-silent").set(lvl, info_level::silent),
+        option("-verbose").set(lvl, info_level::verbose)
+        .if_conflicted([&]{
+            err += "Info level must be either '-silent' or '-verbose'!";
+        })
+    )
+        % "information level during build:\n"
+          "silent => none / verbose => most detailed\n"
+          "default: neither => only errors/important info";
 }
 
 
@@ -237,17 +248,19 @@ taxonomy_cli(taxonomy_options& opt, error_messages& err)
     using namespace clipp;
 
     return (
-        (option("-taxonomy") &
-         value("path", opt.path).if_missing([&]{ err += "Taxonomy path is missing!"; })
-        )
-            % "directory with taxonomic hierarchy data (see NCBI's taxonomic data files)\n"
-        ,
-        (option("-taxpostmap", "-taxonomy-postmap") &
-         values("file", opt.mappingPostFiles).if_missing([&]{ err += "Taxonomy mapping files are missing!"; })
-        )
-            % "Files with sequence to taxon id mappings that are used "
-              "as alternative source in a post processing step.\n"
-              "default: 'nucl_(gb|wgs|est|gss).accession2taxid'"
+    (   option("-taxonomy") &
+        value("path", opt.path)
+            .if_missing([&]{ err += "Taxonomy path is missing after '-taxonomy'!"; })
+    )
+        % "directory with taxonomic hierarchy data (see NCBI's taxonomic data files)\n"
+    ,
+    (   option("-taxpostmap") &
+        values("file", opt.mappingPostFiles)
+            .if_missing([&]{ err += "Taxonomy mapping files are missing after '-taxpostmap'!"; })
+    )
+        % "Files with sequence to taxon id mappings that are used "
+          "as alternative source in a post processing step.\n"
+          "default: 'nucl_(gb|wgs|est|gss).accession2taxid'"
     );
 
 }
@@ -257,31 +270,44 @@ taxonomy_cli(taxonomy_options& opt, error_messages& err)
 //-------------------------------------------------------------------
 /// @brief shared command-line options for sequence sketching
 clipp::group
-sketching_options_cli(sketching_options& opt, error_messages&)
+sketching_options_cli(sketching_options& opt, error_messages& err)
 {
     using namespace clipp;
     return (
-        (option("-kmerlen") & integer("#", opt.kmerlen))
-            %("number of nucleotides/characters in a k-mer\n"
-              "default: "s + (opt.kmerlen > 0 ? to_string(opt.kmerlen)
-                                              : "determined by database"s))
-        ,
-        (option("-sketchlen") & integer("#", opt.sketchlen))
-            %("number of features (k-mer hashes) per sampling window\n"
-              "default: "s + (opt.sketchlen > 0 ? to_string(opt.sketchlen)
-                                                : "determined by database"s))
-        ,
-        (option("-winlen") & integer("#", opt.winlen))
-            %("number of letters in each sampling window\n"
-              "default: "s + (opt.winlen > 0 ? to_string(opt.winlen)
-                                             : "determined by database"s))
-        ,
-        (option("-winstride") & integer("#", opt.winstride))
-            %("distance between window starting positions\n"
-              "default: "s +
-              (opt.winlen > 0 && opt.kmerlen > 0
-                  ? to_string(opt.winlen - opt.kmerlen + 1)
-                  : "determined by database"s))
+    (   option("-kmerlen") &
+        integer("#", opt.kmerlen)
+            .if_missing([&]{ err += "Number missing after '-kmerlen'!"; })
+    )
+        %("number of nucleotides/characters in a k-mer\n"
+          "default: "s + (opt.kmerlen > 0 ? to_string(opt.kmerlen)
+                                          : "determined by database"s))
+    ,
+    (   option("-sketchlen") &
+        integer("#", opt.sketchlen)
+            .if_missing([&]{ err += "Number missing after '-sketchlen'!"; })
+    )
+        %("number of features (k-mer hashes) per sampling window\n"
+          "default: "s + (opt.sketchlen > 0 ? to_string(opt.sketchlen)
+                                            : "determined by database"s))
+    ,
+    (   option("-winlen") &
+        integer("#", opt.winlen)
+            .if_missing([&]{ err += "Number missing after '-winlen'!"; })
+    )
+        %("number of letters in each sampling window\n"
+          "default: "s + (opt.winlen > 0 ? to_string(opt.winlen)
+                                         : "determined by database"s))
+    ,
+    (   option("-winstride") &
+        integer("#", opt.winstride)
+            .if_missing([&]{ err += "Number missing after '-winstride'!"; })
+    )
+        %("distance between window starting positions\n"
+          "default: "s +
+          (opt.winlen > 0 && opt.kmerlen > 0
+              ? to_string(opt.winlen - opt.kmerlen + 1)
+              : "determined by database"s)
+    )
     );
 }
 
@@ -297,46 +323,57 @@ database_storage_options_cli(database_storage_options& opt, error_messages& err)
     const database defaultDb;
 
     return (
-        (option("-max-locations-per-feature")
-            & value("#", opt.maxLocationsPerFeature))
-            %("maximum number of target locations to be stored per feature;\n"
-              "If the value is too high it will significantly impact querying speed. "
-              "Note that an upper hard limit is always imposed by the data type "
-              "used for the hash table bucket size (set with "
-              "compilation macro '-DMC_LOCATION_LIST_SIZE_TYPE').\n"
-              "default: "s + to_string(defaultDb.max_locations_per_feature()))
-        ,
+    (   option("-max-locations-per-feature") &
+        integer("#", opt.maxLocationsPerFeature)
+            .if_missing([&]{ err += "Number missing after '-max-locations-per-feature'!"; })
+    )
+        %("maximum number of target locations to be stored per feature;\n"
+          "If the value is too high it will significantly impact querying speed. "
+          "Note that an upper hard limit is always imposed by the data type "
+          "used for the hash table bucket size (set with "
+          "compilation macro '-DMC_LOCATION_LIST_SIZE_TYPE').\n"
+          "default: "s + to_string(defaultDb.max_locations_per_feature()))
+    ,
+    (
         option("-remove-overpopulated-features")
             .set(opt.removeOverpopulatedFeatures)
-            %("Removes all features that have reached the maximum allowed "
-              "amount of locations per feature. This can improve querying "
-              "speed and can be used to remove non-discriminative features.\n"
-              "default: "s + (opt.removeOverpopulatedFeatures ? "on" : "off"))
-        ,
-        (option("-remove-ambig-features")
-            & value("rank", [&](const string& name) {
+        %("Removes all features that have reached the maximum allowed "
+          "amount of locations per feature. This can improve querying "
+          "speed and can be used to remove non-discriminative features.\n"
+          "default: "s + (opt.removeOverpopulatedFeatures ? "on" : "off"))
+    )
+    ,
+    (   option("-remove-ambig-features") &
+        value("rank", [&](const string& name) {
                 opt.removeAmbigFeaturesOnRank = rank_from_name(name, err);
-            }))
-            %("Removes all features that have more distinct targets "
-              "on the given taxonomic rank than set by '-max-ambig-per-feature'. "
-              "This can decrease the database size significantly at the expense "
-              "of sensitivity. Note that the lower the given taxonomic rank is, "
-              "the more pronounced the effect will be.\n"
-              "Valid values: "s + taxon_rank_names() + "\n"s +
-              "default: "s + (opt.removeAmbigFeaturesOnRank != taxon_rank::none ? "on" : "off"))
-        ,
-        (option("-max-ambig-per-feature")
-            & value("#", opt.maxTaxaPerFeature))
-            % "Maximum number of allowed different target taxa per feature "
-              "if option '-remove-ambig-features' is used.\n"
-        ,
-        (option("-max-load-fac")
-            & value("factor", opt.maxLoadFactor))
-            %("maximum hash table load factor;\n"
-              "This can be used to trade off larger memory consumption for "
-              "speed and vice versa. A lower load factor will improve speed, "
-              "a larger one will improve memory efficiency.\n"
-              "default: "s + to_string(defaultDb.max_load_factor()))
+            })
+            .if_missing([&]{ err += "Taxonomic rank missing after '-remove-ambig-features'!"; })
+    )
+        %("Removes all features that have more distinct targets "
+          "on the given taxonomic rank than set by '-max-ambig-per-feature'. "
+          "This can decrease the database size significantly at the expense "
+          "of sensitivity. Note that the lower the given taxonomic rank is, "
+          "the more pronounced the effect will be.\n"
+          "Valid values: "s + taxon_rank_names() + "\n"s +
+          "default: "s + (opt.removeAmbigFeaturesOnRank != taxon_rank::none ? "on" : "off"))
+    ,
+    (   option("-max-ambig-per-feature") &
+        integer("#", opt.maxTaxaPerFeature)
+            .if_missing([&]{ err += "Number missing after '-max-ambig-per-feature'!"; })
+    )
+        % "Maximum number of allowed different target taxa per feature "
+          "if option '-remove-ambig-features' is used.\n"
+    ,
+    (   option("-max-load-fac", "-max-load-factor") &
+        number("factor", opt.maxLoadFactor)
+            .if_missing([&]{ err += "Number missing after '-max-load-fac'!"; })
+    )
+        %("maximum hash table load factor;\n"
+          "This can be used to trade off larger memory consumption for "
+          "speed and vice versa. A lower load factor will improve speed, "
+          "a larger one will improve memory efficiency.\n"
+          "default: "s + to_string(defaultDb.max_load_factor())
+    )
     );
 }
 
@@ -394,39 +431,38 @@ build_mode_cli(build_options& opt, error_messages& err)
     using namespace clipp;
 
     return (
-        "REQUIRED PARAMETERS" %
-        (
-            database_parameter(opt.dbfile, err)
-            ,
-            values(match::prefix_not{"-"}, "sequence file/directory", opt.infiles)
-                .if_missing([&]{
-                    err += "No reference sequence files provided or found!";
-                })
-                % "FASTA or FASTQ files containing genomic sequences;\n"
-                  "You can also provide names of directories that contain "
-                  "sequence files instead of single filenames. MetaCache will "
-                  "search at most 10 levels deep in the file hierarchy."
-        ),
-        "BASIC OPTIONS" %
-        (
-            taxonomy_cli(opt.taxonomy, err),
-            info_level_cli(opt.infoLevel, err)
-        ),
-        "SKETCHING OPTIONS" %
-            sketching_options_cli(opt.sketching, err)
+    "REQUIRED PARAMETERS" %
+    (
+        database_parameter(opt.dbfile, err)
         ,
-        "ADVANCED OPTIONS" %
-        (
-            option("-reset-parents")
-                .set(opt.resetParents)
-                %("Attempts to re-rank all sequences after the main build phase "
-                  "using '.accession2taxid' files. This will reset the taxon id "
-                  "of a reference sequence even if a taxon id could be obtained "
-                  "from other sources during the build phase.\n"
-                  "default: "s + (opt.resetParents ? "on" : "off"))
-            ,
-            database_storage_options_cli(opt.dbconfig, err)
-        )
+        values(match::prefix_not{"-"}, "sequence file/directory", opt.infiles)
+            .if_missing([&]{
+                err += "No reference sequence files provided or found!";
+            })
+            % "FASTA or FASTQ files containing genomic sequences;\n"
+              "If directory names are given, they will be searched for "
+              "sequence files (at most 10 levels deep).\n"
+    ),
+    "BASIC OPTIONS" %
+    (
+        taxonomy_cli(opt.taxonomy, err),
+        info_level_cli(opt.infoLevel, err)
+    ),
+    "SKETCHING (SUBSAMPLING)" %
+        sketching_options_cli(opt.sketching, err)
+    ,
+    "ADVANCED OPTIONS" %
+    (
+        option("-reset-parents").set(opt.resetParents)
+            %("Attempts to re-rank all sequences after the main build phase "
+              "using '.accession2taxid' files. This will reset the taxon id "
+              "of a reference sequence even if a taxon id could be obtained "
+              "from other sources during the build phase.\n"
+              "default: "s + (opt.resetParents ? "on" : "off"))
+        ,
+        database_storage_options_cli(opt.dbconfig, err)
+    ),
+    catch_unknown(err)
     );
 
 }
@@ -438,12 +474,13 @@ build_options
 get_build_options(const cmdline_args& args, build_options opt)
 {
     error_messages err;
+
     auto cli = build_mode_cli(opt, err);
 
     auto result = clipp::parse(args, cli);
 
     if(!result || err.any()) {
-        raise_default_error(err, "build");
+        raise_default_error(err, "build", build_mode_usage());
     }
 
     augment_taxonomy_options(opt.taxonomy);
@@ -461,17 +498,25 @@ get_build_options(const cmdline_args& args, build_options opt)
 
 
 //-------------------------------------------------------------------
+string build_mode_usage() {
+    return "    metacache build <database> <sequence file/directory>... [OPTION]...";
+}
+
+
+
+//-------------------------------------------------------------------
 string build_mode_docs() {
 
     build_options opt;
     error_messages err;
+
     auto cli = build_mode_cli(opt, err);
 
-    string docs =
-        "SYNOPSIS\n"
-        "\n"
-        "    metacache build <database> <sequence file/directory>... [OPTION]...\n"
-        "\n\n"
+    string docs = "SYNOPSIS\n\n";
+
+    docs += build_mode_usage();
+
+    docs += "\n\n\n"
         "DESCRIPTION\n"
         "\n"
         "    Create a new database of reference sequences (usually genomic sequences).\n"
@@ -519,36 +564,36 @@ modify_mode_cli(build_options& opt, error_messages& err)
     using namespace clipp;
 
     return (
-        "REQUIRED PARAMETERS" %
-        (
-            database_parameter(opt.dbfile, err)
-            ,
-            values(match::prefix_not{"-"}, "sequence file/directory", opt.infiles)
-                .if_missing([&]{
-                    err += "No reference sequence files provided or found!";
-                })
-                % "FASTA or FASTQ files containing genomic sequences;\n"
-                  "You can also provide names of directories that contain "
-                  "sequence files instead of single filenames. MetaCache will "
-                  "search at most 10 levels deep in the file hierarchy."
-        ),
-        "BASIC OPTIONS" %
-        (
-            taxonomy_cli(opt.taxonomy, err),
-            info_level_cli(opt.infoLevel, err)
-        ),
-        "ADVANCED OPTIONS" %
-        (
-            option("-reset-parents")
-                .set(opt.resetParents)
-                %("Attempts to re-rank all sequences after the main build phase "
-                  "using '.accession2taxid' files. This will reset the taxon id "
-                  "of a reference sequence even if a taxon id could be obtained "
-                  "from other sources during the build phase.\n"
-                  "default: "s + (opt.resetParents ? "on" : "off"))
-            ,
-            database_storage_options_cli(opt.dbconfig, err)
-        )
+    "REQUIRED PARAMETERS" %
+    (
+        database_parameter(opt.dbfile, err)
+        ,
+        values(match::prefix_not{"-"}, "sequence file/directory", opt.infiles)
+            .if_missing([&]{
+                err += "No reference sequence files provided or found!";
+            })
+            % "FASTA or FASTQ files containing genomic sequences;\n"
+              "If directory names are given, they will be searched for "
+              "sequence files (at most 10 levels deep).\n"
+    ),
+    "BASIC OPTIONS" %
+    (
+        taxonomy_cli(opt.taxonomy, err),
+        info_level_cli(opt.infoLevel, err)
+    ),
+    "ADVANCED OPTIONS" %
+    (
+        option("-reset-parents")
+            .set(opt.resetParents)
+            %("Attempts to re-rank all sequences after the main build phase "
+              "using '.accession2taxid' files. This will reset the taxon id "
+              "of a reference sequence even if a taxon id could be obtained "
+              "from other sources during the build phase.\n"
+              "default: "s + (opt.resetParents ? "on" : "off"))
+        ,
+        database_storage_options_cli(opt.dbconfig, err)
+    ),
+    catch_unknown(err)
     );
 
 }
@@ -560,12 +605,13 @@ build_options
 get_modify_options(const cmdline_args& args, modify_options opt)
 {
     error_messages err;
+
     auto cli = modify_mode_cli(opt, err);
 
     auto result = clipp::parse(args, cli);
 
     if(!result || err.any()) {
-        raise_default_error(err, "modify");
+        raise_default_error(err, "modify", modify_mode_usage());
     }
 
     // use settings from database file as defaults
@@ -596,17 +642,25 @@ get_modify_options(const cmdline_args& args, modify_options opt)
 
 
 //-------------------------------------------------------------------
+string modify_mode_usage() {
+    return "    metacache modify <database> <sequence file/directory>... [OPTION]...";
+}
+
+
+
+//-------------------------------------------------------------------
 string modify_mode_docs() {
 
     build_options opt;
     error_messages err;
+
     auto cli = modify_mode_cli(opt, err);
 
-    string docs =
-        "SYNOPSIS\n"
-        "\n"
-        "    metacache modify <database> <sequence file/directory>... [OPTION]...\n"
-        "\n\n"
+    string docs = "SYNOPSIS\n\n";
+
+    docs += modify_mode_usage();
+
+    docs += "\n\n\n"
         "DESCRIPTION\n"
         "\n"
         "    Add reference sequence and/or taxonomic information to an existing database.\n"
@@ -645,43 +699,59 @@ classification_params_cli(classification_options& opt, error_messages& err)
     using namespace clipp;
 
     return (
-        (option("-lowest") & value("rank", [&](const string& name) {
-            auto r = rank_from_name(name, err);
-            if(opt.lowestRank < taxon_rank::root) opt.lowestRank = r;
-        }))
-            %("Do not classify on ranks below <rank>\n"
-              "(Valid values: "s + taxon_rank_names() + ")\n"s +
-              "default: "s + taxonomy::rank_name(opt.lowestRank))
-        ,
-        (option("-highest") & value("rank", [&](const string& name) {
-            auto r = rank_from_name(name, err);
-            if(opt.highestRank <= taxon_rank::root) opt.highestRank = r;
-        }))
-            %("Do not classify on ranks above <rank>\n"
-              "(Valid values: "s + taxon_rank_names() + ")\n"s +
-              "default: "s + taxonomy::rank_name(opt.highestRank))
-        ,
-        (option("-hitmin") & integer("t", opt.hitsMin))
-            %("Sets classification threshhold to <t>.\n"
-              "A read will not be classified if less than t features "
-              "from the database match. Higher values will increase "
-              "precision at the expense of sensitivity.\n"
-              "default: "s + to_string(opt.hitsMin))
-        ,
-        (option("-maxcand", "-max-cand") & integer("#", opt.maxNumCandidatesPerQuery))
-            %("maximum number of reference taxon candidates to "
-              "consider for each query;\n"
-              "A large value can significantly decrease the querying speed!.\n"
-              "default: "s + to_string(opt.maxNumCandidatesPerQuery))
-        ,
-        (option("-cov-percentile") & number("p", opt.covPercentile))
-            %("Remove the p-th percentile of hit reference sequences "
-              "with the lowest coverage. Classification is done using "
-              "only the remaining reference sequences. "
-              "This can help to reduce false positives, especially when"
-              "your input data has a high sequencing coverage.\n"
-              "This feature decreases the querying speed!\n"
-              "default: "s + (opt.covPercentile > 1e-3 ? "on" : "off"))
+    (   option("-lowest") &
+        value("rank", [&](const string& name) {
+                auto r = rank_from_name(name, err);
+                if(opt.lowestRank < taxon_rank::root) opt.lowestRank = r;
+            })
+            .if_missing([&]{ err += "Taxonomic rank missing after '-lowest'!"; })
+    )
+        %("Do not classify on ranks below <rank>\n"
+          "(Valid values: "s + taxon_rank_names() + ")\n"s +
+          "default: "s + taxonomy::rank_name(opt.lowestRank))
+    ,
+    (   option("-highest") &
+        value("rank", [&](const string& name) {
+                auto r = rank_from_name(name, err);
+                if(opt.highestRank <= taxon_rank::root) opt.highestRank = r;
+            })
+            .if_missing([&]{ err += "Taxonomic rank missing after '-highest'!"; })
+    )
+        %("Do not classify on ranks above <rank>\n"
+          "(Valid values: "s + taxon_rank_names() + ")\n"s +
+          "default: "s + taxonomy::rank_name(opt.highestRank))
+    ,
+    (   option("-hitmin") &
+        integer("t", opt.hitsMin)
+            .if_missing([&]{ err += "Number missing after '-hitmin'!"; })
+    )
+        %("Sets classification threshhold to <t>.\n"
+          "A read will not be classified if less than t features "
+          "from the database match. Higher values will increase "
+          "precision at the expense of sensitivity.\n"
+          "default: "s + to_string(opt.hitsMin))
+    ,
+    (   option("-maxcand", "-max-cand") &
+        integer("#", opt.maxNumCandidatesPerQuery)
+            .if_missing([&]{ err += "Number missing after '-maxcand'!"; })
+    )
+        %("maximum number of reference taxon candidates to "
+          "consider for each query;\n"
+          "A large value can significantly decrease the querying speed!.\n"
+          "default: "s + to_string(opt.maxNumCandidatesPerQuery))
+    ,
+    (   option("-cov-percentile") &
+        number("p", opt.covPercentile)
+            .if_missing([&]{ err += "Number missing after '-cov-percentile'!"; })
+    )
+        %("Remove the p-th percentile of hit reference sequences "
+          "with the lowest coverage. Classification is done using "
+          "only the remaining reference sequences. "
+          "This can help to reduce false positives, especially when"
+          "your input data has a high sequencing coverage.\n"
+          "This feature decreases the querying speed!\n"
+          "default: "s + (opt.covPercentile > 1e-3 ? "on" : "off")
+    )
     );
 }
 
@@ -691,7 +761,7 @@ classification_params_cli(classification_options& opt, error_messages& err)
 /// @brief build mode command-line options
 clipp::group
 classification_output_format_cli(classification_output_formatting& opt,
-                                 error_messages&)
+                                 error_messages& err)
 {
     using namespace clipp;
     return (
@@ -723,11 +793,17 @@ classification_output_format_cli(classification_output_formatting& opt,
               "in separate columns (see option '-separator').\n"
               "default: "s + (opt.useSeparateCols ? "on" : "off"))
         ,
-        (option("-separator") & value("text", opt.tokens.column))
+        (   option("-separator") &
+            value("text", opt.tokens.column)
+                .if_missing([&]{ err += "Text missing after '-separator'!"; })
+        )
             % "Sets string that separates output columns.\n"
               "default: '\\t|\\t'"
         ,
-        (option("-comment") & value("text", opt.tokens.comment))
+        (   option("-comment") &
+            value("text", opt.tokens.comment)
+                .if_missing([&]{ err += "Text missing after '-comment'!"; })
+        )
             %("Sets string that precedes comment (non-mapping) lines.\n"
               "default: '"s + opt.tokens.comment + "'")
         ,
@@ -765,10 +841,13 @@ classification_analysis_cli(classification_analysis_options& opt, error_messages
                   "this file.\n"
                   "default: "s + (opt.showTaxAbundances ? "on" : "off"))
             ,
-            (option("-abundance-per") & value("rank", [&](const string& name) {
-                auto r = rank_from_name(name, err);
-                if(r < taxon_rank::root) opt.showAbundanceEstimatesOnRank = r;
-            }))
+            (   option("-abundance-per") &
+                value("rank", [&](const string& name) {
+                        auto r = rank_from_name(name, err);
+                        if(r < taxon_rank::root) opt.showAbundanceEstimatesOnRank = r;
+                    })
+                    .if_missing([&]{ err += "Taxonomic rank missing after '-abundance-per'!"; })
+            )
                 %("Show absolute and relative abundances for each "
                   "taxon on one specific rank.\n"
                   "Classifications on higher ranks will be estimated by "
@@ -797,8 +876,9 @@ classification_analysis_cli(classification_analysis_options& opt, error_messages
                   "Activates option '-tophits'.\n"
                   "default: "s + (opt.showLocations ? "on" : "off"))
             ,
-            (option("-hits-per-seq", "-hitsperseq").set(opt.showHitsPerTargetList) &
-             opt_value("file", opt.targetMappingsFile)
+            (   option("-hits-per-seq", "-hitsperseq", "-hits-per-target")
+                    .set(opt.showHitsPerTargetList) &
+                opt_value("file", opt.targetMappingsFile)
             )
                 %("Shows a list of all hits for each reference sequence.\n"
                   "If this condensed list is all you need, you should "
@@ -864,25 +944,32 @@ classification_evaluation_cli(classification_evaluation_options& opt,
 //-------------------------------------------------------------------
 /// @brief build mode command-line options
 clipp::group
-performance_options_cli(performance_tuning_options& opt, error_messages&)
+performance_options_cli(performance_tuning_options& opt, error_messages& err)
 {
     using namespace clipp;
     return (
-        (
-            (option("-threads") & integer("#", opt.numThreads))
-                %("Sets the maximum number of parallel threads to use."
-                  "default (on this machine): "s + to_string(opt.numThreads))
-            ,
-            (option("-batch-size") & integer("#", opt.batchSize))
-                %("Process <#> many queries (reads or read pairs) per thread at once.\n"
-                  "default (on this machine): "s + to_string(opt.batchSize))
-            ,
-            (option("-query-limit") & integer("#", opt.queryLimit))
-                %("Classify at max. <#> queries (reads or read pairs) per input file. "
-                  "and \n"
-                  "default: "s + (opt.queryLimit < 1 ? "none"s : to_string(opt.queryLimit)))
-        )
-
+    (   option("-threads") &
+        integer("#", opt.numThreads)
+            .if_missing([&]{ err += "Number missing after '-threads'!"; })
+    )
+        %("Sets the maximum number of parallel threads to use."
+          "default (on this machine): "s + to_string(opt.numThreads))
+    ,
+    (   option("-batch-size") &
+        integer("#", opt.batchSize)
+            .if_missing([&]{ err += "Number missing after '-batch-size'!"; })
+    )
+        %("Process <#> many queries (reads or read pairs) per thread at once.\n"
+          "default (on this machine): "s + to_string(opt.batchSize))
+    ,
+    (   option("-query-limit") &
+        integer("#", opt.queryLimit)
+            .if_missing([&]{ err += "Number missing after '-query-limit'!"; })
+    )
+        %("Classify at max. <#> queries (reads or read pairs) per input file. "
+          "and \n"
+          "default: "s + (opt.queryLimit < 1 ? "none"s : to_string(opt.queryLimit))
+    )
     );
 }
 
@@ -896,91 +983,103 @@ query_mode_cli(query_options& opt, error_messages& err)
     using namespace clipp;
 
     return (
-        "REQUIRED PARAMETERS" %
-        (
-            database_parameter(opt.dbfile, err)
+    "BASIC PARAMETERS" %
+    (
+        database_parameter(opt.dbfile, err)
+        ,
+        opt_values(match::prefix_not{"-"}, "sequence file/directory", opt.infiles)
+            % "FASTA or FASTQ files containing genomic sequences "
+              "(short reads, long reads, contigs, complete genomes, ...);\n"
+              "* If directory names are given, they will be searched for "
+              "sequence files (at most 10 levels deep).\n"
+              "* If no input filenames or directories are given, MetaCache will "
+              "run in interactive query mode. This can be used to load the database into "
+              "memory only once and then query it multiple times with different "
+              "query options. "
+    ),
+    "MAPPING RESULTS OUTPUT" %
+    one_of(
+        (   option("-out") &
+            value("file", opt.queryMappingsFile)
+                .if_missing([&]{ err += "Output filename missing after '-out'!"; })
+        )
+            % "Redirect output to file <file>.\n"
+              "If not specified, output will be written to stdout. "
+              "If more than one input file was given all output "
+              "will be concatenated into one file."
+        ,
+        (   option("-splitout").set(opt.splitOutputPerInput) &
+            value("file", opt.queryMappingsFile)
+                .if_missing([&]{ err += "Output filename missing after '-splitout'!"; })
+        )
+            % "Generate output and statistics for each input file "
+              "separately. For each input file <in> an output file "
+              "with name <file>_<in> will be written."
+    ),
+    "PAIRED-END READ HANDLING" %
+    (   one_of(
+            option("-pairfiles", "-pair-files", "-paired-files")
+            .set(opt.pairing, pairing_mode::files)
+            % "Interleave paired-end reads from two consecutive files, "
+              "so that the nth read from file m and the nth read "
+              "from file m+1 will be treated as a pair. "
+              "If more than two files are provided, their names "
+              "will be sorted before processing. Thus, the order "
+              "defined by the filenames determines the pairing not "
+              "the order in which they were given in the command line."
             ,
-            values(match::prefix_not{"-"}, "sequence file/directory", opt.infiles)
-                .if_missing([&]{
-                    err += "No query sequence files provided or found!";
-                })
-                % "FASTA or FASTQ files containing genomic sequences "
-                  "(short reads, long reads, contigs, complete genomes, ...);\n"
-                  "You can also provide names of directories that contain "
-                  "sequence files instead of single filenames. MetaCache will "
-                  "search at most 10 levels deep in the file hierarchy."
+            option("-pairseq", "-pair-seq", "-paired-seq")
+            .set(opt.pairing, pairing_mode::sequences)
+            % "Two consecutive sequences (1+2, 3+4, ...) from each file "
+              "will be treated as paired-end reads."
         ),
-        "RESULT OUTPUT OPTIONS" %
-        one_of(
-            (option("-out") & value("file", opt.queryMappingsFile))
-                % "Redirect output to file <file>.\n"
-                  "If not specified, output will be written to stdout. "
-                  "If more than one input file was given all output "
-                  "will be concatenated into one file."
-            ,
-            (option("-splitout").set(opt.splitOutputPerInput) & value("file", opt.queryMappingsFile))
-                % "Generate output and statistics for each input file "
-                  "separately. For each input file <in> an output file "
-                  "with name <file>_<in> will be written."
-        ),
-        "PAIRED-END READ HANDLING OPTIONS" %
-        (   one_of(
-                option("-pairfiles", "-pair-files", "-paired-files")
-                .set(opt.pairing, pairing_mode::files)
-                % "Interleave paired-end reads from two consecutive files, "
-                  "so that the nth read from file m and the nth read "
-                  "from file m+1 will be treated as a pair. "
-                  "If more than two files are provided, their names "
-                  "will be sorted before processing. Thus, the order "
-                  "defined by the filenames determines the pairing not "
-                  "the order in which they were given in the command line."
-                ,
-                option("-pairseq", "-pair-seq", "-paired-seq")
-                .set(opt.pairing, pairing_mode::sequences)
-                % "Two consecutive sequences (1+2, 3+4, ...) from each file "
-                  "will be treated as paired-end reads."
-            ),
 
-            (option("-insertsize") & integer("#", opt.classify.insertSizeMax))
-                % "Maximum insert size to consider.\n"
-                  "default: sum of lengths of the individual reads"
+        (   option("-insertsize", "-insert-size") &
+            integer("#", opt.classify.insertSizeMax)
+                .if_missing([&]{ err += "Number missing after '-insertsize'!"; })
         )
+            % "Maximum insert size to consider.\n"
+              "default: sum of lengths of the individual reads"
+    )
+    ,
+    "CLASSIFICATION" %
+        classification_params_cli(opt.classify, err)
+    ,
+    "GENERAL OUTPUT FORMATTING" % (
+        option("-no-summary", "-nosummary").set(opt.output.showSummary,false)
+            %("Dont't show result summary & mapping statistics at the "
+              "end of the mapping output\n"
+              "default: "s + (!opt.output.showSummary ? "on" : "off"))
         ,
-        "CLASSIFICATION OPTIONS" %
-            classification_params_cli(opt.classify, err)
+        option("-no-query-params", "-no-queryparams", "-noqueryparams")
+            .set(opt.output.showQueryParams,false)
+            %("Don't show query settings at the beginning of the "
+              "mapping output\n"
+              "default: "s + (!opt.output.showQueryParams ? "on" : "off"))
         ,
-        "GENERAL OUTPUT FORMATTING OPTIONS" % (
-            option("-no-summary").set(opt.output.showSummary,false)
-                %("Dont't show result summary & mapping statistics at the "
-                  "end of the mapping output\n"
-                  "default: "s + (!opt.output.showSummary ? "on" : "off"))
-            ,
-            option("-no-query-params").set(opt.output.showQueryParams,false)
-                %("Don't show query settings at the beginning of the "
-                  "mapping output\n"
-                  "default: "s + (!opt.output.showQueryParams ? "on" : "off"))
-            ,
-            option("-noerr", "-no-err", "-no-errors").set(opt.output.showErrors,false)
-                %("Suppress all error messages.\n"
-                  "default: "s + (!opt.output.showErrors ? "on" : "off"))
-        )
-        ,
-        "CLASSIFICATION RESULT FORMATTING OPTIONS" %
-            classification_output_format_cli(opt.output.format, err)
-        ,
-        classification_analysis_cli(opt.output.analysis, err)
-        ,
-        "ADVANCED: GROUND TRUTH BASED EVALUATION" %
-            classification_evaluation_cli(opt.output.evaluate, err)
-        ,
-        "ADVANCED: CUSTOM QUERY SKETCHING OPTIONS" %
-            sketching_options_cli(opt.sketching, err)
-        ,
-        "ADVANCED: DATABASE MODIFICATION OPTIONS" %
-            database_storage_options_cli(opt.dbconfig, err)
-        ,
-        "ADVANCED: PERFORMANCE TUNING / TESTING OPTIONS" %
-            performance_options_cli(opt.performance, err)
+        option("-no-err", "-noerr", "-no-errors").set(opt.output.showErrors,false)
+            %("Suppress all error messages.\n"
+              "default: "s + (!opt.output.showErrors ? "on" : "off"))
+    )
+    ,
+    "CLASSIFICATION RESULT FORMATTING" %
+        classification_output_format_cli(opt.output.format, err)
+    ,
+    classification_analysis_cli(opt.output.analysis, err)
+    ,
+    "ADVANCED: GROUND TRUTH BASED EVALUATION" %
+        classification_evaluation_cli(opt.output.evaluate, err)
+    ,
+    "ADVANCED: CUSTOM QUERY SKETCHING (SUBSAMPLING)" %
+        sketching_options_cli(opt.sketching, err)
+    ,
+    "ADVANCED: DATABASE MODIFICATION" %
+        database_storage_options_cli(opt.dbconfig, err)
+    ,
+    "ADVANCED: PERFORMANCE TUNING / TESTING" %
+        performance_options_cli(opt.performance, err)
+    ,
+    catch_unknown(err)
     );
 }
 
@@ -990,16 +1089,14 @@ query_mode_cli(query_options& opt, error_messages& err)
 query_options
 get_query_options(const cmdline_args& args, query_options opt)
 {
-
-    if(args.empty()) return opt;
-
     error_messages err;
+
     auto cli = query_mode_cli(opt, err);
 
     auto result = clipp::parse(args, cli);
 
     if(!result || err.any()) {
-        raise_default_error(err, "query");
+        raise_default_error(err, "query", query_mode_usage());
     }
 
     replace_directories_with_contained_files(opt.infiles);
@@ -1078,17 +1175,24 @@ get_query_options(const cmdline_args& args, query_options opt)
 
 
 //-------------------------------------------------------------------
+string query_mode_usage() {
+    return "    metacache query <database> [<sequence file/directory>]... [OPTION]...";
+}
+
+
+
+//-------------------------------------------------------------------
 string query_mode_docs() {
 
     query_options opt;
     error_messages err;
     auto cli = query_mode_cli(opt, err);
 
-    string docs =
-        "SYNOPSIS\n"
-        "\n"
-        "    metacache query <database> <sequence file/directory>... [OPTION]...\n"
-        "\n\n"
+    string docs = "SYNOPSIS\n\n";
+
+    docs += query_mode_usage();
+
+    docs += "\n\n\n"
         "DESCRIPTION\n"
         "\n"
         "    Map sequences (short reads, long reads, genome fragments, ...)\n"
@@ -1101,22 +1205,22 @@ string query_mode_docs() {
         "EXAMPLES\n"
         "\n"
         "    Query all sequences in 'myreads.fna' against pre-built database 'refseq':\n"
-        "        ./metacache query refseq myreads.fna -out results.txt\n"
+        "        metacache query refseq myreads.fna -out results.txt\n"
         "\n"
         "    Query all sequences in multiple files against database 'refseq':\n"
-        "        ./metacache query refseq reads1.fna reads2.fna reads3.fna\n"
+        "        metacache query refseq reads1.fna reads2.fna reads3.fna\n"
         "\n"
         "    Query all sequence files in folder 'test' againgst database 'refseq':\n"
-        "        ./metacache query refseq test\n"
+        "        metacache query refseq test\n"
         "\n"
         "    Query multiple files and folder contents against database 'refseq':\n"
-        "        ./metacache query refseq file1.fna folder1 file2.fna file3.fna folder2\n"
+        "        metacache query refseq file1.fna folder1 file2.fna file3.fna folder2\n"
         "\n"
         "    Perform a precision test and show all ranks for each classification result:\n"
-        "        ./metacache query refseq reads.fna -precision -allranks -out results.txt\n"
+        "        metacache query refseq reads.fna -precision -allranks -out results.txt\n"
         "\n"
         "    Load database in interactive query mode, then query multiple read batches\n"
-        "        ./metacache query refseq\n"
+        "        metacache query refseq\n"
         "        reads1.fa reads2.fa -pairfiles -insertsize 400\n"
         "        reads3.fa -pairseq -insertsize 300\n"
         "        reads4.fa -lineage\n"
@@ -1180,64 +1284,67 @@ merge_mode_cli(merge_options& opt, error_messages& err)
     auto& qry = opt.query;
 
     return (
-        "REQUIRED PARAMETERS" %
-        (
-            values(match::prefix_not{"-"}, "result file", opt.infiles)
-                .if_missing([&]{ err += "No result filenames provided!"; })
-                % "MetaCache result files.\n"
-                  "You can also provide names of directories that contain "
-                  "sequence files instead of single filenames. MetaCache will "
-                  "search at most 10 levels deep in the file hierarchy.\n"
-                  "IMPORTANT: In order to be mergable, independent queries "
-                  "need to be run with options:\n"
-                  "    -tophits -queryids -lowest species\n"
-                  "and must NOT be run with options that suppress or alter default output "
-                  "like, e.g.: -nomap, -no-summary, -separator, etc.\n"
-            ,
-            (required("-taxonomy") &
-             value("path", opt.taxonomy.path)
-                .if_missing([&]{ err += "Taxonomy path is missing!"; }))
-                % "directory with taxonomic hierarchy data (see NCBI's taxonomic data files)"
+    "REQUIRED PARAMETERS" %
+    (
+        values(match::prefix_not{"-"}, "result file/directory", opt.infiles)
+            .if_missing([&]{ err += "No result filenames provided!"; })
+            % "MetaCache result files.\n"
+              "If directory names are given, they will be searched for "
+              "sequence files (at most 10 levels deep).\n"
+              "IMPORTANT: Result files must have been produced with:\n"
+              "    -tophits -queryids -lowest species\n"
+              "and must NOT be run with options that suppress or alter the "
+              "default output like, e.g.: -nomap, -no-summary, -separator, etc.\n"
+        ,
+        (   required("-taxonomy")
+                .if_missing([&]{ err += "Taxonomy path missing. Use '-taxonomy <path>'!"; })
+            &
+            value("path", opt.taxonomy.path)
+                .if_missing([&]{ err += "Taxonomy path missing after '-taxonomy'!"; })
         )
+            % "directory with taxonomic hierarchy data (see NCBI's taxonomic data files)"
+    )
+    ,
+    "CLASSIFICATION" %
+        classification_params_cli(qry.classify, err)
+    ,
+    "GENERAL OUTPUT" % (
+        info_level_cli(opt.infoLevel, err)
         ,
-        "CLASSIFICATION OPTIONS" %
-            classification_params_cli(qry.classify, err)
+        option("-no-summary").set(qry.output.showSummary,false)
+            %("Dont't show result summary & mapping statistics at the "
+              "end of the mapping output\n"
+              "default: "s + (!qry.output.showSummary ? "on" : "off"))
         ,
-        "GENERAL OUTPUT OPTIONS" % (
-            info_level_cli(opt.infoLevel, err)
-            ,
-            option("-no-summary").set(qry.output.showSummary,false)
-                %("Dont't show result summary & mapping statistics at the "
-                  "end of the mapping output\n"
-                  "default: "s + (!qry.output.showSummary ? "on" : "off"))
-            ,
-            option("-no-query-params").set(qry.output.showQueryParams,false)
-                %("Don't show query settings at the beginning of the "
-                  "mapping output\n"
-                  "default: "s + (!qry.output.showQueryParams ? "on" : "off"))
-            ,
-            option("-noerr", "-no-err", "-no-errors").set(qry.output.showErrors,false)
-                %("Suppress all error messages.\n"
-                  "default: "s + (!qry.output.showErrors ? "on" : "off"))
-        )
+        option("-no-query-params").set(qry.output.showQueryParams,false)
+            %("Don't show query settings at the beginning of the "
+              "mapping output\n"
+              "default: "s + (!qry.output.showQueryParams ? "on" : "off"))
         ,
-        "CLASSIFICATION RESULT FORMATTING OPTIONS" %
-            classification_output_format_cli(qry.output.format, err)
-        ,
-        "ANALYSIS OPTIONS" %
-            classification_analysis_cli(qry.output.analysis, err)
-        ,
-        "ADVANCED: GROUND TRUTH BASED EVALUATION" %
-            classification_evaluation_cli(qry.output.evaluate, err)
-        ,
-        "ADVANCED: CUSTOM QUERY SKETCHING OPTIONS" %
-            sketching_options_cli(qry.sketching, err)
-        ,
-        "ADVANCED: DATABASE MODIFICATION OPTIONS" %
-            database_storage_options_cli(qry.dbconfig, err)
-        ,
-        "ADVANCED: PERFORMANCE TUNING / TESTING OPTIONS" %
-            performance_options_cli(qry.performance, err)
+        option("-noerr", "-no-err", "-no-errors").set(qry.output.showErrors,false)
+            %("Suppress all error messages.\n"
+              "default: "s + (!qry.output.showErrors ? "on" : "off"))
+    )
+    ,
+    "CLASSIFICATION RESULT FORMATTING" %
+        classification_output_format_cli(qry.output.format, err)
+    ,
+    "ANALYSIS" %
+        classification_analysis_cli(qry.output.analysis, err)
+    ,
+    "ADVANCED: GROUND TRUTH BASED EVALUATION" %
+        classification_evaluation_cli(qry.output.evaluate, err)
+    ,
+    "ADVANCED: CUSTOM QUERY SKETCHING (SUBSAMPLING)" %
+        sketching_options_cli(qry.sketching, err)
+    ,
+    "ADVANCED: DATABASE MODIFICATION" %
+        database_storage_options_cli(qry.dbconfig, err)
+    ,
+    "ADVANCED: PERFORMANCE TUNING / TESTING" %
+        performance_options_cli(qry.performance, err)
+    ,
+    catch_unknown(err)
     );
 }
 
@@ -1248,12 +1355,13 @@ merge_options
 get_merge_options(const cmdline_args& args, merge_options opt)
 {
     error_messages err;
+
     auto cli = merge_mode_cli(opt, err);
 
     auto result = clipp::parse(args, cli);
 
     if(!result || err.any()) {
-        raise_default_error(err, "merge");
+        raise_default_error(err, "merge", merge_mode_usage());
     }
 
     replace_directories_with_contained_files(opt.infiles);
@@ -1279,6 +1387,14 @@ get_merge_options(const cmdline_args& args, merge_options opt)
 }
 
 
+
+//-------------------------------------------------------------------
+string merge_mode_usage() {
+    return "    metacache merge <result file/directory>... -taxonomy <path> [OPTION]...";
+}
+
+
+
 //-------------------------------------------------------------------
 string merge_mode_docs() {
 
@@ -1286,11 +1402,11 @@ string merge_mode_docs() {
     error_messages err;
     auto cli = merge_mode_cli(opt, err);
 
-    string docs =
-        "SYNOPSIS\n"
-        "\n"
-        "    metacache merge <result file>... -taxonomy <path> [OPTION]...\n"
-        "\n\n"
+    string docs = "SYNOPSIS\n\n";
+
+    docs += merge_mode_usage();
+
+    docs += "\n\n\n"
         "DESCRIPTION\n"
         "\n"
         "    This mode classifies reads by merging the results of multiple, independent\n"
@@ -1338,22 +1454,22 @@ info_mode_cli(info_options& opt, error_messages& err)
             .required(false).set(opt.mode, info_mode::db_config)
         ,
         one_of(
-            (
-                option("") // hack to make entire group optional
-            ),
+            command(""), // dummy
             (
                 command("target", "targets", "sequences").set(opt.mode, info_mode::targets),
                 opt_values("sequence_id", opt.targetIds)
             ),
             (
-                command("lineages", "lineage").set(opt.mode, info_mode::tax_lineages)
-            ),
-            (
                 command("rank").set(opt.mode, info_mode::tax_ranks),
                 value("taxonomic_rank", [&](const string& name) {
-                    opt.rank = rank_from_name(name, err);
-                }).if_missing([&]{ err += "Rank name missing!"; })
+                        opt.rank = rank_from_name(name, err);
+                    })
+                    .if_missing([&]{ err += "Rank name missing!"; }
+            )
                 % ("Valid values: "s + taxon_rank_names())
+            ),
+            (
+                command("lineages", "lineage").set(opt.mode, info_mode::tax_lineages)
             ),
             (
                 command("statistics", "stat").set(opt.mode, info_mode::db_statistics)
@@ -1365,6 +1481,8 @@ info_mode_cli(info_options& opt, error_messages& err)
                 command("featurecounts").set(opt.mode, info_mode::db_feature_counts)
             )
         )
+        ,
+        catch_unknown(err)
     );
 
 }
@@ -1376,26 +1494,28 @@ info_options
 get_info_options(const cmdline_args& args)
 {
     info_options opt;
-
-    if(args.empty()) {
-        opt.mode = info_mode::basic;
-        return opt;
-    }
-
     error_messages err;
+
     auto cli = info_mode_cli(opt, err);
 
     auto result = clipp::parse(args, cli);
 
     if(!result || err.any()) {
-
-        err += "Usage:\n"s + clipp::usage_lines(cli, "metacache info",
-                                                cli_usage_formatting()).str();
-
-        raise_default_error(err, "info");
+        raise_default_error(err, "info", info_mode_usage());
     }
 
     return opt;
+}
+
+
+
+//-------------------------------------------------------------------
+string info_mode_usage()
+{
+    info_options opt;
+    error_messages err;
+    const auto cli = info_mode_cli(opt, err);
+    return clipp::usage_lines(cli, "metacache info", cli_usage_formatting()).str();
 }
 
 
@@ -1405,12 +1525,11 @@ string info_mode_docs() {
 
     info_options opt;
     error_messages err;
-    auto cli = info_mode_cli(opt, err);
+    const auto cli = info_mode_cli(opt, err);
 
     string docs = "SYNOPSIS\n\n";
 
-    docs += clipp::usage_lines(cli, "metacache info",
-                               cli_usage_formatting()).str();
+    docs += clipp::usage_lines(cli, "metacache info", cli_usage_formatting()).str();
 
     docs += "\n\n\n"
         "DESCRIPTION\n"

@@ -145,6 +145,7 @@ build_options get_build_options(const cmdline_args&, build_options
 /*************************************************************************//**
  * @brief build mode documentation
  *****************************************************************************/
+std::string build_mode_usage();
 std::string build_mode_docs();
 
 
@@ -170,6 +171,7 @@ modify_options get_modify_options(const cmdline_args&, modify_options
 /*************************************************************************//**
  * @brief modify mode documentation
  *****************************************************************************/
+std::string modify_mode_usage();
 std::string modify_mode_docs();
 
 
@@ -426,6 +428,7 @@ query_options get_query_options(const cmdline_args&, query_options
 /*************************************************************************//**
  * @brief query mode documentation
  *****************************************************************************/
+std::string query_mode_usage();
 std::string query_mode_docs();
 
 
@@ -469,6 +472,7 @@ merge_options get_merge_options(const cmdline_args&, merge_options
 /*************************************************************************//**
  * @brief query mode documentation
  *****************************************************************************/
+std::string merge_mode_usage();
 std::string merge_mode_docs();
 
 
@@ -507,6 +511,7 @@ info_options get_info_options(const cmdline_args&);
 /*************************************************************************//**
  * @brief info mode documentation
  *****************************************************************************/
+std::string info_mode_usage();
 std::string info_mode_docs();
 
 } // namespace mc

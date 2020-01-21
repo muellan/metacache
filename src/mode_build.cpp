@@ -408,9 +408,9 @@ void prepare_database(database& db, const build_options& opt)
 
     if(db.non_target_taxon_count() < 1 && opt.infoLevel != info_level::silent) {
         cout << "The datbase doesn't contain a taxonomic hierarchy yet.\n"
-                  << "You can add one or update later via:\n"
-                  << "   ./metacache add <database> -taxonomy <directory>"
-                  << endl;
+             << "You can add one or update later via:\n"
+             << "   metacache modify <database> -taxonomy <directory>"
+             << endl;
     }
 
     if(dbconf.removeAmbigFeaturesOnRank != taxon_rank::none &&
@@ -418,11 +418,11 @@ void prepare_database(database& db, const build_options& opt)
     {
         if(db.non_target_taxon_count() > 1) {
             cout << "Ambiguous features on rank "
-                      << taxonomy::rank_name(dbconf.removeAmbigFeaturesOnRank)
-                      << " will be removed afterwards.\n";
+                 << taxonomy::rank_name(dbconf.removeAmbigFeaturesOnRank)
+                 << " will be removed afterwards.\n";
         } else {
             cout << "Could not determine amiguous features "
-                      << "due to missing taxonomic information.\n";
+                 << "due to missing taxonomic information.\n";
         }
     }
 }

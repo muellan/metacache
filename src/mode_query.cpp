@@ -145,8 +145,9 @@ void process_input_files(const database& db,
         bool noneReadable = std::none_of(infiles.begin(), infiles.end(),
                            [](const auto& f) { return file_readable(f); });
         if(noneReadable) {
-            throw std::runtime_error{
-                        "None of the query sequence files could be opened"};
+            string msg = "None of the following query sequence files could be opened:";
+            for(const auto& f : infiles) { msg += "\n    " + f; }
+            throw std::runtime_error{std::move(msg)};
         }
     }
 

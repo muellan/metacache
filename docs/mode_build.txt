@@ -1,6 +1,6 @@
 SYNOPSIS
 
-    metacache build <database> <reference sequence>... [OPTION]...
+    metacache build <database> <sequence file/directory>... [OPTION]...
 
 
 DESCRIPTION
@@ -8,15 +8,15 @@ DESCRIPTION
     Create a new database of reference sequences (usually genomic sequences).
 
 
-REQUIRED
+REQUIRED PARAMETERS
 
     <database>        database file name
 
-    <reference sequence>...
+    <sequence file/directory>...
                       FASTA or FASTQ files containing genomic sequences;
-                      You can also provide names of directories that contain
-                      sequence files instead of single filenames. MetaCache will
-                      search at most 10 levels deep in the file hierarchy.
+                      If directory names are given, they will be searched for
+                      sequence files (at most 10 levels deep).
+
 
 
 BASIC OPTIONS
@@ -30,10 +30,11 @@ BASIC OPTIONS
                       default: 'nucl_(gb|wgs|est|gss).accession2taxid'
 
     -silent|-verbose  information level during build:
-                      silent=none / verbose=most detailed
+                      silent => none / verbose => most detailed
+                      default: neither => only errors/important info
 
 
-SKETCHING OPTIONS
+SKETCHING (SUBSAMPLING)
 
     -kmerlen <#>      number of nucleotides/characters in a k-mer
                       default: 16

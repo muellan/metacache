@@ -1,6 +1,6 @@
 SYNOPSIS
 
-    metacache modify <database> <reference sequence>... [OPTION]...
+    metacache modify <database> <sequence file/directory>... [OPTION]...
 
 
 DESCRIPTION
@@ -8,15 +8,15 @@ DESCRIPTION
     Add reference sequence and/or taxonomic information to an existing database.
 
 
-REQUIRED
+REQUIRED PARAMETERS
 
     <database>        database file name
 
-    <reference sequence>...
-                      FASTA or FASTQ files containing genomic sequences
-                      You can also provide names of directories that contain
-                      sequence files instead of single filenames. MetaCache will
-                      search at most 10 levels deep in the file hierarchy.
+    <sequence file/directory>...
+                      FASTA or FASTQ files containing genomic sequences;
+                      If directory names are given, they will be searched for
+                      sequence files (at most 10 levels deep).
+
 
 
 BASIC OPTIONS
@@ -30,7 +30,8 @@ BASIC OPTIONS
                       default: 'nucl_(gb|wgs|est|gss).accession2taxid'
 
     -silent|-verbose  information level during build:
-                      silent=none / verbose=most detailed
+                      silent => none / verbose => most detailed
+                      default: neither => only errors/important info
 
 
 ADVANCED OPTIONS

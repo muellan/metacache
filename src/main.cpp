@@ -59,7 +59,7 @@ int main(int argc, char** argv)
         }
     }
     catch(std::runtime_error& e) {
-        std::cerr << "\nABORT: " << e.what() << "!\n";
+        std::cerr << "\nABORT: " << e.what() << '\n';
     }
     catch(std::invalid_argument& e) {
         std::cerr << "ERROR: Invalid command line arguments!\n\n"
