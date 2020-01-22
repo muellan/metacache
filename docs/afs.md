@@ -55,11 +55,11 @@ This queries all reads in all FASTA and FASTQ files in `myreads_folder` against 
 ```
 metacache query afs myreads_folder -pairfiles \
           -max-cand 4 -hitmin 4 -hitdiff 80 \
-          -out read_mappings.txt -splitout -abundances abund.txt -abundance-per species
+          -out read_mappings.txt -split-out -abundances abund.txt -abundance-per species
 ```
 
 The option `-pairfiles` means that each mate of a read pair will be read from a separate file (e.g., `fileA_1.fa` + `fileA_2.fa`, `fileB_1.fa` + `fileB_2.fa`, ...). If both mates of your paired-end reads are in one file (1+2, 3+4, ...) then use the option `-pairseq` instead.
-If the option `-splitout` is given, mapping and abundance results will be written to a separate file for each input file(-pair).
+If the option `-split-out` is given, mapping and abundance results will be written to a separate file for each input file(-pair).
 
 **Important:** For abundance analysis tasks involving large eukaryotic genomes, make sure to supply options 
 ```

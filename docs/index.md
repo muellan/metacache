@@ -1,6 +1,10 @@
 # MetaCache - Metagenomic Classification System
 
-MetaCache maps (short or long) reads from metagenomic samples to their most likely taxon of origin. It aims to reduce the memory requirement usually associated with k-mer based methods while retaining their speed. MetaCache uses locality sensitive hashing to quickly identify candidate regions within one or multiple reference genomes. A read is then classified based on the similarity to those regions.
+MetaCache maps genomic sequences (short reads, long reads, contigs, etc.) from metagenomic samples to their most likely taxon of origin. It aims to reduce the memory requirement usually associated with k-mer based methods while retaining their speed. MetaCache uses locality sensitive hashing to quickly identify candidate regions within one or multiple reference genomes. A read is then classified based on the similarity to those regions.
+
+For an independend comparison to other tools in terms of classification accuracy see the [LEMMI](https://lemmi.ezlab.org) benchmarking site.
+
+The latest version of MetaCache classifies around 60 Million reads (of length 100) per minute against all complete bacterial, viral and archaea genomes from NCBI RefSeq Release 97 running with 88 threads on a workstation with 2 Intel(R) Xeon(R) Gold 6238 CPUs.
 
 
 * [MetaCache Github Repository](https://github.com/muellan/metacache)
@@ -38,4 +42,9 @@ MetaCache maps (short or long) reads from metagenomic samples to their most like
 * [for mode `merge`](mode_merge.txt): merge results of independent queries
 * [for mode `modify`](mode_modify.txt): add reference genomes to database or update taxonomy
 * [for mode `info`](mode_info.txt): get information about a database
+
+
+MetaCache Copyright (C) 2016-2020 [André Müller](https://github.com/muellan) & [Robin Kobus](https://github.com/Funatiq)
+This program comes with ABSOLUTELY NO WARRANTY.
+This is free software, and you are welcome to redistribute it under certain conditions. See the file 'LICENSE' for details.
 

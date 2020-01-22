@@ -33,7 +33,7 @@ EXAMPLES:
     Query paired-end reads in one file (a1,a2,b1,b2,...):
         metacache query refseq paired_reads.fa -pairseq -out results.txt
     
-    View documentation for all query options:
+    View documentation for query mode:
         metacache help query
 
     View documentation on how to build databases:

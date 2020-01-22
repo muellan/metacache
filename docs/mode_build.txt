@@ -2,6 +2,8 @@ SYNOPSIS
 
     metacache build <database> <sequence file/directory>... [OPTION]...
 
+    metacache build <database> [OPTION]... <sequence file/directory>...
+
 
 DESCRIPTION
 
@@ -10,10 +12,15 @@ DESCRIPTION
 
 REQUIRED PARAMETERS
 
-    <database>        database file name
+    <database>        database file name;
+                      A MetaCache database contains taxonomic information and
+                      min-hash signatures of reference sequences (complete
+                      genomes, scaffolds, contigs, ...).
 
     <sequence file/directory>...
-                      FASTA or FASTQ files containing genomic sequences;
+                      FASTA or FASTQ files containing genomic sequences
+                      (complete genomes, scaffolds, contigs, ...) that shall
+                      beused as representatives of an organism/taxon.
                       If directory names are given, they will be searched for
                       sequence files (at most 10 levels deep).
 
@@ -36,30 +43,30 @@ BASIC OPTIONS
 
 SKETCHING (SUBSAMPLING)
 
-    -kmerlen <#>      number of nucleotides/characters in a k-mer
+    -kmerlen <k>      number of nucleotides/characters in a k-mer
                       default: 16
 
-    -sketchlen <#>    number of features (k-mer hashes) per sampling window
+    -sketchlen <s>    number of features (k-mer hashes) per sampling window
                       default: 16
 
-    -winlen <#>       number of letters in each sampling window
+    -winlen <w>       number of letters in each sampling window
                       default: 128
 
-    -winstride <#>    distance between window starting positions
-                      default: 113
+    -winstride <l>    distance between window starting positions
+                      default: 113 (w-k+1)
 
 
 ADVANCED OPTIONS
 
-    -reset-parents    Attempts to re-rank all sequences after the main build
+    -reset-taxa       Attempts to re-rank all sequences after the main build
                       phase using '.accession2taxid' files. This will reset the
                       taxon id of a reference sequence even if a taxon id could
                       be obtained from other sources during the build phase.
                       default: off
 
     -max-locations-per-feature <#>
-                      maximum number of target locations to be stored per
-                      feature;
+                      maximum number of reference sequence locations to be
+                      stored per feature;
                       If the value is too high it will significantly impact
                       querying speed. Note that an upper hard limit is always
                       imposed by the data type used for the hash table bucket
@@ -75,8 +82,8 @@ ADVANCED OPTIONS
                       default: off
 
     -remove-ambig-features <rank>
-                      Removes all features that have more distinct targets on
-                      the given taxonomic rank than set by
+                      Removes all features that have more distinct reference
+                      sequence on the given taxonomic rank than set by
                       '-max-ambig-per-feature'. This can decrease the database
                       size significantly at the expense of sensitivity. Note
                       that the lower the given taxonomic rank is, the more
@@ -88,8 +95,9 @@ ADVANCED OPTIONS
                       default: off
 
     -max-ambig-per-feature <#>
-                      Maximum number of allowed different target taxa per
-                      feature if option '-remove-ambig-features' is used.
+                      Maximum number of allowed different reference sequence
+                      taxa per feature if option '-remove-ambig-features' is
+                      used.
 
     -max-load-fac <factor>
                       maximum hash table load factor;
@@ -97,7 +105,6 @@ ADVANCED OPTIONS
                       for speed and vice versa. A lower load factor will improve
                       speed, a larger one will improve memory efficiency.
                       default: 0.800000
-
 
 EXAMPLES
 

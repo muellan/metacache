@@ -2,9 +2,11 @@
 
 [![Linux build status](https://travis-ci.org/muellan/metacache.svg?branch=master)](https://travis-ci.org/muellan/metacache) 
 
-MetaCache is a classification system for mapping (short or long) reads from metagenomic samples to their most likely taxon of origin. MetaCache aims to reduce the memory requirement usually associated with k-mer based methods while retaining their speed. It uses locality sensitive hashing to quickly identify candidate regions within one or multiple reference genomes. A read is then classified based on the similarity to those regions.
+MetaCache is a classification system for mapping genomic sequences (short reads, long reads, contigs, ...) from metagenomic samples to their most likely taxon of origin. MetaCache aims to reduce the memory requirement usually associated with k-mer based methods while retaining their speed. It uses locality sensitive hashing to quickly identify candidate regions within one or multiple reference genomes. A read is then classified based on the similarity to those regions.
 
-For an independend comparison to other tools in terms of classification accuracy, speed and memory consumption, see the [LEMMI](https://lemmi.ezlab.org) benchmarking site.
+For an independend comparison to other tools in terms of classification accuracy see the [LEMMI](https://lemmi.ezlab.org) benchmarking site.
+
+The latest version of MetaCache classifies around 60 Million reads (of length 100) per minute against all complete bacterial, viral and archaea genomes from NCBI RefSeq Release 97 running with 88 threads on a workstation with 2 Intel(R) Xeon(R) Gold 6238 CPUs.
 
 
 ## Quick Start with NCBI RefSeq
@@ -35,16 +37,13 @@ The helper scripts (for downloading genomes, taxonomy etc.) require the Bash she
 
 There are no dependencies on third party libraries.
 MetaCache was successfully tested on the following platforms (all 64 bit + 64 bit compilers):
-- Ubuntu 14.04 with g++ 4.9, g++ 5.2 or g++ 5.4
-- Ubuntu 16.04 with g++ 4.9, g++ 5.3, g++ 5.4, g++ 7.2
-- Windows 10.1511 64bit with MinGW-w64 g++ 5.1 and MinGW-w64 g++ 5.3
-- Windows 10.1607 64bit with MinGW-w64 g++ 5.3
-- Windows 10.1709 64bit with MinGW-w64 g++ 7.2
-- Windows 10.1607 64bit running Ubuntu 14.04 inside WSL and g++ 5.4.1 
-- Windows 10.1703 64bit running Ubuntu 14.04 inside WSL and g++ 5.4.1 
-- Windows 10.1709 64bit running Ubuntu 16.04 inside WSL and g++ 7.2
+- Ubuntu 14.04 with g++ 5.4
+- Ubuntu 16.04 with g++ 5.3, g++ 7.2
+- Ubuntu 18.04 with g++ 5.4, g++ 7.4
+- Windows 10 Build 1709 64bit with MinGW-w64 g++ 7.2
+- Windows 10 Build 1909 64bit running Ubuntu 16.04 inside WSL and g++ 7.2
 
-In order to be able to build the default database (based on NCBI RefSeq Release 86 as of 2018-03-05) with default settings your system should have around 48GB of RAM (note that the NCBI RefSeq will still be growing in the near future).
+In order to be able to build the default database (based on NCBI RefSeq Release 97) with default settings your system should have around 64GB of RAM (note that the NCBI RefSeq will still be growing in the near future).
 If you don't have enough RAM, you can use [database partitioning](docs/partitioning.md).
 
 #### Get The Latest Sources
@@ -142,18 +141,16 @@ Once a database (e.g. the standard 'refseq'), is built you can classify reads.
   ```
 
 
+## [Output Interpretation, Analysis & Formatting Options...](docs/output.md)
 
 
-## [Output Formatting Options...](docs/output.md)
+## Documentation of Command Line Parameters
 
-
-## Documentation of Command Line Options
-
-* [for mode `build`](docs/build.txt): build database(s) from reference genomes
-* [for mode `query`](docs/query.txt): query reads against databases
-* [for mode `merge`](docs/merge.txt): merge results of independent queries
-* [for mode `modify`](docs/modify.txt): add reference genomes to database or update taxonomy
-* [for mode `info`](docs/info.txt): get information about a database
+* [for mode `build`](docs/mode_build.txt): build database from reference genomes
+* [for mode `query`](docs/mode_query.txt): query reads against database
+* [for mode `merge`](docs/mode_merge.txt): merge results of independent queries
+* [for mode `modify`](docs/mode_modify.txt): add reference genomes to database or update taxonomy
+* [for mode `info`](docs/mode_info.txt): obtain information about a database
 
 
 #### View options documentation from the command line
@@ -170,9 +167,8 @@ or jump directly to a mode's man page with:
 
 
 
-MetaCache Copyright (C) 2016-2019 [André Müller](https://github.com/muellan) & [Robin Kobus](https://github.com/Funatiq)
+MetaCache Copyright (C) 2016-2020 [André Müller](https://github.com/muellan) & [Robin Kobus](https://github.com/Funatiq)
 This program comes with ABSOLUTELY NO WARRANTY.
-This is free software, and you are welcome to redistribute it under certain
-conditions. See the file 'LICENSE' for details.
+This is free software, and you are welcome to redistribute it under certain conditions. See the file 'LICENSE' for details.
 
 [repository]: https://github.com/muellan/metacache

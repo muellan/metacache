@@ -3,7 +3,7 @@
 Make sure that you compile MetaCache with the right data type sizes so that you 
 * don't waste memory 
 * have support for enough reference sequences per database
-* and/or long enough reference sequences.
+* and/or support for long enough reference sequences.
 
 See the [installation instructions](https://github.com/muellan/metacache#detailed-installation-instructions)
 for more details.
@@ -14,7 +14,7 @@ MetaCache's [build mode](mode_build.txt) is used for creating databases.
 
 You need
 * taxonomic hierarchy files
-* reference genome files 
+* reference genome/scaffold/contig files 
 * target-to-taxon mappings that specify each reference genome's taxon
 
 
@@ -51,7 +51,7 @@ There are three ways for MetaCache to obtain the taxon of a reference genome.
 
 ### 1. NCBI-style `assembly_summary.txt` files
 
-MetaCache looks for a file named `assembly_summary.txt` in each refenrece genome input folder.
+MetaCache looks for a file named `assembly_summary.txt` (as used by the NCBI) in each refenrece genome input folder.
 Such files map reference genome filenames to taxon ids, so that all sequences in a reference genome file will get the same taxid.
 
 A proper `assembly_summary.txt` file must contain at least:
@@ -86,8 +86,8 @@ MetaCache looks for such annotations by default, so this will automatically work
 
 ### 3. NCBI-style `accession2taxid` tab-separated files
 
-#### Use the NCBI mapping files
-The NCBI's default accession to taxon mappings can be downloaded with the included helper script `download-ncbi-taxmaps`.
+#### Use the NCBI's bulk mapping files
+The NCBI's accession to taxon mapping files can be downloaded with the included helper script `download-ncbi-taxmaps`.
 You should put them into the same folder as the taxonomy: 
 ```
 download-ncbi-taxmaps taxonomy_folder
@@ -98,9 +98,9 @@ MetaCache will automatically look in the taxonomy folder (determined by build op
 `accession2taxid` files contain 5 tab-separated columns:
 ```tsv
   accession	accession	version	taxid	gid
-  A00002	A00002.1	9913	2
-  A00003	A00003.1	9913	3
-  X52700	X52700.1	9771	16
+  A00002	A00002.1	9913	2       0
+  A00003	A00003.1	9913	3       0
+  X52700	X52700.1	9771	16      0
   ...
 ```
 
@@ -117,3 +117,8 @@ TTTGAGCCACTTCGTCTTTAACGGCTTTATTCATAAGCTCTTGTAATTTTTCTTTACTATCAATTACTTCTGATTTTCCG
 ...
 ```
 
+If your genomes are already annotated with taxon ids (see section 2) and/or you also have `assembly_summary.txt` with taxon ids in the genomes folder, than these taxon ids will be used with higher priority. 
+In case you want the taxon ids from accession2taxid files to supersede those from other sources you can supply the option `-reset-taxa`.
+```
+metacache build mydb mygenomes_folder -taxonomy ncbi_taxonomy -reset-taxa -taxpostmap mymap.accession2taxid
+```

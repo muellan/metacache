@@ -1,6 +1,10 @@
 SYNOPSIS
 
-    metacache query <database> [<sequence file/directory>]... [OPTION]...
+    metacache query <database>
+
+    metacache query <database> <sequence file/directory>... [OPTION]...
+
+    metacache query <database> [OPTION]... <sequence file/directory>...
 
 
 DESCRIPTION
@@ -11,11 +15,15 @@ DESCRIPTION
 
 BASIC PARAMETERS
 
-    <database>        database file name
+    <database>        database file name;
+                      A MetaCache database contains taxonomic information and
+                      min-hash signatures of reference sequences (complete
+                      genomes, scaffolds, contigs, ...).
 
     <sequence file/directory>...
                       FASTA or FASTQ files containing genomic sequences (short
-                      reads, long reads, contigs, complete genomes, ...);
+                      reads, long reads, contigs, complete genomes, ...) that
+                      shall be classified.
                       * If directory names are given, they will be searched for
                       sequence files (at most 10 levels deep).
                       * If no input filenames or directories are given,
@@ -32,7 +40,7 @@ MAPPING RESULTS OUTPUT
                       concatenated into one file.
 
 
-    -splitout <file>  Generate output and statistics for each input file
+    -split-out <file> Generate output and statistics for each input file
                       separately. For each input file <in> an output file with
                       name <file>_<in> will be written.
 
@@ -78,6 +86,12 @@ CLASSIFICATION
                       at the expense of sensitivity.
                       default: 0
 
+    -hitdiff <t>      Sets classification threshhold to <t>.
+                      A read will not be classified if less than t features from
+                      the database match. Higher values will increase precision
+                      at the expense of sensitivity.
+                      default: 0
+
     -maxcand <#>      maximum number of reference taxon candidates to consider
                       for each query;
                       A large value can significantly decrease the querying
@@ -104,13 +118,13 @@ GENERAL OUTPUT FORMATTING
                       output
                       default: off
 
-    -noerr            Suppress all error messages.
+    -no-err           Suppress all error messages.
                       default: off
 
 
 CLASSIFICATION RESULT FORMATTING
 
-    -nomap            Don't report classification for each individual query
+    -no-map           Don't report classification for each individual query
                       sequence; show summaries only (useful for quick tests).
                       default: off
 
@@ -139,7 +153,7 @@ CLASSIFICATION RESULT FORMATTING
     -queryids         Show a unique id for each query.
                       Note that in paired-end mode a query is a pair of two read
                       sequences. This option will always be activated if option
-                      '-hits-per-seq' is given.
+                      '-hits-per-ref' is given.
                       default: off
 
     -lineage          Report complete lineage for per-read classification
@@ -184,11 +198,11 @@ ANALYSIS: RAW DATABASE HITS
                       Activates option '-tophits'.
                       default: off
 
-    -hits-per-seq <file>
+    -hits-per-ref <file>
                       Shows a list of all hits for each reference sequence.
                       If this condensed list is all you need, you should
-                      deactive the per-read mapping output with '-nomap'.
-                      If a valid filename is given after '-hits-per-seq', the
+                      deactive the per-read mapping output with '-no-map'.
+                      If a valid filename is given after '-hits-per-ref', the
                       list will be written to a separate file.
                       Option '-queryids' will be activated and the lowest
                       classification rank will be set to 'sequence'.
@@ -197,7 +211,8 @@ ANALYSIS: RAW DATABASE HITS
 
 ANALYSIS: ALIGNMENTS
 
-    -align            Show semi-global alignment to best candidate target.
+    -align            Show semi-global alignment to best candidate reference
+                      sequence.
                       Original files of reference sequences must be available.
                       This feature decreases the querying speed!
                       default: off
@@ -229,24 +244,24 @@ ADVANCED: GROUND TRUTH BASED EVALUATION
 
 ADVANCED: CUSTOM QUERY SKETCHING (SUBSAMPLING)
 
-    -kmerlen <#>      number of nucleotides/characters in a k-mer
+    -kmerlen <k>      number of nucleotides/characters in a k-mer
                       default: determined by database
 
-    -sketchlen <#>    number of features (k-mer hashes) per sampling window
+    -sketchlen <s>    number of features (k-mer hashes) per sampling window
                       default: determined by database
 
-    -winlen <#>       number of letters in each sampling window
+    -winlen <w>       number of letters in each sampling window
                       default: determined by database
 
-    -winstride <#>    distance between window starting positions
+    -winstride <l>    distance between window starting positions
                       default: determined by database
 
 
 ADVANCED: DATABASE MODIFICATION
 
     -max-locations-per-feature <#>
-                      maximum number of target locations to be stored per
-                      feature;
+                      maximum number of reference sequence locations to be
+                      stored per feature;
                       If the value is too high it will significantly impact
                       querying speed. Note that an upper hard limit is always
                       imposed by the data type used for the hash table bucket
@@ -262,8 +277,8 @@ ADVANCED: DATABASE MODIFICATION
                       default: off
 
     -remove-ambig-features <rank>
-                      Removes all features that have more distinct targets on
-                      the given taxonomic rank than set by
+                      Removes all features that have more distinct reference
+                      sequence on the given taxonomic rank than set by
                       '-max-ambig-per-feature'. This can decrease the database
                       size significantly at the expense of sensitivity. Note
                       that the lower the given taxonomic rank is, the more
@@ -275,8 +290,9 @@ ADVANCED: DATABASE MODIFICATION
                       default: off
 
     -max-ambig-per-feature <#>
-                      Maximum number of allowed different target taxa per
-                      feature if option '-remove-ambig-features' is used.
+                      Maximum number of allowed different reference sequence
+                      taxa per feature if option '-remove-ambig-features' is
+                      used.
 
     -max-load-fac <factor>
                       maximum hash table load factor;
@@ -304,22 +320,22 @@ ADVANCED: PERFORMANCE TUNING / TESTING
 EXAMPLES
 
     Query all sequences in 'myreads.fna' against pre-built database 'refseq':
-        ./metacache query refseq myreads.fna -out results.txt
+        metacache query refseq myreads.fna -out results.txt
 
     Query all sequences in multiple files against database 'refseq':
-        ./metacache query refseq reads1.fna reads2.fna reads3.fna
+        metacache query refseq reads1.fna reads2.fna reads3.fna
 
     Query all sequence files in folder 'test' againgst database 'refseq':
-        ./metacache query refseq test
+        metacache query refseq test
 
     Query multiple files and folder contents against database 'refseq':
-        ./metacache query refseq file1.fna folder1 file2.fna file3.fna folder2
+        metacache query refseq file1.fna folder1 file2.fna file3.fna folder2
 
     Perform a precision test and show all ranks for each classification result:
-        ./metacache query refseq reads.fna -precision -allranks -out results.txt
+        metacache query refseq reads.fna -precision -allranks -out results.txt
 
     Load database in interactive query mode, then query multiple read batches
-        ./metacache query refseq
+        metacache query refseq
         reads1.fa reads2.fa -pairfiles -insertsize 400
         reads3.fa -pairseq -insertsize 300
         reads4.fa -lineage
@@ -348,7 +364,7 @@ OUTPUT FORMAT
     read_header | rank | taxon_name              -separate-cols
     read_header | rank | taxon_name | taxon_id   -taxids -separate-cols
 
-    Note that the separator '	|	' can be changed to something else with
+    Note that the separator '\t|\t' can be changed to something else with
     the command line option '-separator <text>'.
 
     Note that the default lowest taxon rank is 'sequence'. Sequence-level taxon

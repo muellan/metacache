@@ -5,7 +5,7 @@
 
 For workstations with limited RAM we provide a script to split the set of all reference genomes into multiple smaller partitions. 
 The partitions created by the script are directories with symlinks to the original genome files.
-With default settings the resulting MetaCache database built from a partition will be about the same size as the combined file sizes within the partition.
+With default settings the resulting MetaCache database built from a partition will be about the same size as the combined uncompressed FASTA file sizes within the partition.
 
 To split the set of all reference genomes into partitions with a given maximum size run
 
@@ -55,7 +55,7 @@ In order to be mergable, queries must be run with command line options
 ```
 
 and must <strong>NOT</strong> be run with options that suppress or alter the default output
-like, e.g.: `-nomap`, `-no-summary`, `-separator`, etc.
+like, e.g.: `-no-map`, `-no-summary`, `-separator`, etc.
 
 
 

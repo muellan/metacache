@@ -20,6 +20,17 @@
  *
  *****************************************************************************/
 
+/*************************************************************************//**
+ *
+ * @file Facilities that generate option objects from command line arguments.
+ * Argument parsing and doc generation uses the 'CLIPP' library.
+ * If an option has multiple associated flag strings like, e.g.,
+ * "-no-map" or "-nomap" the first one will appear in the documentation
+ * and is considered to be the canonical flag while following flags are
+ * there to preserve backwards compatibility with older versions of MetaCach.
+ *
+ *****************************************************************************/
+
 #include <stdexcept>
 #include <algorithm>
 #include <iostream>
@@ -463,7 +474,7 @@ build_mode_cli(build_options& opt, error_messages& err)
     ,
     "ADVANCED OPTIONS" %
     (
-        option("-reset-parents").set(opt.resetParents)
+        option("-reset-taxa", "-reset-parents").set(opt.resetParents)
             %("Attempts to re-rank all sequences after the main build phase "
               "using '.accession2taxid' files. This will reset the taxon id "
               "of a reference sequence even if a taxon id could be obtained "
@@ -603,7 +614,7 @@ modify_mode_cli(build_options& opt, error_messages& err)
     ),
     "ADVANCED OPTIONS" %
     (
-        option("-reset-parents")
+        option("-reset-taxa", "-reset-parents")
             .set(opt.resetParents)
             %("Attempts to re-rank all sequences after the main build phase "
               "using '.accession2taxid' files. This will reset the taxon id "
@@ -804,7 +815,7 @@ classification_output_format_cli(classification_output_formatting& opt,
     using namespace clipp;
     return (
         one_of(
-            option("-nomap", "-no-map").set(opt.mapViewMode, map_view_mode::none)
+            option("-no-map", "-nomap").set(opt.mapViewMode, map_view_mode::none)
             %("Don't report classification for each individual query "
               "sequence; show summaries only (useful for quick tests).\n"
               "default: "s + (opt.mapViewMode == map_view_mode::none ? "on" : "off"))
@@ -920,7 +931,7 @@ classification_analysis_cli(classification_analysis_options& opt, error_messages
             )
                 %("Shows a list of all hits for each reference sequence.\n"
                   "If this condensed list is all you need, you should "
-                  "deactive the per-read mapping output with '-nomap'.\n"
+                  "deactive the per-read mapping output with '-no-map'.\n"
                   "If a valid filename is given after '-hits-per-seq', "
                   "the list will be written to a separate file.\n"
                   "Option '-queryids' will be activated and the lowest "
@@ -1048,9 +1059,9 @@ query_mode_cli(query_options& opt, error_messages& err)
               "If more than one input file was given all output "
               "will be concatenated into one file."
         ,
-        (   option("-splitout", "-split-out").set(opt.splitOutputPerInput) &
+        (   option("-split-out", "-splitout").set(opt.splitOutputPerInput) &
             value("file", opt.queryMappingsFile)
-                .if_missing([&]{ err += "Output filename missing after '-splitout'!"; })
+                .if_missing([&]{ err += "Output filename missing after '-split-out'!"; })
         )
             % "Generate output and statistics for each input file "
               "separately. For each input file <in> an output file "
@@ -1334,7 +1345,7 @@ merge_mode_cli(merge_options& opt, error_messages& err)
               "IMPORTANT: Result files must have been produced with:\n"
               "    -tophits -queryids -lowest species\n"
               "and must NOT be run with options that suppress or alter the "
-              "default output like, e.g.: -nomap, -no-summary, -separator, etc.\n"
+              "default output like, e.g.: -no-map, -no-summary, -separator, etc.\n"
         ,
         (   required("-taxonomy")
                 .if_missing([&]{ err += "Taxonomy path missing. Use '-taxonomy <path>'!"; })
@@ -1468,7 +1479,7 @@ string merge_mode_docs() {
         "    need to be run with options:\n"
         "        -tophits -queryids -lowest species\n"
         "    and must NOT be run with options that suppress or alter default output\n"
-        "    like, e.g.: -nomap, -no-summary, -separator, etc.\n"
+        "    like, e.g.: -no-map, -no-summary, -separator, etc.\n"
         "\n"
         "    Possible Use Case:\n"
         "    If your system has not enough memory for one large database, you can\n"
