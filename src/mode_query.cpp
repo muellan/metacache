@@ -138,7 +138,7 @@ void process_input_files(const database& db,
     const auto& infiles = opt.infiles;
 
     if(infiles.empty()) {
-        cerr << "No input filenames provided!" << endl;
+        cerr << "No input filenames provided!\n";
         return;
     }
     else {
@@ -281,7 +281,7 @@ void run_interactive_query_mode(const database& db,
                 process_input_files(db, opt);
             }
             catch(std::exception& e) {
-                if(initOpt.output.showErrors) cerr << e.what() << endl;
+                if(initOpt.output.showErrors) cerr << e.what() << '\n';
             }
         }
     }
@@ -305,17 +305,17 @@ read_database(const string& filename,
     if(dbopt.maxLoadFactor > 0.4 && dbopt.maxLoadFactor < 0.99) {
         db.max_load_factor(dbopt.maxLoadFactor);
         cerr << "Using custom hash table load factor of "
-             << dbopt.maxLoadFactor << endl;
+             << dbopt.maxLoadFactor << '\n';
     }
 
     cerr << "Reading database from file '" << filename << "' ... " << flush;
 
     try {
         db.read(filename);
-        cerr << "done." << endl;
+        cerr << "done.\n";
     }
     catch(const file_access_error& e) {
-        cerr << "FAIL" << endl;
+        cerr << "FAIL\n";
         throw file_access_error{"Could not read database file '" + filename + "'"};
     }
 
@@ -333,23 +333,32 @@ read_database(const string& filename,
 
             auto rem = db.remove_features_with_more_locations_than(maxlpf);
 
-            cerr << rem << " of " << old << " removed." << endl;
+            cerr << rem << " of " << old << " removed.\n";
         }
         //in case new max is less than the database setting
         db.max_locations_per_feature(dbopt.maxLocationsPerFeature);
     }
     else if(dbopt.maxLocationsPerFeature > 1) {
         db.max_locations_per_feature(dbopt.maxLocationsPerFeature);
-        cerr << "max locations per feature set to "
-             << dbopt.maxLocationsPerFeature << endl;
+        cerr << "Max locations per feature set to "
+             << dbopt.maxLocationsPerFeature << '\n';
     }
 
     //use a different sketching scheme for querying?
     if((skopt.sketchlen > 0) || (skopt.winlen > 0) || (skopt.winstride > 0)) {
         auto s = db.query_sketcher();
         if(skopt.sketchlen > 0) s.sketch_size(skopt.sketchlen);
-        if(skopt.winstride > 0) s.window_size(skopt.winlen);
-        if(skopt.winlen    > 0) s.window_stride(skopt.winstride);
+        if(skopt.winlen > 0)    s.window_size(skopt.winlen);
+        // if no custom window stride requested => set to w-k+1
+        auto winstride = skopt.winstride;
+        if(winstride < 0) winstride = s.window_size() - s.kmer_size() + 1;
+        s.window_stride(winstride);
+
+        cerr << "custom query sketching settings:"
+             << " -winlen "    << s.window_size()
+             << " -winstride " << s.window_stride()
+             << " -sketchlen " << s.sketch_size() << '\n';
+
         db.query_sketcher(std::move(s));
     }
 
@@ -375,7 +384,7 @@ void main_mode_query(const cmdline_args& args)
     auto db = read_database(opt.dbfile, opt.dbconfig, opt.sketching);
 
     if(!opt.infiles.empty()) {
-        cerr << "Classifying query sequences." << endl;
+        cerr << "Classifying query sequences.\n";
 
         adapt_options_to_database(opt.classify, db);
         process_input_files(db, opt);

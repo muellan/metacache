@@ -386,12 +386,14 @@ void prepare_database(database& db, const build_options& opt)
     const auto dbconf = opt.dbconfig;
     if(dbconf.maxLocationsPerFeature > 0) {
         db.max_locations_per_feature(dbconf.maxLocationsPerFeature);
+        cerr << "Max locations per feature set to "
+             << dbconf.maxLocationsPerFeature << '\n';
     }
 
     if(dbconf.maxLoadFactor > 0.4 && dbconf.maxLoadFactor < 0.99) {
         db.max_load_factor(dbconf.maxLoadFactor);
         cerr << "Using custom hash table load factor of "
-             << dbconf.maxLoadFactor << endl;
+             << dbconf.maxLoadFactor << '\n';
     }
 
     if(!opt.taxonomy.path.empty()) {
@@ -530,7 +532,7 @@ void add_to_database(database& db, const build_options& opt)
     }
     catch(const file_access_error&) {
         if(notSilent) cout << "FAIL" << endl;
-        cerr << "Could not write database file!" << endl;
+        cerr << "Could not write database file!\n";
     }
 
     time.stop();

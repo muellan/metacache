@@ -125,7 +125,7 @@ fi
 # ---------------------------------------------------------
 # classification tests
 # ---------------------------------------------------------
-common="-no-query-params -mapped-only -precision -ground-truth -tophits -allhits -hits-per-seq -abundances -abundance-per species"
+common="-no-query-params -mapped-only -precision -ground-truth -tophits -allhits -hits-per-ref -abundances -abundance-per species"
 
 # fasta -------------------------------
 tests_fa=""

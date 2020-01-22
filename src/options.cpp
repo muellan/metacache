@@ -181,16 +181,21 @@ taxon_rank rank_from_name(const string& name, error_messages& err)
 
 //-------------------------------------------------------------------
 void raise_default_error(const error_messages& err,
-                         const string& mode, const string& usage)
+                         const string& mode = "",
+                         const string& usage = "",
+                         const string& examples = "")
 {
     auto msg = err.str();
 
-    if(!msg.empty()) msg += "\n";
+    if(!msg.empty())      msg += "\n";
 
-    msg += "Usage:\n" + usage + "\n\n";
+    if(!usage.empty())    msg += "USAGE:\n" + usage + "\n\n";
+    if(!examples.empty()) msg += "EXAMPLES:\n" + examples + "\n\n";
 
-    msg += "You can view the full interface documentation of mode '"s
-        + mode + "' with:\n    metacache help " + mode;
+    if(!mode.empty()) {
+        msg += "\nYou can view the full interface documentation of mode '"s
+            + mode + "' with:\n    metacache help " + mode + " | less";
+    }
 
     throw std::invalid_argument{std::move(msg)};
 }
@@ -215,7 +220,10 @@ database_parameter(string& filename, error_messages& err)
     return value(match::prefix_not{"-"}, "database")
         .call([&](const string& arg){ filename = sanitize_database_name(arg); })
         .if_missing([&]{ err += "Database filename is missing!"; })
-        .doc("database file name\n");
+        .doc("database file name;\n"
+             "A MetaCache database contains taxonomic information and "
+             "min-hash signatures of reference sequences "
+             "(complete genomes, scaffolds, contigs, ...).\n");
 }
 
 
@@ -327,7 +335,7 @@ database_storage_options_cli(database_storage_options& opt, error_messages& err)
         integer("#", opt.maxLocationsPerFeature)
             .if_missing([&]{ err += "Number missing after '-max-locations-per-feature'!"; })
     )
-        %("maximum number of target locations to be stored per feature;\n"
+        %("maximum number of reference sequence locations to be stored per feature;\n"
           "If the value is too high it will significantly impact querying speed. "
           "Note that an upper hard limit is always imposed by the data type "
           "used for the hash table bucket size (set with "
@@ -349,7 +357,7 @@ database_storage_options_cli(database_storage_options& opt, error_messages& err)
             })
             .if_missing([&]{ err += "Taxonomic rank missing after '-remove-ambig-features'!"; })
     )
-        %("Removes all features that have more distinct targets "
+        %("Removes all features that have more distinct reference sequence "
           "on the given taxonomic rank than set by '-max-ambig-per-feature'. "
           "This can decrease the database size significantly at the expense "
           "of sensitivity. Note that the lower the given taxonomic rank is, "
@@ -361,7 +369,7 @@ database_storage_options_cli(database_storage_options& opt, error_messages& err)
         integer("#", opt.maxTaxaPerFeature)
             .if_missing([&]{ err += "Number missing after '-max-ambig-per-feature'!"; })
     )
-        % "Maximum number of allowed different target taxa per feature "
+        % "Maximum number of allowed different reference sequence taxa per feature "
           "if option '-remove-ambig-features' is used.\n"
     ,
     (   option("-max-load-fac", "-max-load-factor") &
@@ -439,7 +447,9 @@ build_mode_cli(build_options& opt, error_messages& err)
             .if_missing([&]{
                 err += "No reference sequence files provided or found!";
             })
-            % "FASTA or FASTQ files containing genomic sequences;\n"
+            % "FASTA or FASTQ files containing genomic sequences "
+              "(complete genomes, scaffolds, contigs, ...) that shall be"
+              "used as representatives of an organism/taxon.\n"
               "If directory names are given, they will be searched for "
               "sequence files (at most 10 levels deep).\n"
     ),
@@ -499,7 +509,30 @@ get_build_options(const cmdline_args& args, build_options opt)
 
 //-------------------------------------------------------------------
 string build_mode_usage() {
-    return "    metacache build <database> <sequence file/directory>... [OPTION]...";
+    return
+    "    metacache build <database> <sequence file/directory>... [OPTION]...\n\n"
+    "    metacache build <database> [OPTION]... <sequence file/directory>...";
+}
+
+
+
+//-------------------------------------------------------------------
+string build_mode_examples() {
+    return
+    "    Build database 'mydb' from sequence file 'genomes.fna':\n"
+    "        metacache build mydb genomes.fna\n"
+    "\n"
+    "    Build database with latest complete genomes from the NCBI RefSeq\n"
+    "        download-ncbi-genomes refseq/bacteria myfolder\n"
+    "        download-ncbi-genomes refseq/viruses myfolder\n"
+    "        download-ncbi-taxonomy myfolder\n"
+    "        metacache build myRefseq myfolder -taxonomy myfolder\n"
+    "\n"
+    "    Build database 'mydb' from two sequence files:\n"
+    "        metacache build mydb mrsa.fna ecoli.fna\n"
+    "\n"
+    "    Build database 'myBacteria' from folder containing sequence files:\n"
+    "        metacache build myBacteria all_bacteria\n";
 }
 
 
@@ -524,23 +557,8 @@ string build_mode_docs() {
 
     docs += clipp::documentation(cli, cli_doc_formatting()).str();
 
-    docs += "\n\n\n"
-        "EXAMPLES\n"
-        "\n"
-        "    Build database 'mydb' from sequence file 'genomes.fna':\n"
-        "        metacache build mydb genomes.fna\n"
-        "\n"
-        "    Build database with latest complete genomes from the NCBI RefSeq\n"
-        "        download-ncbi-genomes refseq/bacteria myfolder\n"
-        "        download-ncbi-genomes refseq/viruses myfolder\n"
-        "        download-ncbi-taxonomy myfolder\n"
-        "        metacache build myRefseq myfolder -taxonomy myfolder\n"
-        "\n"
-        "    Build database 'mydb' from two sequence files:\n"
-        "        metacache build mydb mrsa.fna ecoli.fna\n"
-        "\n"
-        "    Build database 'myBacteria' from folder containing sequence files:\n"
-        "        metacache build myBacteria all_bacteria\n";
+    docs += "\n\nEXAMPLES\n\n";
+    docs += build_mode_examples();
 
     return docs;
 }
@@ -572,7 +590,9 @@ modify_mode_cli(build_options& opt, error_messages& err)
             .if_missing([&]{
                 err += "No reference sequence files provided or found!";
             })
-            % "FASTA or FASTQ files containing genomic sequences;\n"
+            % "FASTA or FASTQ files containing genomic sequences "
+              "(complete genomes, scaffolds, contigs, ...) that shall be"
+              "used as representatives of an organism/taxon.\n"
               "If directory names are given, they will be searched for "
               "sequence files (at most 10 levels deep).\n"
     ),
@@ -643,7 +663,22 @@ get_modify_options(const cmdline_args& args, modify_options opt)
 
 //-------------------------------------------------------------------
 string modify_mode_usage() {
-    return "    metacache modify <database> <sequence file/directory>... [OPTION]...";
+    return
+    "    metacache modify <database> <sequence file/directory>... [OPTION]...\n\n"
+    "    metacache modify <database> [OPTION]... <sequence file/directory>...";
+}
+
+
+
+//-------------------------------------------------------------------
+string modify_mode_examples() {
+    return
+    "    Add reference sequence 'penicillium.fna' to database 'fungi'\n"
+    "        metacache modify fungi penicillium.fna\n"
+    "\n"
+    "    Add taxonomic information from NCBI to database 'myBacteria'\n"
+    "        download_ncbi_taxonomy myTaxo\n"
+    "        metacache modify myBacteria -taxonomy myTaxo\n";
 }
 
 
@@ -668,15 +703,8 @@ string modify_mode_docs() {
 
     docs += clipp::documentation(cli, cli_doc_formatting()).str();
 
-    docs += "\n\n"
-        "EXAMPLES\n"
-        "\n"
-        "    Add reference sequence 'penicillium.fna' to database 'fungi'\n"
-        "        metacache modify fungi penicillium.fna\n"
-        "\n"
-        "    Add taxonomic information from NCBI to database 'myBacteria'\n"
-        "        download_ncbi_taxonomy myTaxo\n"
-        "        metacache modify myBacteria -taxonomy myTaxo\n";
+    docs += "\n\n\nEXAMPLES\n";
+    docs += modify_mode_examples();
 
     return docs;
 }
@@ -790,7 +818,8 @@ classification_output_format_cli(classification_output_formatting& opt,
             %("Print taxon ids in addition to taxon names.\n"
               "default: "s + (opt.taxonStyle.showId ? "on" : "off"))
         ,
-        option("-taxids-only", "-taxidsonly").set(opt.taxonStyle.showId).set(opt.taxonStyle.showName,false)
+        option("-taxids-only", "-taxidsonly")
+            .set(opt.taxonStyle.showId).set(opt.taxonStyle.showName,false)
             %("Print taxon ids instead of taxon names.\n"
               "default: "s + (opt.taxonStyle.showId && !opt.taxonStyle.showName ? "on" : "off"))
         ,
@@ -844,7 +873,7 @@ classification_analysis_cli(classification_analysis_options& opt, error_messages
     return (
         "ANALYSIS: ABUNDANCES" %
         (
-            (option("-abundances").set(opt.showTaxAbundances) &
+            (option("-abundances", "-abundance").set(opt.showTaxAbundances) &
              opt_value("file", opt.abundanceFile))
                 %("Show absolute and relative abundance of each taxon.\n"
                   "If a valid filename is given, the list will be written to "
@@ -871,22 +900,21 @@ classification_analysis_cli(classification_analysis_options& opt, error_messages
         ,
         "ANALYSIS: RAW DATABASE HITS" %
         (
-            one_of(
-                option("-tophits", "-top-hits").set(opt.showTopHits)
+            option("-tophits", "-top-hits").set(opt.showTopHits)
                 %("For each query, print top feature hits in database.\n"
                   "default: "s + (opt.showTopHits ? "on" : "off"))
             ,
-                option("-allhits", "-all-hits").set(opt.showAllHits)
+            option("-allhits", "-all-hits").set(opt.showAllHits)
                 %("For each query, print all feature hits in database.\n"
                   "default: "s + (opt.showAllHits ? "on" : "off"))
-            )
             ,
             option("-locations").set(opt.showLocations).set(opt.showTopHits)
                 %("Show locations in candidate reference sequences.\n"
                   "Activates option '-tophits'.\n"
                   "default: "s + (opt.showLocations ? "on" : "off"))
             ,
-            (   option("-hits-per-seq", "-hitsperseq", "-hits-per-target")
+            (   option("-hits-per-ref", "-hits-per-seq",
+                       "-hits-per-tgt", "-hits-per-target")
                     .set(opt.showHitsPerTargetList) &
                 opt_value("file", opt.targetMappingsFile)
             )
@@ -903,7 +931,7 @@ classification_analysis_cli(classification_analysis_options& opt, error_messages
         "ANALYSIS: ALIGNMENTS" %
         group(
             option("-align", "-alignment").set(opt.showAlignment)
-                %("Show semi-global alignment to best candidate target.\n"
+                %("Show semi-global alignment to best candidate reference sequence.\n"
                   "Original files of reference sequences must be available.\n"
                   "This feature decreases the querying speed!\n"
                   "default: "s + (opt.showAlignment ? "on" : "off"))
@@ -921,7 +949,8 @@ classification_evaluation_cli(classification_evaluation_options& opt,
 {
     using namespace clipp;
     return (
-        option("-ground-truth").set(opt.determineGroundTruth).set(opt.showGroundTruth)
+        option("-ground-truth", "-groundtruth")
+            .set(opt.determineGroundTruth).set(opt.showGroundTruth)
             %("Report correct query taxa if known.\n"
               "Queries need to have either a 'taxid|<number>' entry in "
               "their header or a sequence id that is also present in "
@@ -999,7 +1028,8 @@ query_mode_cli(query_options& opt, error_messages& err)
         ,
         opt_values(match::prefix_not{"-"}, "sequence file/directory", opt.infiles)
             % "FASTA or FASTQ files containing genomic sequences "
-              "(short reads, long reads, contigs, complete genomes, ...);\n"
+              "(short reads, long reads, contigs, complete genomes, ...) "
+              "that shall be classified.\n"
               "* If directory names are given, they will be searched for "
               "sequence files (at most 10 levels deep).\n"
               "* If no input filenames or directories are given, MetaCache will "
@@ -1120,15 +1150,6 @@ get_query_options(const cmdline_args& args, query_options opt)
         }
     }
 
-    if(opt.dbconfig.maxLocationsPerFeature < 0) {
-        opt.dbconfig.maxLocationsPerFeature = database::max_supported_locations_per_feature();
-    }
-
-    // make sure window stride is always set
-    auto& sk = opt.sketching;
-    if(sk.winstride < 0) sk.winstride = sk.winlen - sk.kmerlen + 1;
-
-
     // interprest numbers > 1 as percentage
     auto& cl = opt.classify;
     if(cl.hitsDiffFraction > 1) cl.hitsDiffFraction *= 0.01;
@@ -1186,7 +1207,37 @@ get_query_options(const cmdline_args& args, query_options opt)
 
 //-------------------------------------------------------------------
 string query_mode_usage() {
-    return "    metacache query <database> [<sequence file/directory>]... [OPTION]...";
+    return
+    "    metacache query <database>\n\n"
+    "    metacache query <database> <sequence file/directory>... [OPTION]...\n\n"
+    "    metacache query <database> [OPTION]... <sequence file/directory>...";
+}
+
+
+
+//-------------------------------------------------------------------
+string query_mode_examples() {
+    return
+    "    Query all sequences in 'myreads.fna' against pre-built database 'refseq':\n"
+    "        metacache query refseq myreads.fna -out results.txt\n"
+    "\n"
+    "    Query all sequences in multiple files against database 'refseq':\n"
+    "        metacache query refseq reads1.fna reads2.fna reads3.fna\n"
+    "\n"
+    "    Query all sequence files in folder 'test' againgst database 'refseq':\n"
+    "        metacache query refseq test\n"
+    "\n"
+    "    Query multiple files and folder contents against database 'refseq':\n"
+    "        metacache query refseq file1.fna folder1 file2.fna file3.fna folder2\n"
+    "\n"
+    "    Perform a precision test and show all ranks for each classification result:\n"
+    "        metacache query refseq reads.fna -precision -allranks -out results.txt\n"
+    "\n"
+    "    Load database in interactive query mode, then query multiple read batches\n"
+    "        metacache query refseq\n"
+    "        reads1.fa reads2.fa -pairfiles -insertsize 400\n"
+    "        reads3.fa -pairseq -insertsize 300\n"
+    "        reads4.fa -lineage\n";
 }
 
 
@@ -1211,31 +1262,10 @@ string query_mode_docs() {
 
     docs += clipp::documentation(cli, cli_doc_formatting()).str();
 
-    docs += "\n\n\n"
-        "EXAMPLES\n"
-        "\n"
-        "    Query all sequences in 'myreads.fna' against pre-built database 'refseq':\n"
-        "        metacache query refseq myreads.fna -out results.txt\n"
-        "\n"
-        "    Query all sequences in multiple files against database 'refseq':\n"
-        "        metacache query refseq reads1.fna reads2.fna reads3.fna\n"
-        "\n"
-        "    Query all sequence files in folder 'test' againgst database 'refseq':\n"
-        "        metacache query refseq test\n"
-        "\n"
-        "    Query multiple files and folder contents against database 'refseq':\n"
-        "        metacache query refseq file1.fna folder1 file2.fna file3.fna folder2\n"
-        "\n"
-        "    Perform a precision test and show all ranks for each classification result:\n"
-        "        metacache query refseq reads.fna -precision -allranks -out results.txt\n"
-        "\n"
-        "    Load database in interactive query mode, then query multiple read batches\n"
-        "        metacache query refseq\n"
-        "        reads1.fa reads2.fa -pairfiles -insertsize 400\n"
-        "        reads3.fa -pairseq -insertsize 300\n"
-        "        reads4.fa -lineage\n"
-        "\n"
-        "\n"
+    docs += "\n\n\nEXAMPLES\n\n";
+    docs += query_mode_examples();
+
+    docs += "\n\n"
         "OUTPUT FORMAT\n"
         "\n"
         "    MetaCache's default read mapping output format is:\n"
@@ -1259,7 +1289,7 @@ string query_mode_docs() {
         "    read_header | rank | taxon_name              -separate-cols\n"
         "    read_header | rank | taxon_name | taxon_id   -taxids -separate-cols\n"
         "\n"
-        "    Note that the separator '\t|\t' can be changed to something else with\n"
+        "    Note that the separator '\\t|\\t' can be changed to something else with\n"
         "    the command line option '-separator <text>'.\n"
         "\n"
         "    Note that the default lowest taxon rank is 'sequence'. Sequence-level taxon\n"
@@ -1401,7 +1431,16 @@ get_merge_options(const cmdline_args& args, merge_options opt)
 
 //-------------------------------------------------------------------
 string merge_mode_usage() {
-    return "    metacache merge <result file/directory>... -taxonomy <path> [OPTION]...";
+    return
+    "    metacache merge <result file/directory>... -taxonomy <path> [OPTION]...\n\n"
+    "    metacache merge -taxonomy <path> [OPTION]... <result file/directory>...";
+}
+
+
+
+//-------------------------------------------------------------------
+string merge_mode_examples() {
+    return "";
 }
 
 
@@ -1423,7 +1462,7 @@ string merge_mode_docs() {
         "    This mode classifies reads by merging the results of multiple, independent\n"
         "    queries. These might have been obtained by querying one database with\n"
         "    different parameters or by querying different databases with different\n"
-        "    reference targets or build options.\n"
+        "    reference sequences or build options.\n"
         "\n"
         "    IMPORTANT: In order to be mergable, independent queries\n"
         "    need to be run with options:\n"
@@ -1459,38 +1498,38 @@ info_mode_cli(info_options& opt, error_messages& err)
 {
     using namespace clipp;
 
-    return "PARAMETERS" %
-    (
+    return "PARAMETERS" % (
         database_parameter(opt.dbfile, err)
             .required(false).set(opt.mode, info_mode::db_config)
         ,
         one_of(
             command(""), // dummy
             (
-                command("target", "targets", "sequences").set(opt.mode, info_mode::targets),
+                command("reference", "references", "ref",
+                        "target", "targets", "tgt",
+                        "sequence", "sequences", "seq")
+                    .set(opt.mode, info_mode::targets),
                 opt_values("sequence_id", opt.targetIds)
             ),
             (
                 command("rank").set(opt.mode, info_mode::tax_ranks),
-                value("taxonomic_rank", [&](const string& name) {
+                value("rank_name", [&](const string& name) {
                         opt.rank = rank_from_name(name, err);
                     })
-                    .if_missing([&]{ err += "Rank name missing!"; }
-            )
-                % ("Valid values: "s + taxon_rank_names())
+                    .if_missing([&]{ err += "Rank name missing!"; })
+                    .doc("Valid values: "s + taxon_rank_names())
             ),
-            (
-                command("lineages", "lineage").set(opt.mode, info_mode::tax_lineages)
-            ),
-            (
-                command("statistics", "stat").set(opt.mode, info_mode::db_statistics)
-            ),
-            (
-                command("featuremap", "features").set(opt.mode, info_mode::db_feature_map)
-            ),
-            (
-                command("featurecounts").set(opt.mode, info_mode::db_feature_counts)
-            )
+            command("lineages", "lineage", "lin")
+                .set(opt.mode, info_mode::tax_lineages)
+            ,
+            command("statistics", "stat")
+                .set(opt.mode, info_mode::db_statistics)
+            ,
+            command("locations", "loc", "featuremap", "features")
+                .set(opt.mode, info_mode::db_feature_map)
+            ,
+            command("featurecounts")
+                .set(opt.mode, info_mode::db_feature_counts)
         )
         ,
         catch_unknown(err)
@@ -1532,6 +1571,21 @@ string info_mode_usage()
 
 
 //-------------------------------------------------------------------
+string info_mode_examples() {
+    return
+    "    List metadata for all reference sequences in database 'refseq':\n"
+    "        metacache info refseq.db ref\n"
+    "\n"
+    "    List metadata for the sequence with id NC_12345.6 in database 'refseq':\n"
+    "        metacache info refseq.db ref NC_12345.6\n"
+    "\n"
+    "    List distribution of the number of sequences on rank 'phylum':\n"
+    "        metacache info refseq.db rank phylum\n";
+}
+
+
+
+//-------------------------------------------------------------------
 string info_mode_docs() {
 
     info_options opt;
@@ -1552,47 +1606,36 @@ string info_mode_docs() {
         "    metacache info\n"
         "        show basic properties of MetaCache executable (data type widths, etc.)\n"
         "\n"
-        "    metacache info <database>\n"
-        "        show basic database configuration & properties of <database>\n"
+        "    matacache info <database>\n"
+        "        show basic properties of <database>\n"
         "\n"
-        "    metacache info <database> target\n"
-        "        list all available meta information for all reference sequences\n"
-        "        in <database>\n"
+        "    matacache info <database> ref[erence]\n"
+        "       list meta information for all reference sequences in <database>\n"
         "\n"
-        "    metacache info <database> target <sequence_id>...\n"
-        "        list all available meta information for a specific reference sequence\n"
-        "        in <database>\n"
+        "    matacache info <database> ref[erence] <sequence_id>...\n"
+        "       list meta information for specific reference sequences\n"
         "\n"
-        "    metacache info <database> lineages\n"
-        "        print a table with ranked lineages for all reference sequences\n"
-        "        in <database>\n"
+        "    matacache info <database> rank <rank_name>\n"
+        "       list reference sequence distribution on rank <rank_name>\n"
         "\n"
-        "    metacache info <database> rank <taxonomic_rank>\n"
-        "        list distribution of the number of sequences on rank <rankname>\n"
+        "    matacache info <database> lin[eages]\n"
+        "       print table with ranked lineages for all reference sequences\n"
         "\n"
-        "    metacache info <database> statistics\n"
-        "        print database statistics i.e. hash table properties\n"
+        "    matacache info <database> stat[istics]\n"
+        "       print database statistics / hash table properties\n"
         "\n"
-        "    metacache info <database> featuremap\n"
-        "        prints the raw (feature -> target locations) map\n"
+        "    matacache info <database> loc[ations]\n"
+        "       print map (feature -> list of reference locations)\n"
         "\n"
-        "    metacache info <database> featurecounts\n"
-        "        prints (feature -> target count) map\n"
+        "    matacache info <database> featurecounts\n"
+        "       print map (feature -> number of reference locations)\n"
+
         "\n\n";
 
     docs += clipp::documentation{cli, cli_doc_formatting()}.str();
 
-    docs +=
-        "\n\n"
-        "EXAMPLES\n"
-        "    List metadata for all reference sequences in database 'refseq':\n"
-        "        metacache info refseq.db target\n"
-        "\n"
-        "    List metadata for the sequence with id NC_12345.6 in database 'refseq':\n"
-        "        metacache info refseq.db target NC_12345.6\n"
-        "\n"
-        "    List distribution of the number of sequences on rank 'phylum':\n"
-        "        metacache info refseq.db rank phylum\n";
+    docs += "\n\n\nEXAMPLES\n\n";
+    docs += info_mode_examples();
 
     return docs;
 }

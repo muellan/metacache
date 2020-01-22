@@ -305,7 +305,7 @@ void update_coverage_statistics(const database& db,
 void evaluate_classification(
     const database& db,
     const classification_evaluation_options& opt,
-    sequence_query& query,
+    const sequence_query& query,
     classification& cls,
     classification_statistics& statistics)
 {

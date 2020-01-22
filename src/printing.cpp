@@ -170,10 +170,11 @@ void print_taxon(std::ostream& os,
                  const formatting_tokens& fmt)
 {
     if(style.showRankName) {
-        if(rank == taxon_rank::none)
+        if(rank == taxon_rank::none) {
             os << fmt.none << fmt.rankSuffix;
-        else
+        } else {
             os << taxonomy::rank_name(rank) << fmt.rankSuffix;
+        }
     }
 
     if(style.showName) {
@@ -237,12 +238,17 @@ void show_taxon(std::ostream& os,
 {
     if(!tax || tax->rank() > opt.highestRank) {
         if(opt.collapseUnclassifiedLineages) {
-            if(opt.taxonStyle.showId && !opt.taxonStyle.showName) {
+            if(opt.taxonStyle.showId
+               && !opt.taxonStyle.showName
+               && !opt.taxonStyle.showRankName)
+            {
                 os << taxonomy::none_id();
-            } else {
+            }
+            else {
                 os << opt.tokens.none;
             }
-        } else {
+        }
+        else {
             const auto rmax = opt.showLineage ? opt.highestRank : opt.lowestRank;
             show_blank_lineage(os, opt.taxonStyle, opt.lowestRank, rmax, opt.tokens);
         }

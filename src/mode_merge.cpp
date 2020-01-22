@@ -194,7 +194,7 @@ void read_results(const results_source& res,
                 taxon_id taxid;
                 ifs >> taxid;
                 if(ifs.fail()) {
-                    cerr << "Query " << queryId+1 << ": Could not read taxid." << endl;
+                    cerr << "Query " << queryId+1 << ": Could not read taxid.\n";
                     ifs.clear();
                 }
 
@@ -206,7 +206,7 @@ void read_results(const results_source& res,
                 if(tax) {
                     queryCandidates[queryId].insert(match_candidate{tax, hits}, db, rules);
                 } else {
-                    cerr << "Query " << queryId+1 << ": taxid not found. Skipping hit." << endl;
+                    cerr << "Query " << queryId+1 << ": taxid not found. Skipping hit.\n";
                 }
                 nextChar = ifs.get();
             }
@@ -241,8 +241,8 @@ void merge_result_files(const vector<string>& infiles,
 
     const auto& comment = opt.output.format.tokens.comment;
 
-    cerr << " max canddidates: " << rules.maxCandidates << endl;
-    cerr << " number of files: " << infiles.size() << endl;
+    cerr << " max canddidates: " << rules.maxCandidates << '\n';
+    cerr << " number of files: " << infiles.size() << '\n';
 
     results.perReadOut << comment << "Merging " << infiles.size() << " files:\n";
     for(const auto& filename : infiles) {
