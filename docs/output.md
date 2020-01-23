@@ -186,7 +186,7 @@ phylum:Actinobacteria | 201174 | 2.02304 | 0.0202304%
 
 ## Reference Hit Statistics
 
-The command line option `-hits-per-ref [\<filename\>]` generates an overview of all locations in the reference genomes that the query sequences (reads) were mapped to. If no filename is given the list is appended to the mappings output.
+The command line option `-hits-per-ref [<filename>]` generates an overview of all locations in the reference genomes that the query sequences (reads/read pairs) were mapped to. If no filename is given the list is appended to the mappings output.
 Note that the generated output can get **very** large!
 
 #### Example Output
@@ -212,6 +212,8 @@ sequence:NC_002940.2    |       15035   |       8752/96:5/97:7
 
 This means that the reference sequence 'NC_002932.3' is divided into 19071 windows and that the input read with id '2371' produced 2 hits in window number '1267' and 4 hits in windows 1268 and the input read with id '8667' produced 5 hits in window number 17990 of that reference sequence.
 
+The positions in the genome can be calculated by multiplying a window index with the window stride, which is shown in the header of the table (in this case the stride is set to MetaCache's default of 113).
+
 This table can be used for, e.g., coverage analyses.
 
 
@@ -219,9 +221,9 @@ This table can be used for, e.g., coverage analyses.
 
 ## Ground Truth Based Evaluation
 
-can be turned on with the option `-precision` and precision, sensitivity, etc. will be reported in the mapping summary.
+can be turned on with the option `-precision`, which has the effect that precision, sensitivity, etc. will be reported in the mapping summary.
 The ground truth taxon can also be shown in the read mappings (next to the classification) with option `-ground-truth`.
-Note that in order to obtain the ground truth for an input read, each read needs to be annotated in its header with either an `taxid|\<number\>` entry or a sequence id of a reference sequence that is present in the database.
+Note that in order to obtain the ground truth for an input read, each read (pair) needs to be annotated in its header with either an `taxid|<number>` entry or a sequence id (e.g., `NC_002505.1`) of a reference sequence that is present in the database.
 
 
 #### Example Read Mappings Output
@@ -243,11 +245,30 @@ V_cholerae_HiSeq.196272 |   Vibrio cholerae(666)    |   NC_002506.1(-16)
 V_cholerae_HiSeq.196439 |   Vibrio cholerae(666)    |   Proteobacteria(1224)
 V_cholerae_HiSeq.196534 |   Vibrio cholerae(666)    |   NC_002505.1(-15)
 V_cholerae_HiSeq.196565 |   Vibrio cholerae(666)    |   Vibrio cholerae(666)
-V_cholerae_HiSeq.198656 |   Vibrio cholerae(666)    |   NC_002505.1(-15)
+V_cholerae_HiSeq.198656 |   Vibrio cholerae(666)    |   --
 V_cholerae_HiSeq.200147 |   Vibrio cholerae(666)    |   Vibrio cholerae(666)
 V_cholerae_HiSeq.200184 |   Vibrio cholerae(666)    |   Gammaproteobacteria(1236)
 V_cholerae_HiSeq.201960 |   Vibrio cholerae(666)    |   NC_002505.1(-15)
 V_cholerae_HiSeq.202496 |   Vibrio cholerae(666)    |   NC_002506.1(-16)
+...
+```
+
+Same with options `-precision -ground-truth -omit-ranks -taxids-only`:
+
+```
+...
+# TABLE_LAYOUT: query_header    |   truth_taxid  |   taxid
+# analysis/HiSeq.fna
+V_cholerae_HiSeq.195766 |   666    |   -15
+V_cholerae_HiSeq.196272 |   666    |   -16
+V_cholerae_HiSeq.196439 |   666    |   1224
+V_cholerae_HiSeq.196534 |   666    |   -15
+V_cholerae_HiSeq.196565 |   666    |   666
+V_cholerae_HiSeq.198654 |   666    |   0
+V_cholerae_HiSeq.200147 |   666    |   666
+V_cholerae_HiSeq.200184 |   666    |   1236
+V_cholerae_HiSeq.201960 |   666    |   -15
+V_cholerae_HiSeq.202496 |   666    |   -16
 ...
 ```
 

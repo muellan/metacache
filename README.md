@@ -9,6 +9,8 @@ For an independend comparison to other tools in terms of classification accuracy
 The latest version of MetaCache classifies around 60 Million reads (of length 100) per minute against all complete bacterial, viral and archaea genomes from NCBI RefSeq Release 97 running with 88 threads on a workstation with 2 Intel(R) Xeon(R) Gold 6238 CPUs.
 
 
+
+
 ## Quick Start with NCBI RefSeq
 This will download MetaCache, compile it, download the complete bacterial, viral and archaea genomes from the latest NCBI RefSeq release (this can take some time) and build a classification database from them:
 
@@ -26,6 +28,8 @@ Once the default database is built you can classify reads:
   ./metacache query refseq myReads1.fa myReads2.fa -pairfiles -out results.txt
   ./metacache query refseq myPairedReads.fa -pairseq -out results.txt
   ```
+
+
 
 
 ## Detailed Installation Instructions
@@ -141,7 +145,9 @@ Once a database (e.g. the standard 'refseq'), is built you can classify reads.
   ```
 
 
-## [Output Interpretation, Analysis & Formatting Options...](docs/output.md)
+### [Classification Output Interpretation, Analysis & Formatting Options...](docs/output.md)
+
+
 
 
 ## Documentation of Command Line Parameters

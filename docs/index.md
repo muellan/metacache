@@ -29,9 +29,10 @@ The latest version of MetaCache classifies around 60 Million reads (of length 10
 ## Documentation Overview
 
 * [Installation Instructions](https://github.com/muellan/metacache#detailed-installation-instructions)
+* [Bacterial Mapping with NCBI's RefSeq](refseq.md)
 * [Building Custom Databases](building.md)
 * [Using Partitioned Databases](partitioning.md)
-* [Output Formatting](output.md)
+* [Output Interpretation, Analysis & Formatting Options](output.md)
 
 
 

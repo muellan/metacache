@@ -19,6 +19,11 @@ Once the default database `refseq.db` is built you can classify reads:
 ./metacache query refseq myPairedReads.fa -pairseq -out results.txt
 ```
 
+- Option `-pairfiles` means that paired-end mates are stored in two different files so that read number 20 from file 1 is the mate of read number 20 from file 2.
+
+- Option `pairseq` means that paired-end mates are stored in the same file so that reads 1 and 2 are mates, reads 3 and 4 are mates and so on.
+
+
 
 ## Custom RefSeq Database Builds
 
