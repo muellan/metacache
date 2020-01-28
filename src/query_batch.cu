@@ -3,8 +3,9 @@
 #include "sketch_database.h"
 #include "gpu_result_processing.cuh"
 
-#include "../dep/cub/cub/device/device_segmented_radix_sort.cuh"
 #include "../dep/cub/cub/device/device_scan.cuh"
+
+#include "../dep/bb_segsort/src/bb_segsort_keys.cuh"
 
 namespace mc {
 
@@ -54,6 +55,10 @@ query_batch<result_type>::query_batch(
         cudaMemcpy(d_resultOffsets_, h_resultOffsets_, sizeof(int), cudaMemcpyHostToDevice);
 
         cudaMalloc    (&d_resultCounts_, maxQueries_*sizeof(int));
+        d_binnedSegIds_ = d_resultCounts_;
+
+        cudaMallocHost(&h_segBinCounters_, (SEGBIN_NUM+1)*sizeof(int));
+        cudaMalloc    (&d_segBinCounters_, (SEGBIN_NUM+1)*sizeof(int));
 
         cudaMallocHost(&h_topCandidates_, maxQueries_*maxCandidatesPerQuery_*sizeof(match_candidate));
         cudaMalloc    (&d_topCandidates_, maxQueries_*maxCandidatesPerQuery_*sizeof(match_candidate));
@@ -98,6 +103,10 @@ query_batch<result_type>::~query_batch() {
         cudaFree    (d_resultOffsets_);
 
         cudaFree    (d_resultCounts_);
+        d_binnedSegIds_ = nullptr;
+
+        cudaFreeHost(h_segBinCounters_);
+        cudaFree    (d_segBinCounters_);
 
         cudaFreeHost(h_topCandidates_);
         cudaFree    (d_topCandidates_);
@@ -212,8 +221,6 @@ void query_batch<result_type>::compact_sort_and_copy_results_async() {
                         (d_numSegments_+1)*sizeof(int),
                         cudaMemcpyDeviceToHost, resultCopyStream_);
 
-        cudaEventRecord(offsetsCopiedEvent_, resultCopyStream_);
-
         // cudaStreamSynchronize(stream_);
         // CUERR
     }
@@ -222,37 +229,14 @@ void query_batch<result_type>::compact_sort_and_copy_results_async() {
 
     static_assert(sizeof(result_type) == sizeof(result_type_equivalent), "result_type must be 64 bit");
 
-    cub::DoubleBuffer<result_type_equivalent> d_keys(
+    bb_segsort_run(
         (result_type_equivalent*)(d_queryResultsTmp_),
-        (result_type_equivalent*)(d_queryResults_));
+        (result_type_equivalent*)(d_queryResults_),
+        d_resultOffsets_, d_binnedSegIds_, d_numSegments_,
+        h_segBinCounters_, d_segBinCounters_,
+        stream_, offsetsCopiedEvent_);
 
-    size_t tempStorageBytes = maxEncodeLength_*sizeof(encodedseq_t);
-    void * d_tempStorage = (void*)(d_encodedSeq_);
-
-    int numItems = d_numQueries_*maxResultsPerQuery_;
-    // int numItems = h_resultOffsets_[d_numSegments_+1];
-    // size_t tempStorageBytes = 255;
-    cudaError_t err = cub::DeviceSegmentedRadixSort::SortKeys(
-        d_tempStorage, tempStorageBytes,
-        d_keys,
-        numItems, d_numSegments_,
-        d_resultOffsets_, d_resultOffsets_ + 1,
-        0, sizeof(result_type_equivalent) * CHAR_BIT,
-        stream_
-    );
-
-    // cudaStreamSynchronize(stream_);
-    // CUERR
-
-    if (err != cudaSuccess) {                       \
-        std::cout << "CUDA error: " << cudaGetErrorString(err) << " : "    \
-                  << __FILE__ << ", line " << __LINE__ << std::endl;       \
-        exit(1);                                                           \
-    }
-
-    d_queryResults_    = (result_type*)d_keys.Current();
-    d_queryResultsTmp_ = (result_type*)d_keys.Alternate();
-
+    cudaEventRecord(offsetsCopiedEvent_, resultCopyStream_);
 
     cudaEventRecord(resultReadyEvent_, stream_);
     cudaStreamWaitEvent(resultCopyStream_, resultReadyEvent_, 0);

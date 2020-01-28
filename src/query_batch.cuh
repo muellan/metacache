@@ -351,6 +351,10 @@ private:
     int            * h_resultOffsets_;
     int            * d_resultOffsets_;
     int            * d_resultCounts_;
+    int            * d_binnedSegIds_;
+
+    int            * h_segBinCounters_;
+    int            * d_segBinCounters_;
 
     match_candidate * h_topCandidates_;
     match_candidate * d_topCandidates_;
