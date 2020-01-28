@@ -36,7 +36,7 @@ void main_mode_help(const cmdline_args& args)
 {
     if(args.size() < 3 || args[1] != "help" || args[2] == "help") {
 
-        if(args[1] != "help") {
+        if(args.size() > 1 && args[1] != "help") {
             std::cerr << "ERROR: Invalid command line arguments!\n\n";
         }
         else {
