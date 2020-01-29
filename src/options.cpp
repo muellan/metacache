@@ -34,6 +34,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <iostream>
+#include <regex>
 
 #include "options.h"
 #include "filesys_utility.h"
@@ -117,6 +118,18 @@ string sanitize_database_name(string name)
     return name;
 }
 
+
+
+//-------------------------------------------------------------------
+/// @return replaces '\t' with tab char and remove other special chars
+string sanitize_special_chars(const string& text)
+{
+    return std::regex_replace( std::regex_replace(text,
+        // no newlines, vertical tabs, etc. allowed
+        std::regex(R"((\\n)|(\\v)|(\\r)|(\\a))"), ""),
+        // substitute literat "\t" with tab character
+        std::regex(R"(\\t)"), "\t");
+}
 
 
 //-------------------------------------------------------------------
@@ -844,7 +857,9 @@ classification_output_format_cli(classification_output_formatting& opt,
               "default: "s + (opt.useSeparateCols ? "on" : "off"))
         ,
         (   option("-separator") &
-            value("text", opt.tokens.column)
+            value("text", [&](const string& arg) {
+                    opt.tokens.column = sanitize_special_chars(arg);
+                })
                 .if_missing([&]{ err += "Text missing after '-separator'!"; })
         )
             % "Sets string that separates output columns.\n"
