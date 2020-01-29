@@ -1192,6 +1192,10 @@ get_query_options(const cmdline_args& args, query_options opt)
 
     //always show query ids if hits per target list requested
     auto& fmt = opt.output.format;
+    // output ranks are the same as classification ranks
+    fmt.lowestRank = cl.lowestRank;
+    fmt.highestRank = cl.highestRank;
+
     if(ana.showHitsPerTargetList) fmt.showQueryIds = true;
 
     // modify output tokens for separate column printig

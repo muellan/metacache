@@ -751,7 +751,14 @@ void map_queries_to_targets_default(
                                      opt.classify.hitsMin);
         }
 
-        if(opt.classify.covPercentile < 1e-8) {
+        if(opt.classify.covPercentile > 0) {
+            sequence_query qinfo;
+            qinfo.id = query.id;
+            qinfo.header = query.header;
+            //save query mapping for post processing
+            buf.queryMappings.emplace_back(query_mapping{std::move(qinfo), std::move(cls)});
+        }
+        else {
             //use classification as is
             if(opt.make_tax_counts() && cls.best) {
                 ++buf.taxCounts[cls.best];
@@ -760,13 +767,6 @@ void map_queries_to_targets_default(
             evaluate_classification(db, opt.output.evaluate, query, cls, results.statistics);
 
             show_query_mapping(buf.out, db, opt.output, query, cls, allhits);
-        }
-        else {
-            sequence_query qinfo;
-            qinfo.id = query.id;
-            qinfo.header = query.header;
-            //save query mapping for post processing
-            buf.queryMappings.emplace_back(query_mapping{std::move(qinfo), std::move(cls)});
         }
     };
 
