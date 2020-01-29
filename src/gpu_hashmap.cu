@@ -117,6 +117,7 @@ public:
         query_batch<result_type>& batch,
         const sketcher& querySketcher,
         bucket_size_type maxLocationPerFeature,
+        bool copyAllHits,
         taxon_rank lowestRank) const
     {
         const cudaStream_t stream = batch.stream();
@@ -145,7 +146,7 @@ public:
             batch.result_counts_device()
         );
 
-        batch.compact_sort_and_copy_results_async();
+        batch.compact_sort_and_copy_results_async(copyAllHits);
 
         batch.generate_and_copy_top_candidates_async(lineages_, lowestRank);
 
@@ -561,9 +562,15 @@ void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::query_async(
     query_batch<value_type>& batch,
     const sketcher& querySketcher,
     bucket_size_type maxLocationPerFeature,
+    bool copyAllHits,
     taxon_rank lowestRank) const
 {
-    hashTable_->query_async(batch, querySketcher, maxLocationPerFeature, lowestRank);
+    hashTable_->query_async(
+        batch,
+        querySketcher,
+        maxLocationPerFeature,
+        copyAllHits,
+        lowestRank);
 }
 
 

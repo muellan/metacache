@@ -84,6 +84,7 @@ struct sequence_query
 template<class Buffer, class BufferUpdate>
 void process_gpu_batch_results(
     const std::vector<sequence_query>& sequenceBatch,
+    bool copyAllHits,
     query_batch<location>& queryBatch,
     Buffer& batchBuffer, BufferUpdate& update,
     size_t& index)
@@ -98,7 +99,7 @@ void process_gpu_batch_results(
         // std::cout << '\n';
 
         for(size_t s = 0; s < queryBatch.num_segments_device(); ++s, ++index) {
-            span<location> results = queryBatch.results(s);
+            span<location> results = copyAllHits ? queryBatch.results(s) : span<location>();
 
             // std::cout << s << ". targetMatches:    ";
             // for(const auto& m : results)
@@ -134,14 +135,15 @@ void process_gpu_batch_results(
 template<int I = 0>
 void schedule_gpu_batch(
     const database& db,
-    const classification_options& classifyOpt,
+    const classification_options& opt,
+    bool copyAllHits,
     query_batch<location>& queryBatch)
 {
     if(queryBatch.num_queries_host() > 0) {
 
         queryBatch.copy_queries_to_device_async();
 
-        db.query_gpu_async(queryBatch, classifyOpt.lowestRank);
+        db.query_gpu_async(queryBatch, copyAllHits, opt.lowestRank);
 
         queryBatch.wait_for_queries_copied();
 
@@ -177,25 +179,28 @@ template<
 query_id query_batched(
     const std::string& filename1, const std::string& filename2,
     const database& db,
-    const query_processing_options& opt,
-    const classification_options& classifyOpt,
+    const query_options& opt,
     query_id idOffset,
     BufferSource&& getBuffer, BufferUpdate&& update, BufferSink&& finalize,
     ErrorHandler&& handleErrors)
 {
-    if(opt.queryLimit < 1) return idOffset;
-    auto queryLimit = size_t(opt.queryLimit > 0 ? opt.queryLimit : std::numeric_limits<size_t>::max());
+    if(opt.process.queryLimit < 1) return idOffset;
+    auto queryLimit = size_t(opt.process.queryLimit > 0 ? opt.process.queryLimit : std::numeric_limits<size_t>::max());
+
+    bool copyAllHits = opt.output.showAllHits
+                    || opt.output.showHitsPerTargetList
+                    || opt.classify.covPercentile > 0;
 
     std::mutex finalizeMtx;
 
     // each thread may have a gpu batch for querying
-    std::vector<std::unique_ptr<query_batch<location>>> gpuBatches(opt.numThreads);
+    std::vector<std::unique_ptr<query_batch<location>>> gpuBatches(opt.process.numThreads);
 
     // get executor that runs classification in batches
     batch_processing_options execOpt;
-    execOpt.concurrency(opt.numThreads - 1);
-    execOpt.batch_size(opt.batchSize);
-    execOpt.queue_size(opt.numThreads > 1 ? opt.numThreads + 4 : 0);
+    execOpt.concurrency(opt.process.numThreads - 1);
+    execOpt.batch_size(opt.process.batchSize);
+    execOpt.queue_size(opt.process.numThreads > 1 ? opt.process.numThreads + 4 : 0);
     execOpt.on_error(handleErrors);
 
     batch_executor<sequence_query> executor {
@@ -206,28 +211,28 @@ query_id query_batched(
 
             if(!gpuBatches[id])
                 gpuBatches[id] = std::make_unique<query_batch<location>>(
-                    opt.gpuBatchSize,
-                    opt.gpuBatchSize*db.query_sketcher().window_size()/(sizeof(encodedambig_t)*CHAR_BIT),
+                    opt.process.gpuBatchSize,
+                    opt.process.gpuBatchSize*db.query_sketcher().window_size()/(sizeof(encodedambig_t)*CHAR_BIT),
                     db.query_sketcher().sketch_size()*db.max_locations_per_feature(),
-                    classifyOpt.maxNumCandidatesPerQuery);
+                    opt.classify.maxNumCandidatesPerQuery);
 
             size_t outIndex = 0;
 
             for(const auto& seq : batch) {
-                if(!gpuBatches[id]->add_paired_read(seq.seq1, seq.seq2, db.query_sketcher(), classifyOpt.insertSizeMax)) {
+                if(!gpuBatches[id]->add_paired_read(seq.seq1, seq.seq2, db.query_sketcher(), opt.classify.insertSizeMax)) {
                     //process results from previous batch
-                    process_gpu_batch_results(batch, *(gpuBatches[id]), resultsBuffer, update, outIndex);
+                    process_gpu_batch_results(batch, copyAllHits, *(gpuBatches[id]), resultsBuffer, update, outIndex);
                     //could not add read, send full batch to gpu
-                    schedule_gpu_batch(db, classifyOpt, *(gpuBatches[id]));
+                    schedule_gpu_batch(db, opt.classify, copyAllHits, *(gpuBatches[id]));
                     //try to add read again
-                    if(!gpuBatches[id]->add_paired_read(seq.seq1, seq.seq2, db.query_sketcher(), classifyOpt.insertSizeMax))
+                    if(!gpuBatches[id]->add_paired_read(seq.seq1, seq.seq2, db.query_sketcher(), opt.classify.insertSizeMax))
                         std::cerr << "query batch is too small for a single read!" << std::endl;
                 }
             }
-            process_gpu_batch_results(batch, *(gpuBatches[id]), resultsBuffer, update, outIndex);
+            process_gpu_batch_results(batch, copyAllHits, *(gpuBatches[id]), resultsBuffer, update, outIndex);
             // std::cout << "send final batch to gpu\n";
-            schedule_gpu_batch(db, classifyOpt, *(gpuBatches[id]));
-            process_gpu_batch_results(batch, *(gpuBatches[id]), resultsBuffer, update, outIndex);
+            schedule_gpu_batch(db, opt.classify, copyAllHits, *(gpuBatches[id]));
+            process_gpu_batch_results(batch, copyAllHits, *(gpuBatches[id]), resultsBuffer, update, outIndex);
 
             std::lock_guard<std::mutex> lock(finalizeMtx);
             finalize(std::move(resultsBuffer));
@@ -313,7 +318,7 @@ void query_database(
         }
         showProgress(infilenames.size() > 1 ? i/float(infilenames.size()) : -1);
 
-        queryIdOffset = query_batched(fname1, fname2, db, opt.process, opt.classify, queryIdOffset,
+        queryIdOffset = query_batched(fname1, fname2, db, opt, queryIdOffset,
                                      std::forward<BufferSource>(bufsrc),
                                      std::forward<BufferUpdate>(bufupdate),
                                      std::forward<BufferSink>(bufsink),

@@ -46,8 +46,8 @@ struct span {
 
     bool empty() const noexcept { return begin_ == end_; }
 
-    value_type * begin_;
-    value_type * end_;
+    value_type * begin_ = nullptr;
+    value_type * end_   = nullptr;
 };
 
 

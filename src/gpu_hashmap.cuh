@@ -154,6 +154,7 @@ public:
         query_batch<value_type>& batch,
         const sketcher& querySketcher,
         bucket_size_type maxLocationPerFeature,
+        bool copyAllHits,
         taxon_rank lowestRank) const;
 
 

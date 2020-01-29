@@ -178,7 +178,7 @@ void query_batch<result_type>::sync_result_stream() {
 
 //---------------------------------------------------------------
 template<class result_type>
-void query_batch<result_type>::compact_sort_and_copy_results_async() {
+void query_batch<result_type>::compact_sort_and_copy_results_async(bool copyAllHits) {
 
     {
         size_t tempStorageBytes = maxQueries_*maxResultsPerQuery_*sizeof(result_type);
@@ -214,12 +214,14 @@ void query_batch<result_type>::compact_sort_and_copy_results_async() {
             d_resultOffsets_
         );
 
-        cudaEventRecord(resultReadyEvent_, stream_);
-        cudaStreamWaitEvent(resultCopyStream_, resultReadyEvent_, 0);
+        if(copyAllHits) {
+            cudaEventRecord(resultReadyEvent_, stream_);
+            cudaStreamWaitEvent(resultCopyStream_, resultReadyEvent_, 0);
 
-        cudaMemcpyAsync(h_resultOffsets_, d_resultOffsets_,
-                        (d_numSegments_+1)*sizeof(int),
-                        cudaMemcpyDeviceToHost, resultCopyStream_);
+            cudaMemcpyAsync(h_resultOffsets_, d_resultOffsets_,
+                           (d_numSegments_+1)*sizeof(int),
+                           cudaMemcpyDeviceToHost, resultCopyStream_);
+        }
 
         // cudaStreamSynchronize(stream_);
         // CUERR
@@ -236,16 +238,18 @@ void query_batch<result_type>::compact_sort_and_copy_results_async() {
         h_segBinCounters_, d_segBinCounters_,
         stream_, offsetsCopiedEvent_);
 
-    cudaEventRecord(offsetsCopiedEvent_, resultCopyStream_);
+    if(copyAllHits) {
+        cudaEventRecord(offsetsCopiedEvent_, resultCopyStream_);
 
-    cudaEventRecord(resultReadyEvent_, stream_);
-    cudaStreamWaitEvent(resultCopyStream_, resultReadyEvent_, 0);
+        cudaEventRecord(resultReadyEvent_, stream_);
+        cudaStreamWaitEvent(resultCopyStream_, resultReadyEvent_, 0);
 
-    cudaEventSynchronize(offsetsCopiedEvent_);
+        cudaEventSynchronize(offsetsCopiedEvent_);
 
-    cudaMemcpyAsync(h_queryResults_, d_queryResults_,
-                    h_resultOffsets_[d_numSegments_]*sizeof(result_type),
-                    cudaMemcpyDeviceToHost, resultCopyStream_);
+        cudaMemcpyAsync(h_queryResults_, d_queryResults_,
+                        h_resultOffsets_[d_numSegments_]*sizeof(result_type),
+                        cudaMemcpyDeviceToHost, resultCopyStream_);
+    }
 
     // cudaStreamSynchronize(stream_);
     // CUERR

@@ -838,12 +838,15 @@ public:
 
     //---------------------------------------------------------------
     void
-    query_gpu_async(query_batch<location>& queryBatch, taxon_rank lowestRank) const
+    query_gpu_async(query_batch<location>& queryBatch,
+                    bool copyAllHits,
+                    taxon_rank lowestRank) const
     {
         featureStoreGPU_.query_async(
             queryBatch,
             query_sketcher(),
             max_locations_per_feature(),
+            copyAllHits,
             lowestRank);
     }
 

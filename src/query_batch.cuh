@@ -127,7 +127,7 @@ public:
     void wait_for_queries_copied();
     //---------------------------------------------------------------
     /** @brief asynchronously compact, sort and copy results to host using stream_ */
-    void compact_sort_and_copy_results_async();
+    void compact_sort_and_copy_results_async(bool copyAllHits);
     //---------------------------------------------------------------
     /** @brief asynchronously generate and copy top candidates using stream_ */
     void generate_and_copy_top_candidates_async(
