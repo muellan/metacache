@@ -4,7 +4,7 @@
 - [Read Mapping Output Formatting](#read-mapping-output-formatting-options)
 - [Read Mapping Summary](#read-mapping-summary)
 - [Abundance Summary](#abundance-summary)
-- [Abundance Estimation On A Given Taxonomic Rank](#abundance-estimation-on-taxonomic-rank)
+- [Abundance Estimation With Respect To One Taxonomic Rank Only](#abundance-estimation-with-respect-to-one-taxonomic-rank-only)
 - [Overview Of Mapped-To Reference Genome Locations](#reference-hit-statistics)
 - [Ground Truth Based Evaluation](#ground-truth-based-evaluation)
 
@@ -140,13 +140,19 @@ sequence:NC_004722.1            | 226900  | 7     |  0.07%
 ...
 ```
 
+This table represents the raw abundances based on MetaCache's read mapping. As one can see from the example, taxa on any taxonomic rank/level are listed. To get a best estimate with respect to one specific taxonomic rank only, like e.g., species, use `-abundance-per <taxonomic rank>` (see next section). 
 
 
-## Abundance Estimation On Taxonomic Rank
+## Abundance Estimation With Respect To One Taxonomic Rank Only
 
 with command line option `-abundance-per <taxonomic rank>`. 
 
-If the raw abundance list (see above) is redirected to a dedicated file with `-abundances <filename>` then the estimation list is also written to the same file.
+This options shows a table with the estimated abundance for a specific taxonomic rank by re-processing the original read mappings in a second pass:
+
+For each taxon in the dataset the number of reads assigned to it is counted. Taxa on lower levels than the requested taxonomic rank are pruned and their read counts are added to their respective parents, while reads from taxa on higher levels are distributed among their children in proportion to the weights of the sub-trees rooted at each child. After the redistribution the estimated number of reads and abundance percentages are returned as outputs.
+
+If the raw abundance list (see previous section) is redirected to a dedicated file with `-abundances <filename>` then the estimation list is also written to the same file.
+
 
 #### Example Output: `abundance-per species`
 
@@ -253,7 +259,7 @@ V_cholerae_HiSeq.202496 |   Vibrio cholerae(666)    |   NC_002506.1(-16)
 ...
 ```
 
-Same with options `-precision -ground-truth -omit-ranks -taxids-only`:
+same with options `-precision -ground-truth -omit-ranks -taxids-only`:
 
 ```
 ...
