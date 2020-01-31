@@ -245,9 +245,8 @@ void gpu_hahstable_query(
     Hashtable hashtable,
     size_t probingLength,
     uint32_t numQueries,
-    const encodinglen_t  * encodeOffsets,
-    const encodedseq_t   * encodedSeq,
-    const encodedambig_t * encodedAmbig,
+    const encodinglen_t * sequenceOffsets,
+    const char * sequences,
     numk_t k,
     uint32_t sketchSize,
     uint32_t windowSize,
@@ -258,58 +257,99 @@ void gpu_hahstable_query(
     int         * resultCounts
 )
 {
+    using encodedseq_t = uint32_t;
+    using encodedambig_t = uint16_t;
+
     //each block processes one query (= one window)
-    for(size_t queryId = blockIdx.x; queryId < numQueries; queryId += gridDim.x) {
-        const encodinglen_t encodingLength = encodeOffsets[queryId+1] - encodeOffsets[queryId];
+    for(int queryId = blockIdx.x; queryId < numQueries; queryId += gridDim.x) {
+        const encodinglen_t sequenceLength = sequenceOffsets[queryId+1] - sequenceOffsets[queryId];
 
         //only process non-empty queries
-        if(encodingLength) {
+        if(sequenceLength) {
             typedef cub::BlockRadixSort<feature, BLOCK_THREADS, ITEMS_PER_THREAD> BlockRadixSortT;
+
+            constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
+            constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
+            constexpr uint8_t encodedBlocksPerWindow = 128 / ambigBits;
 
             __shared__ union {
                 typename BlockRadixSortT::TempStorage sort;
                 //TODO MAX_SKETCH_SIZE
                 uint64_t sketch[16];
+                struct {
+                    encodedseq_t seq[encodedBlocksPerWindow];
+                    encodedambig_t ambig[encodedBlocksPerWindow];
+                } encodedWindow;
             } tempStorage;
 
-            constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
-            constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
+            if(threadIdx.x < encodedBlocksPerWindow)
+                tempStorage.encodedWindow.ambig[threadIdx.x] = encodedambig_t(~0);
+
+            const char * sequenceBegin = sequences + sequenceOffsets[queryId];
+            const encodinglen_t sequenceLengthPadded = (sequenceLength+ambigBits-1) / ambigBits * ambigBits;
+            const int lane = ambigBits - threadIdx.x % ambigBits - 1;
+            constexpr int numSubwarps = BLOCK_THREADS / ambigBits;
+            const int subwarpId = threadIdx.x / ambigBits;
+            int blockCounter = subwarpId;
+            for(int tid = threadIdx.x; tid < sequenceLengthPadded; tid += BLOCK_THREADS) {
+                encodedseq_t seq = 0;
+                encodedambig_t ambig = 0;
+                const char c = (tid < sequenceLength) ? sequenceBegin[tid] : 'N';
+                switch(c) {
+                    case 'A': case 'a': break;
+                    case 'C': case 'c': seq |= 1; break;
+                    case 'G': case 'g': seq |= 2; break;
+                    case 'T': case 't': seq |= 3; break;
+                    default: ambig |= 1; break;
+                }
+                seq <<= 2*lane;
+                ambig <<= lane;
+
+                for(int stride = 1; stride < ambigBits; stride <<= 1) {
+                    seq   |= __shfl_xor_sync(0xFFFFFFFF, seq, stride);
+                    ambig |= __shfl_xor_sync(0xFFFFFFFF, ambig, stride);
+                }
+
+                if(lane == 0) {
+                    tempStorage.encodedWindow.seq[blockCounter]   = seq;
+                    tempStorage.encodedWindow.ambig[blockCounter] = ambig;
+                    // printf("query: %u tid: %d seq: %u ambig: %u\n", queryId, tid, seq, ambig);
+                }
+                blockCounter += numSubwarps;
+            }
 
             //letters stored from high to low bits
             //masks get highest bits
             const encodedseq_t   kmerMask  = encodedseq_t(~0) << (encBits - 2*k);
             const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - k);
 
-            const size_t last = encodingLength * ambigBits - k + 1;
-
-            const encodedseq_t   * const seq   = encodedSeq   + encodeOffsets[queryId];
-            const encodedambig_t * const ambig = encodedAmbig + encodeOffsets[queryId];
+            const size_t last = sequenceLength - k + 1;
 
             uint8_t numItems = 0;
-            //initialize thread local feature sotre
+            //initialize thread local feature store
             feature items[ITEMS_PER_THREAD];
             for(int i=0; i<ITEMS_PER_THREAD; ++i)
                 items[i] = feature(~0);
 
             //each thread extracts one feature
-            for(size_t tid  = threadIdx.x;
-                       tid  < last;
-                       tid += BLOCK_THREADS)
+            for(int tid  = threadIdx.x;
+                    tid  < last;
+                    tid += BLOCK_THREADS)
             {
                 const std::uint32_t  seq_slot    = tid / (ambigBits);
                 const std::uint8_t   kmer_slot   = tid & (ambigBits-1);
-                const encodedambig_t ambig_left  = ambig[seq_slot] << kmer_slot;
-                const encodedambig_t ambig_right = ambig[seq_slot+1] >> (ambigBits-kmer_slot);
+                const encodedambig_t ambig_left  = tempStorage.encodedWindow.ambig[seq_slot] << kmer_slot;
+                const encodedambig_t ambig_right = tempStorage.encodedWindow.ambig[seq_slot+1] >> (ambigBits-kmer_slot);
                 // cuda-memcheck save version
-                // const encodedambig_t ambig_right = kmer_slot ? ambig[seq_slot+1] >> (ambigBits-kmer_slot) : 0;
+                // const encodedambig_t ambig_right = kmer_slot ? tempStorage.encodedWindow.ambig[seq_slot+1] >> (ambigBits-kmer_slot) : 0;
 
                 //continue only if no bases ambiguous
                 if(!((ambig_left+ambig_right) & ambigMask))
                 {
-                    const encodedseq_t seq_left  = seq[seq_slot] << (2*kmer_slot);
-                    const encodedseq_t seq_right = seq[seq_slot+1] >> (encBits-(2*kmer_slot));
+                    const encodedseq_t seq_left  = tempStorage.encodedWindow.seq[seq_slot] << (2*kmer_slot);
+                    const encodedseq_t seq_right = tempStorage.encodedWindow.seq[seq_slot+1] >> (encBits-(2*kmer_slot));
                     // cuda-memcheck save version
-                    // const encodedseq_t seq_right = kmer_slot ? seq[seq_slot+1] >> (encBits-(2*kmer_slot)) : 0;
+                    // const encodedseq_t seq_right = kmer_slot ? tempStorage.encodedWindow.seq[seq_slot+1] >> (encBits-(2*kmer_slot)) : 0;
 
                     //get highest bits
                     kmer_type kmer = (seq_left+seq_right) & kmerMask;

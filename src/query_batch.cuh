@@ -59,16 +59,12 @@ public:
         return d_numQueries_;
     }
     //---------------------------------------------------------------
-    encodinglen_t * encode_offsets_device() const noexcept {
-        return d_encodeOffsets_;
+    encodinglen_t * sequence_offsets_device() const noexcept {
+        return d_sequenceOffsets_;
     }
     //---------------------------------------------------------------
-    encodedseq_t * encoded_seq_device() const noexcept {
-        return d_encodedSeq_;
-    }
-    //---------------------------------------------------------------
-    encodedambig_t * encoded_ambig_device() const noexcept {
-        return d_encodedAmbig_;
+    char * sequences_device() const noexcept {
+        return d_sequences_;
     }
     //---------------------------------------------------------------
     result_type * query_results_device() const noexcept {
@@ -136,72 +132,6 @@ public:
 
     /*************************************************************************//**
     *
-    * @brief add sequence to batch as windows of encoded characters
-    *        if sequence does not fit into batch, don't add it
-    *
-    * @detail each window of a sequence is added as a separate query
-    *
-    * @return true if added, false otherwise
-    *
-    *****************************************************************************/
-    template<class InputIterator>
-    bool add_read(
-        InputIterator first, InputIterator last,
-        const sketcher& querySketcher
-    ) {
-        const numk_t kmerSize = querySketcher.kmer_size();
-        const size_t windowSize = querySketcher.window_size();
-        const size_t windowStride = querySketcher.window_stride();
-
-        const size_t seqLength = std::distance(first, last);
-
-        // no kmers in sequence, nothing to do here
-        if(seqLength < kmerSize) return true;
-
-        const window_id numWindows = (seqLength-kmerSize + windowStride) / windowStride;
-
-        // batch full, nothing processed
-        if(h_numQueries_ + numWindows > maxQueries_) return false;
-
-        const auto availableBlocks = maxEncodeLength_ - h_encodeOffsets_[h_numQueries_];
-        constexpr auto lettersPerBlock = sizeof(encodedambig_t)*CHAR_BIT;
-        const auto blocksPerWindow = (windowSize-1) / lettersPerBlock + 1;
-        // batch full, nothing processed
-        if(availableBlocks < numWindows*blocksPerWindow) return false;
-
-        // insert sequence into batch as separate windows
-        for_each_window(first, last, windowSize, windowStride,
-            [&] (InputIterator first, InputIterator last) {
-                h_queryIds_[h_numQueries_] = h_numSegments_;
-                h_encodeOffsets_[h_numQueries_+1] = h_encodeOffsets_[h_numQueries_];
-
-                for_each_consecutive_substring_2bit<encodedseq_t>(first, last,
-                    [&, this] (encodedseq_t substring, encodedambig_t ambig) {
-                        auto& index = h_encodeOffsets_[h_numQueries_+1];
-                        h_encodedSeq_[index] = substring;
-                        h_encodedAmbig_[index] = ambig;
-                        ++index;
-                    });
-
-                ++h_numQueries_;
-            });
-
-        ++h_numSegments_;
-
-        return true;
-    }
-
-    //-----------------------------------------------------
-    template<class Sequence>
-    bool add_read(Sequence seq, const sketcher& querySketcher) {
-        using std::begin;
-        using std::end;
-
-        return add_read(begin(seq), end(seq), querySketcher);
-    }
-
-    /*************************************************************************//**
-    *
     * @brief add sequence pair to batch as windows of encoded characters
     *        if sequence pair does not fit into batch, don't add it
     *
@@ -233,7 +163,7 @@ public:
 
             // insert empty query
             h_queryIds_[h_numQueries_] = h_numSegments_;
-            h_encodeOffsets_[h_numQueries_+1] = h_encodeOffsets_[h_numQueries_];
+            h_sequenceOffsets_[h_numQueries_+1] = h_sequenceOffsets_[h_numQueries_];
 
             ++h_numQueries_;
             ++h_numSegments_;
@@ -246,27 +176,18 @@ public:
         // batch full, nothing processed
         if(h_numQueries_ + numWindows1 + numWindows2 > maxQueries_) return false;
 
-        const auto availableBlocks = maxEncodeLength_ - h_encodeOffsets_[h_numQueries_];
-        constexpr auto lettersPerBlock = sizeof(encodedambig_t)*CHAR_BIT;
-        const auto blocksPerWindow = (windowSize-1) / lettersPerBlock + 1;
+        const auto availableSize = maxSequenceLength_ - h_sequenceOffsets_[h_numQueries_];
         // batch full, nothing processed
-        if(availableBlocks < (numWindows1 + numWindows2)*blocksPerWindow) return false;
+        if(availableSize < (numWindows1 + numWindows2)*windowSize) return false;
 
         // insert first sequence into batch as separate windows
         for_each_window(first1, last1, windowSize, windowStride,
             [&] (InputIterator first, InputIterator last) {
-                if(distance(first, last) >= kmerSize) {
+                auto length = distance(first, last);
+                if(length >= kmerSize) {
                     h_queryIds_[h_numQueries_] = h_numSegments_;
-                    h_encodeOffsets_[h_numQueries_+1] = h_encodeOffsets_[h_numQueries_];
-
-                    for_each_consecutive_substring_2bit<encodedseq_t>(first, last,
-                        [&, this] (encodedseq_t substring, encodedambig_t ambig) {
-                            auto& index = h_encodeOffsets_[h_numQueries_+1];
-                            h_encodedSeq_[index] = substring;
-                            h_encodedAmbig_[index] = ambig;
-                            ++index;
-                        }
-                    );
+                    std::copy(first, last, h_sequences_+ h_sequenceOffsets_[h_numQueries_]);
+                    h_sequenceOffsets_[h_numQueries_+1] = h_sequenceOffsets_[h_numQueries_] + length;
 
                     ++h_numQueries_;
                 }
@@ -276,18 +197,11 @@ public:
         // insert second sequence into batch as separate windows
         for_each_window(first2, last2, windowSize, windowStride,
             [&] (InputIterator first, InputIterator last) {
-                if(distance(first, last) >= kmerSize) {
+                auto length = distance(first, last);
+                if(length >= kmerSize) {
                     h_queryIds_[h_numQueries_] = h_numSegments_;
-                    h_encodeOffsets_[h_numQueries_+1] = h_encodeOffsets_[h_numQueries_];
-
-                    for_each_consecutive_substring_2bit<encodedseq_t>(first, last,
-                        [&, this] (encodedseq_t substring, encodedambig_t ambig) {
-                            auto& index = h_encodeOffsets_[h_numQueries_+1];
-                            h_encodedSeq_[index] = substring;
-                            h_encodedAmbig_[index] = ambig;
-                            ++index;
-                        }
-                    );
+                    std::copy(first, last, h_sequences_+ h_sequenceOffsets_[h_numQueries_]);
+                    h_sequenceOffsets_[h_numQueries_+1] = h_sequenceOffsets_[h_numQueries_] + length;
 
                     ++h_numQueries_;
                 }
@@ -327,19 +241,17 @@ private:
     id_type d_numQueries_;
     id_type maxQueries_;
 
-    size_t maxEncodeLength_;
+    size_t maxSequenceLength_;
     size_t maxResultsPerQuery_;
     uint32_t maxCandidatesPerQuery_;
 
     id_type        * h_queryIds_;
     id_type        * d_queryIds_;
 
-    encodinglen_t  * h_encodeOffsets_;
-    encodinglen_t  * d_encodeOffsets_;
-    encodedseq_t   * h_encodedSeq_;
-    encodedseq_t   * d_encodedSeq_;
-    encodedambig_t * h_encodedAmbig_;
-    encodedambig_t * d_encodedAmbig_;
+    encodinglen_t  * h_sequenceOffsets_;
+    encodinglen_t  * d_sequenceOffsets_;
+    char           * h_sequences_;
+    char           * d_sequences_;
 
     window_id      * h_maxWindowsInRange_;
     window_id      * d_maxWindowsInRange_;

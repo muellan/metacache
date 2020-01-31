@@ -14,7 +14,7 @@ namespace mc {
 template<class result_type>
 query_batch<result_type>::query_batch(
     id_type maxQueries,
-    size_t maxEncodeLength,
+    size_t maxSequenceLength,
     size_t maxResultsPerQuery,
     uint32_t maxCandidatesPerQuery
 ) :
@@ -23,26 +23,23 @@ query_batch<result_type>::query_batch(
     h_numQueries_{0},
     d_numQueries_{0},
     maxQueries_{maxQueries},
-    maxEncodeLength_{maxEncodeLength},
+    maxSequenceLength_{maxSequenceLength},
     maxResultsPerQuery_{maxResultsPerQuery},
     maxCandidatesPerQuery_{maxCandidatesPerQuery}
 {
     //TODO reuse/combine device arrays:
-    // d_encodeOffsets_ + d_resultOffsets_
+    // d_sequenceOffsets_ + d_resultOffsets_
 
-    if(maxQueries_ && maxEncodeLength_ && maxResultsPerQuery_) {
+    if(maxQueries_ && maxSequenceLength_ && maxResultsPerQuery_) {
         cudaMallocHost(&h_queryIds_, maxQueries_*sizeof(id_type));
         cudaMalloc    (&d_queryIds_, maxQueries_*sizeof(id_type));
 
-        cudaMallocHost(&h_encodeOffsets_, (maxQueries_+1)*sizeof(encodinglen_t));
-        cudaMalloc    (&d_encodeOffsets_, (maxQueries_+1)*sizeof(encodinglen_t));
-        h_encodeOffsets_[0] = 0;
+        cudaMallocHost(&h_sequenceOffsets_, (maxQueries_+1)*sizeof(encodinglen_t));
+        cudaMalloc    (&d_sequenceOffsets_, (maxQueries_+1)*sizeof(encodinglen_t));
+        h_sequenceOffsets_[0] = 0;
 
-        cudaMallocHost(&h_encodedSeq_, maxEncodeLength_*sizeof(encodedseq_t));
-        cudaMalloc    (&d_encodedSeq_, maxEncodeLength_*sizeof(encodedseq_t));
-
-        cudaMallocHost(&h_encodedAmbig_, maxEncodeLength_*sizeof(encodedambig_t));
-        cudaMalloc    (&d_encodedAmbig_, maxEncodeLength_*sizeof(encodedambig_t));
+        cudaMallocHost(&h_sequences_, maxSequenceLength_*sizeof(char));
+        cudaMalloc    (&d_sequences_, maxSequenceLength_*sizeof(char));
 
         cudaMallocHost(&h_queryResults_, maxQueries_*maxResultsPerQuery_*sizeof(result_type));
         cudaMalloc    (&d_queryResults_, maxQueries_*maxResultsPerQuery_*sizeof(result_type));
@@ -81,18 +78,15 @@ template<class result_type>
 query_batch<result_type>::~query_batch() {
     CUERR
 
-    if(maxQueries_ && maxEncodeLength_ && maxResultsPerQuery_) {
+    if(maxQueries_ && maxSequenceLength_ && maxResultsPerQuery_) {
         cudaFreeHost(h_queryIds_);
         cudaFree    (d_queryIds_);
 
-        cudaFreeHost(h_encodeOffsets_);
-        cudaFree    (d_encodeOffsets_);
+        cudaFreeHost(h_sequenceOffsets_);
+        cudaFree    (d_sequenceOffsets_);
 
-        cudaFreeHost(h_encodedSeq_);
-        cudaFree    (d_encodedSeq_);
-
-        cudaFreeHost(h_encodedAmbig_);
-        cudaFree    (d_encodedAmbig_);
+        cudaFreeHost(h_sequences_);
+        cudaFree    (d_sequences_);
 
         cudaFreeHost(h_queryResults_);
         cudaFree    (d_queryResults_);
@@ -135,14 +129,11 @@ void query_batch<result_type>::copy_queries_to_device_async() {
     cudaMemcpyAsync(d_queryIds_, h_queryIds_,
                     d_numQueries_*sizeof(id_type),
                     cudaMemcpyHostToDevice, stream_);
-    cudaMemcpyAsync(d_encodeOffsets_, h_encodeOffsets_,
+    cudaMemcpyAsync(d_sequenceOffsets_, h_sequenceOffsets_,
                     (d_numQueries_+1)*sizeof(encodinglen_t),
                     cudaMemcpyHostToDevice, stream_);
-    cudaMemcpyAsync(d_encodedSeq_, h_encodedSeq_,
-                    h_encodeOffsets_[d_numQueries_]*sizeof(encodedseq_t),
-                    cudaMemcpyHostToDevice, stream_);
-    cudaMemcpyAsync(d_encodedAmbig_, h_encodedAmbig_,
-                    h_encodeOffsets_[d_numQueries_]*sizeof(encodedambig_t),
+    cudaMemcpyAsync(d_sequences_, h_sequences_,
+                    h_sequenceOffsets_[d_numQueries_]*sizeof(char),
                     cudaMemcpyHostToDevice, stream_);
     cudaMemcpyAsync(d_maxWindowsInRange_, h_maxWindowsInRange_,
                     d_numSegments_*sizeof(window_id),
