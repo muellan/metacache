@@ -122,7 +122,7 @@ public:
                             validate();
                         }
                         else {
-                            std::this_thread::sleep_for(std::chrono::milliseconds{10});
+                            std::this_thread::sleep_for(std::chrono::milliseconds{1});
                         }
                     }
                     param_.finalize_();
@@ -184,7 +184,7 @@ public:
             // get new batch storage
             if(!workers_.empty()) {
                 while(!storageQueue_.try_dequeue(currentBatch_)) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+                    std::this_thread::sleep_for(std::chrono::milliseconds{1});
                 }
             }
             // make sure batch has the desired size
