@@ -12,6 +12,36 @@ namespace mc {
 
 //---------------------------------------------------------------
 template<class result_type>
+class query_batch<result_type>::segmented_sort
+{
+    using result_type_equivalent = uint64_t;
+
+    static_assert(sizeof(result_type) == sizeof(result_type_equivalent), "result_type must be 64 bit");
+
+public:
+    segmented_sort(
+        result_type_equivalent *d_keys, result_type_equivalent *d_keysB,
+        const int *d_segs,
+        int *d_bin_segs_id, int *d_bin_counter,
+        cudaStream_t stream)
+    :
+        sorter_(d_keys, d_keysB,
+            d_segs, d_bin_segs_id, d_bin_counter,
+            stream)
+    {}
+
+    void run(int num_segs, cudaStream_t stream) const {
+        sorter_.run(num_segs, stream);
+    }
+
+private:
+    bb_segsort_keys<result_type_equivalent> sorter_;
+};
+
+
+
+//---------------------------------------------------------------
+template<class result_type>
 query_batch<result_type>::query_batch(
     id_type maxQueries,
     size_t maxSequenceLength,
@@ -72,6 +102,17 @@ query_batch<result_type>::query_batch(
     cudaEventCreate(&offsetsCopiedEvent_);
     cudaEventCreate(&resultReadyEvent_);
     CUERR
+
+    using result_type_equivalent = uint64_t;
+
+    static_assert(sizeof(result_type) == sizeof(result_type_equivalent), "result_type must be 64 bit");
+
+    sorter_ = std::make_unique<segmented_sort>(
+        (result_type_equivalent*)(d_queryResultsTmp_),
+        (result_type_equivalent*)(d_queryResults_),
+        d_resultOffsets_,
+        d_binnedSegIds_, d_segBinCounters_,
+        stream_);
 }
 //---------------------------------------------------------------
 template<class result_type>
@@ -169,65 +210,58 @@ void query_batch<result_type>::sync_result_stream() {
 
 //---------------------------------------------------------------
 template<class result_type>
-void query_batch<result_type>::compact_sort_and_copy_results_async(bool copyAllHits) {
+void query_batch<result_type>::compact_results_async() {
 
-    {
-        size_t tempStorageBytes = maxQueries_*maxResultsPerQuery_*sizeof(result_type);
-        void * d_tempStorage = (void*)(d_queryResultsTmp_);
+    size_t tempStorageBytes = maxQueries_*maxResultsPerQuery_*sizeof(result_type);
+    void * d_tempStorage = (void*)(d_queryResultsTmp_);
 
-        // std::cout << "temp size: " << tempStorageBytes << std::endl;
+    cudaError_t err = cub::DeviceScan::InclusiveSum(
+        d_tempStorage, tempStorageBytes,
+        d_resultCounts_, d_resultCounts_,
+        d_numQueries_,
+        stream_
+    );
+    // cudaStreamSynchronize(stream_);
+    // CUERR
 
-        int numItems = d_numQueries_;
-        // size_t tempStorageBytes = 767;
-        cudaError_t err = cub::DeviceScan::InclusiveSum(
-            d_tempStorage, tempStorageBytes,
-            d_resultCounts_, d_resultCounts_,
-            numItems,
-            stream_
-        );
-
-        // cudaStreamSynchronize(stream_);
-        // CUERR
-
-        if (err != cudaSuccess) {                       \
-            std::cout << "CUDA error: " << cudaGetErrorString(err) << " : "    \
-                    << __FILE__ << ", line " << __LINE__ << std::endl;       \
-            exit(1);                                                           \
-        }
-
-        compact_kernel<<<d_numQueries_,32,0,stream_>>>(
-            d_numQueries_,
-            d_resultCounts_,
-            maxResultsPerQuery_,
-            d_queryResults_,
-            d_queryResultsTmp_,
-            d_queryIds_,
-            d_resultOffsets_
-        );
-
-        if(copyAllHits) {
-            cudaEventRecord(resultReadyEvent_, stream_);
-            cudaStreamWaitEvent(resultCopyStream_, resultReadyEvent_, 0);
-
-            cudaMemcpyAsync(h_resultOffsets_, d_resultOffsets_,
-                           (d_numSegments_+1)*sizeof(int),
-                           cudaMemcpyDeviceToHost, resultCopyStream_);
-        }
-
-        // cudaStreamSynchronize(stream_);
-        // CUERR
+    if (err != cudaSuccess) {                       \
+        std::cout << "CUDA error: " << cudaGetErrorString(err) << " : "    \
+        << __FILE__ << ", line " << __LINE__ << std::endl;       \
+        exit(1);                                                           \
     }
 
-    using result_type_equivalent = uint64_t;
+    compact_kernel<<<d_numQueries_,32,0,stream_>>>(
+        d_numQueries_,
+        d_resultCounts_,
+        maxResultsPerQuery_,
+        d_queryResults_,
+        d_queryResultsTmp_,
+        d_queryIds_,
+        d_resultOffsets_);
+    // cudaStreamSynchronize(stream_);
+    // CUERR
+}
 
-    static_assert(sizeof(result_type) == sizeof(result_type_equivalent), "result_type must be 64 bit");
 
-    bb_segsort_run(
-        (result_type_equivalent*)(d_queryResultsTmp_),
-        (result_type_equivalent*)(d_queryResults_),
-        d_resultOffsets_, d_binnedSegIds_, d_numSegments_,
-        h_segBinCounters_, d_segBinCounters_,
-        stream_, offsetsCopiedEvent_);
+
+//---------------------------------------------------------------
+template<class result_type>
+void query_batch<result_type>::compact_sort_and_copy_results_async(bool copyAllHits)
+{
+    compact_results_async();
+
+    if(copyAllHits) {
+        cudaEventRecord(resultReadyEvent_, stream_);
+        cudaStreamWaitEvent(resultCopyStream_, resultReadyEvent_, 0);
+
+        cudaMemcpyAsync(h_resultOffsets_, d_resultOffsets_,
+                        (d_numSegments_+1)*sizeof(int),
+                        cudaMemcpyDeviceToHost, resultCopyStream_);
+    }
+    // cudaStreamSynchronize(stream_);
+    // CUERR
+
+    sorter_->run(d_numSegments_, stream_);
 
     if(copyAllHits) {
         cudaEventRecord(offsetsCopiedEvent_, resultCopyStream_);
@@ -241,7 +275,6 @@ void query_batch<result_type>::compact_sort_and_copy_results_async(bool copyAllH
                         h_resultOffsets_[d_numSegments_]*sizeof(result_type),
                         cudaMemcpyDeviceToHost, resultCopyStream_);
     }
-
     // cudaStreamSynchronize(stream_);
     // CUERR
 }

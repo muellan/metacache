@@ -8,7 +8,7 @@ WARNINGS     = -Xcompiler="-Wall -Wextra -Wpedantic"
 WARNINGS_NP  = -Xcompiler="-Wall -Wextra"
 OPTIMIZATION = -O3
 #-march native -fomit-frame-pointer
-NVCC_FLAGS  = -arch=sm_61 -lineinfo --expt-relaxed-constexpr
+NVCC_FLAGS  = -arch=sm_61 -lineinfo --expt-relaxed-constexpr -rdc=true
 
 REL_FLAGS   = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) $(WARNINGS)
 DBG_FLAGS   = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) -O0 -g $(WARNINGS)
@@ -18,9 +18,9 @@ REL_FLAGS_NP = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) $(
 DBG_FLAGS_NP = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) -O0 -g $(WARNINGS_NP)
 PRF_FLAGS_NP = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) -g $(WARNINGS_NP)
 
-REL_LDFLAGS  = -Xcompiler="-pthread -s"
-DBG_LDFLAGS  = -Xcompiler="-pthread"
-PRF_LDFLAGS  = -Xcompiler="-pthread"
+REL_LDFLAGS  = -Xcompiler="-pthread -s"  $(NVCC_FLAGS)
+DBG_LDFLAGS  = -Xcompiler="-pthread"  $(NVCC_FLAGS)
+PRF_LDFLAGS  = -Xcompiler="-pthread"  $(NVCC_FLAGS)
 
 
 #--------------------------------------------------------------------

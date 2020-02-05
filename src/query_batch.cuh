@@ -2,6 +2,7 @@
 #define MC_QUERY_BATCH_H_
 
 #include <functional>
+#include <memory>
 
 #include "cuda_runtime.h"
 
@@ -28,6 +29,8 @@ class query_batch
 
     using taxon_rank     = taxonomy::rank;
     using ranked_lineage = taxonomy::ranked_lineage;
+
+    class segmented_sort;
 
 public:
     //---------------------------------------------------------------
@@ -120,8 +123,13 @@ public:
     //---------------------------------------------------------------
     /** @brief asynchronously copy queries to device using stream_ */
     void copy_queries_to_device_async();
+    //-----------------------------------------------------
     void wait_for_queries_copied();
+private:
     //---------------------------------------------------------------
+    void compact_results_async();
+public:
+    //-----------------------------------------------------
     /** @brief asynchronously compact, sort and copy results to host using stream_ */
     void compact_sort_and_copy_results_async(bool copyAllHits);
     //---------------------------------------------------------------
@@ -270,6 +278,8 @@ private:
 
     match_candidate * h_topCandidates_;
     match_candidate * d_topCandidates_;
+
+    std::unique_ptr<segmented_sort> sorter_;
 
     cudaStream_t stream_;
     cudaStream_t resultCopyStream_;
