@@ -442,7 +442,7 @@ public:
         hash_{}, keyEqual_{}, alloc_{valloc},
         buckets_{kalloc}
     {
-        buckets_.resize(1019);
+        buckets_.resize(1500007);
     }
 
     //-----------------------------------------------------
@@ -457,7 +457,7 @@ public:
         hash_{}, keyEqual_{keyComp}, alloc_{valloc},
         buckets_{kalloc}
     {
-        buckets_.resize(1019);
+        buckets_.resize(1500007);
     }
 
     //-----------------------------------------------------
@@ -473,10 +473,26 @@ public:
         hash_{hash}, keyEqual_{keyComp}, alloc_{valloc},
         buckets_{kalloc}
     {
-        buckets_.resize(1019);
+        buckets_.resize(1500007);
     }
 
+private:
+    //---------------------------------------------------------------
+    explicit
+    hash_multimap(size_type numKeys,
+                  const value_allocator& valloc = value_allocator{},
+                  const bucket_allocator& kalloc = bucket_allocator{})
+    :
+        numKeys_(0), numValues_(0),
+        batchSize_(default_batch_size()),
+        maxLoadFactor_(default_max_load_factor()),
+        hash_{}, keyEqual_{}, alloc_{valloc},
+        buckets_{kalloc}
+    {
+        buckets_.resize(numKeys);
+    }
 
+public:
     //-------------------------------------------------------------------
     hash_multimap(const hash_multimap& src):
         numKeys_(0), numValues_(0),
@@ -620,10 +636,9 @@ public:
         if(!rehash_possible(n)) return false;
 
         //make temporary new map
-        hash_multimap newmap{};
+        //buckets resize might throw
+        hash_multimap newmap{n};
         newmap.maxLoadFactor_ = maxLoadFactor_;
-        //this might throw
-        newmap.buckets_.resize(n);
 
         //move old bucket contents into new hash slots
         //this should use only non-throwing operations

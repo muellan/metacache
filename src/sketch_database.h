@@ -50,8 +50,7 @@
 #include "dna_encoding.h"
 #include "typename.h"
 
-#include "../dep/queue/readerwriterqueue.h"
-
+#include "batch_processing.h"
 
 namespace mc {
 
@@ -174,8 +173,6 @@ public:
 
 
 private:
-    static constexpr std::size_t insert_batch_size() noexcept { return 10000; };
-
     //use negative numbers for sequence level taxon ids
     static constexpr taxon_id
     taxon_id_of_target(target_id id) noexcept { return -taxon_id(id)-1; }
@@ -206,7 +203,6 @@ private:
     };
 
     using sketch_batch = std::vector<window_sketch>;
-    using sketch_queue = moodycamel::BlockingReaderWriterQueue<sketch_batch>;
 
 
 public:
@@ -286,10 +282,7 @@ public:
         ranksCache_{taxa_, taxon_rank::Sequence},
         targetLineages_{taxa_},
         name2tax_{},
-        batch_{},
-        queue_(10),
-        sketchingDone_{true},
-        inserterThread_{}
+        inserter_{}
     {
         features_.max_load_factor(default_max_load_factor());
     }
@@ -305,19 +298,14 @@ public:
         ranksCache_{std::move(other.ranksCache_)},
         targetLineages_{std::move(other.targetLineages_)},
         name2tax_{std::move(other.name2tax_)},
-        batch_{std::move(other.batch_)},
-        queue_{std::move(other.queue_)},
-        sketchingDone_(other.sketchingDone_.load()),
-        inserterThread_{std::move(other.inserterThread_)}
+        inserter_{std::move(other.inserter_)}
     {}
 
     database& operator = (const database&) = delete;
     database& operator = (database&&)      = default;
 
     ~database() {
-        if(inserterThread_ && inserterThread_->valid()) {
-            inserterThread_->get();
-        }
+        wait_until_add_target_complete();
     }
 
 
@@ -1012,42 +1000,32 @@ public:
 
     //---------------------------------------------------------------
     void wait_until_add_target_complete() {
-        enqueue_insertion_of_sketch_batch();
-        sketchingDone_.store(true);
-        if(inserterThread_ && inserterThread_->valid()) {
-            inserterThread_->get();
-        }
+        // destroy inserter
+        inserter_ = nullptr;
     }
 
 
     //---------------------------------------------------------------
     bool add_target_failed() {
-        if(!inserterThread_) return false;
-
-        if(inserterThread_->valid()) {
-            auto status = inserterThread_->wait_for(std::chrono::minutes::zero());
-            if(status == std::future_status::timeout) return false;
-        }
-        return true;
+        return (inserter_) && (!inserter_->valid());
     }
 
 
 private:
     //---------------------------------------------------------------
-    window_id add_all_window_sketches(const sequence& seq, target_id tgt)
-    {
+    window_id add_all_window_sketches(const sequence& seq, target_id tgt) {
+        if(!inserter_) make_sketch_inserter();
+
         window_id win = 0;
         targetSketcher_.for_each_sketch(seq,
             [&, this] (auto sk) {
-                //insert sketch into batch
-                batch_.emplace_back(tgt, win, std::move(sk));
-
-                //enqueue full batch and reset
-                if(batch_.size() >= insert_batch_size()) {
-                    this->enqueue_insertion_of_sketch_batch();
-                    batch_.clear();
+                if(inserter_->valid()) {
+                    //insert sketch into batch
+                    auto& sketch = inserter_->next_item();
+                    sketch.tgt = tgt;
+                    sketch.win = win;
+                    sketch.sk = std::move(sk);
                 }
-
                 ++win;
             });
         return win;
@@ -1070,36 +1048,18 @@ private:
 
 
     //---------------------------------------------------------------
-    void spawn_sketch_inserter() {
-        if(inserterThread_) return;
+    void make_sketch_inserter() {
+        batch_processing_options execOpt;
+        execOpt.batch_size(1000);
+        execOpt.queue_size(100);
+        execOpt.concurrency(1);
 
-        inserterThread_ = std::make_unique<std::future<void>>(
-            std::async(std::launch::async, [&]() {
-                sketch_batch batch;
-
-                while(!sketchingDone_.load() || queue_.peek()) {
-                    if(queue_.wait_dequeue_timed(batch, std::chrono::milliseconds(10))) {
-                        add_sketch_batch(batch);
-                    }
-                }
-
-            })
-        );
+        inserter_ = std::make_unique<batch_executor<window_sketch>>( execOpt,
+            [&](int, const auto& batch) {
+                add_sketch_batch(batch);
+            });
     }
 
-
-    //---------------------------------------------------------------
-    void enqueue_insertion_of_sketch_batch() {
-        if(batch_.empty()) return;
-
-        if(sketchingDone_.load()) {
-            sketchingDone_.store(false);
-            spawn_sketch_inserter();
-        }
-
-        //allow queue to grow
-        queue_.enqueue(batch_);
-    }
 
 
     /*************************************************************************//**
@@ -1194,10 +1154,7 @@ private:
     mutable ranked_lineages_of_targets targetLineages_;
     std::map<taxon_name,const taxon*> name2tax_;
 
-    sketch_batch batch_;
-    sketch_queue queue_;
-    std::atomic_bool sketchingDone_;
-    std::unique_ptr<std::future<void>> inserterThread_;
+    std::unique_ptr<batch_executor<window_sketch>> inserter_;
 };
 
 
