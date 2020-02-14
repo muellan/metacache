@@ -67,24 +67,29 @@ using std::endl;
  *****************************************************************************/
 void rank_targets_with_mapping_file(database& db,
                                     std::set<const taxon*>& targetTaxa,
-                                    const string& mappingFile)
+                                    const string& mappingFile,
+                                    info_level infoLvl)
 {
+    const bool showInfo = infoLvl != info_level::silent;
+
     if(targetTaxa.empty()) return;
 
     std::ifstream is {mappingFile};
     if(!is.good()) return;
 
     const auto fsize = file_size(mappingFile);
-    bool showProgress = fsize > 100000000;
+
+    if(showInfo) {
+        cout << "Try to map sequences to taxa using '" << mappingFile
+             << "' (" << std::max(std::streamoff(1),
+                                 fsize/(1024*1024)) << " MB)" << endl;
+    }
+
+    bool showProgress = showInfo && fsize > 100000000;
     //accession2taxid files have 40-450M lines
     //update progress indicator every 1M lines
     size_t step = 0;
     size_t statStep = 1UL << 20;
-
-    cout << "Try to map sequences to taxa using '" << mappingFile
-         << "' (" << std::max(std::streamoff(1),
-                              fsize/(1024*1024)) << " MB)" << endl;
-
     if(showProgress) show_progress_indicator(cout, 0);
 
     string acc;
@@ -185,7 +190,7 @@ void try_to_rank_unranked_targets(database& db, const build_options& opt)
         }
 
         for(const auto& file : opt.taxonomy.mappingPostFiles) {
-            rank_targets_with_mapping_file(db, unranked, file);
+            rank_targets_with_mapping_file(db, unranked, file, opt.infoLevel);
             if(unranked.empty()) break;
         }
     }
