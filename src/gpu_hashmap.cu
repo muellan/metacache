@@ -144,6 +144,8 @@ public:
             batch.query_results_device(),
             batch.result_counts_device()
         );
+        // batch.sync_streams();
+        // CUERR
 
         batch.compact_sort_and_copy_results_async(copyAllHits);
 

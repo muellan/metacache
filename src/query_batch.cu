@@ -258,10 +258,12 @@ void query_batch<result_type>::compact_sort_and_copy_results_async(bool copyAllH
                         (d_numSegments_+1)*sizeof(int),
                         cudaMemcpyDeviceToHost, resultCopyStream_);
     }
-    // cudaStreamSynchronize(stream_);
+    // cudaStreamSynchronize(resultCopyStream_);
     // CUERR
 
     sorter_->run(d_numSegments_, stream_);
+    // cudaStreamSynchronize(stream_);
+    // CUERR
 
     if(copyAllHits) {
         cudaEventRecord(offsetsCopiedEvent_, resultCopyStream_);
@@ -275,7 +277,7 @@ void query_batch<result_type>::compact_sort_and_copy_results_async(bool copyAllH
                         h_resultOffsets_[d_numSegments_]*sizeof(result_type),
                         cudaMemcpyDeviceToHost, resultCopyStream_);
     }
-    // cudaStreamSynchronize(stream_);
+    // cudaStreamSynchronize(resultCopyStream_);
     // CUERR
 }
 
@@ -314,7 +316,7 @@ void query_batch<result_type>::generate_and_copy_top_candidates_async(
                     d_numSegments_*maxCandidatesPerQuery_*sizeof(match_candidate),
                     cudaMemcpyDeviceToHost, resultCopyStream_);
 
-    // cudaStreamSynchronize(stream_);
+    // cudaStreamSynchronize(resultCopyStream_);
     // CUERR
 }
 
