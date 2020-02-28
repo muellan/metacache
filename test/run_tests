@@ -33,14 +33,18 @@ if [ $# -ge 1 ]; then
   fi
 fi
 
-mkdir results
+mkdir -pv results
 
 
 # ---------------------------------------------------------
 # extract test data
 # ---------------------------------------------------------
-tar zxvf data.tar.gz
-tar zxvf taxonomy.tar.gz
+if [ ! -d data ]; then
+  tar zxvf data.tar.gz
+fi
+if [ ! -d taxonomy ]; then
+  tar zxvf taxonomy.tar.gz
+fi
 
 
 # ---------------------------------------------------------

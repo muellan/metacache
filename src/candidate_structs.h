@@ -69,6 +69,19 @@ struct window_range
 
     constexpr window_id size()  const noexcept { return end - beg + 1; }
 
+    friend bool
+    operator < (const window_range& a, const window_range& b) noexcept {
+        if(a.beg < b.beg) return true;
+        if(a.beg > b.beg) return false;
+        return (a.end < b.end);
+    }
+    friend bool
+    operator > (const window_range& a, const window_range& b) noexcept {
+        if(a.beg > b.beg) return true;
+        if(a.beg < b.beg) return false;
+        return (a.end > b.end);
+    }
+
     window_id beg = 0;
     window_id end = 0;
 };

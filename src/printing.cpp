@@ -393,7 +393,7 @@ void show_matches_per_targets(std::ostream& os,
     os << opt.tokens.comment << "TABLE_LAYOUT: "
        << " sequence " << opt.tokens.column
        << " windows_in_sequence " << opt.tokens.column
-       << "queryid/window_index:hits/window_index:hits/...,queryid/...\n";
+       << "queryid/first_window_index+additional_windows:hits,queryid/...\n";
 
     const auto rmin = taxon_rank::Sequence;
     const auto rmax = opt.showLineage ? opt.highestRank : rmin;
@@ -406,11 +406,10 @@ void show_matches_per_targets(std::ostream& os,
         bool first = true;
         for(const auto& candidate : mapping.second) {
             if(first) first = false; else os << ',';
-            os << candidate.qeryid;
-            // windows with hit count
-            for(const auto& match : candidate.matches) {
-                os << '/' << match.win << ':' << match.hits;
-            }
+            os << candidate.qid << '/'
+               << candidate.pos.beg << '+'
+               << (candidate.pos.end-candidate.pos.beg) << ':'
+               << candidate.hits;
         }
         os << '\n';
     }

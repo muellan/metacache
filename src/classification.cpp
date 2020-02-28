@@ -607,9 +607,8 @@ void filter_targets_by_coverage(
         const window_id targetSize = tax->source().windows;
         std::unordered_set<window_id> hitWindows;
         for(const auto& candidate : mapping.second) {
-            for(const auto& windowMatch : candidate.matches) {
-                hitWindows.emplace(windowMatch.win);
-            }
+            for(window_id win = candidate.pos.beg; win <= candidate.pos.end; ++win)
+                hitWindows.emplace(win);
         }
         const float covP = float(hitWindows.size()) / targetSize;
         coveragePercentagesSum += covP;
@@ -774,7 +773,7 @@ void map_queries_to_targets_default(
         if(opt.output.analysis.showHitsPerTargetList || opt.classify.covPercentile > 0) {
             //insert all candidates with at least 'hitsMin' hits into
             //target -> match list
-            buf.hitsPerTarget.insert(query.id, allhits, cls.candidates,
+            buf.hitsPerTarget.insert(query.id, cls.candidates,
                                      opt.classify.hitsMin);
         }
 

@@ -200,9 +200,7 @@ query_id query_batched(
     std::vector<database::matches_sorter> targetMatches(opt.performance.numThreads -
                                                         (opt.performance.numThreads > 1));
 #else
-    bool copyAllHits = opt.output.analysis.showAllHits
-                    || opt.output.analysis.showHitsPerTargetList
-                    || opt.classify.covPercentile > 0;
+    bool copyAllHits = opt.output.analysis.showAllHits;
 
     std::mutex scheduleMtx;
 
