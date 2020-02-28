@@ -259,6 +259,21 @@ void gpu_hahstable_query(
 {
     using encodedseq_t = uint32_t;
     using encodedambig_t = uint16_t;
+    using BlockRadixSortT = cub::BlockRadixSort<feature, BLOCK_THREADS, ITEMS_PER_THREAD>;
+
+    constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
+    constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
+    constexpr uint8_t encodedBlocksPerWindow = 128 / ambigBits;
+
+    __shared__ union {
+        typename BlockRadixSortT::TempStorage sort;
+        //TODO MAX_SKETCH_SIZE
+        uint64_t sketch[16];
+        struct {
+            encodedseq_t seq[encodedBlocksPerWindow];
+            encodedambig_t ambig[encodedBlocksPerWindow];
+        } encodedWindow;
+    } tempStorage;
 
     //each block processes one query (= one window)
     for(int queryId = blockIdx.x; queryId < numQueries; queryId += gridDim.x) {
@@ -266,27 +281,12 @@ void gpu_hahstable_query(
 
         //only process non-empty queries
         if(sequenceLength) {
-            typedef cub::BlockRadixSort<feature, BLOCK_THREADS, ITEMS_PER_THREAD> BlockRadixSortT;
-
-            constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
-            constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
-            constexpr uint8_t encodedBlocksPerWindow = 128 / ambigBits;
-
-            __shared__ union {
-                typename BlockRadixSortT::TempStorage sort;
-                //TODO MAX_SKETCH_SIZE
-                uint64_t sketch[16];
-                struct {
-                    encodedseq_t seq[encodedBlocksPerWindow];
-                    encodedambig_t ambig[encodedBlocksPerWindow];
-                } encodedWindow;
-            } tempStorage;
-
             if(threadIdx.x < encodedBlocksPerWindow)
                 tempStorage.encodedWindow.ambig[threadIdx.x] = encodedambig_t(~0);
+            __syncthreads();
 
             const char * sequenceBegin = sequences + sequenceOffsets[queryId];
-            const encodinglen_t sequenceLengthPadded = (sequenceLength+ambigBits-1) / ambigBits * ambigBits;
+            const encodinglen_t sequenceLengthPadded = (sequenceLength+BLOCK_THREADS-1) / BLOCK_THREADS * BLOCK_THREADS;
             const int lane = ambigBits - threadIdx.x % ambigBits - 1;
             constexpr int numSubwarps = BLOCK_THREADS / ambigBits;
             const int subwarpId = threadIdx.x / ambigBits;
@@ -317,6 +317,7 @@ void gpu_hahstable_query(
                 }
                 blockCounter += numSubwarps;
             }
+            __syncthreads();
 
             //letters stored from high to low bits
             //masks get highest bits
@@ -365,6 +366,7 @@ void gpu_hahstable_query(
                 //     printf("ambiguous\n");
                 // }
             }
+            __syncthreads();
 
             BlockRadixSortT(tempStorage.sort).SortBlockedToStriped(items);
 
@@ -395,6 +397,7 @@ void gpu_hahstable_query(
 
                 kmerCounter += count;
             }
+            __syncthreads();
 
             //cap kmer count
             kmerCounter = min(kmerCounter, sketchSize);
@@ -411,17 +414,11 @@ void gpu_hahstable_query(
                 //if key not found valuesOffset stays 0
                 const auto status = hashtable.retrieve(tempStorage.sketch[gid], valuesOffset, group, probingLength);
 
-
                 if(group.thread_rank() == 0) {
-                    tempStorage.sketch[gid] = valuesOffset;
-
-                    //if key not found numValues = 0
-                    // bucket_size_type numValues = bucket_size_type(valuesOffset);
-                    // valuesOffset >>= sizeof(bucket_size_type)*CHAR_BIT;
-
                     // printf("status %d\n", status.has_any());
                     // printf("status %d\n", status.has_key_not_found());
-                    // printf("status %d offset: %llu numValues: %d\n", status.has_any(), valuesOffset, uint32_t(numValues));
+
+                    tempStorage.sketch[gid] = valuesOffset;
                 }
             }
             __syncthreads();
@@ -449,6 +446,8 @@ void gpu_hahstable_query(
                 //store number of results of this query
                 resultCounts[queryId] = totalNumValues;
             }
+
+            __syncthreads();
         }
     }
 }
