@@ -197,7 +197,7 @@ query_id query_batched(
     std::vector<std::unique_ptr<query_batch<location>>> gpuBatches(opt.process.numThreads);
 
     // get executor that runs classification in batches
-    batch_processing_options execOpt;
+    batch_processing_options<sequence_query> execOpt;
     execOpt.concurrency(opt.process.numThreads - 1);
     execOpt.batch_size(opt.process.batchSize);
     execOpt.queue_size(opt.process.numThreads > 1 ? opt.process.numThreads + 4 : 0);

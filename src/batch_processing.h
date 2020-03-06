@@ -19,13 +19,15 @@ template<class WorkItem> class batch_executor;
  * @brief configuration for batch_executor
  *
  *****************************************************************************/
+template<class WorkItem>
 class batch_processing_options {
 public:
-    template<class T> friend class batch_executor;
+    friend class batch_executor<WorkItem>;
 
     using error_handler   = std::function<void(std::exception&)>;
     using abort_condition = std::function<bool()>;
     using finalizer       = std::function<void()>;
+    using item_measure    = std::function<size_t(const WorkItem&)>;
 
     batch_processing_options():
         numWorkers_{0},
@@ -33,7 +35,8 @@ public:
         batchSize_{1},
         handleErrors_{[](std::exception&){}},
         abortRequested_{[]{ return false; }},
-        finalize_{[]{}}
+        finalize_{[]{}},
+        measureWorkItem_{[](const WorkItem&){ return 1; }}
     {}
 
     int concurrency()        const noexcept { return numWorkers_; }
@@ -47,6 +50,7 @@ public:
     void on_work_done(finalizer f)   { finalize_ = std::move(f); }
     void on_error(error_handler f)   { handleErrors_ = std::move(f); }
     void abort_if(abort_condition f) { abortRequested_ = std::move(f); }
+    void work_item_measure(item_measure f) { measureWorkItem_ = std::move(f); }
 
 private:
     int numWorkers_;
@@ -55,6 +59,7 @@ private:
     error_handler handleErrors_;
     abort_condition abortRequested_;
     finalizer finalize_;
+    item_measure measureWorkItem_;
 };
 
 
@@ -75,9 +80,9 @@ public:
 
     using batch_type      = std::vector<WorkItem>;
     using batch_consumer  = std::function<void(int,batch_type&)>;
-    using error_handler   = batch_processing_options::error_handler;
-    using abort_condition = batch_processing_options::abort_condition;
-    using finalizer       = batch_processing_options::finalizer;
+    using error_handler   = typename batch_processing_options<WorkItem>::error_handler;
+    using abort_condition = typename batch_processing_options<WorkItem>::abort_condition;
+    using finalizer       = typename batch_processing_options<WorkItem>::finalizer;
 
 
     // -----------------------------------------------------------------------
@@ -86,25 +91,29 @@ public:
      * @param handleErrors  handles exeptions
      * @param finalize      runs after worker is finished
      */
-    batch_executor(batch_processing_options opt,
+    batch_executor(batch_processing_options<WorkItem> opt,
                    batch_consumer consume)
     :
         param_{std::move(opt)},
         keepWorking_{true},
-        currentWorkCount_{0}, currentBatch_{},
+        currentWorkCount_{0},
+        currentWorkSize_{0},
+        currentBatch_{},
         storageQueue_{param_.queue_size()},
         workQueue_{param_.queue_size()},
         prodToken_{workQueue_},
         consume_{std::move(consume)},
         workers_{}
     {
+        currentBatch_.resize(32);
+
         if(param_.concurrency() > 0) {
             // fill batch storage queue with initial batches
             // we want to re-use the individual batches and all their members
             // => minimize/avoid batch-resizing during processing
             for(std::size_t i = 0; i < param_.queue_size(); ++i) {
                 batch_type batch;
-                batch.resize(param_.batch_size());
+                batch.resize(32);
                 storageQueue_.enqueue(std::move(batch));
             }
 
@@ -135,11 +144,10 @@ public:
     // -----------------------------------------------------------------------
     ~batch_executor() {
         try {
+            consume_batch_if_full();
             // finalize last batch
             if(currentWorkCount_ > 0) {
-                if(currentWorkCount_ < currentBatch_.size()) {
-                    currentBatch_.resize(currentWorkCount_);
-                }
+                currentBatch_.resize(currentWorkCount_);
                 consume_current_batch();
             }
 
@@ -162,7 +170,7 @@ public:
 
 
     // -----------------------------------------------------------------------
-    const batch_processing_options&
+    const batch_processing_options<WorkItem>&
     param() const noexcept {
         return param_;
     }
@@ -178,27 +186,54 @@ public:
     // -----------------------------------------------------------------------
     /** @brief  get reference to next work item */
     WorkItem& next_item() {
+        consume_batch_if_full();
+
         if(currentWorkCount_ >= currentBatch_.size()) {
-            if(!currentBatch_.empty()) consume_current_batch();
-
-            // get new batch storage
-            if(!workers_.empty()) {
-                while(!storageQueue_.try_dequeue(currentBatch_)) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds{1});
-                }
-            }
-            // make sure batch has the desired size
-            if(currentBatch_.size() < param_.batchSize_) {
-                currentBatch_.resize(param_.batchSize_);
-            }
-            currentWorkCount_ = 0;
+            currentBatch_.resize(currentWorkCount_+1);
         }
-
         return currentBatch_[currentWorkCount_++];
     }
 
 
 private:
+    // -----------------------------------------------------------------------
+    void consume_batch_if_full() {
+        if(currentWorkCount_ > 0) {
+            std::size_t lastSize = param_.measureWorkItem_(currentBatch_[currentWorkCount_-1]);
+            currentWorkSize_ += lastSize;
+
+            if(currentWorkSize_ >= param_.batch_size()) {
+                WorkItem lastItem;
+                // if batch too big, remove last item
+                if(currentWorkSize_ > param_.batch_size())
+                    std::swap(lastItem, currentBatch_[--currentWorkCount_]);
+
+                currentBatch_.resize(currentWorkCount_);
+
+                consume_current_batch();
+
+                // get new batch storage
+                if(!workers_.empty()) {
+                    while(!storageQueue_.try_dequeue(currentBatch_)) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds{1});
+                    }
+                }
+
+                // reinsert last item
+                if(currentWorkSize_ > param_.batch_size()) {
+                    std::swap(lastItem, currentBatch_.front());
+                    currentWorkSize_ = lastSize;
+                    currentWorkCount_ = 1;
+                }
+                else {
+                    currentWorkSize_ = 0;
+                    currentWorkCount_ = 0;
+                }
+            }
+        }
+    }
+
+
     // -----------------------------------------------------------------------
     void consume_current_batch() {
         // either enqueue if multi-threaded...
@@ -226,9 +261,10 @@ private:
     // -----------------------------------------------------------------------
     using batch_queue = moodycamel::ConcurrentQueue<batch_type>;
 
-    const batch_processing_options param_;
+    const batch_processing_options<WorkItem> param_;
     std::atomic_bool keepWorking_;
     std::size_t currentWorkCount_;
+    std::size_t currentWorkSize_;
     batch_type currentBatch_;
     batch_queue storageQueue_;
     batch_queue workQueue_;
