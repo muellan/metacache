@@ -103,9 +103,6 @@ get_query_processing_options(const args_parser& args,
     auto batchSize = args.get<int>("batch-size", defaults.batchSize);
     if(batchSize >= 1) opt.batchSize = batchSize;
 
-    auto gpuBatchSize = args.get<int>("gpu-batch-size", defaults.gpuBatchSize);
-    if(gpuBatchSize >= 1) opt.gpuBatchSize = gpuBatchSize;
-
     opt.queryLimit = args.get<std::int_least64_t>({"query-limit"},
                                           defaults.queryLimit);
 

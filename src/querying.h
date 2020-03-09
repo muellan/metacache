@@ -86,8 +86,7 @@ void process_gpu_batch_results(
     const std::vector<sequence_query>& sequenceBatch,
     bool copyAllHits,
     query_batch<location>& queryBatch,
-    Buffer& batchBuffer, BufferUpdate& update,
-    size_t& index)
+    Buffer& batchBuffer, BufferUpdate& update)
 {
     if(queryBatch.num_queries_device() > 0) {
         queryBatch.sync_result_stream();
@@ -98,7 +97,7 @@ void process_gpu_batch_results(
         // }
         // std::cout << '\n';
 
-        for(size_t s = 0; s < queryBatch.num_segments_device(); ++s, ++index) {
+        for(size_t s = 0; s < queryBatch.num_segments_device(); ++s) {
             span<location> results = copyAllHits ? queryBatch.results(s) : span<location>();
 
             // std::cout << s << ". targetMatches:    ";
@@ -119,7 +118,7 @@ void process_gpu_batch_results(
             // }
             // std::cout << '\n';
 
-            update(batchBuffer, sequenceBatch[index], results, tophits);
+            update(batchBuffer, sequenceBatch[s], results, tophits);
         }
         // std::cout << '\n';
 
@@ -196,12 +195,34 @@ query_id query_batched(
     // each thread may have a gpu batch for querying
     std::vector<std::unique_ptr<query_batch<location>>> gpuBatches(opt.process.numThreads);
 
+    // std::vector<std::vector<sequence_query>> swapBatches(opt.process.numThreads);
+    // for(auto& batch : swapBatches) {
+    //     batch.resize(32);
+    // }
+
     // get executor that runs classification in batches
     batch_processing_options<sequence_query> execOpt;
     execOpt.concurrency(opt.process.numThreads - 1);
     execOpt.batch_size(opt.process.batchSize);
     execOpt.queue_size(opt.process.numThreads > 1 ? opt.process.numThreads + 4 : 0);
     execOpt.on_error(handleErrors);
+    execOpt.work_item_measure([&] (const auto& query) {
+        using std::begin;
+        using std::end;
+        using std::distance;
+
+        const numk_t kmerSize = db.query_sketcher().kmer_size();
+        const size_t windowStride = db.query_sketcher().window_stride();
+
+        const size_t seqLength1 = distance(begin(query.seq1), end(query.seq1));
+        const size_t seqLength2 = distance(begin(query.seq2), end(query.seq2));
+
+        const window_id numWindows1 = (seqLength1-kmerSize + windowStride) / windowStride;
+        const window_id numWindows2 = (seqLength2-kmerSize + windowStride) / windowStride;
+
+        return std::max(window_id(1), numWindows1 + numWindows2);
+    });
+
 
     batch_executor<sequence_query> executor {
         execOpt,
@@ -211,28 +232,21 @@ query_id query_batched(
 
             if(!gpuBatches[id])
                 gpuBatches[id] = std::make_unique<query_batch<location>>(
-                    opt.process.gpuBatchSize,
-                    opt.process.gpuBatchSize*db.query_sketcher().window_size(),
+                    opt.process.batchSize,
+                    opt.process.batchSize*db.query_sketcher().window_size(),
                     db.query_sketcher().sketch_size()*db.max_locations_per_feature(),
                     opt.classify.maxNumCandidatesPerQuery);
 
-            size_t outIndex = 0;
+            //process results from previous batch
+            // process_gpu_batch_results(batch, copyAllHits, *(gpuBatches[id]), resultsBuffer, update);
 
             for(const auto& seq : batch) {
                 if(!gpuBatches[id]->add_paired_read(seq.seq1, seq.seq2, db.query_sketcher(), opt.classify.insertSizeMax)) {
-                    //process results from previous batch
-                    process_gpu_batch_results(batch, copyAllHits, *(gpuBatches[id]), resultsBuffer, update, outIndex);
-                    //could not add read, send full batch to gpu
-                    schedule_gpu_batch(db, opt.classify, copyAllHits, *(gpuBatches[id]));
-                    //try to add read again
-                    if(!gpuBatches[id]->add_paired_read(seq.seq1, seq.seq2, db.query_sketcher(), opt.classify.insertSizeMax))
-                        std::cerr << "query batch is too small for a single read!" << std::endl;
+                    std::cerr << "query batch is too small for a single read!" << std::endl;
                 }
             }
-            process_gpu_batch_results(batch, copyAllHits, *(gpuBatches[id]), resultsBuffer, update, outIndex);
-            // std::cout << "send final batch to gpu\n";
             schedule_gpu_batch(db, opt.classify, copyAllHits, *(gpuBatches[id]));
-            process_gpu_batch_results(batch, copyAllHits, *(gpuBatches[id]), resultsBuffer, update, outIndex);
+            process_gpu_batch_results(batch, copyAllHits, *(gpuBatches[id]), resultsBuffer, update);
 
             std::lock_guard<std::mutex> lock(finalizeMtx);
             finalize(std::move(resultsBuffer));

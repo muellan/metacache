@@ -113,6 +113,7 @@ query_batch<result_type>::query_batch(
         d_resultOffsets_,
         d_binnedSegIds_, d_segBinCounters_,
         stream_);
+    CUERR
 }
 //---------------------------------------------------------------
 template<class result_type>
