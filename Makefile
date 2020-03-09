@@ -28,6 +28,7 @@ HEADERS = \
           src/classification_statistics.h \
           src/cmdline_utility.h \
           src/config.h \
+          src/database.h \
           src/dna_encoding.h \
           src/filesys_utility.h \
           src/hash_dna.h \
@@ -43,7 +44,6 @@ HEADERS = \
           src/querying.h \
           src/sequence_io.h \
           src/sequence_view.h \
-          src/sketch_database.h \
           src/stat_confusion.h \
           src/stat_moments.h \
           src/string_utils.h \
@@ -55,6 +55,7 @@ HEADERS = \
 SOURCES = \
           src/classification.cpp \
           src/cmdline_utility.cpp \
+          src/database.cpp \
           src/filesys_utility.cpp \
           src/main.cpp \
           src/mode_build.cpp \
@@ -65,7 +66,6 @@ SOURCES = \
           src/options.cpp \
           src/printing.cpp \
           src/sequence_io.cpp \
-          src/sketch_database.cpp \
           src/taxonomy_io.cpp
 
 
@@ -143,7 +143,7 @@ $(REL_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 $(REL_DIR)/taxonomy_io.o : src/taxonomy_io.cpp $(HEADERS)
 	$(REL_COMPILE)
 
-$(REL_DIR)/sketch_database.o : src/sketch_database.cpp $(HEADERS)
+$(REL_DIR)/database.o : src/database.cpp $(HEADERS)
 	$(REL_COMPILE)
 
 $(REL_DIR)/options.o : src/options.cpp $(HEADERS)
@@ -195,7 +195,7 @@ $(DBG_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 $(DBG_DIR)/taxonomy_io.o : src/taxonomy_io.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
-$(DBG_DIR)/sketch_database.o : src/sketch_database.cpp $(HEADERS)
+$(DBG_DIR)/database.o : src/database.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
 $(DBG_DIR)/options.o : src/options.cpp $(HEADERS)
@@ -247,7 +247,7 @@ $(PRF_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 $(PRF_DIR)/taxonomy_io.o : src/taxonomy_io.cpp $(HEADERS)
 	$(PRF_COMPILE)
 
-$(PRF_DIR)/sketch_database.o : src/sketch_database.cpp $(HEADERS)
+$(PRF_DIR)/database.o : src/database.cpp $(HEADERS)
 	$(PRF_COMPILE)
 
 $(PRF_DIR)/options.o : src/options.cpp $(HEADERS)

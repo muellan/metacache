@@ -27,7 +27,7 @@
 #include <cstdint>
 #include <limits>
 
-#include "sketch_database.h"
+#include "database.h"
 
 
 namespace mc {

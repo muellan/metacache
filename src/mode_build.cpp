@@ -39,7 +39,7 @@
 #include "filesys_utility.h"
 #include "io_error.h"
 #include "io_options.h"
-#include "sketch_database.h"
+#include "database.h"
 #include "printing.h"
 #include "sequence_io.h"
 #include "taxonomy_io.h"

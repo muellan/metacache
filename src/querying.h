@@ -26,7 +26,7 @@
 #include <vector>
 #include <iostream>
 
-#include "sketch_database.h"
+#include "database.h"
 #include "options.h"
 #include "sequence_io.h"
 #include "cmdline_utility.h"

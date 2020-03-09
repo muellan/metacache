@@ -39,7 +39,7 @@
 #include "querying.h"
 #include "sequence_io.h"
 #include "sequence_view.h"
-#include "sketch_database.h"
+#include "database.h"
 
 #include "classification.h"
 

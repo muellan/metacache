@@ -38,7 +38,7 @@
 
 #include "options.h"
 #include "filesys_utility.h"
-#include "sketch_database.h"
+#include "database.h"
 
 #include "../dep/clipp.h"
 

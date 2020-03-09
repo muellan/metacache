@@ -29,7 +29,7 @@
 
 #include "options.h"
 #include "candidates.h"
-#include "sketch_database.h"
+#include "database.h"
 #include "printing.h"
 #include "typename.h"
 

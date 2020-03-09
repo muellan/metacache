@@ -23,12 +23,12 @@
 #include <ostream>
 #include <utility>
 
-#include "sketch_database.h"
+#include "database.h"
 #include "candidates.h"
 #include "classification.h"
 #include "classification_statistics.h"
 #include "matches_per_target.h"
-#include "sketch_database.h"
+#include "database.h"
 #include "stat_confusion.h"
 #include "taxonomy.h"
 #include "options.h"
