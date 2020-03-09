@@ -1088,9 +1088,26 @@ private:
             }
         }
 
-        for(const auto& bucket : buckets_) {
-            if(!bucket.empty()) {
-                write_binary(os, bucket.begin(), bucket.size());
+        {//write values
+            std::vector<value_type> valBuffer(batchSize+max_bucket_size());
+
+            size_type i = 0;
+            for(const auto& bucket : buckets_) {
+                if(!bucket.empty()) {
+                    std::copy(bucket.begin(), bucket.end(), valBuffer.begin()+i);
+                    i += bucket.size();
+
+                    if(i >= batchSize) {
+                        //store batch
+                        write_binary(os, valBuffer.data(), i);
+                        i = 0;
+                    }
+                }
+            }
+
+            if(i > 0) {
+                //store last batch
+                write_binary(os, valBuffer.data(), i);
             }
         }
     }
