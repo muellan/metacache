@@ -88,20 +88,14 @@ void process_gpu_batch_results(
     query_batch<location>& queryBatch,
     Buffer& batchBuffer, BufferUpdate& update)
 {
-    if(queryBatch.num_queries_device() > 0) {
+    if(queryBatch.num_output_segments() > 0) {
         queryBatch.sync_result_stream();
 
-        // std::cout << "segment offsets: ";
-        // for(size_t i = 0; i < queryBatch.num_segments()+1; ++i) {
-        //     std::cout << queryBatch.result_offsets_host()[i] << ' ';
-        // }
-        // std::cout << '\n';
-
-        for(size_t s = 0; s < queryBatch.num_segments_device(); ++s) {
-            span<location> results = copyAllHits ? queryBatch.results(s) : span<location>();
+        for(size_t s = 0; s < queryBatch.num_output_segments(); ++s) {
+            span<location> allhits = copyAllHits ? queryBatch.allhits(s) : span<location>();
 
             // std::cout << s << ". targetMatches:    ";
-            // for(const auto& m : results)
+            // for(const auto& m : allhits)
             //     std::cout << m.tgt << ':' << m.win << ' ';
             // std::cout << '\n';
 
@@ -118,7 +112,7 @@ void process_gpu_batch_results(
             // }
             // std::cout << '\n';
 
-            update(batchBuffer, sequenceBatch[s], results, tophits);
+            update(batchBuffer, sequenceBatch[s], allhits, tophits);
         }
         // std::cout << '\n';
 
@@ -138,7 +132,7 @@ void schedule_gpu_batch(
     bool copyAllHits,
     query_batch<location>& queryBatch)
 {
-    if(queryBatch.num_queries_host() > 0) {
+    if(queryBatch.num_input_queries() > 0) {
 
         queryBatch.copy_queries_to_device_async();
 
@@ -184,7 +178,9 @@ query_id query_batched(
     ErrorHandler&& handleErrors)
 {
     if(opt.process.queryLimit < 1) return idOffset;
-    auto queryLimit = size_t(opt.process.queryLimit > 0 ? opt.process.queryLimit : std::numeric_limits<size_t>::max());
+    size_t queryLimit = opt.process.queryLimit > 0 ?
+                        size_t(opt.process.queryLimit) :
+                        std::numeric_limits<size_t>::max();
 
     bool copyAllHits = opt.output.showAllHits
                     || opt.output.showHitsPerTargetList

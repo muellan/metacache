@@ -488,25 +488,25 @@ public:
         constexpr int threadsPerBlock = 32*warpsPerBlock;
         constexpr int itemsPerThread = 4;
 
-        const int numBlocks = (batch.num_queries_device()+warpsPerBlock-1) / warpsPerBlock;
+        const int numBlocks = (batch.num_gpu_queries()+warpsPerBlock-1) / warpsPerBlock;
         gpu_hahstable_query<threadsPerBlock,itemsPerThread><<<numBlocks,threadsPerBlock,0,stream>>>(
             hashTable_,
-            batch.num_queries_device(),
-            batch.sequence_offsets_device(),
-            batch.sequences_device(),
+            batch.num_gpu_queries(),
+            batch.gpu_sequence_offsets(),
+            batch.gpu_sequences(),
             querySketcher.kmer_size(),
             querySketcher.sketch_size(),
             querySketcher.window_size(),
             querySketcher.window_stride(),
             locations_,
             maxLocationPerFeature,
-            batch.query_results_device(),
-            batch.result_counts_device()
+            batch.gpu_query_results(),
+            batch.gpu_result_counts()
         );
         // batch.sync_streams();
         // CUERR
 
-        batch.compact_sort_and_copy_results_async(copyAllHits);
+        batch.compact_sort_and_copy_allhits_async(copyAllHits);
 
         batch.generate_and_copy_top_candidates_async(lineages_, lowestRank);
 
