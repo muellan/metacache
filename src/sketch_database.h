@@ -198,12 +198,7 @@ private:
 
     //-----------------------------------------------------
     /// @brief "heart of the database": maps features to target locations
-    using feature_store_gpu = gpu_hashmap<feature, //key
-                                location,          //value
-                                // uint64_t,          //value
-                                feature_hash,               //key hasher
-                                std::equal_to<feature>,     //key comparator
-                                bucket_size_type>;          //location list size
+    using feature_store_gpu = gpu_hashmap<feature, location>; //key, value
 
 
     //-----------------------------------------------------

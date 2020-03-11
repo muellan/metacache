@@ -14,12 +14,9 @@ namespace mc {
 //---------------------------------------------------------------
 template<
     class Key,
-    class ValueT,
-    class Hash,
-    class KeyEqual,
-    class BucketSizeT
+    class ValueT
 >
-gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::feature_batch::feature_batch(feature_batch::counter_type maxFeatures) :
+gpu_hashmap<Key,ValueT>::feature_batch::feature_batch(feature_batch::counter_type maxFeatures) :
     maxFeatures_{maxFeatures}
 {
     if(maxFeatures_) {
@@ -32,12 +29,9 @@ gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::feature_batch::feature_batch(
 //---------------------------------------------------------------
 template<
     class Key,
-    class ValueT,
-    class Hash,
-    class KeyEqual,
-    class BucketSizeT
+    class ValueT
 >
-gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::feature_batch::~feature_batch() {
+gpu_hashmap<Key,ValueT>::feature_batch::~feature_batch() {
     if(maxFeatures_) {
         cudaFree(features_);
         cudaFree(values_);
@@ -61,12 +55,9 @@ gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::feature_batch::~feature_batch
  *****************************************************************************/
 template<
     class Key,
-    class ValueT,
-    class Hash,
-    class KeyEqual,
-    class BucketSizeT
+    class ValueT
 >
-class gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::hash_table {
+class gpu_hashmap<Key,ValueT>::query_hash_table {
 
     using key_type   = Key;
     using value_type = std::uint64_t;
@@ -90,7 +81,7 @@ class gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::hash_table {
         warpcore::defaults::tombstone_key<key_type>()>;     //=-1
 
 public:
-    hash_table(size_t capacity) :
+    query_hash_table(size_t capacity) :
         hashTable_(capacity),
         numKeys_(0), numLocations_(0),
         locations_(nullptr)
@@ -355,14 +346,10 @@ private:
 //---------------------------------------------------------------
 template<
     class Key,
-    class ValueT,
-    class Hash,
-    class KeyEqual,
-    class BucketSizeT
+    class ValueT
 >
-gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::gpu_hashmap() :
+gpu_hashmap<Key,ValueT>::gpu_hashmap() :
     maxLoadFactor_(default_max_load_factor()),
-    hash_{}, keyEqual_{},
     seqBatches_{}, featureBatches_{}
 {
     cudaSetDevice(0);
@@ -390,59 +377,44 @@ gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::gpu_hashmap() :
 //-----------------------------------------------------
 template<
     class Key,
-    class ValueT,
-    class Hash,
-    class KeyEqual,
-    class BucketSizeT
+    class ValueT
 >
-gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::~gpu_hashmap() = default;
+gpu_hashmap<Key,ValueT>::~gpu_hashmap() = default;
 
 //-----------------------------------------------------
 template<
     class Key,
-    class ValueT,
-    class Hash,
-    class KeyEqual,
-    class BucketSizeT
+    class ValueT
 >
-gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::gpu_hashmap(gpu_hashmap&&) = default;
+gpu_hashmap<Key,ValueT>::gpu_hashmap(gpu_hashmap&&) = default;
 
 
 
 //---------------------------------------------------------------
 template<
-class Key,
-class ValueT,
-class Hash,
-class KeyEqual,
-class BucketSizeT
+    class Key,
+    class ValueT
 >
-size_t gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::key_count() const noexcept {
-    return hashTable_ ? hashTable_->key_count() : 0;
+size_t gpu_hashmap<Key,ValueT>::key_count() const noexcept {
+    return queryHashTable_ ? queryHashTable_->key_count() : 0;
 }
 
 //-----------------------------------------------------
 template<
-class Key,
-class ValueT,
-class Hash,
-class KeyEqual,
-class BucketSizeT
+    class Key,
+    class ValueT
 >
-size_t gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::value_count() const noexcept {
-    return hashTable_ ? hashTable_->location_count() : 0;
+size_t gpu_hashmap<Key,ValueT>::value_count() const noexcept {
+    return queryHashTable_ ? queryHashTable_->location_count() : 0;
 }
 
 //---------------------------------------------------------------
 template<
-class Key,
-class ValueT,
-class Hash,
-class KeyEqual,
-class BucketSizeT
+    class Key,
+    class ValueT
 >
-float gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::load_factor() const noexcept {
-    return hashTable_ ? hashTable_->load_factor() : -1;
+float gpu_hashmap<Key,ValueT>::load_factor() const noexcept {
+    return queryHashTable_ ? queryHashTable_->load_factor() : -1;
 }
 
 
@@ -450,12 +422,9 @@ float gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::load_factor() const noe
 //---------------------------------------------------------------
 template<
     class Key,
-    class ValueT,
-    class Hash,
-    class KeyEqual,
-    class BucketSizeT
+    class ValueT
 >
-std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
+std::vector<Key> gpu_hashmap<Key,ValueT>::insert(
     const sequence_batch<policy::Host>& seqBatchHost,
     const sketcher& targetSketcher
 ) {
@@ -554,19 +523,16 @@ std::vector<Key> gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::insert(
 //---------------------------------------------------------------
 template<
     class Key,
-    class ValueT,
-    class Hash,
-    class KeyEqual,
-    class BucketSizeT
+    class ValueT
 >
-void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::query_async(
+void gpu_hashmap<Key,ValueT>::query_async(
     query_batch<value_type>& batch,
     const sketcher& querySketcher,
     bucket_size_type maxLocationPerFeature,
     bool copyAllHits,
     taxon_rank lowestRank) const
 {
-    hashTable_->query_async(
+    queryHashTable_->query_async(
         batch,
         querySketcher,
         maxLocationPerFeature,
@@ -578,12 +544,9 @@ void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::query_async(
 //---------------------------------------------------------------
 template<
     class Key,
-    class ValueT,
-    class Hash,
-    class KeyEqual,
-    class BucketSizeT
+    class ValueT
 >
-void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::deserialize(
+void gpu_hashmap<Key,ValueT>::deserialize(
     std::istream& is)
 {
     using len_t = std::uint64_t;
@@ -597,9 +560,9 @@ void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::deserialize(
 
     if(nkeys > 0) {
         //initialize hash table
-        hashTable_ = std::make_unique<hash_table>(nkeys/maxLoadFactor_);
+        queryHashTable_ = std::make_unique<query_hash_table>(nkeys/maxLoadFactor_);
 
-        hashTable_->deserialize(is, nkeys, nvalues);
+        queryHashTable_->deserialize(is, nkeys, nvalues);
     }
 }
 
@@ -610,12 +573,9 @@ void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::deserialize(
 */
 template<
     class Key,
-    class ValueT,
-    class Hash,
-    class KeyEqual,
-    class BucketSizeT
+    class ValueT
 >
-void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::serialize(
+void gpu_hashmap<Key,ValueT>::serialize(
     std::ostream& os) const
 {
     //TODO
@@ -625,27 +585,17 @@ void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::serialize(
 //---------------------------------------------------------------
 template<
     class Key,
-    class ValueT,
-    class Hash,
-    class KeyEqual,
-    class BucketSizeT
+    class ValueT
 >
-void gpu_hashmap<Key,ValueT,Hash,KeyEqual,BucketSizeT>::copy_target_lineages_to_gpu(
+void gpu_hashmap<Key,ValueT>::copy_target_lineages_to_gpu(
     const std::vector<ranked_lineage>& lins)
 {
-    hashTable_->copy_target_lineages_to_gpu(lins);
+    queryHashTable_->copy_target_lineages_to_gpu(lins);
 }
 
 
 
 //---------------------------------------------------------------
-template class gpu_hashmap<
-        kmer_type,
-        location,
-        // uint64_t,
-        same_size_hash<kmer_type>,
-        std::equal_to<kmer_type>,
-        unsigned char
-        >;
+template class gpu_hashmap<kmer_type, location>;
 
 } // namespace mc

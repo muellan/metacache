@@ -27,26 +27,17 @@ namespace mc {
  *****************************************************************************/
 template<
     class Key,
-    class ValueT,
-    class Hash = std::hash<Key>,
-    class KeyEqual = std::equal_to<Key>,
-    class BucketSizeT = std::uint8_t
+    class ValueT
 >
 class gpu_hashmap
 {
-    class hash_table;
-
-    static_assert(std::is_integral<BucketSizeT>::value &&
-        std::is_unsigned<BucketSizeT>::value,
-        "bucket size type must be an unsigned integer");
+    class query_hash_table;
 
 public:
     //---------------------------------------------------------------
     using key_type         = Key;
     using value_type       = ValueT;
-    using hasher           = Hash;
-    using key_equal        = KeyEqual;
-    using bucket_size_type = BucketSizeT;
+    using bucket_size_type = loclist_size_t;
 
     using size_type        = size_t;
 
@@ -190,14 +181,14 @@ private:
 private:
     //---------------------------------------------------------------
     /**
-     * @brief hashtable which maps feature -> values
+     * @brief single value hashtable for querying,
+     *        which maps feature -> values pointer
      */
-    std::unique_ptr<hash_table> hashTable_;
-    float maxLoadFactor_;
-    hasher hash_;
-    key_equal keyEqual_;
+    std::unique_ptr<query_hash_table> queryHashTable_;
 
-    size_t maxBatchNum_;
+    float maxLoadFactor_;
+
+    size_t maxBatches_;
     std::vector<sequence_batch<policy::Device>> seqBatches_;
     std::vector<feature_batch> featureBatches_;
 };
