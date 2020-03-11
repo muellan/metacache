@@ -103,9 +103,11 @@ namespace mc {
 // BLOCK_THREADS has to be 32
 template<
     int BLOCK_THREADS = 32,
-    int ITEMS_PER_THREAD = 4>
+    int ITEMS_PER_THREAD = 4,
+    class Hashtable>
 __global__
-void extract_features(
+void insert_features(
+    Hashtable hashtable,
     size_t numTargets,
     const target_id * targetIds,
     const window_id * winOffsets,
@@ -115,18 +117,19 @@ void extract_features(
     numk_t k,
     uint32_t sketchSize,
     size_t windowSize,
-    size_t windowStride,
-    feature * features_out,
-    location * locations_out,
-    uint32_t * size_out
+    size_t windowStride
 )
 {
+    using BlockRadixSortT = cub::BlockRadixSort<feature, BLOCK_THREADS, ITEMS_PER_THREAD>;
+
+    __shared__ union {
+        typename BlockRadixSortT::TempStorage sort;
+        //TODO MAX_SKETCH_SIZE
+        uint64_t sketch[16];
+    } tempStorage;
+
     for(size_t tgt = blockIdx.y; tgt < numTargets; tgt += gridDim.y) {
         const encodinglen_t encodingLength = encodeOffsets[tgt+1] - encodeOffsets[tgt];
-
-        typedef cub::BlockRadixSort<feature, BLOCK_THREADS, ITEMS_PER_THREAD> BlockRadixSortT;
-
-        __shared__ typename BlockRadixSortT::TempStorage temp_storage;
 
         constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
         constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
@@ -188,11 +191,11 @@ void extract_features(
                 // }
             }
 
-            BlockRadixSortT(temp_storage).SortBlockedToStriped(items);
+            BlockRadixSortT(tempStorage.sort).SortBlockedToStriped(items);
 
             //output <sketchSize> unique features
             uint32_t kmerCounter = 0;
-            for(int i=0; i*BLOCK_THREADS<windowStride && kmerCounter<sketchSize; ++i)
+            for(int i=0; i<ITEMS_PER_THREAD && kmerCounter<sketchSize; ++i)
             {
                 //load candidate and successor
                 const feature kmer = items[i];
@@ -204,27 +207,41 @@ void extract_features(
 
                 const uint32_t mask = __ballot_sync(0xFFFFFFFF, predicate);
                 const uint32_t count = __popc(mask);
-                const uint32_t capped = min(sketchSize-kmerCounter, count);
 
-                //get output position in global memory
-                uint64_t pos;
-                if (threadIdx.x == 0) {
-                    // printf("kmerCounter: %d count: %d capped: %d\n", kmerCounter, count, capped);
-                    pos = atomicAdd(size_out, capped);
-                }
                 const uint32_t numPre = __popc(mask & ((1 << threadIdx.x) -1));
-                pos = __shfl_sync(0xFFFFFFFF, pos, 0) + numPre;
+                uint32_t sketchPos = kmerCounter + numPre;
 
-                //write to global memory
-                if(predicate && (numPre < capped)) {
-                    const target_id targetId = targetIds[tgt];
-                    const window_id winOffset = winOffsets[tgt];
-
-                    features_out[pos]  = kmer;
-                    locations_out[pos] = location{winOffset+win, targetId};
+                //write features to shared memory
+                if(predicate && (sketchPos < sketchSize)) {
+                    tempStorage.sketch[sketchPos] = kmer;
+                    printf("feature: %d sketchPos: %d\n", kmer, sketchPos);
                 }
 
-                kmerCounter += capped;
+                kmerCounter += count;
+            }
+            __syncthreads();
+
+            //cap kmer count
+            kmerCounter = min(kmerCounter, sketchSize);
+
+            const target_id targetId = targetIds[tgt];
+            const window_id winOffset = winOffsets[tgt];
+
+            //insert into hashtable
+            namespace cg = cooperative_groups;
+
+            const auto group =
+                cg::tiled_partition<Hashtable::cg_size()>(cg::this_thread_block());
+
+            for(uint32_t i = threadIdx.x; i < kmerCounter*Hashtable::cg_size(); i += BLOCK_THREADS) {
+                const uint8_t gid = i / Hashtable::cg_size();
+
+                const auto status = hashtable.insert(
+                    tempStorage.sketch[gid], location{winOffset+win, targetId}, group);
+
+                if(group.thread_rank() == 0) {
+                    printf("status %d\n", status.has_any());
+                }
             }
         }
     }
@@ -243,7 +260,6 @@ template<
 __global__
 void gpu_hahstable_query(
     Hashtable hashtable,
-    size_t probingLength,
     uint32_t numQueries,
     const encodinglen_t * sequenceOffsets,
     const char * sequences,
@@ -412,7 +428,8 @@ void gpu_hahstable_query(
                 const uint8_t gid = i / Hashtable::cg_size();
                 typename Hashtable::value_type valuesOffset = 0;
                 //if key not found valuesOffset stays 0
-                const auto status = hashtable.retrieve(tempStorage.sketch[gid], valuesOffset, group, probingLength);
+                const auto status = hashtable.retrieve(
+                    tempStorage.sketch[gid], valuesOffset, group);
 
                 if(group.thread_rank() == 0) {
                     // printf("status %d\n", status.has_any());

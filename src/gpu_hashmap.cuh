@@ -78,6 +78,11 @@ public:
         return maxLoadFactor_;
     }
 
+    /****************************************************************
+     * @brief allocate gpu hash table for database building
+     */
+    void initialize_hash_table();
+
     //---------------------------------------------------------------
     void insert(
         const sequence_batch<policy::Host>& seqBatchHost,

@@ -477,6 +477,12 @@ public:
 
 
     //---------------------------------------------------------------
+    void initialize_gpu_hash_table() {
+        featureStoreGPU_.initialize_hash_table();
+    }
+
+
+    //---------------------------------------------------------------
     bool add_target(const sequence& seq, taxon_name sid,
                     taxon_id parentTaxid = 0,
                     file_source source = file_source{})
@@ -1070,6 +1076,7 @@ public:
         if(inserterThread_ && inserterThread_->valid()) {
             inserterThread_->get();
         }
+        flush_batches();
     }
 
 
@@ -1202,8 +1209,6 @@ private:
         std::cout << "Target ID: " << tgt << '\n';
 
         window_id win = 0;
-
-        std::cout << "Target ID: " << tgt << '\n';
 
         targetSketcher_.for_each_sketch(seq,
             [&, this] (auto sk) {
