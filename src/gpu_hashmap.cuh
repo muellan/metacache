@@ -31,6 +31,7 @@ template<
 >
 class gpu_hashmap
 {
+    class build_hash_table;
     class query_hash_table;
 
 public:
@@ -49,64 +50,6 @@ public:
     ~gpu_hashmap();
     gpu_hashmap(gpu_hashmap&&);
     gpu_hashmap(const gpu_hashmap&) = delete;
-
-private:
-    /*************************************************************************//**
-    *
-    * @brief batch contains features and locations of multiple targets
-    *        allocated memory location depends on policy
-    *
-    *****************************************************************************/
-    class feature_batch
-    {
-    public:
-        using counter_type = uint32_t;
-
-        //---------------------------------------------------------------
-        feature_batch(counter_type maxFeatures = 0);
-        //-----------------------------------------------------
-        feature_batch(const feature_batch&) = delete;
-        //-----------------------------------------------------
-        feature_batch(feature_batch&& other) {
-            maxFeatures_ = other.max_features();
-            other.max_features(0);
-
-            features_       = other.features();
-            values_         = other.values();
-            featureCounter_ = other.feature_counter();
-        };
-
-        //---------------------------------------------------------------
-        ~feature_batch();
-
-        //---------------------------------------------------------------
-        counter_type max_features() const noexcept {
-            return maxFeatures_;
-        }
-        //-----------------------------------------------------
-        void max_features(counter_type n) noexcept {
-            maxFeatures_ = n;
-        }
-        //---------------------------------------------------------------
-        key_type * features() const noexcept {
-            return features_;
-        }
-        //---------------------------------------------------------------
-        value_type * values() const noexcept {
-            return values_;
-        }
-        //---------------------------------------------------------------
-        counter_type * feature_counter() const noexcept {
-            return featureCounter_;
-        }
-
-    private:
-        counter_type maxFeatures_;
-
-        key_type     * features_;
-        value_type   * values_;
-        counter_type * featureCounter_;
-    };
 
 public:
     //---------------------------------------------------------------
@@ -136,7 +79,7 @@ public:
     }
 
     //---------------------------------------------------------------
-    std::vector<key_type> insert(
+    void insert(
         const sequence_batch<policy::Host>& seqBatchHost,
         const sketcher& targetSketcher);
 
@@ -181,16 +124,17 @@ private:
 private:
     //---------------------------------------------------------------
     /**
+     * @brief multi value hashtable for building,
+     *        which maps feature -> values
+     */
+    std::unique_ptr<build_hash_table> buildHashTable_;
+    /**
      * @brief single value hashtable for querying,
      *        which maps feature -> values pointer
      */
     std::unique_ptr<query_hash_table> queryHashTable_;
 
     float maxLoadFactor_;
-
-    size_t maxBatches_;
-    std::vector<sequence_batch<policy::Device>> seqBatches_;
-    std::vector<feature_batch> featureBatches_;
 };
 
 

@@ -50,6 +50,10 @@ public:
     ~sequence_batch();
 
     //---------------------------------------------------------------
+    void clear() noexcept {
+        num_targets(0);
+    }
+    //---------------------------------------------------------------
     size_t max_targets() const noexcept {
         return maxTargets_;
     }
