@@ -5,7 +5,7 @@
 #include "dna_encoding.h"
 
 #include "../dep/cudahelpers/cuda_helpers.cuh"
-#include "../dep/cub/cub/block/block_radix_sort.cuh"
+#include "cub/block/block_radix_sort.cuh"
 
 namespace mc {
 
@@ -406,10 +406,10 @@ void gpu_hahstable_query(
             namespace cg = cooperative_groups;
 
             const auto group =
-                cg::tiled_partition<Hashtable::cg_size>(cg::this_thread_block());
+                cg::tiled_partition<Hashtable::cg_size()>(cg::this_thread_block());
 
-            for(uint32_t i = threadIdx.x; i < kmerCounter*Hashtable::cg_size; i += BLOCK_THREADS) {
-                const uint8_t gid = i / Hashtable::cg_size;
+            for(uint32_t i = threadIdx.x; i < kmerCounter*Hashtable::cg_size(); i += BLOCK_THREADS) {
+                const uint8_t gid = i / Hashtable::cg_size();
                 typename Hashtable::value_type valuesOffset = 0;
                 //if key not found valuesOffset stays 0
                 const auto status = hashtable.retrieve(tempStorage.sketch[gid], valuesOffset, group, probingLength);

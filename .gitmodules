@@ -7,10 +7,10 @@
 [submodule "cub"]
 	path = dep/cub
 	url = https://github.com/NVlabs/cub.git
-[submodule "warpcore"]
-	path = dep/warpcore
-	url = https://github.com/sleeepyjack/warpcore
 # TODO warpcore submodules: cudahelpers & cub
 [submodule "dep/bb_segsort"]
 	path = dep/bb_segsort
 	url = https://github.com/Funatiq/bb_segsort
+[submodule "dep/warpcore"]
+	path = dep/warpcore
+	url = git@gitlab.rlp.net:pararch/warpcore.git

@@ -6,7 +6,8 @@
 #include "sketch_database.h"
 #include "gpu_hashmap_operations.cuh"
 
-#include "../dep/warpcore/include/warpcore.cuh"
+#include "../dep/warpcore/include/single_value_hash_table.cuh"
+#include "../dep/warpcore/include/multi_value_hash_table.cuh"
 
 namespace mc {
 
@@ -66,17 +67,9 @@ class gpu_hashmap<Key,ValueT>::query_hash_table {
 
     using ranked_lineage = taxonomy::ranked_lineage;
 
-    // using hasher_t = warpcore::hashers::MuellerHash;
-    using hasher_t = warpcore::defaults::hasher_t<Key>;
-
-    // using probing_t = warpcore::probing_schemes::DoubleHashing<hasher_t, hasher_t>;
-    using probing_t = warpcore::probing_schemes::QuadraticProbing<hasher_t>;
-
     using hash_table_t = warpcore::SingleValueHashTable<
         key_type, value_type,
-        // warpcore::defaults::probing_t<key_type>,
-        probing_t,
-        // warpcore::defaults::empty_key<key_type>(),          //=0
+        // warpcore::defaults::empty_key<key_type>(),       //=0
         key_type(-2),
         warpcore::defaults::tombstone_key<key_type>()>;     //=-1
 
@@ -90,7 +83,7 @@ public:
     }
 
     //---------------------------------------------------------------
-    float load_factor() const noexcept {
+    float load_factor() noexcept {
         return hashTable_.load_factor();
     }
     //---------------------------------------------------------------
@@ -217,7 +210,7 @@ public:
                             cudaMemcpyHostToDevice);
                 // insert(d_keyBuffer, d_offsetBuffer, keyBatchSize);
                 hashTable_.template insert<handler_type>(
-                    d_keyBuffer, d_offsetBuffer, keyBatchSize, probingLength, stream, status);
+                    d_keyBuffer, d_offsetBuffer, keyBatchSize, stream, probingLength, status);
             }
 
             //load last batch
@@ -255,7 +248,7 @@ public:
                             cudaMemcpyHostToDevice);
                 // insert(d_keyBuffer, d_offsetBuffer, remainingSize);
                 hashTable_.template insert<handler_type>(
-                    d_keyBuffer, d_offsetBuffer, remainingSize, probingLength, stream, status);
+                    d_keyBuffer, d_offsetBuffer, remainingSize, stream, probingLength, status);
 
                 //check status from last batch
                 //implicit sync
