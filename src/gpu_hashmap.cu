@@ -23,10 +23,7 @@ namespace mc {
  * @tparam  ValueT: value type
  *
  *****************************************************************************/
-template<
-    class Key,
-    class ValueT
->
+template<class Key, class ValueT>
 class gpu_hashmap<Key,ValueT>::build_hash_table {
 
     using key_type   = Key;
@@ -71,7 +68,7 @@ public:
     }
 
     //---------------------------------------------------------------
-    float storage_density() noexcept {
+    float load_factor() noexcept {
         return hashTable_.storage_density();
     }
     //---------------------------------------------------------------
@@ -131,6 +128,10 @@ public:
         CUERR
     }
 
+    void serialize(std::ostream& os) const
+    {
+        //TODO
+    }
 
 private:
     hash_table_t hashTable_;
@@ -156,10 +157,7 @@ private:
  * @tparam  ValueT: value type
  *
  *****************************************************************************/
-template<
-    class Key,
-    class ValueT
->
+template<class Key, class ValueT>
 class gpu_hashmap<Key,ValueT>::query_hash_table {
 
     using key_type   = Key;
@@ -437,64 +435,49 @@ private:
 
 
 //---------------------------------------------------------------
-template<
-    class Key,
-    class ValueT
->
+template<class Key, class ValueT>
 gpu_hashmap<Key,ValueT>::gpu_hashmap() :
     maxLoadFactor_(default_max_load_factor())
 {}
 
 //-----------------------------------------------------
-template<
-    class Key,
-    class ValueT
->
+template<class Key, class ValueT>
 gpu_hashmap<Key,ValueT>::~gpu_hashmap() = default;
 
 //-----------------------------------------------------
-template<
-    class Key,
-    class ValueT
->
+template<class Key, class ValueT>
 gpu_hashmap<Key,ValueT>::gpu_hashmap(gpu_hashmap&&) = default;
 
 
 
 //---------------------------------------------------------------
-template<
-    class Key,
-    class ValueT
->
+template<class Key, class ValueT>
 size_t gpu_hashmap<Key,ValueT>::key_count() const noexcept {
-    return queryHashTable_ ? queryHashTable_->key_count() : 0;
+    if(buildHashTable_) return buildHashTable_->key_count();
+    if(queryHashTable_) return queryHashTable_->key_count();
+    return 0;
 }
 
 //-----------------------------------------------------
-template<
-    class Key,
-    class ValueT
->
+template<class Key, class ValueT>
 size_t gpu_hashmap<Key,ValueT>::value_count() const noexcept {
-    return queryHashTable_ ? queryHashTable_->location_count() : 0;
+    if(buildHashTable_) return buildHashTable_->location_count();
+    if(queryHashTable_) return queryHashTable_->location_count();
+    return 0;
 }
 
 //---------------------------------------------------------------
-template<
-    class Key,
-    class ValueT
->
+template<class Key, class ValueT>
 float gpu_hashmap<Key,ValueT>::load_factor() const noexcept {
-    return queryHashTable_ ? queryHashTable_->load_factor() : -1;
+    if(buildHashTable_) return buildHashTable_->load_factor();
+    if(queryHashTable_) return queryHashTable_->load_factor();
+    return -1;
 }
 
 
 
 //---------------------------------------------------------------
-template<
-    class Key,
-    class ValueT
->
+template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::initialize_hash_table() {
     size_t freeMemory = 0;
     size_t totalMemory = 0;
@@ -519,10 +502,7 @@ void gpu_hashmap<Key,ValueT>::initialize_hash_table() {
 
 
 //---------------------------------------------------------------
-template<
-    class Key,
-    class ValueT
->
+template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::insert(
     const sequence_batch<policy::Host>& seqBatchHost,
     const sketcher& targetSketcher)
@@ -537,10 +517,7 @@ void gpu_hashmap<Key,ValueT>::insert(
 
 
 //---------------------------------------------------------------
-template<
-    class Key,
-    class ValueT
->
+template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::query_async(
     query_batch<value_type>& batch,
     const sketcher& querySketcher,
@@ -558,12 +535,8 @@ void gpu_hashmap<Key,ValueT>::query_async(
 
 
 //---------------------------------------------------------------
-template<
-    class Key,
-    class ValueT
->
-void gpu_hashmap<Key,ValueT>::deserialize(
-    std::istream& is)
+template<class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::deserialize(std::istream& is)
 {
     using len_t = std::uint64_t;
 
@@ -587,22 +560,15 @@ void gpu_hashmap<Key,ValueT>::deserialize(
 /**
 * @brief binary serialization of all non-emtpy buckets
 */
-template<
-    class Key,
-    class ValueT
->
-void gpu_hashmap<Key,ValueT>::serialize(
-    std::ostream& os) const
+template<class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::serialize(std::ostream& os) const
 {
-    //TODO
+    buildHashTable_->serialize(os);
 }
 
 
 //---------------------------------------------------------------
-template<
-    class Key,
-    class ValueT
->
+template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::copy_target_lineages_to_gpu(
     const std::vector<ranked_lineage>& lins)
 {
