@@ -28,7 +28,6 @@ class gpu_hashmap<Key,ValueT>::build_hash_table {
 
     using key_type   = Key;
     using value_type = ValueT;
-    using size_type  = size_t;
 
     using ranked_lineage = taxonomy::ranked_lineage;
 
@@ -38,13 +37,17 @@ class gpu_hashmap<Key,ValueT>::build_hash_table {
         key_type(-2),
         warpcore::defaults::tombstone_key<key_type>()>;     //=-1
 
+    using size_type  = typename hash_table_t::index_type;
+
 public:
     build_hash_table(
         size_type key_capacity,
-        size_type value_capacity
+        size_type value_capacity,
+        std::uint64_t maxLocsPerFeature
     ) :
-        hashTable_(key_capacity, value_capacity),
-        numKeys_(0), numLocations_(0),
+        hashTable_{key_capacity, value_capacity},
+        batchSize_{default_batch_size()},
+        maxLocsPerFeature_{maxLocsPerFeature},
         seqBatches_{}
     {
         std::cerr << "hashtable total: " << (hashTable_.bytes_total() >> 20) << " MB\n";
@@ -67,6 +70,14 @@ public:
         seqBatches_.emplace_back(MAX_TARGETS_PER_BATCH, MAX_ENCODE_LENGTH_PER_BATCH);
     }
 
+    //---------------------------------------------------------------
+    static constexpr size_type default_batch_size() noexcept {
+        return size_type(1) << 20;
+    }
+    //-----------------------------------------------------
+    size_type batch_size() const noexcept {
+        return batchSize_;
+    }
     //---------------------------------------------------------------
     float load_factor() noexcept {
         return hashTable_.storage_density();
@@ -128,16 +139,118 @@ public:
         CUERR
     }
 
-    void serialize(std::ostream& os) const
+private:
+    //---------------------------------------------------------------
+    void retrieve_and_write_binary(
+        std::ostream& os,
+        key_type * keys,
+        size_type batchSize,
+        size_type * offsetBuffer,
+        std::vector<bucket_size_type>& sizesBuffer,
+        value_type *& valueBuffer,
+        size_type& valuesCount,
+        size_type& valuesAlloc,
+        void * tmp,
+        size_type tmpSize
+    ) {
+        hashTable_.retrieve(
+            keys, batchSize, offsetBuffer,
+            nullptr, valuesCount,
+            tmp, tmpSize);
+        CUERR
+
+        if(valuesCount > valuesAlloc) {
+            valuesAlloc = valuesCount * 1.1;
+            cudaFree(valueBuffer); CUERR
+            cudaMallocManaged(&valueBuffer, valuesAlloc*sizeof(value_type)); CUERR
+        }
+
+        hashTable_.retrieve(
+            keys, batchSize, offsetBuffer,
+            valueBuffer, valuesCount,
+            tmp, tmpSize);
+        CUERR
+
+        write_binary(os, keys, batchSize);
+
+        sizesBuffer[0] = offsetBuffer[0];
+        for(size_type i = 1; i < batchSize; ++i)
+            sizesBuffer[i] = offsetBuffer[i] - offsetBuffer[i-1];
+
+        write_binary(os, sizesBuffer.data(), batchSize);
+
+        // write_binary(os, valueBuffer, valuesCount);
+    }
+
+public:
+    //---------------------------------------------------------------
+    void serialize(std::ostream& os)
     {
-        //TODO
+        cudaDeviceSynchronize(); CUERR
+
+        using len_t = std::uint64_t;
+
+        write_binary(os, len_t(key_count()));
+        write_binary(os, len_t(location_count()));
+        write_binary(os, len_t(batch_size()));
+
+        key_type * keys = nullptr;
+        size_type numKeys = 0;
+        hashTable_.retrieve_all_keys(keys, numKeys); CUERR
+        cudaMallocManaged(&keys, numKeys*sizeof(key_type)); CUERR
+        hashTable_.retrieve_all_keys(keys, numKeys); CUERR
+
+        std::vector<bucket_size_type> sizesBuffer(batchSize_);
+        size_type  * offsetBuffer = nullptr;
+        value_type * valueBuffer = nullptr;
+        void       * tmp = nullptr;
+        size_type valuesCount = 0;
+        size_type valuesAlloc = 0;
+        size_type tmpSize = 0;
+        std::vector<std::vector<value_type>> allValues{};
+
+        cudaMallocManaged(&offsetBuffer, batchSize_*sizeof(size_type)); CUERR
+
+        hashTable_.retrieve(
+            keys, batchSize_, offsetBuffer,
+            nullptr, valuesCount,
+            nullptr, tmpSize);
+        CUERR
+
+        cudaMallocManaged(&tmp, tmpSize); CUERR
+
+        const len_t numCycles = numKeys / batchSize_;
+        const len_t lastBatchSize = numKeys % batchSize_;
+        allValues.resize(numCycles+1);
+
+        for(len_t b = 0; b < numCycles; ++b) {
+            retrieve_and_write_binary(os,
+                keys+b*batchSize_, batchSize_, offsetBuffer, sizesBuffer,
+                valueBuffer, valuesCount, valuesAlloc,
+                tmp, tmpSize);
+            allValues[b] = std::vector<value_type>(valueBuffer, valueBuffer+valuesCount);
+        }
+        retrieve_and_write_binary(os,
+            keys+numCycles*batchSize_, lastBatchSize, offsetBuffer, sizesBuffer,
+            valueBuffer, valuesCount, valuesAlloc,
+            tmp, tmpSize);
+        allValues[numCycles] = std::vector<value_type>(valueBuffer, valueBuffer+valuesCount);
+
+        for(const auto& someValues : allValues) {
+            write_binary(os, someValues.data(), someValues.size());
+        }
+
+        cudaFree(keys); CUERR
+        cudaFree(offsetBuffer); CUERR
+        cudaFree(valueBuffer); CUERR
+        cudaFree(tmp); CUERR
     }
 
 private:
     hash_table_t hashTable_;
 
-    size_type numKeys_;
-    size_type numLocations_;
+    size_type batchSize_;
+    std::uint64_t maxLocsPerFeature_;
 
     size_t maxBatches_;
     std::vector<sequence_batch<policy::Device>> seqBatches_;
@@ -478,7 +591,7 @@ float gpu_hashmap<Key,ValueT>::load_factor() const noexcept {
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::initialize_hash_table() {
+void gpu_hashmap<Key,ValueT>::initialize_hash_table(std::uint64_t maxLocsPerFeature) {
     size_t freeMemory = 0;
     size_t totalMemory = 0;
     cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
@@ -494,7 +607,8 @@ void gpu_hashmap<Key,ValueT>::initialize_hash_table() {
 
     std::cerr << "allocate hashtable for " << keyCapacity << " keys"
                                    " and " << valueCapacity << " values\n";
-    buildHashTable_ = std::make_unique<build_hash_table>(keyCapacity, valueCapacity);
+    buildHashTable_ = std::make_unique<build_hash_table>(
+                          keyCapacity, valueCapacity, maxLocsPerFeature);
 
     cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
     std::cerr << "freeMemory: " << (freeMemory >> 20) << " MB\n";

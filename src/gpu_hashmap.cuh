@@ -81,7 +81,7 @@ public:
     /****************************************************************
      * @brief allocate gpu hash table for database building
      */
-    void initialize_hash_table();
+    void initialize_hash_table(std::uint64_t maxLocsPerFeature);
 
     //---------------------------------------------------------------
     void insert(

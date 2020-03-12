@@ -478,7 +478,7 @@ public:
 
     //---------------------------------------------------------------
     void initialize_gpu_hash_table() {
-        featureStoreGPU_.initialize_hash_table();
+        featureStoreGPU_.initialize_hash_table(maxLocsPerFeature_);
     }
 
 
@@ -1007,7 +1007,8 @@ public:
         write_binary(os, target_id(targets_.size()));
 
         //hash table
-        write_binary(os, features_);
+        // write_binary(os, features_);
+        write_binary(os, featureStoreGPU_);
     }
 
 
@@ -1206,7 +1207,7 @@ private:
     //---------------------------------------------------------------
     window_id add_all_window_sketches(const sequence& seq, target_id tgt)
     {
-        std::cout << "Target ID: " << tgt << '\n';
+        std::cerr << "Target ID: " << tgt << '\n';
 
         window_id win = 0;
 
@@ -1221,7 +1222,13 @@ private:
                 //     batch_.clear();
                 // }
 
-                features.insert(features.end(), sk.begin(), sk.end());
+                for(const auto& f : sk) {
+                    auto it = features_.insert(
+                        f, location{win, tgt});
+                    if(it->size() > maxLocsPerFeature_) {
+                        features_.shrink(it, maxLocsPerFeature_);
+                    }
+                }
 
                 ++win;
             });
