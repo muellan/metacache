@@ -9,94 +9,162 @@
 
 namespace mc {
 
-// template<bool CanonicalKmers = true>
-// __global__
-// void extract_kmers(
-//     std::uint64_t* seq_in,
-//     std::uint32_t* ambig_in,
-//     std::uint64_t  size_in,
-//     std::uint8_t   k,
-//     std::uint64_t* kmers_out,
-//     std::uint64_t* size_out)
-// {
-//     //bases stored from high to low bits
-//     //masks get highest bits
-//     const std::uint64_t k_mask64 = std::uint64_t(~0) << (64 - 2*k);
-//     const std::uint32_t k_mask32 = std::uint32_t(~0) << (16 -   k);
 
-//     for (std::uint64_t tid  = blockIdx.x * blockDim.x + threadIdx.x;
-//                        tid  < ((size_in*32)-k+1);
-//                        tid += blockDim.x * gridDim.x)
-//     {
-//         const std::uint64_t seq_slot    = tid / 32;
-//         const std::uint8_t  kmer_slot   = tid & 31;
-//         const std::uint64_t seq_left    = seq_in[seq_slot] << (2*kmer_slot);
-//         const std::uint64_t seq_right   = seq_in[seq_slot+1] >> (64-(2*kmer_slot));
-//         const std::uint32_t ambig_left  = ambig_in[seq_slot] << kmer_slot;
-//         const std::uint32_t ambig_right = ambig_in[seq_slot+1] >> (32-kmer_slot);
+/****************************************************************
+ * @brief output (at most) <sketchSize> unique features
+ */
+template<
+    int ITEMS_PER_THREAD,
+    class Feature,
+    class Feature2>
+__device__ __inline__
+uint32_t unique_sketch(
+    const Feature items[ITEMS_PER_THREAD],
+    Feature2 * sketch,
+    uint32_t sketchSize)
+{
+        uint32_t uniqueFeatureCounter = 0;
 
-//         //continue only if no bases ambiguous
-//         if(!((ambig_left+ambig_right) & k_mask16))
-//         {
-//             //get highest bits
-//             std::uint64_t kmer = (seq_left+seq_right) & k_mask64;
-//             //shift kmer to lowest bits
-//             kmer >>= (64 - 2*k);
+        for(int i=0; i<ITEMS_PER_THREAD && uniqueFeatureCounter<sketchSize; ++i)
+        {
+            // load candidate and successor
+            const Feature kmer = items[i];
+            Feature nextKmer = threadIdx.x ? items[i] : items[(i+1) % ITEMS_PER_THREAD];
+            nextKmer = __shfl_sync(0xFFFFFFFF, nextKmer, threadIdx.x+1);
 
-//             if(CanonicalKmers)
-//             {
-//                 kmer = make_canonical_2bit(kmer);
-//             }
+            // find valid candidates
+            const bool predicate = (kmer != Feature(~0)) && (kmer != nextKmer);
 
-//             kmers_out[atomicAggInc(size_out)] = kmer;
-//         }
-//     }
-// }
+            const uint32_t mask = __ballot_sync(0xFFFFFFFF, predicate);
+            const uint32_t count = __popc(mask);
 
-// template<bool CanonicalKmers = true>
-// __global__
-// void extract_kmers(
-//     std::uint32_t* seq_in,
-//     std::uint16_t* ambig_in,
-//     std::uint64_t  size_in,
-//     std::uint8_t   k,
-//     std::uint32_t* kmers_out,
-//     std::uint64_t* size_out)
-// {
-//     //bases stored from high to low bits
-//     //masks get highest bits
-//     const std::uint32_t k_mask32 = std::uint32_t(~0) << (32 - 2*k);
-//     const std::uint16_t k_mask16 = std::uint16_t(~0) << (16 -   k);
+            const uint32_t numPre = __popc(mask & ((1 << threadIdx.x) -1));
+            uint32_t sketchPos = uniqueFeatureCounter + numPre;
 
-//     for (std::uint64_t tid  = blockIdx.x * blockDim.x + threadIdx.x;
-//                        tid  < ((size_in*16)-k+1);
-//                        tid += blockDim.x * gridDim.x)
-//     {
-//         const std::uint32_t seq_slot    = tid / 16;
-//         const std::uint8_t  kmer_slot   = tid & 15;
-//         const std::uint32_t seq_left    = seq_in[seq_slot] << (2*kmer_slot);
-//         const std::uint32_t seq_right   = seq_in[seq_slot+1] >> (32-(2*kmer_slot));
-//         const std::uint16_t ambig_left  = ambig_in[seq_slot] << kmer_slot;
-//         const std::uint16_t ambig_right = ambig_in[seq_slot+1] >> (16-kmer_slot);
+            // write features to shared memory
+            if(predicate && (sketchPos < sketchSize)) {
+                sketch[sketchPos] = kmer;
+                // printf("sketchPos: %2d feature: %d\n", sketchPos, kmer);
+            }
 
-//         //continue only if no bases ambiguous
-//         if(!((ambig_left+ambig_right) & k_mask16))
-//         {
-//             //get highest bits
-//             std::uint32_t kmer = (seq_left+seq_right) & k_mask32;
-//             //shift kmer to lowest bits
-//             kmer >>= (32 - 2*k);
+            uniqueFeatureCounter += count;
+        }
+        // cap counter
+        uniqueFeatureCounter = min(uniqueFeatureCounter, sketchSize);
 
-//             if(CanonicalKmers)
-//             {
-//                 kmer = make_canonical_2bit(kmer);
-//             }
+        return uniqueFeatureCounter;
+}
 
-//             kmers_out[atomicAggInc(size_out)] = kmer;
-//         }
-//     }
-// }
 
+/****************************************************************
+ * @brief for each feature in sketch insert location into hash table;
+ *        a location consists of of target id and window id
+ */
+template<
+    int BLOCK_THREADS,
+    class Hashtable,
+    class Feature>
+__device__ __inline__
+void insert_into_hashtable(
+    Hashtable& hashtable,
+    const Feature * sketch,
+    uint32_t sketchCounter,
+    target_id targetId,
+    window_id winOffset)
+{
+    using location = typename Hashtable::value_type;
+
+    namespace cg = cooperative_groups;
+
+    const auto group =
+        cg::tiled_partition<Hashtable::cg_size()>(cg::this_thread_block());
+
+    for(uint32_t i = threadIdx.x; i < sketchCounter*Hashtable::cg_size(); i += BLOCK_THREADS) {
+        const uint8_t gid = i / Hashtable::cg_size();
+
+        const auto status = hashtable.insert(
+            sketch[gid], location{winOffset, targetId}, group);
+
+        if(group.thread_rank() == 0 && status.has_any()) {
+            printf("status %d\n", status.has_any());
+        }
+    }
+}
+
+
+/****************************************************************
+ * @brief query the hash table with each feature in sketch;
+ *        write the result back into sketch in place of the feature
+ */
+template<
+    int BLOCK_THREADS,
+    class Hashtable,
+    class Feature>
+__device__ __inline__
+void query_hashtable(
+    Hashtable& hashtable,
+    Feature * sketch,
+    uint32_t sketchCounter)
+{
+    namespace cg = cooperative_groups;
+
+    const auto group =
+        cg::tiled_partition<Hashtable::cg_size()>(cg::this_thread_block());
+
+    for(uint32_t i = threadIdx.x; i < sketchCounter*Hashtable::cg_size(); i += BLOCK_THREADS) {
+        const uint8_t gid = i / Hashtable::cg_size();
+        typename Hashtable::value_type valuesOffset = 0;
+        //if key not found valuesOffset stays 0
+        const auto status = hashtable.retrieve(
+            sketch[gid], valuesOffset, group);
+
+        if(group.thread_rank() == 0) {
+            if(status.has_any()) {
+                printf("status %d\n", status.has_any());
+                // printf("status %d\n", status.has_key_not_found());
+            }
+
+            sketch[gid] = valuesOffset;
+        }
+    }
+}
+
+
+/****************************************************************
+ * @brief for each feature in sketch copy its loctions to the output
+ */
+template<
+    int BLOCK_THREADS,
+    class Feature,
+    class Location,
+    class BucketSizeT>
+__device__ __inline__
+uint32_t copy_loctions(
+    Feature * sketch,
+    uint32_t sketchSize,
+    const Location * locations,
+    BucketSizeT maxLocationsPerFeature,
+    Location * out)
+{
+    using bucket_size_type = BucketSizeT;
+
+    uint32_t totalLocations = 0;
+
+    for(uint32_t s = 0; s < sketchSize; ++s) {
+        auto bucketOffset = sketch[s];
+        bucket_size_type bucketSize = min(bucket_size_type(bucketOffset), maxLocationsPerFeature);
+        bucketOffset >>= sizeof(bucket_size_type)*CHAR_BIT;
+
+        //copy locations
+        for(uint32_t i = threadIdx.x; i < bucketSize; i += BLOCK_THREADS) {
+            out[totalLocations + i] = locations[bucketOffset + i];
+        }
+
+        totalLocations += bucketSize;
+    }
+
+    return totalLocations;
+}
 
 
 //---------------------------------------------------------------
@@ -106,6 +174,7 @@ template<
     int ITEMS_PER_THREAD = 4,
     class Hashtable>
 __global__
+__launch_bounds__(BLOCK_THREADS)
 void insert_features(
     Hashtable hashtable,
     uint32_t numTargets,
@@ -115,7 +184,7 @@ void insert_features(
     const encodedseq_t * encodedSeq,
     const encodedambig_t * encodedAmbig,
     numk_t k,
-    uint32_t sketchSize,
+    uint32_t maxSketchSize,
     size_t windowSize,
     size_t windowStride
 )
@@ -125,7 +194,7 @@ void insert_features(
     __shared__ union {
         typename BlockRadixSortT::TempStorage sort;
         //TODO MAX_SKETCH_SIZE
-        uint64_t sketch[16];
+        feature sketch[16];
     } tempStorage;
 
     for(size_t tgt = blockIdx.y; tgt < numTargets; tgt += gridDim.y) {
@@ -148,12 +217,11 @@ void insert_features(
         //each block processes one window
         for(window_id win = blockIdx.x; win < numWindows; win += gridDim.x)
         {
-            feature items[ITEMS_PER_THREAD];
             uint8_t numItems = 0;
+            feature items[ITEMS_PER_THREAD];
+            //initialize thread local feature store
             for(int i=0; i<ITEMS_PER_THREAD; ++i)
-            {
                 items[i] = feature(~0);
-            }
 
             //each thread extracts one feature
             const size_t first = win * windowStride;
@@ -169,22 +237,25 @@ void insert_features(
                 // const encodedambig_t ambig_right = kmer_slot ? ambig[seq_slot+1] >> (ambigBits-kmer_slot) : 0;
 
                 //continue only if no bases ambiguous
-                if(!((ambig_left+ambig_right) & ambigMask))
-                {
-                    const encodedseq_t seq_left  = seq[seq_slot] << (2*kmer_slot);
-                    const encodedseq_t seq_right = seq[seq_slot+1] >> (encBits-(2*kmer_slot));
-                    // cuda-memcheck save version
-                    // const encodedseq_t seq_right = kmer_slot ? seq[seq_slot+1] >> (encBits-(2*kmer_slot)) : 0;
+                const encodedseq_t seq_left  = seq[seq_slot] << (2*kmer_slot);
+                const encodedseq_t seq_right = seq[seq_slot+1] >> (encBits-(2*kmer_slot));
+                // cuda-memcheck save version
+                // const encodedseq_t seq_right = kmer_slot ? seq[seq_slot+1] >> (encBits-(2*kmer_slot)) : 0;
 
-                    //get highest bits
-                    kmer_type kmer = (seq_left+seq_right) & kmerMask;
-                    //shift kmer to lowest bits
-                    kmer >>= (encBits - 2*k);
+                //get highest bits
+                kmer_type kmer = (seq_left+seq_right) & kmerMask;
+                //shift kmer to lowest bits
+                kmer >>= (encBits - 2*k);
 
-                    kmer = make_canonical_2bit(kmer);
+                kmer = make_canonical_2bit(kmer);
 
-                    items[numItems++] = sketching_hash{}(kmer);
-                }
+                bool pred = !((ambig_left+ambig_right) & ambigMask);
+                items[numItems++] = pred ? sketching_hash{}(kmer) : feature(~0);
+
+                // if(!((ambig_left+ambig_right) & ambigMask))
+                // {
+                //     items[numItems++] = sketching_hash{}(kmer);
+                // }
                 // else
                 // {
                 //     printf("ambiguous\n");
@@ -193,56 +264,16 @@ void insert_features(
 
             BlockRadixSortT(tempStorage.sort).SortBlockedToStriped(items);
 
-            //output <sketchSize> unique features
-            uint32_t kmerCounter = 0;
-            for(int i=0; i<ITEMS_PER_THREAD && kmerCounter<sketchSize; ++i)
-            {
-                //load candidate and successor
-                const feature kmer = items[i];
-                feature nextKmer = threadIdx.x ? items[i] : items[(i+1) % ITEMS_PER_THREAD];
-                nextKmer = __shfl_sync(0xFFFFFFFF, nextKmer, threadIdx.x+1);
+            uint32_t sketchCounter =
+                unique_sketch<ITEMS_PER_THREAD>(items, tempStorage.sketch, maxSketchSize);
 
-                //find valid candidates
-                const bool predicate = (kmer != feature(~0)) && (kmer != nextKmer);
-
-                const uint32_t mask = __ballot_sync(0xFFFFFFFF, predicate);
-                const uint32_t count = __popc(mask);
-
-                const uint32_t numPre = __popc(mask & ((1 << threadIdx.x) -1));
-                uint32_t sketchPos = kmerCounter + numPre;
-
-                //write features to shared memory
-                if(predicate && (sketchPos < sketchSize)) {
-                    tempStorage.sketch[sketchPos] = kmer;
-                    // printf("sketchPos: %2d feature: %d\n", sketchPos, kmer);
-                }
-
-                kmerCounter += count;
-            }
             __syncthreads();
 
-            //cap kmer count
-            kmerCounter = min(kmerCounter, sketchSize);
-
             const target_id targetId = targetIds[tgt];
-            const window_id winOffset = winOffsets[tgt];
+            const window_id winOffset = winOffsets[tgt]+win ;
 
-            //insert into hashtable
-            namespace cg = cooperative_groups;
-
-            const auto group =
-                cg::tiled_partition<Hashtable::cg_size()>(cg::this_thread_block());
-
-            for(uint32_t i = threadIdx.x; i < kmerCounter*Hashtable::cg_size(); i += BLOCK_THREADS) {
-                const uint8_t gid = i / Hashtable::cg_size();
-
-                const auto status = hashtable.insert(
-                    tempStorage.sketch[gid], location{winOffset+win, targetId}, group);
-
-                if(group.thread_rank() == 0 && status.has_any()) {
-                    printf("status %d\n", status.has_any());
-                }
-            }
+            insert_into_hashtable<BLOCK_THREADS>(
+                hashtable, tempStorage.sketch, sketchCounter, targetId, winOffset);
         }
     }
 }
@@ -255,8 +286,8 @@ template<
     int BLOCK_THREADS,
     int ITEMS_PER_THREAD,
     class Hashtable,
-    class bucket_size_type,
-    class result_type>
+    class BucketSizeT,
+    class Location>
 __global__
 void gpu_hahstable_query(
     Hashtable hashtable,
@@ -264,15 +295,17 @@ void gpu_hahstable_query(
     const encodinglen_t * sequenceOffsets,
     const char * sequences,
     numk_t k,
-    uint32_t sketchSize,
+    uint32_t maxSketchSize,
     uint32_t windowSize,
     uint32_t windowStride,
-    const location * locations,
-    bucket_size_type maxLocationsPerFeature,
-    result_type * results_out,
-    int         * resultCounts
+    const Location * locations,
+    BucketSizeT maxLocationsPerFeature,
+    Location * locations_out,
+    int      * locationCounts
 )
 {
+    using location = Location;
+    using bucket_size_type = BucketSizeT;
     using encodedseq_t = uint32_t;
     using encodedambig_t = uint16_t;
     using BlockRadixSortT = cub::BlockRadixSort<feature, BLOCK_THREADS, ITEMS_PER_THREAD>;
@@ -343,8 +376,8 @@ void gpu_hahstable_query(
             const size_t last = sequenceLength - k + 1;
 
             uint8_t numItems = 0;
-            //initialize thread local feature store
             feature items[ITEMS_PER_THREAD];
+            //initialize thread local feature store
             for(int i=0; i<ITEMS_PER_THREAD; ++i)
                 items[i] = feature(~0);
 
@@ -361,22 +394,25 @@ void gpu_hahstable_query(
                 // const encodedambig_t ambig_right = kmer_slot ? tempStorage.encodedWindow.ambig[seq_slot+1] >> (ambigBits-kmer_slot) : 0;
 
                 //continue only if no bases ambiguous
-                if(!((ambig_left+ambig_right) & ambigMask))
-                {
-                    const encodedseq_t seq_left  = tempStorage.encodedWindow.seq[seq_slot] << (2*kmer_slot);
-                    const encodedseq_t seq_right = tempStorage.encodedWindow.seq[seq_slot+1] >> (encBits-(2*kmer_slot));
-                    // cuda-memcheck save version
-                    // const encodedseq_t seq_right = kmer_slot ? tempStorage.encodedWindow.seq[seq_slot+1] >> (encBits-(2*kmer_slot)) : 0;
+                const encodedseq_t seq_left  = tempStorage.encodedWindow.seq[seq_slot] << (2*kmer_slot);
+                const encodedseq_t seq_right = tempStorage.encodedWindow.seq[seq_slot+1] >> (encBits-(2*kmer_slot));
+                // cuda-memcheck save version
+                // const encodedseq_t seq_right = kmer_slot ? tempStorage.encodedWindow.seq[seq_slot+1] >> (encBits-(2*kmer_slot)) : 0;
 
-                    //get highest bits
-                    kmer_type kmer = (seq_left+seq_right) & kmerMask;
-                    //shift kmer to lowest bits
-                    kmer >>= (encBits - 2*k);
+                //get highest bits
+                kmer_type kmer = (seq_left+seq_right) & kmerMask;
+                //shift kmer to lowest bits
+                kmer >>= (encBits - 2*k);
 
-                    kmer = make_canonical_2bit(kmer);
+                kmer = make_canonical_2bit(kmer);
 
-                    items[numItems++] = sketching_hash{}(kmer);
-                }
+                bool pred = !((ambig_left+ambig_right) & ambigMask);
+                items[numItems++] = pred ? sketching_hash{}(kmer) : feature(~0);
+
+                // if(!((ambig_left+ambig_right) & ambigMask))
+                // {
+                //     items[numItems++] = sketching_hash{}(kmer);
+                // }
                 // else
                 // {
                 //     printf("ambiguous\n");
@@ -386,82 +422,24 @@ void gpu_hahstable_query(
 
             BlockRadixSortT(tempStorage.sort).SortBlockedToStriped(items);
 
-            //output <sketchSize> unique features
-            uint32_t kmerCounter = 0;
-            for(int i=0; i<ITEMS_PER_THREAD && kmerCounter<sketchSize; ++i)
-            {
-                //load candidate and successor
-                const feature kmer = items[i];
-                feature nextKmer = threadIdx.x ? items[i] : items[(i+1) % ITEMS_PER_THREAD];
-                nextKmer = __shfl_sync(0xFFFFFFFF, nextKmer, threadIdx.x+1);
+            uint32_t realSketchSize =
+                unique_sketch<ITEMS_PER_THREAD>(items, tempStorage.sketch, maxSketchSize);
 
-                //find valid candidates
-                const bool predicate = (kmer != feature(~0)) && (kmer != nextKmer);
-
-                const uint32_t mask = __ballot_sync(0xFFFFFFFF, predicate);
-                const uint32_t count = __popc(mask);
-
-                //get position
-                const uint32_t numPre = __popc(mask & ((1 << threadIdx.x) -1));
-                uint32_t sketchPos = kmerCounter + numPre;
-
-                //write features to shared memory
-                if(predicate && (sketchPos < sketchSize)) {
-                    tempStorage.sketch[sketchPos] = kmer;
-                    // printf("sketchPos: %2d feature: %d\n", sketchPos, kmer);
-                }
-
-                kmerCounter += count;
-            }
             __syncthreads();
 
-            //cap kmer count
-            kmerCounter = min(kmerCounter, sketchSize);
+            query_hashtable<BLOCK_THREADS>(
+                hashtable, tempStorage.sketch, realSketchSize);
 
-            //query hashtable for bucket locations & sizes
-            namespace cg = cooperative_groups;
-
-            const auto group =
-                cg::tiled_partition<Hashtable::cg_size()>(cg::this_thread_block());
-
-            for(uint32_t i = threadIdx.x; i < kmerCounter*Hashtable::cg_size(); i += BLOCK_THREADS) {
-                const uint8_t gid = i / Hashtable::cg_size();
-                typename Hashtable::value_type valuesOffset = 0;
-                //if key not found valuesOffset stays 0
-                const auto status = hashtable.retrieve(
-                    tempStorage.sketch[gid], valuesOffset, group);
-
-                if(group.thread_rank() == 0) {
-                    // printf("status %d\n", status.has_any());
-                    // printf("status %d\n", status.has_key_not_found());
-
-                    tempStorage.sketch[gid] = valuesOffset;
-                }
-            }
             __syncthreads();
 
-            int totalNumValues = 0;
+            location * out = locations_out + queryId*maxSketchSize*maxLocationsPerFeature;
 
-            result_type * outPtr = results_out + queryId*sketchSize*maxLocationsPerFeature;
-
-            //copy locations of found features into results_out
-            for(uint32_t s = 0; s < kmerCounter; ++s) {
-                typename Hashtable::value_type valuesOffset = tempStorage.sketch[s];
-
-                bucket_size_type numValues = bucket_size_type(valuesOffset);
-                valuesOffset >>= sizeof(bucket_size_type)*CHAR_BIT;
-
-                for(uint32_t i = threadIdx.x; i < numValues; i += BLOCK_THREADS) {
-                    //copy found locations
-                    outPtr[totalNumValues + i] = locations[valuesOffset + i];
-                }
-
-                totalNumValues += numValues;
-            }
+            uint32_t numLocations = copy_loctions<BLOCK_THREADS>(
+                tempStorage.sketch, realSketchSize, locations, maxLocationsPerFeature, out);
 
             if(threadIdx.x == 0) {
                 //store number of results of this query
-                resultCounts[queryId] = totalNumValues;
+                locationCounts[queryId] = numLocations;
             }
 
             __syncthreads();
@@ -471,6 +449,5 @@ void gpu_hahstable_query(
 
 
 } // namespace mc
-
 
 #endif
