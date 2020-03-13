@@ -312,10 +312,6 @@ public:
         ranksCache_{taxa_, taxon_rank::Sequence},
         targetLineages_{taxa_},
         name2tax_{},
-        batch_{},
-        queue_(10),
-        sketchingDone_{true},
-        inserterThread_{},
         seqBatches_{}
     {
         features_.max_load_factor(default_max_load_factor());
@@ -333,20 +329,12 @@ public:
         ranksCache_{std::move(other.ranksCache_)},
         targetLineages_{std::move(other.targetLineages_)},
         name2tax_{std::move(other.name2tax_)},
-        batch_{std::move(other.batch_)},
-        queue_{std::move(other.queue_)},
-        sketchingDone_(other.sketchingDone_.load()),
-        inserterThread_{std::move(other.inserterThread_)}
+        seqBatches_{std::move(other.seqBatches_)}
     {}
 
     database& operator = (const database&) = delete;
     database& operator = (database&&)      = default;
 
-    ~database() {
-        if(inserterThread_ && inserterThread_->valid()) {
-            inserterThread_->get();
-        }
-    }
 
 
     //---------------------------------------------------------------
@@ -504,15 +492,7 @@ public:
         const auto taxid = taxon_id_of_target(targetCount);
 
         //sketch sequence -> insert features
-        window_id windows_cpu = add_all_window_sketches(seq, targetCount);
-        window_id windows_gpu = add_target_gpu(seq, targetCount);
-
-        if(windows_cpu != windows_gpu) {
-            std::cerr << "different number of windows: "
-                      << windows_cpu << ' ' << windows_gpu << std::endl;
-        }
-
-        source.windows = windows_cpu;
+        source.windows = add_target_gpu(seq, targetCount);
 
         //insert sequence metadata as a new taxon
         if(parentTaxid < 1) parentTaxid = 0;
@@ -1007,26 +987,25 @@ public:
         write_binary(os, target_id(targets_.size()));
 
         //hash table
-        // write_binary(os, features_);
         write_binary(os, featureStoreGPU_);
     }
 
 
     //---------------------------------------------------------------
     std::uint64_t bucket_count() const noexcept {
-        return features_.bucket_count();
+        return featureStoreGPU_.bucket_count();
     }
     //---------------------------------------------------------------
     std::uint64_t feature_count() const noexcept {
-        return features_.key_count();
+        return featureStoreGPU_.key_count();
     }
     //---------------------------------------------------------------
     std::uint64_t dead_feature_count() const noexcept {
-        return features_.key_count() - features_.non_empty_bucket_count();
+        return featureStoreGPU_.tombstone_count();
     }
     //---------------------------------------------------------------
     std::uint64_t location_count() const noexcept {
-        return features_.value_count();
+        return featureStoreGPU_.value_count();
     }
 
 
@@ -1072,59 +1051,17 @@ public:
 
     //---------------------------------------------------------------
     void wait_until_add_target_complete() {
-        enqueue_insertion_of_sketch_batch();
-        sketchingDone_.store(true);
-        if(inserterThread_ && inserterThread_->valid()) {
-            inserterThread_->get();
-        }
         flush_batches();
     }
 
 
     //---------------------------------------------------------------
     bool add_target_failed() {
-        if(!inserterThread_) return false;
-
-        if(inserterThread_->valid()) {
-            auto status = inserterThread_->wait_for(std::chrono::minutes::zero());
-            if(status == std::future_status::timeout) return false;
-        }
-        return true;
+        //TODO
+        //check hash table status
+        return false;
     }
 
-
-    void compare_features() {
-        //compare results
-        auto result = std::equal(features_gpu.begin(), features_gpu.end(), features.begin());
-
-        // features.push_back(0);
-        features_gpu.push_back(0);
-
-        if(result) {
-            std::cout << "results are equal\n";
-        }
-        else {
-            std::cout << "results are different:\n";
-            for(size_t i=0; i+1<features_gpu.size(); ++i) {
-                std::cout << "CPU: ";
-                for(size_t j=i; j+1<features.size() && features[j] <= features[j+1]; ++j) {
-                    std:: cout << features[j] << ' ';
-                }
-                std::cout << '\n';
-                std::cout << "GPU: ";
-                for(; i+1<features_gpu.size() && features_gpu[i] <= features_gpu[i+1]; ++i) {
-                    std:: cout << features_gpu[i] << ' ';
-                }
-                std::cout << '\n';
-                std::cout << '\n';
-            }
-            throw std::runtime_error{"results are different!"};
-        }
-        std::cout << std::endl;
-
-        features.erase(features.begin(), features.begin()+(features_gpu.size()-1));
-        features_gpu.clear();
-    }
 
     //---------------------------------------------------------------
     void flush_batches() {
@@ -1180,85 +1117,6 @@ private:
     void provide_sequence_batches(size_t numBatches) {
         for(size_t i = seqBatches_.size(); i < numBatches; ++i)
             seqBatches_.emplace_back(MAX_TARGETS_PER_BATCH, MAX_ENCODE_LENGTH_PER_BATCH);
-    }
-
-
-    //---------------------------------------------------------------
-    window_id add_all_window_sketches(const sequence& seq, target_id tgt)
-    {
-        window_id win = 0;
-
-        targetSketcher_.for_each_sketch(seq,
-            [&, this] (auto sk) {
-                // //insert sketch into batch
-                // batch_.emplace_back(tgt, win, std::move(sk));
-
-                // //enqueue full batch and reset
-                // if(batch_.size() >= insert_batch_size()) {
-                //     this->enqueue_insertion_of_sketch_batch();
-                //     batch_.clear();
-                // }
-
-                for(const auto& f : sk) {
-                    auto it = features_.insert(
-                        f, location{win, tgt});
-                    if(it->size() > maxLocsPerFeature_) {
-                        features_.shrink(it, maxLocsPerFeature_);
-                    }
-                }
-
-                ++win;
-            });
-
-        return win;
-    }
-
-
-    //---------------------------------------------------------------
-    void add_sketch_batch(const sketch_batch& batch) {
-        for(const auto& windowSketch : batch) {
-            //insert features from sketch into database
-            for(const auto& f : windowSketch.sk) {
-                auto it = features_.insert(
-                    f, location{windowSketch.win, windowSketch.tgt});
-                if(it->size() > maxLocsPerFeature_) {
-                    features_.shrink(it, maxLocsPerFeature_);
-                }
-            }
-        }
-    }
-
-
-    //---------------------------------------------------------------
-    void spawn_sketch_inserter() {
-        if(inserterThread_) return;
-
-        inserterThread_ = std::make_unique<std::future<void>>(
-            std::async(std::launch::async, [&]() {
-                sketch_batch batch;
-
-                while(!sketchingDone_.load() || queue_.peek()) {
-                    if(queue_.wait_dequeue_timed(batch, std::chrono::milliseconds(10))) {
-                        add_sketch_batch(batch);
-                    }
-                }
-
-            })
-        );
-    }
-
-
-    //---------------------------------------------------------------
-    void enqueue_insertion_of_sketch_batch() {
-        if(batch_.empty()) return;
-
-        if(sketchingDone_.load()) {
-            sketchingDone_.store(false);
-            spawn_sketch_inserter();
-        }
-
-        //allow queue to grow
-        queue_.enqueue(batch_);
     }
 
 
@@ -1361,14 +1219,7 @@ private:
     mutable ranked_lineages_of_targets targetLineages_;
     std::map<taxon_name,const taxon*> name2tax_;
 
-    sketch_batch batch_;
-    sketch_queue queue_;
-    std::atomic_bool sketchingDone_;
-    std::unique_ptr<std::future<void>> inserterThread_;
-
     std::vector<sequence_batch<policy::Host>> seqBatches_;
-    std::vector<kmer_type> features = {};
-    std::vector<kmer_type> features_gpu = {};
 };
 
 

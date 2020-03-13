@@ -83,6 +83,10 @@ public:
         return hashTable_.storage_density();
     }
     //---------------------------------------------------------------
+    size_type bucket_count() noexcept {
+        return hashTable_.key_capacity();
+    }
+    //-----------------------------------------------------
     size_type key_count() noexcept {
         return hashTable_.size_keys();
     }
@@ -300,6 +304,10 @@ public:
         return hashTable_.load_factor();
     }
     //---------------------------------------------------------------
+    size_type bucket_count() noexcept {
+        return hashTable_.capacity();
+    }
+    //-----------------------------------------------------
     size_type key_count() const noexcept {
         return numKeys_;
     }
@@ -562,6 +570,14 @@ template<class Key, class ValueT>
 gpu_hashmap<Key,ValueT>::gpu_hashmap(gpu_hashmap&&) = default;
 
 
+
+//---------------------------------------------------------------
+template<class Key, class ValueT>
+size_t gpu_hashmap<Key,ValueT>::bucket_count() const noexcept {
+    if(buildHashTable_) return buildHashTable_->bucket_count();
+    if(queryHashTable_) return queryHashTable_->bucket_count();
+    return 0;
+}
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
