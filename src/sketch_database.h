@@ -505,10 +505,10 @@ public:
 
         //sketch sequence -> insert features
         window_id windows_cpu = add_all_window_sketches(seq, targetCount);
-        window_id windows_gpu = add_all_window_sketches_gpu(seq, targetCount);
+        window_id windows_gpu = add_target_gpu(seq, targetCount);
 
         if(windows_cpu != windows_gpu) {
-            std::cout << "diiferent number of windows: "
+            std::cerr << "different number of windows: "
                       << windows_cpu << ' ' << windows_gpu << std::endl;
         }
 
@@ -1135,15 +1135,15 @@ public:
 
 private:
     //---------------------------------------------------------------
-    window_id add_all_window_sketches_gpu(const sequence& seq, target_id tgt)
+    window_id add_target_gpu(const sequence& seq, target_id tgt)
     {
         using std::begin;
         using std::end;
 
-        return add_all_window_sketches_gpu(begin(seq), end(seq), tgt);
+        return add_target_gpu(begin(seq), end(seq), tgt);
     }
     //---------------------------------------------------------------
-    window_id add_all_window_sketches_gpu(
+    window_id add_target_gpu(
         sequence::const_iterator first,
         sequence::const_iterator last,
         target_id tgt,
@@ -1151,49 +1151,28 @@ private:
     {
         using std::distance;
 
-        const auto seqLength = distance(first, last);
-
-        //no windows left in sequence
-        if(seqLength < targetSketcher_.kmer_size()) {
-            std::cout << "sequence done\n";
-            return 0;
-        }
-
-        const window_id numWindows =
-            (seqLength-targetSketcher_.kmer_size() + targetSketcher_.window_stride())
-            / targetSketcher_.window_stride();
-
-        //print target infos
-        const size_t numFeatures = numWindows * targetSketcher_.sketch_size();
-        std::cout << "Target ID: " << tgt
-                  << " Length: " << seqLength
-                  << " Windows: " << numWindows
-                  << " Features: " << numFeatures
-                  << '\n';
-
         if(seqBatches_.size() < 1) provide_sequence_batches(1);
 
-        //fill sequence batch
-        auto processedWindows = seqBatches_[0].add_target(
-            first, last, tgt, win, targetSketcher_);
+        window_id totalWindows = 0;
 
-        std::cout << "num targets: " << seqBatches_[0].num_targets()
-                  << " target id: "  << seqBatches_[0].target_ids()[seqBatches_[0].num_targets()-1]
-                  << " window off: " << seqBatches_[0].window_offsets()[seqBatches_[0].num_targets()-1]
-                  << " encode len: " << seqBatches_[0].encode_offsets()[seqBatches_[0].num_targets()]
-                  << '\n';
+        for(window_id processedWindows = 0;
+            distance(first, last) >= targetSketcher_.kmer_size();
+            first += processedWindows*targetSketcher_.window_stride())
+        {
+            //fill sequence batch
+            processedWindows = seqBatches_[0].add_target(
+                first, last, tgt, win+totalWindows, targetSketcher_);
 
-        // if no windows were processed batch must be full
-        if(!processedWindows) {
-            featureStoreGPU_.insert(seqBatches_[0], targetSketcher_);
-            seqBatches_[0].clear();
+            // if no windows were processed batch must be full
+            if(!processedWindows) {
+                featureStoreGPU_.insert(seqBatches_[0], targetSketcher_);
+                seqBatches_[0].clear();
+            }
+
+            totalWindows += processedWindows;
         }
 
-        //resume with remaining sequence
-        return processedWindows +
-               add_all_window_sketches_gpu(
-                   first+processedWindows*targetSketcher_.window_stride(), last,
-                   tgt, win+processedWindows);
+        return totalWindows;
     }
 
 
@@ -1207,8 +1186,6 @@ private:
     //---------------------------------------------------------------
     window_id add_all_window_sketches(const sequence& seq, target_id tgt)
     {
-        std::cerr << "Target ID: " << tgt << '\n';
-
         window_id win = 0;
 
         targetSketcher_.for_each_sketch(seq,
