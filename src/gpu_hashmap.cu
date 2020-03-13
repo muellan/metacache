@@ -121,7 +121,7 @@ public:
         constexpr int itemsPerThread = 4;
 
         //TODO increase grid in x and y dim
-        constexpr dim3 numBlocks{1,1};
+        const dim3 numBlocks{1024, seqBatches_[0].num_targets()};
         insert_features<threadsPerBlock,itemsPerThread><<<numBlocks,threadsPerBlock,0,stream>>>(
             hashTable_,
             seqBatches_[0].num_targets(),

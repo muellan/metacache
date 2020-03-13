@@ -91,8 +91,8 @@ using encodedambig_t = half_size_t<encodedseq_t>;
  * @brief define sequence batch sizes
  */
 //TODO tune sizes
-#define MAX_TARGETS_PER_BATCH 200
-#define MAX_ENCODE_LENGTH_PER_BATCH 1000
+#define MAX_TARGETS_PER_BATCH 100
+#define MAX_ENCODE_LENGTH_PER_BATCH 1000000
 
 
 /**************************************************************************

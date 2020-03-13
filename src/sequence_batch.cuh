@@ -23,7 +23,7 @@ public:
     /**
      * @brief allocate memory on host or device depending on policy
      */
-    sequence_batch(size_t maxTargets = 0, size_t maxEncodeLength = 0);
+    sequence_batch(uint32_t maxTargets = 0, size_t maxEncodeLength = 0);
     //-----------------------------------------------------
     sequence_batch(const sequence_batch&) = delete;
     //-----------------------------------------------------
@@ -54,7 +54,7 @@ public:
         num_targets(0);
     }
     //---------------------------------------------------------------
-    size_t max_targets() const noexcept {
+    uint32_t max_targets() const noexcept {
         return maxTargets_;
     }
     //---------------------------------------------------------------
@@ -62,11 +62,11 @@ public:
         return maxEncodeLength_;
     }
     //---------------------------------------------------------------
-    size_t num_targets() const noexcept {
+    uint32_t num_targets() const noexcept {
         return numTargets_;
     }
     //-----------------------------------------------------
-    void num_targets(size_t n) noexcept {
+    void num_targets(uint32_t n) noexcept {
         if(n > max_targets()) n = max_targets();
         numTargets_ = n;
     }
@@ -170,9 +170,9 @@ public:
     }
 
 private:
-    size_t maxTargets_;
+    uint32_t maxTargets_;
+    uint32_t numTargets_;
     size_t maxEncodeLength_;
-    size_t numTargets_;
 
     target_id      * targetIds_;
     window_id      * windowOffsets_;
@@ -182,13 +182,13 @@ private:
 };
 
 template<>
-sequence_batch<policy::Host>::sequence_batch(size_t maxTargets, size_t maxEncodeLength);
+sequence_batch<policy::Host>::sequence_batch(uint32_t maxTargets, size_t maxEncodeLength);
 
 template<>
 sequence_batch<policy::Host>::~sequence_batch();
 
 template<>
-sequence_batch<policy::Device>::sequence_batch(size_t maxTargets, size_t maxEncodeLength);
+sequence_batch<policy::Device>::sequence_batch(uint32_t maxTargets, size_t maxEncodeLength);
 
 template<>
 sequence_batch<policy::Device>::~sequence_batch();

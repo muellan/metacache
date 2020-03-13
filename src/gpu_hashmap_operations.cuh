@@ -108,7 +108,7 @@ template<
 __global__
 void insert_features(
     Hashtable hashtable,
-    size_t numTargets,
+    uint32_t numTargets,
     const target_id * targetIds,
     const window_id * winOffsets,
     const encodinglen_t * encodeOffsets,
@@ -214,7 +214,7 @@ void insert_features(
                 //write features to shared memory
                 if(predicate && (sketchPos < sketchSize)) {
                     tempStorage.sketch[sketchPos] = kmer;
-                    printf("feature: %d sketchPos: %d\n", kmer, sketchPos);
+                    // printf("sketchPos: %2d feature: %d\n", sketchPos, kmer);
                 }
 
                 kmerCounter += count;
@@ -239,7 +239,7 @@ void insert_features(
                 const auto status = hashtable.insert(
                     tempStorage.sketch[gid], location{winOffset+win, targetId}, group);
 
-                if(group.thread_rank() == 0) {
+                if(group.thread_rank() == 0 && status.has_any()) {
                     printf("status %d\n", status.has_any());
                 }
             }
@@ -408,7 +408,7 @@ void gpu_hahstable_query(
                 //write features to shared memory
                 if(predicate && (sketchPos < sketchSize)) {
                     tempStorage.sketch[sketchPos] = kmer;
-                    // printf("feature: %d sketchPos: %d\n", kmer, sketchPos);
+                    // printf("sketchPos: %2d feature: %d\n", sketchPos, kmer);
                 }
 
                 kmerCounter += count;

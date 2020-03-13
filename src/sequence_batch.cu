@@ -6,8 +6,8 @@ namespace mc {
 
 //---------------------------------------------------------------
 template<>
-sequence_batch<policy::Host>::sequence_batch(size_t maxTargets, size_t maxEncodeLength) :
-    maxTargets_{maxTargets}, maxEncodeLength_{maxEncodeLength}, numTargets_{0}
+sequence_batch<policy::Host>::sequence_batch(uint32_t maxTargets, size_t maxEncodeLength) :
+    maxTargets_{maxTargets}, numTargets_{0}, maxEncodeLength_{maxEncodeLength}
 {
     if(maxTargets_) {
         cudaMallocHost(&targetIds_, maxTargets_*sizeof(target_id));
@@ -38,8 +38,8 @@ sequence_batch<policy::Host>::~sequence_batch() {
 
 //---------------------------------------------------------------
 template<>
-sequence_batch<policy::Device>::sequence_batch(size_t maxTargets, size_t maxEncodeLength) :
-    maxTargets_{maxTargets}, maxEncodeLength_{maxEncodeLength}, numTargets_{0}
+sequence_batch<policy::Device>::sequence_batch(uint32_t maxTargets, size_t maxEncodeLength) :
+    maxTargets_{maxTargets}, numTargets_{0}, maxEncodeLength_{maxEncodeLength}
 {
     if(maxTargets_) {
         cudaMalloc(&targetIds_, maxTargets_*sizeof(target_id));
@@ -51,6 +51,11 @@ sequence_batch<policy::Device>::sequence_batch(size_t maxTargets, size_t maxEnco
         cudaMalloc(&encodedAmbig_, maxEncodeLength_*sizeof(encodedambig_t));
     }
     CUERR
+
+    size_t totalSize = maxTargets_*(sizeof(target_id) + sizeof(window_id)) +
+                       (maxTargets_+1)*sizeof(encodinglen_t) +
+                       maxEncodeLength_*(sizeof(encodedseq_t) + sizeof(encodedambig_t));
+    std::cerr << "total batch size: " << (totalSize >> 10) << " KB\n";
 }
 //---------------------------------------------------------------
 template<>
