@@ -1012,15 +1012,7 @@ public:
     //---------------------------------------------------------------
     statistics_accumulator
     location_list_size_statistics() const {
-        auto priSize = statistics_accumulator{};
-
-        for(const auto& bucket : features_) {
-            if(!bucket.empty()) {
-                priSize += bucket.size();
-            }
-        }
-
-        return priSize;
+        return featureStoreGPU_.location_list_size_statistics();
     }
 
 

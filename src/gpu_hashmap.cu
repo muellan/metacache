@@ -143,6 +143,63 @@ public:
         CUERR
     }
 
+    //---------------------------------------------------------------
+    statistics_accumulator
+    location_list_size_statistics() {
+        auto priSize = statistics_accumulator{};
+
+        cudaDeviceSynchronize(); CUERR
+
+        key_type * keys = nullptr;
+        size_type numKeys = 0;
+        hashTable_.retrieve_all_keys(keys, numKeys); CUERR
+        cudaMallocManaged(&keys, numKeys*sizeof(key_type)); CUERR
+        hashTable_.retrieve_all_keys(keys, numKeys); CUERR
+
+        size_type  * offsetBuffer = nullptr;
+        void       * tmp = nullptr;
+        size_type valuesCount = 0;
+        size_type tmpSize = 0;
+
+        cudaMallocManaged(&offsetBuffer, batchSize_*sizeof(size_type)); CUERR
+
+        hashTable_.retrieve(
+            keys, batchSize_, offsetBuffer,
+            nullptr, valuesCount,
+            nullptr, tmpSize);
+        CUERR
+
+        cudaMallocManaged(&tmp, tmpSize); CUERR
+
+        const size_type numCycles = numKeys / batchSize_;
+        const size_type lastBatchSize = numKeys % batchSize_;
+
+        for(size_type b = 0; b < numCycles; ++b) {
+            hashTable_.retrieve(
+                keys+b*batchSize_, batchSize_, offsetBuffer,
+                nullptr, valuesCount,
+                tmp, tmpSize);
+            CUERR
+
+            priSize += offsetBuffer[0];
+            for(size_type i = 1; i < batchSize_; ++i)
+                priSize += offsetBuffer[i] - offsetBuffer[i-1];
+        }
+
+        hashTable_.retrieve(
+            keys+numCycles*batchSize_, lastBatchSize, offsetBuffer,
+            nullptr, valuesCount,
+            tmp, tmpSize);
+        CUERR
+
+        priSize += offsetBuffer[0];
+        for(size_type i = 1; i < lastBatchSize; ++i)
+            priSize += offsetBuffer[i] - offsetBuffer[i-1];
+
+        return priSize;
+    }
+
+
 private:
     //---------------------------------------------------------------
     void retrieve_and_write_binary(
@@ -601,6 +658,13 @@ float gpu_hashmap<Key,ValueT>::load_factor() const noexcept {
     if(buildHashTable_) return buildHashTable_->load_factor();
     if(queryHashTable_) return queryHashTable_->load_factor();
     return -1;
+}
+
+//---------------------------------------------------------------
+template<class Key, class ValueT>
+statistics_accumulator gpu_hashmap<Key,ValueT>::location_list_size_statistics() const {
+    if(buildHashTable_) return buildHashTable_->location_list_size_statistics();
+    return statistics_accumulator{};
 }
 
 

@@ -8,6 +8,7 @@
 #include "sequence_batch.cuh"
 #include "query_batch.cuh"
 #include "taxonomy.h"
+#include "stat_combined.h"
 
 namespace mc {
 
@@ -81,6 +82,10 @@ public:
     float max_load_factor() const noexcept {
         return maxLoadFactor_;
     }
+
+    //---------------------------------------------------------------
+    statistics_accumulator
+    location_list_size_statistics() const;
 
     /****************************************************************
      * @brief allocate gpu hash table for database building
