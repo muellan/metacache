@@ -33,18 +33,20 @@ public:
     sequence_batch(const sequence_batch&) = delete;
     //-----------------------------------------------------
     sequence_batch(sequence_batch&& other) {
-        maxTargets_       = other.maxTargets_;
+        maxTargets_        = other.maxTargets_;
         maxSequenceLength_ = other.maxSequenceLength_;
-        numTargets_       = other.numTargets_;
+        numTargets_        = other.numTargets_;
 
-        other.maxTargets_       = 0;
+        other.maxTargets_        = 0;
         other.maxSequenceLength_ = 0;
-        other.numTargets_       = 0;
+        other.numTargets_        = 0;
 
         targetIds_       = other.targetIds_;
         windowOffsets_   = other.windowOffsets_;
         sequenceOffsets_ = other.sequenceOffsets_;
-        sequence_       = other.sequence_;
+        sequence_        = other.sequence_;
+
+        batchProcessedEvent_ = other.batchProcessedEvent_;
     };
 
     //---------------------------------------------------------------
@@ -54,9 +56,7 @@ public:
     ~sequence_batch();
 
     //---------------------------------------------------------------
-    void clear() noexcept {
-        num_targets(0);
-    }
+    void clear() noexcept;
     //---------------------------------------------------------------
     index_type max_targets() const noexcept {
         return maxTargets_;
@@ -93,6 +93,10 @@ public:
     //---------------------------------------------------------------
     char * sequence() const noexcept {
         return sequence_;
+    }
+    //---------------------------------------------------------------
+    cudaEvent_t& event() {
+        return batchProcessedEvent_;
     }
 
     /*************************************************************************//**
@@ -179,19 +183,9 @@ private:
     window_id * windowOffsets_;
     size_type * sequenceOffsets_;
     char      * sequence_;
+
+    cudaEvent_t batchProcessedEvent_;
 };
-
-template<>
-sequence_batch<policy::Host>::sequence_batch(index_type maxTargets, size_type maxEncodeLength);
-
-template<>
-sequence_batch<policy::Host>::~sequence_batch();
-
-template<>
-sequence_batch<policy::Device>::sequence_batch(index_type maxTargets, size_type maxEncodeLength);
-
-template<>
-sequence_batch<policy::Device>::~sequence_batch();
 
 
 } // namespace mc

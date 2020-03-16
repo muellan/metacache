@@ -19,6 +19,8 @@ sequence_batch<policy::Host>::sequence_batch(index_type maxTargets, size_type ma
         cudaMallocHost(&sequence_, maxSequenceLength_*sizeof(char));
     }
     CUERR
+
+    cudaEventCreate(&batchProcessedEvent_); CUERR
 }
 //---------------------------------------------------------------
 template<>
@@ -53,6 +55,8 @@ sequence_batch<policy::Device>::sequence_batch(index_type maxTargets, size_type 
                        (maxTargets_+1)*sizeof(size_type) +
                        maxSequenceLength_*sizeof(char);
     std::cerr << "total batch size: " << (totalSize >> 10) << " KB\n";
+
+    cudaEventCreate(&batchProcessedEvent_); CUERR
 }
 //---------------------------------------------------------------
 template<>
@@ -67,6 +71,21 @@ sequence_batch<policy::Device>::~sequence_batch() {
     }
     CUERR
 }
+
+
+//---------------------------------------------------------------
+template<>
+void sequence_batch<policy::Host>::clear() noexcept {
+    cudaEventSynchronize(batchProcessedEvent_); CUERR
+    num_targets(0);
+}
+//-----------------------------------------------------
+template<>
+void sequence_batch<policy::Device>::clear() noexcept {
+    cudaEventSynchronize(batchProcessedEvent_); CUERR
+    num_targets(0);
+}
+
 
 
 void copy_host_to_device_async(
@@ -90,6 +109,9 @@ void copy_host_to_device_async(
     cudaMemcpyAsync(deviceBatch.sequence(), hostBatch.sequence(),
                     hostBatch.sequence_length()*sizeof(char),
                     cudaMemcpyHostToDevice, stream);
+
+    // cudaStreamSynchronize(stream);
+    // CUERR
 }
 
 

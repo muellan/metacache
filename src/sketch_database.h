@@ -312,7 +312,8 @@ public:
         ranksCache_{taxa_, taxon_rank::Sequence},
         targetLineages_{taxa_},
         name2tax_{},
-        seqBatches_{}
+        seqBatches_{},
+        currentSeqBatch_{0}
     {
         features_.max_load_factor(default_max_load_factor());
     }
@@ -329,7 +330,8 @@ public:
         ranksCache_{std::move(other.ranksCache_)},
         targetLineages_{std::move(other.targetLineages_)},
         name2tax_{std::move(other.name2tax_)},
-        seqBatches_{std::move(other.seqBatches_)}
+        seqBatches_{std::move(other.seqBatches_)},
+        currentSeqBatch_{other.currentSeqBatch_}
     {}
 
     database& operator = (const database&) = delete;
@@ -1043,7 +1045,9 @@ public:
 
     //---------------------------------------------------------------
     void wait_until_add_target_complete() {
-        flush_batches();
+        if(seqBatches_[currentSeqBatch_].num_targets())
+            featureStoreGPU_.insert(seqBatches_[currentSeqBatch_], targetSketcher_);
+        featureStoreGPU_.wait_until_insert_finished();
     }
 
 
@@ -1054,13 +1058,6 @@ public:
         return false;
     }
 
-
-    //---------------------------------------------------------------
-    void flush_batches() {
-        featureStoreGPU_.insert(seqBatches_[0], targetSketcher_);
-        //reset batch
-        seqBatches_[0].clear();
-    }
 
 private:
     //---------------------------------------------------------------
@@ -1079,7 +1076,7 @@ private:
     {
         using std::distance;
 
-        if(seqBatches_.size() < 1) provide_sequence_batches(1);
+        if(seqBatches_.size() < 2) provide_sequence_batches(2);
 
         window_id totalWindows = 0;
 
@@ -1088,13 +1085,14 @@ private:
             first += processedWindows*targetSketcher_.window_stride())
         {
             //fill sequence batch
-            processedWindows = seqBatches_[0].add_target(
+            processedWindows = seqBatches_[currentSeqBatch_].add_target(
                 first, last, tgt, totalWindows, targetSketcher_);
 
             // if no windows were processed batch must be full
-            if(!processedWindows && seqBatches_[0].num_targets()) {
-                featureStoreGPU_.insert(seqBatches_[0], targetSketcher_);
-                seqBatches_[0].clear();
+            if(!processedWindows && seqBatches_[currentSeqBatch_].num_targets()) {
+                featureStoreGPU_.insert(seqBatches_[currentSeqBatch_], targetSketcher_);
+                currentSeqBatch_ ^= 1;
+                seqBatches_[currentSeqBatch_].clear();
             }
 
             totalWindows += processedWindows;
@@ -1211,6 +1209,7 @@ private:
     std::map<taxon_name,const taxon*> name2tax_;
 
     std::vector<sequence_batch<policy::Host>> seqBatches_;
+    unsigned currentSeqBatch_;
 };
 
 

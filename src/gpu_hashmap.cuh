@@ -95,8 +95,10 @@ public:
 
     //---------------------------------------------------------------
     void insert(
-        const sequence_batch<policy::Host>& seqBatchHost,
+        sequence_batch<policy::Host>& seqBatchHost,
         const sketcher& targetSketcher);
+    //-----------------------------------------------------
+    void wait_until_insert_finished() const;
 
     //---------------------------------------------------------------
     void query_async(

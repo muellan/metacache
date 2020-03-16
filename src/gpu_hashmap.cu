@@ -48,11 +48,18 @@ public:
         hashTable_{key_capacity, value_capacity},
         batchSize_{default_batch_size()},
         maxLocsPerFeature_{maxLocsPerFeature},
-        seqBatches_{}
+        seqBatches_{},
+        currentSeqBatch_{0}
     {
         std::cerr << "hashtable total: " << (hashTable_.bytes_total() >> 20) << " MB\n";
 
         seqBatches_.emplace_back(MAX_TARGETS_PER_BATCH, MAX_LENGTH_PER_BATCH);
+        seqBatches_.emplace_back(MAX_TARGETS_PER_BATCH, MAX_LENGTH_PER_BATCH);
+
+        cudaStreamCreate(&copyStream_); CUERR
+        cudaStreamCreate(&insertStream_); CUERR
+
+        // cudaDeviceSynchronize(); CUERR
     }
 
     //---------------------------------------------------------------
@@ -82,32 +89,47 @@ public:
 
     //---------------------------------------------------------------
     void insert_async(
-        const sequence_batch<policy::Host>& seqBatchHost,
-        const sketcher& targetSketcher,
-        cudaStream_t stream
+        sequence_batch<policy::Host>& seqBatchHost,
+        const sketcher& targetSketcher
     ) {
-        copy_host_to_device_async(seqBatchHost, seqBatches_[0], stream);
+        cudaEventSynchronize(seqBatches_[currentSeqBatch_].event());
+
+        copy_host_to_device_async(
+            seqBatchHost, seqBatches_[currentSeqBatch_], copyStream_);
+
+        cudaEventRecord(seqBatchHost.event(), copyStream_); CUERR
+
+        cudaStreamWaitEvent(insertStream_, seqBatchHost.event(), 0); CUERR
 
         // max 32*4 features => max window size is 128
         constexpr int threadsPerBlock = 32;
         constexpr int itemsPerThread = 4;
 
         //TODO increase grid in x and y dim
-        const dim3 numBlocks{1024, seqBatches_[0].num_targets()};
-        insert_features<threadsPerBlock,itemsPerThread><<<numBlocks,threadsPerBlock,0,stream>>>(
+        const dim3 numBlocks{1024, seqBatches_[currentSeqBatch_].num_targets()};
+        insert_features<threadsPerBlock,itemsPerThread>
+            <<<numBlocks,threadsPerBlock,0,insertStream_>>>(
             hashTable_,
-            seqBatches_[0].num_targets(),
-            seqBatches_[0].target_ids(),
-            seqBatches_[0].window_offsets(),
-            seqBatches_[0].sequence(),
-            seqBatches_[0].sequence_offsets(),
+            seqBatches_[currentSeqBatch_].num_targets(),
+            seqBatches_[currentSeqBatch_].target_ids(),
+            seqBatches_[currentSeqBatch_].window_offsets(),
+            seqBatches_[currentSeqBatch_].sequence(),
+            seqBatches_[currentSeqBatch_].sequence_offsets(),
             targetSketcher.kmer_size(),
             targetSketcher.sketch_size(),
             targetSketcher.window_size(),
             targetSketcher.window_stride());
 
-        cudaStreamSynchronize(stream);
-        CUERR
+        cudaEventRecord(seqBatches_[currentSeqBatch_].event(), insertStream_);
+
+        // cudaStreamSynchronize(insertStream_); CUERR
+
+        currentSeqBatch_ ^= 1;
+    }
+
+    //-----------------------------------------------------
+    void wait_until_insert_finished() const {
+        cudaStreamSynchronize(insertStream_); CUERR
     }
 
     //---------------------------------------------------------------
@@ -313,6 +335,10 @@ private:
 
     size_t maxBatches_;
     std::vector<sequence_batch<policy::Device>> seqBatches_;
+    unsigned currentSeqBatch_;
+
+    cudaStream_t copyStream_;
+    cudaStream_t insertStream_;
 };
 
 
@@ -698,15 +724,17 @@ void gpu_hashmap<Key,ValueT>::initialize_hash_table(
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::insert(
-    const sequence_batch<policy::Host>& seqBatchHost,
+    sequence_batch<policy::Host>& seqBatchHost,
     const sketcher& targetSketcher)
 {
-    cudaStream_t stream = 0;
-
     buildHashTable_->insert_async(
         seqBatchHost,
-        targetSketcher,
-        stream);
+        targetSketcher);
+}
+//-----------------------------------------------------
+template<class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::wait_until_insert_finished() const {
+    buildHashTable_->wait_until_insert_finished();
 }
 
 
