@@ -1075,8 +1075,7 @@ private:
     window_id add_target_gpu(
         sequence::const_iterator first,
         sequence::const_iterator last,
-        target_id tgt,
-        window_id win = 0)
+        target_id tgt)
     {
         using std::distance;
 
@@ -1090,10 +1089,10 @@ private:
         {
             //fill sequence batch
             processedWindows = seqBatches_[0].add_target(
-                first, last, tgt, win+totalWindows, targetSketcher_);
+                first, last, tgt, totalWindows, targetSketcher_);
 
             // if no windows were processed batch must be full
-            if(!processedWindows) {
+            if(!processedWindows && seqBatches_[0].num_targets()) {
                 featureStoreGPU_.insert(seqBatches_[0], targetSketcher_);
                 seqBatches_[0].clear();
             }
