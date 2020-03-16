@@ -101,24 +101,7 @@ public:
         const sketcher& targetSketcher,
         cudaStream_t stream
     ) {
-        seqBatches_[0].num_targets(seqBatchHost.num_targets());
-
-        //copy batch to gpu
-        cudaMemcpyAsync(seqBatches_[0].target_ids(), seqBatchHost.target_ids(),
-                        seqBatchHost.num_targets()*sizeof(target_id),
-                        cudaMemcpyHostToDevice, stream);
-        cudaMemcpyAsync(seqBatches_[0].window_offsets(), seqBatchHost.window_offsets(),
-                        seqBatchHost.num_targets()*sizeof(window_id),
-                        cudaMemcpyHostToDevice, stream);
-        cudaMemcpyAsync(seqBatches_[0].encode_offsets(), seqBatchHost.encode_offsets(),
-                        (seqBatchHost.num_targets()+1)*sizeof(encodinglen_t),
-                        cudaMemcpyHostToDevice, stream);
-        cudaMemcpyAsync(seqBatches_[0].encoded_seq(), seqBatchHost.encoded_seq(),
-                        seqBatchHost.encode_offsets()[seqBatchHost.num_targets()]*sizeof(encodedseq_t),
-                        cudaMemcpyHostToDevice, stream);
-        cudaMemcpyAsync(seqBatches_[0].encoded_ambig(), seqBatchHost.encoded_ambig(),
-                        seqBatchHost.encode_offsets()[seqBatchHost.num_targets()]*sizeof(encodedambig_t),
-                        cudaMemcpyHostToDevice, stream);
+        copy_host_to_device_async(seqBatchHost, seqBatches_[0], stream);
 
         // max 32*4 features => max window size is 128
         constexpr int threadsPerBlock = 32;
@@ -131,9 +114,8 @@ public:
             seqBatches_[0].num_targets(),
             seqBatches_[0].target_ids(),
             seqBatches_[0].window_offsets(),
-            seqBatches_[0].encode_offsets(),
-            seqBatches_[0].encoded_seq(),
-            seqBatches_[0].encoded_ambig(),
+            seqBatches_[0].sequence(),
+            seqBatches_[0].sequence_offsets(),
             targetSketcher.kmer_size(),
             targetSketcher.sketch_size(),
             targetSketcher.window_size(),

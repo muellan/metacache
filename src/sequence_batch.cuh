@@ -3,6 +3,8 @@
 
 #include <functional>
 
+#include "cuda_runtime.h"
+
 #include "config.h"
 
 namespace mc {
@@ -19,28 +21,30 @@ template<policy P>
 class sequence_batch
  {
 public:
+    using index_type = uint32_t;
+    using size_type  = uint32_t;
+
     //---------------------------------------------------------------
     /**
      * @brief allocate memory on host or device depending on policy
      */
-    sequence_batch(uint32_t maxTargets = 0, size_t maxEncodeLength = 0);
+    sequence_batch(index_type maxTargets = 0, size_type maxEncodeLength = 0);
     //-----------------------------------------------------
     sequence_batch(const sequence_batch&) = delete;
     //-----------------------------------------------------
     sequence_batch(sequence_batch&& other) {
-        maxTargets_      = other.maxTargets_;
-        maxEncodeLength_ = other.maxEncodeLength_;
-        numTargets_      = other.numTargets_;
+        maxTargets_       = other.maxTargets_;
+        maxSequenceLength_ = other.maxSequenceLength_;
+        numTargets_       = other.numTargets_;
 
-        other.maxTargets_      = 0;
-        other.maxEncodeLength_ = 0;
-        other.numTargets_      = 0;
+        other.maxTargets_       = 0;
+        other.maxSequenceLength_ = 0;
+        other.numTargets_       = 0;
 
-        targetIds_     = other.targetIds_;
-        windowOffsets_ = other.windowOffsets_;
-        encodeOffsets_ = other.encodeOffsets_;
-        encodedSeq_    = other.encodedSeq_;
-        encodedAmbig_  = other.encodedAmbig_;
+        targetIds_       = other.targetIds_;
+        windowOffsets_   = other.windowOffsets_;
+        sequenceOffsets_ = other.sequenceOffsets_;
+        sequence_       = other.sequence_;
     };
 
     //---------------------------------------------------------------
@@ -54,21 +58,21 @@ public:
         num_targets(0);
     }
     //---------------------------------------------------------------
-    uint32_t max_targets() const noexcept {
+    index_type max_targets() const noexcept {
         return maxTargets_;
     }
     //---------------------------------------------------------------
-    size_t max_encode_length() const noexcept {
-        return maxEncodeLength_;
-    }
-    //---------------------------------------------------------------
-    uint32_t num_targets() const noexcept {
+    index_type num_targets() const noexcept {
         return numTargets_;
     }
     //-----------------------------------------------------
-    void num_targets(uint32_t n) noexcept {
+    void num_targets(index_type n) noexcept {
         if(n > max_targets()) n = max_targets();
         numTargets_ = n;
+    }
+    //---------------------------------------------------------------
+    size_type max_sequence_length() const noexcept {
+        return maxSequenceLength_;
     }
     //---------------------------------------------------------------
     target_id * target_ids() const noexcept {
@@ -79,16 +83,16 @@ public:
         return windowOffsets_;
     }
     //---------------------------------------------------------------
-    encodinglen_t * encode_offsets() const noexcept {
-        return encodeOffsets_;
+    size_type * sequence_offsets() const noexcept {
+        return sequenceOffsets_;
+    }
+    //-----------------------------------------------------
+    size_type sequence_length() const noexcept {
+        return sequenceOffsets_[numTargets_];
     }
     //---------------------------------------------------------------
-    encodedseq_t * encoded_seq() const noexcept {
-        return encodedSeq_;
-    }
-    //---------------------------------------------------------------
-    encodedambig_t * encoded_ambig() const noexcept {
-        return encodedAmbig_;
+    char * sequence() const noexcept {
+        return sequence_;
     }
 
     /*************************************************************************//**
@@ -122,17 +126,14 @@ public:
         // batch full, nothing processed
         if(numTargets_ == maxTargets_) return processedWindows;
 
-        const auto availableBlocks = (maxEncodeLength_ - encodeOffsets_[numTargets_]);
+        const auto availableLength = (maxSequenceLength_ - sequenceOffsets_[numTargets_]);
         // batch full, nothing processed
-        if(!availableBlocks) return processedWindows;
-
-        constexpr auto lettersPerBlock = sizeof(encodedambig_t)*CHAR_BIT;
-        const size_t availableLength = availableBlocks * lettersPerBlock;
+        if(!availableLength) return processedWindows;
 
         InputIterator end = last;
         if(seqLength > availableLength) {
-            //sequence does not fit into batch as a whole
-            //so need to process a whole window
+            // sequence does not fit into batch as a whole
+            // but we need to process whole windows
 
             const window_id availableWindows = availableLength < windowSize ? 0 :
                 (availableLength - windowSize) / windowStride + 1;
@@ -154,41 +155,40 @@ public:
         // insert sequence into batch
         targetIds_[numTargets_] = tgt;
         windowOffsets_[numTargets_] = win;
-        encodeOffsets_[numTargets_+1] = encodeOffsets_[numTargets_];
 
-        for_each_consecutive_substring_2bit<encodedseq_t>(first, end,
-            [&, this] (encodedseq_t substring, encodedambig_t ambig) {
-                auto& index = encodeOffsets_[numTargets_+1];
-                encodedSeq_[index] = substring;
-                encodedAmbig_[index] = ambig;
-                ++index;
-            });
+        std::copy(first, end, sequence_ + sequenceOffsets_[numTargets_]);
+        sequenceOffsets_[numTargets_+1] = sequenceOffsets_[numTargets_] + distance(first, end);
 
         ++numTargets_;
 
         return processedWindows;
     }
 
-private:
-    uint32_t maxTargets_;
-    uint32_t numTargets_;
-    size_t maxEncodeLength_;
+    friend
+    void copy_host_to_device_async(
+        const sequence_batch<policy::Host>& hostBatch,
+        sequence_batch<policy::Device>& deviceBatch,
+        cudaStream_t stream);
 
-    target_id      * targetIds_;
-    window_id      * windowOffsets_;
-    encodinglen_t  * encodeOffsets_;
-    encodedseq_t   * encodedSeq_;
-    encodedambig_t * encodedAmbig_;
+private:
+    index_type maxTargets_;
+    index_type numTargets_;
+    size_type  maxSequenceLength_;
+
+    target_id * targetIds_;
+    window_id * windowOffsets_;
+    size_type * sequenceOffsets_;
+    char      * sequence_;
 };
 
 template<>
-sequence_batch<policy::Host>::sequence_batch(uint32_t maxTargets, size_t maxEncodeLength);
+sequence_batch<policy::Host>::sequence_batch(index_type maxTargets, size_type maxEncodeLength);
 
 template<>
 sequence_batch<policy::Host>::~sequence_batch();
 
 template<>
-sequence_batch<policy::Device>::sequence_batch(uint32_t maxTargets, size_t maxEncodeLength);
+sequence_batch<policy::Device>::sequence_batch(index_type maxTargets, size_type maxEncodeLength);
 
 template<>
 sequence_batch<policy::Device>::~sequence_batch();

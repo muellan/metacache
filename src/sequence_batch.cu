@@ -6,18 +6,17 @@ namespace mc {
 
 //---------------------------------------------------------------
 template<>
-sequence_batch<policy::Host>::sequence_batch(uint32_t maxTargets, size_t maxEncodeLength) :
-    maxTargets_{maxTargets}, numTargets_{0}, maxEncodeLength_{maxEncodeLength}
+sequence_batch<policy::Host>::sequence_batch(index_type maxTargets, size_type maxSequenceLength) :
+    maxTargets_{maxTargets}, numTargets_{0}, maxSequenceLength_{maxSequenceLength}
 {
     if(maxTargets_) {
         cudaMallocHost(&targetIds_, maxTargets_*sizeof(target_id));
         cudaMallocHost(&windowOffsets_, maxTargets_*sizeof(window_id));
-        cudaMallocHost(&encodeOffsets_, (maxTargets_+1)*sizeof(encodinglen_t));
-        encodeOffsets_[0] = 0;
+        cudaMallocHost(&sequenceOffsets_, (maxTargets_+1)*sizeof(size_type));
+        sequenceOffsets_[0] = 0;
     }
-    if(maxEncodeLength_) {
-        cudaMallocHost(&encodedSeq_, maxEncodeLength_*sizeof(encodedseq_t));
-        cudaMallocHost(&encodedAmbig_, maxEncodeLength_*sizeof(encodedambig_t));
+    if(maxSequenceLength_) {
+        cudaMallocHost(&sequence_, maxSequenceLength_*sizeof(char));
     }
     CUERR
 }
@@ -27,34 +26,32 @@ sequence_batch<policy::Host>::~sequence_batch() {
     if(maxTargets_) {
         cudaFreeHost(targetIds_);
         cudaFreeHost(windowOffsets_);
-        cudaFreeHost(encodeOffsets_);
+        cudaFreeHost(sequenceOffsets_);
     }
-    if(maxEncodeLength_) {
-        cudaFreeHost(encodedSeq_);
-        cudaFreeHost(encodedAmbig_);
+    if(maxSequenceLength_) {
+        cudaFreeHost(sequence_);
     }
     CUERR
 }
 
 //---------------------------------------------------------------
 template<>
-sequence_batch<policy::Device>::sequence_batch(uint32_t maxTargets, size_t maxEncodeLength) :
-    maxTargets_{maxTargets}, numTargets_{0}, maxEncodeLength_{maxEncodeLength}
+sequence_batch<policy::Device>::sequence_batch(index_type maxTargets, size_type maxSequenceLength) :
+    maxTargets_{maxTargets}, numTargets_{0}, maxSequenceLength_{maxSequenceLength}
 {
     if(maxTargets_) {
         cudaMalloc(&targetIds_, maxTargets_*sizeof(target_id));
         cudaMalloc(&windowOffsets_, maxTargets_*sizeof(window_id));
-        cudaMalloc(&encodeOffsets_, (maxTargets_+1)*sizeof(encodinglen_t));
+        cudaMalloc(&sequenceOffsets_, (maxTargets_+1)*sizeof(size_type));
     }
-    if(maxEncodeLength_) {
-        cudaMalloc(&encodedSeq_, maxEncodeLength_*sizeof(encodedseq_t));
-        cudaMalloc(&encodedAmbig_, maxEncodeLength_*sizeof(encodedambig_t));
+    if(maxSequenceLength_) {
+        cudaMalloc(&sequence_, maxSequenceLength_*sizeof(char));
     }
     CUERR
 
     size_t totalSize = maxTargets_*(sizeof(target_id) + sizeof(window_id)) +
-                       (maxTargets_+1)*sizeof(encodinglen_t) +
-                       maxEncodeLength_*(sizeof(encodedseq_t) + sizeof(encodedambig_t));
+                       (maxTargets_+1)*sizeof(size_type) +
+                       maxSequenceLength_*sizeof(char);
     std::cerr << "total batch size: " << (totalSize >> 10) << " KB\n";
 }
 //---------------------------------------------------------------
@@ -63,13 +60,36 @@ sequence_batch<policy::Device>::~sequence_batch() {
     if(maxTargets_) {
         cudaFree(targetIds_);
         cudaFree(windowOffsets_);
-        cudaFree(encodeOffsets_);
+        cudaFree(sequenceOffsets_);
     }
-    if(maxEncodeLength_) {
-        cudaFree(encodedSeq_);
-        cudaFree(encodedAmbig_);
+    if(maxSequenceLength_) {
+        cudaFree(sequence_);
     }
     CUERR
+}
+
+
+void copy_host_to_device_async(
+    const sequence_batch<policy::Host>& hostBatch,
+    sequence_batch<policy::Device>& deviceBatch,
+    cudaStream_t stream)
+{
+    using size_type = sequence_batch<policy::Host>::size_type;
+
+    deviceBatch.num_targets(hostBatch.num_targets());
+
+    cudaMemcpyAsync(deviceBatch.target_ids(), hostBatch.target_ids(),
+                    hostBatch.num_targets()*sizeof(target_id),
+                    cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(deviceBatch.window_offsets(), hostBatch.window_offsets(),
+                    hostBatch.num_targets()*sizeof(window_id),
+                    cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(deviceBatch.sequence_offsets(), hostBatch.sequence_offsets(),
+                    (hostBatch.num_targets()+1)*sizeof(size_type),
+                    cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(deviceBatch.sequence(), hostBatch.sequence(),
+                    hostBatch.sequence_length()*sizeof(char),
+                    cudaMemcpyHostToDevice, stream);
 }
 
 

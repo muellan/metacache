@@ -166,57 +166,110 @@ uint32_t copy_loctions(
     return totalLocations;
 }
 
-
-//---------------------------------------------------------------
+/****************************************************************
+ *
+ * @brief insert batch of sequences into hashtable
+ *
+ * @details each block processes one window of at most 128 characters
+ *
+ */
 // BLOCK_THREADS has to be 32
 template<
     int BLOCK_THREADS = 32,
     int ITEMS_PER_THREAD = 4,
-    class Hashtable>
+    class Hashtable,
+    class IndexT,
+    class SizeT>
 __global__
 __launch_bounds__(BLOCK_THREADS)
 void insert_features(
     Hashtable hashtable,
-    uint32_t numTargets,
+    IndexT numTargets,
     const target_id * targetIds,
     const window_id * winOffsets,
-    const encodinglen_t * encodeOffsets,
-    const encodedseq_t * encodedSeq,
-    const encodedambig_t * encodedAmbig,
-    numk_t k,
+    const char      * sequence,
+    const SizeT     * sequenceOffsets,
+    numk_t kmerSize,
     uint32_t maxSketchSize,
-    size_t windowSize,
-    size_t windowStride
+    uint32_t windowSize,
+    uint32_t windowStride
 )
 {
+    using index_type = IndexT;
+    using size_type = SizeT;
     using BlockRadixSortT = cub::BlockRadixSort<feature, BLOCK_THREADS, ITEMS_PER_THREAD>;
+
+    constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
+    constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
+    constexpr uint8_t encodedBlocksPerWindow = 128 / ambigBits;
 
     __shared__ union {
         typename BlockRadixSortT::TempStorage sort;
         //TODO MAX_SKETCH_SIZE
         feature sketch[16];
+        struct {
+            encodedseq_t seq[encodedBlocksPerWindow];
+            encodedambig_t ambig[encodedBlocksPerWindow];
+        } encodedWindow;
     } tempStorage;
 
-    for(size_t tgt = blockIdx.y; tgt < numTargets; tgt += gridDim.y) {
-        const encodinglen_t encodingLength = encodeOffsets[tgt+1] - encodeOffsets[tgt];
-
-        constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
-        constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
-
-        //letters stored from high to low bits
-        //masks get highest bits
-        const encodedseq_t   kmerMask  = encodedseq_t(~0) << (encBits - 2*k);
-        const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - k);
-
-        const size_t last = encodingLength * ambigBits - k + 1;
-        const window_id numWindows = (last + windowStride - 1) / windowStride;
-
-        const encodedseq_t   * const seq   = encodedSeq   + encodeOffsets[tgt];
-        const encodedambig_t * const ambig = encodedAmbig + encodeOffsets[tgt];
+    for(index_type tgt = blockIdx.y; tgt < numTargets; tgt += gridDim.y) {
+        const size_type sequenceLength = sequenceOffsets[tgt+1] - sequenceOffsets[tgt];
+        const window_id lastWindowSize = sequenceLength % windowStride;
+        const window_id numWindows = sequenceLength / windowStride + (lastWindowSize >= kmerSize);
 
         //each block processes one window
         for(window_id win = blockIdx.x; win < numWindows; win += gridDim.x)
         {
+            if(threadIdx.x < encodedBlocksPerWindow)
+                tempStorage.encodedWindow.ambig[threadIdx.x] = encodedambig_t(~0);
+            __syncthreads();
+
+            const size_type offsetBegin = sequenceOffsets[tgt] + win*windowStride;
+            const size_type offsetEnd = min(sequenceOffsets[tgt+1], offsetBegin + windowSize);
+            const size_type thisWindowSize = offsetEnd - offsetBegin;
+            const char * windowBegin = sequence + offsetBegin;
+            const encodinglen_t thisWindowSizePadded =
+                (thisWindowSize+BLOCK_THREADS-1) / BLOCK_THREADS * BLOCK_THREADS;
+            const int lane = ambigBits - threadIdx.x % ambigBits - 1;
+            constexpr int numSubwarps = BLOCK_THREADS / ambigBits;
+            const int subwarpId = threadIdx.x / ambigBits;
+            int blockCounter = subwarpId;
+            for(int tid = threadIdx.x; tid < thisWindowSizePadded; tid += BLOCK_THREADS) {
+                encodedseq_t seq = 0;
+                encodedambig_t ambig = 0;
+                const char c = (tid < thisWindowSize) ? windowBegin[tid] : 'N';
+                switch(c) {
+                    case 'A': case 'a': break;
+                    case 'C': case 'c': seq |= 1; break;
+                    case 'G': case 'g': seq |= 2; break;
+                    case 'T': case 't': seq |= 3; break;
+                    default: ambig |= 1; break;
+                }
+                seq <<= 2*lane;
+                ambig <<= lane;
+
+                for(int stride = 1; stride < ambigBits; stride <<= 1) {
+                    seq   |= __shfl_xor_sync(0xFFFFFFFF, seq, stride);
+                    ambig |= __shfl_xor_sync(0xFFFFFFFF, ambig, stride);
+                }
+
+                if(lane == 0) {
+                    tempStorage.encodedWindow.seq[blockCounter]   = seq;
+                    tempStorage.encodedWindow.ambig[blockCounter] = ambig;
+                    // printf("query: %u tid: %d seq: %u ambig: %u\n", queryId, tid, seq, ambig);
+                }
+                blockCounter += numSubwarps;
+            }
+            __syncthreads();
+
+            //letters stored from high to low bits
+            //masks get highest bits
+            const encodedseq_t   kmerMask  = encodedseq_t(~0) << (encBits - 2*kmerSize);
+            const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - kmerSize);
+
+            const size_t lastKmerBegin = thisWindowSize - kmerSize + 1;
+
             uint8_t numItems = 0;
             feature items[ITEMS_PER_THREAD];
             //initialize thread local feature store
@@ -224,28 +277,27 @@ void insert_features(
                 items[i] = feature(~0);
 
             //each thread extracts one feature
-            const size_t first = win * windowStride;
-            for(size_t tid  = first + threadIdx.x;
-                       tid  < min(first + windowSize - k + 1, last);
-                       tid += blockDim.x)
+            for(size_t tid  = threadIdx.x;
+                       tid  < lastKmerBegin;
+                       tid += BLOCK_THREADS)
             {
                 const std::uint32_t  seq_slot    = tid / (ambigBits);
                 const std::uint8_t   kmer_slot   = tid & (ambigBits-1);
-                const encodedambig_t ambig_left  = ambig[seq_slot] << kmer_slot;
-                const encodedambig_t ambig_right = ambig[seq_slot+1] >> (ambigBits-kmer_slot);
+                const encodedambig_t ambig_left  = tempStorage.encodedWindow.ambig[seq_slot] << kmer_slot;
+                const encodedambig_t ambig_right = tempStorage.encodedWindow.ambig[seq_slot+1] >> (ambigBits-kmer_slot);
                 // cuda-memcheck save version
                 // const encodedambig_t ambig_right = kmer_slot ? ambig[seq_slot+1] >> (ambigBits-kmer_slot) : 0;
 
                 //continue only if no bases ambiguous
-                const encodedseq_t seq_left  = seq[seq_slot] << (2*kmer_slot);
-                const encodedseq_t seq_right = seq[seq_slot+1] >> (encBits-(2*kmer_slot));
+                const encodedseq_t seq_left  = tempStorage.encodedWindow.seq[seq_slot] << (2*kmer_slot);
+                const encodedseq_t seq_right = tempStorage.encodedWindow.seq[seq_slot+1] >> (encBits-(2*kmer_slot));
                 // cuda-memcheck save version
-                // const encodedseq_t seq_right = kmer_slot ? seq[seq_slot+1] >> (encBits-(2*kmer_slot)) : 0;
+                // const encodedseq_t seq_right = kmer_slot ? tempStorage.encodedWindow.seq[seq_slot+1] >> (encBits-(2*kmer_slot)) : 0;
 
                 //get highest bits
                 kmer_type kmer = (seq_left+seq_right) & kmerMask;
                 //shift kmer to lowest bits
-                kmer >>= (encBits - 2*k);
+                kmer >>= (encBits - 2*kmerSize);
 
                 kmer = make_canonical_2bit(kmer);
 
@@ -261,6 +313,7 @@ void insert_features(
                 //     printf("ambiguous\n");
                 // }
             }
+            __syncthreads();
 
             BlockRadixSortT(tempStorage.sort).SortBlockedToStriped(items);
 
@@ -294,7 +347,7 @@ void gpu_hahstable_query(
     uint32_t numQueries,
     const encodinglen_t * sequenceOffsets,
     const char * sequences,
-    numk_t k,
+    numk_t kmerSize,
     uint32_t maxSketchSize,
     uint32_t windowSize,
     uint32_t windowStride,
@@ -370,10 +423,10 @@ void gpu_hahstable_query(
 
             //letters stored from high to low bits
             //masks get highest bits
-            const encodedseq_t   kmerMask  = encodedseq_t(~0) << (encBits - 2*k);
-            const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - k);
+            const encodedseq_t   kmerMask  = encodedseq_t(~0) << (encBits - 2*kmerSize);
+            const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - kmerSize);
 
-            const size_t last = sequenceLength - k + 1;
+            const size_t lastKmerBegin = sequenceLength - kmerSize + 1;
 
             uint8_t numItems = 0;
             feature items[ITEMS_PER_THREAD];
@@ -383,7 +436,7 @@ void gpu_hahstable_query(
 
             //each thread extracts one feature
             for(int tid  = threadIdx.x;
-                    tid  < last;
+                    tid  < lastKmerBegin;
                     tid += BLOCK_THREADS)
             {
                 const std::uint32_t  seq_slot    = tid / (ambigBits);
@@ -402,7 +455,7 @@ void gpu_hahstable_query(
                 //get highest bits
                 kmer_type kmer = (seq_left+seq_right) & kmerMask;
                 //shift kmer to lowest bits
-                kmer >>= (encBits - 2*k);
+                kmer >>= (encBits - 2*kmerSize);
 
                 kmer = make_canonical_2bit(kmer);
 
