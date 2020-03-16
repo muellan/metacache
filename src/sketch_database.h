@@ -1107,7 +1107,7 @@ private:
     //---------------------------------------------------------------
     void provide_sequence_batches(size_t numBatches) {
         for(size_t i = seqBatches_.size(); i < numBatches; ++i)
-            seqBatches_.emplace_back(MAX_TARGETS_PER_BATCH, MAX_ENCODE_LENGTH_PER_BATCH);
+            seqBatches_.emplace_back(MAX_TARGETS_PER_BATCH, MAX_LENGTH_PER_BATCH);
     }
 
 
