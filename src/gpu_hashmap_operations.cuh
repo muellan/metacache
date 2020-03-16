@@ -221,31 +221,29 @@ void insert_features(
         //each block processes one window
         for(window_id win = blockIdx.x; win < numWindows; win += gridDim.x)
         {
-            if(threadIdx.x < encodedBlocksPerWindow)
-                tempStorage.encodedWindow.ambig[threadIdx.x] = encodedambig_t(~0);
-            __syncthreads();
-
             const size_type offsetBegin = sequenceOffsets[tgt] + win*windowStride;
             const size_type offsetEnd = min(sequenceOffsets[tgt+1], offsetBegin + windowSize);
             const size_type thisWindowSize = offsetEnd - offsetBegin;
             const char * windowBegin = sequence + offsetBegin;
-            const encodinglen_t thisWindowSizePadded =
-                (thisWindowSize+BLOCK_THREADS-1) / BLOCK_THREADS * BLOCK_THREADS;
             const int lane = ambigBits - threadIdx.x % ambigBits - 1;
             constexpr int numSubwarps = BLOCK_THREADS / ambigBits;
             const int subwarpId = threadIdx.x / ambigBits;
             int blockCounter = subwarpId;
-            for(int tid = threadIdx.x; tid < thisWindowSizePadded; tid += BLOCK_THREADS) {
+            for(int i = 0; i < ITEMS_PER_THREAD; ++i) {
+                int tid = threadIdx.x + i*BLOCK_THREADS;
+
                 encodedseq_t seq = 0;
                 encodedambig_t ambig = 0;
-                const char c = (tid < thisWindowSize) ? windowBegin[tid] : 'N';
-                switch(c) {
-                    case 'A': case 'a': break;
-                    case 'C': case 'c': seq |= 1; break;
-                    case 'G': case 'g': seq |= 2; break;
-                    case 'T': case 't': seq |= 3; break;
-                    default: ambig |= 1; break;
-                }
+                char c = (tid < thisWindowSize) ? windowBegin[tid] : 'N';
+
+                c &= 0b11011111; // to upper case
+
+                seq = (c == 'A') ? 0 : seq;
+                seq = (c == 'C') ? 1 : seq;
+                seq = (c == 'G') ? 2 : seq;
+                seq = (c == 'T') ? 3 : seq;
+                ambig = (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
+
                 seq <<= 2*lane;
                 ambig <<= lane;
 
@@ -317,6 +315,8 @@ void insert_features(
 
             BlockRadixSortT(tempStorage.sort).SortBlockedToStriped(items);
 
+            __syncthreads();
+
             uint32_t sketchCounter =
                 unique_sketch<ITEMS_PER_THREAD>(items, tempStorage.sketch, maxSketchSize);
 
@@ -383,27 +383,26 @@ void gpu_hahstable_query(
 
         //only process non-empty queries
         if(sequenceLength) {
-            if(threadIdx.x < encodedBlocksPerWindow)
-                tempStorage.encodedWindow.ambig[threadIdx.x] = encodedambig_t(~0);
-            __syncthreads();
-
             const char * sequenceBegin = sequences + sequenceOffsets[queryId];
-            const encodinglen_t sequenceLengthPadded = (sequenceLength+BLOCK_THREADS-1) / BLOCK_THREADS * BLOCK_THREADS;
             const int lane = ambigBits - threadIdx.x % ambigBits - 1;
             constexpr int numSubwarps = BLOCK_THREADS / ambigBits;
             const int subwarpId = threadIdx.x / ambigBits;
             int blockCounter = subwarpId;
-            for(int tid = threadIdx.x; tid < sequenceLengthPadded; tid += BLOCK_THREADS) {
+            for(int i = 0; i < ITEMS_PER_THREAD; ++i) {
+                int tid = threadIdx.x + i*BLOCK_THREADS;
+
                 encodedseq_t seq = 0;
                 encodedambig_t ambig = 0;
-                const char c = (tid < sequenceLength) ? sequenceBegin[tid] : 'N';
-                switch(c) {
-                    case 'A': case 'a': break;
-                    case 'C': case 'c': seq |= 1; break;
-                    case 'G': case 'g': seq |= 2; break;
-                    case 'T': case 't': seq |= 3; break;
-                    default: ambig |= 1; break;
-                }
+                char c = (tid < sequenceLength) ? sequenceBegin[tid] : 'N';
+
+                c &= 0b11011111; // to upper case
+
+                seq = (c == 'A') ? 0 : seq;
+                seq = (c == 'C') ? 1 : seq;
+                seq = (c == 'G') ? 2 : seq;
+                seq = (c == 'T') ? 3 : seq;
+                ambig = (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
+
                 seq <<= 2*lane;
                 ambig <<= lane;
 
@@ -474,6 +473,8 @@ void gpu_hahstable_query(
             __syncthreads();
 
             BlockRadixSortT(tempStorage.sort).SortBlockedToStriped(items);
+
+            __syncthreads();
 
             uint32_t realSketchSize =
                 unique_sketch<ITEMS_PER_THREAD>(items, tempStorage.sketch, maxSketchSize);
