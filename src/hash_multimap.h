@@ -938,6 +938,41 @@ public:
 
 private:
     //---------------------------------------------------------------
+    std::uint64_t deserialize_batch_of_buckets(
+        std::istream& is,
+        std::vector<key_type>& keyBuffer,
+        std::vector<bucket_size_type>& sizeBuffer,
+        std::uint64_t batchSize,
+        value_type * valuesOffset)
+    {
+        auto batchValuesOffset = valuesOffset;
+
+        //load batch
+        read_binary(is, keyBuffer.data(), batchSize);
+        read_binary(is, sizeBuffer.data(), batchSize);
+
+        //insert batch
+        for(std::uint64_t i = 0; i < batchSize; ++i) {
+            const auto& bucketSize = sizeBuffer[i];
+
+            if(bucketSize > 0) {
+                const auto& key = keyBuffer[i];
+
+                auto it = insert_into_slot(key, valuesOffset, bucketSize, bucketSize);
+                if(it == buckets_.end())
+                    std::cerr << "could not insert key " << key << '\n';
+
+                valuesOffset += bucketSize;
+            }
+        }
+        std::uint64_t batchValuesCount = valuesOffset - batchValuesOffset;
+        read_binary(is, batchValuesOffset, batchValuesCount);
+
+        return batchValuesCount;
+    }
+
+
+    //---------------------------------------------------------------
     void deserialize(std::istream& is)
     {
         using len_t = std::uint64_t;
@@ -964,86 +999,36 @@ private:
             //array; the default chunk_allocator does this
             reserve_keys(nkeys);
             reserve_values(nvalues);
-            const auto valuesBegin = alloc_.allocate(nvalues);
+            auto valuesOffset = alloc_.allocate(nvalues);
 
-            {//read keys & bucket sizes
-                auto valuesOffset = valuesBegin;
-
-                const len_t numCycles = nkeys / batchSize;
-                const len_t remainder = nkeys % batchSize;
+            {// read keys & bucket sizes & values in batches
+                const len_t numFullBatches = nkeys / batchSize;
+                const len_t lastBatchSize = nkeys % batchSize;
 
                 std::vector<key_type> keyBuffer(batchSize);
-                std::vector<bucket_size_type> valBuffer(batchSize);
+                std::vector<bucket_size_type> sizeBuffer(batchSize);
 
-                for(len_t b = 0; b < numCycles; ++b) {
-                    //load batch
-                    read_binary(is, keyBuffer.data(), batchSize);
-                    read_binary(is, valBuffer.data(), batchSize);
+                for(len_t b = 0; b < numFullBatches; ++b) {
+                    auto batchValuesCount = deserialize_batch_of_buckets(
+                        is, keyBuffer, sizeBuffer, batchSize, valuesOffset);
 
-                    //insert batch
-                    for(len_t i = 0; i < batchSize; ++i) {
-                        const auto& nvals = valBuffer[i];
-
-                        if(nvals > 0) {
-                            const auto& key = keyBuffer[i];
-
-                            auto it = insert_into_slot(key, valuesOffset, nvals, nvals);
-                            if(it == buckets_.end())
-                                std::cerr << "could not insert key " << key << '\n';
-
-                            valuesOffset += nvals;
-                        }
-                    }
-
-                    indicator += batchSize*(sizeof(key_type)+sizeof(bucket_size_type));
+                    indicator += batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
+                               + batchValuesCount*sizeof(value_type);
                     show_progress_indicator(std::cerr, float(indicator)/totalSize);
+
+                    valuesOffset += batchValuesCount;
                 }
 
-                //load last batch
-                read_binary(is, keyBuffer.data(), remainder);
-                read_binary(is, valBuffer.data(), remainder);
-
-                //insert batch
-                for(len_t i = 0; i < remainder; ++i) {
-                    const auto& nvals = valBuffer[i];
-
-                    if(nvals > 0) {
-                        const auto& key = keyBuffer[i];
-
-                        auto it = insert_into_slot(key, valuesOffset, nvals, nvals);
-                        if(it == buckets_.end())
-                            std::cerr << "could not insert key " << key << '\n';
-
-                        valuesOffset += nvals;
-                    }
-                }
-
-                indicator += remainder*(sizeof(key_type)+sizeof(bucket_size_type));
-                show_progress_indicator(std::cerr, float(indicator)/totalSize);
-            }
-
-            {//read values
-                auto valuesOffset = valuesBegin;
-
-                const len_t numCycles = nvalues / batchSize;
-                const len_t remainder = nvalues % batchSize;
-
-                for(len_t i = 0; i < numCycles; ++i) {
-                    read_binary(is, valuesOffset, batchSize);
-                    valuesOffset += batchSize;
-
-                    indicator += batchSize*sizeof(value_type);
-                    show_progress_indicator(std::cerr, float(indicator)/totalSize);
-                }
-                read_binary(is, valuesOffset, remainder);
-
-                clear_current_line(std::cerr);
+                deserialize_batch_of_buckets(
+                    is, keyBuffer, sizeBuffer, lastBatchSize, valuesOffset);
             }
 
             numKeys_ = nkeys;
             numValues_ = nvalues;
             batchSize_ = batchSize;
         }
+
+        clear_current_line(std::cerr);
     }
 
 
@@ -1055,59 +1040,47 @@ private:
     {
         using len_t = std::uint64_t;
 
-        write_binary(os, len_t(non_empty_bucket_count()));
+        const len_t nonEmptyBucketCount = non_empty_bucket_count();
+
+        write_binary(os, len_t(nonEmptyBucketCount));
         write_binary(os, len_t(value_count()));
         write_binary(os, len_t(batch_size()));
 
         const auto batchSize = batch_size();
+        const len_t avgValueCount = value_count() / nonEmptyBucketCount;
 
-        {//write keys & bucket sizes
-            std::vector<key_type> keyBuffer(batchSize);
-            std::vector<bucket_size_type> valBuffer(batchSize);
-
-            size_type i = 0;
+        {// write keys & bucket sizes & values in batches
+            std::vector<key_type> keyBuffer;
+            keyBuffer.reserve(batchSize);
+            std::vector<bucket_size_type> sizeBuffer;
+            sizeBuffer.reserve(batchSize);
+            std::vector<value_type> valBuffer;
+            valBuffer.reserve(batchSize*avgValueCount);
+            
             for(const auto& bucket : buckets_) {
                 if(!bucket.empty()) {
-                    keyBuffer[i] = bucket.key();
-                    valBuffer[i] = bucket.size();
-                    ++i;
+                    keyBuffer.emplace_back(bucket.key());
+                    sizeBuffer.emplace_back(bucket.size());
+                    std::copy(bucket.begin(), bucket.end(), std::back_inserter(valBuffer));
 
-                    if(i == batchSize) {
-                        //store batch
-                        write_binary(os, keyBuffer.data(), i);
-                        write_binary(os, valBuffer.data(), i);
-                        i = 0;
+                    if(keyBuffer.size() == batchSize) {
+                        // store batch
+                        write_binary(os, keyBuffer.data(), keyBuffer.size());
+                        write_binary(os, sizeBuffer.data(), sizeBuffer.size());
+                        write_binary(os, valBuffer.data(), valBuffer.size());
+                        // reset batch
+                        keyBuffer.clear();
+                        sizeBuffer.clear();
+                        valBuffer.clear();
                     }
                 }
             }
 
-            if(i > 0) {
-                //store last batch
-                write_binary(os, keyBuffer.data(), i);
-                write_binary(os, valBuffer.data(), i);
-            }
-        }
-
-        {//write values
-            std::vector<value_type> valBuffer(batchSize+max_bucket_size());
-
-            size_type i = 0;
-            for(const auto& bucket : buckets_) {
-                if(!bucket.empty()) {
-                    std::copy(bucket.begin(), bucket.end(), valBuffer.begin()+i);
-                    i += bucket.size();
-
-                    if(i >= batchSize) {
-                        //store batch
-                        write_binary(os, valBuffer.data(), i);
-                        i = 0;
-                    }
-                }
-            }
-
-            if(i > 0) {
-                //store last batch
-                write_binary(os, valBuffer.data(), i);
+            if(keyBuffer.size() > 0) {
+                // store last batch
+                write_binary(os, keyBuffer.data(), keyBuffer.size());
+                write_binary(os, sizeBuffer.data(), sizeBuffer.size());
+                write_binary(os, valBuffer.data(), valBuffer.size());
             }
         }
     }
