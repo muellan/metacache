@@ -641,7 +641,7 @@ public:
                        matches_sorter& res) const
     {
         querySketcher_.for_each_sketch(queryBegin, queryEnd,
-            [this, &res] (auto sk) {
+            [this, &res] (const auto& sk) {
                  res.offsets_.reserve(res.offsets_.size() + sk.size());
 
                 for(auto f : sk) {
@@ -771,7 +771,7 @@ private:
 
         window_id win = 0;
         targetSketcher_.for_each_sketch(seq,
-            [&, this] (auto sk) {
+            [&, this] (auto&& sk) {
                 if(inserter_->valid()) {
                     //insert sketch into batch
                     auto& sketch = inserter_->next_item();
