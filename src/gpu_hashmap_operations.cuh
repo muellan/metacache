@@ -439,6 +439,12 @@ void gpu_hahstable_query(
 
             __syncthreads();
         }
+        else {
+            if(threadIdx.x == 0) {
+                //store number of results of this query
+                locationCounts[queryId] = 0;
+            }
+        }
     }
 }
 
