@@ -115,13 +115,15 @@ public:
         target_id tgt, window_id win,
         const sketcher& targetSketcher
     ) {
+        using std::distance;
+
         const numk_t kmerSize     = targetSketcher.kmer_size();
         const size_t windowSize   = targetSketcher.window_size();
         const size_t windowStride = targetSketcher.window_stride();
 
         window_id processedWindows = 0;
 
-        const size_t seqLength = std::distance(first, last);
+        const size_t seqLength = distance(first, last);
 
         // no kmers in sequence, nothing to do here
         //TODO different case than batch full
@@ -132,36 +134,39 @@ public:
 
         const auto availableLength = (maxSequenceLength_ - sequenceOffsets_[numTargets_]);
         // batch full, nothing processed
-        if(!availableLength) return processedWindows;
+        if(availableLength < windowSize) return processedWindows;
 
         InputIterator end = last;
         if(seqLength > availableLength) {
             // sequence does not fit into batch as a whole
             // but we need to process whole windows
 
-            const window_id availableWindows = availableLength < windowSize ? 0 :
-                (availableLength - windowSize) / windowStride + 1;
-            // batch full, nothing processed
-            if(!availableWindows) return processedWindows;
+            const window_id availableWindows = (availableLength - windowSize) / windowStride + 1;
 
             const size_t providedLength = windowSize + (availableWindows-1) * windowStride;
 
             //split sequence into [first,end] and [next,last] with overlap
             end = first + providedLength;
-            processedWindows += availableWindows;
+            processedWindows = availableWindows;
         }
         else {
             const window_id numWindows =
                 (seqLength - kmerSize + windowStride) / windowStride;
-            processedWindows += numWindows;
+            processedWindows = numWindows;
         }
 
         // insert sequence into batch
         targetIds_[numTargets_] = tgt;
         windowOffsets_[numTargets_] = win;
 
+        const size_t addedLength = distance(first, end);
+        const size_t addedLengthPadded = (addedLength + 3) / 4 * 4;
+
         std::copy(first, end, sequence_ + sequenceOffsets_[numTargets_]);
-        sequenceOffsets_[numTargets_+1] = sequenceOffsets_[numTargets_] + distance(first, end);
+        std::fill(sequence_ + sequenceOffsets_[numTargets_] + addedLength,
+                  sequence_ + sequenceOffsets_[numTargets_] + addedLengthPadded,
+                  'N');
+        sequenceOffsets_[numTargets_+1] = sequenceOffsets_[numTargets_] + addedLengthPadded;
 
         ++numTargets_;
 

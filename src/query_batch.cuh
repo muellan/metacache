@@ -185,8 +185,9 @@ public:
         if(h_numQueries_ + numWindows1 + numWindows2 > maxQueries_) return false;
 
         const auto availableSize = maxSequenceLength_ - h_sequenceOffsets_[h_numQueries_];
+        const auto windowSizePadded = (windowSize + 3) / 4 * 4;
         // batch full, nothing processed
-        if(availableSize < (numWindows1 + numWindows2)*windowSize) return false;
+        if((numWindows1 + numWindows2)*windowSizePadded > availableSize) return false;
 
         // insert first sequence into batch as separate windows
         for_each_window(first1, last1, windowSize, windowStride,
@@ -194,8 +195,12 @@ public:
                 auto length = distance(first, last);
                 if(length >= kmerSize) {
                     h_queryIds_[h_numQueries_] = h_numSegments_;
-                    std::copy(first, last, h_sequences_+ h_sequenceOffsets_[h_numQueries_]);
-                    h_sequenceOffsets_[h_numQueries_+1] = h_sequenceOffsets_[h_numQueries_] + length;
+                    std::copy(first, last, h_sequences_ + h_sequenceOffsets_[h_numQueries_]);
+                    auto lengthPadded = (length + 3) / 4 * 4;
+                    std::fill(h_sequences_ + h_sequenceOffsets_[h_numQueries_] + length,
+                              h_sequences_ + h_sequenceOffsets_[h_numQueries_] + lengthPadded,
+                              'N');
+                    h_sequenceOffsets_[h_numQueries_+1] = h_sequenceOffsets_[h_numQueries_] + lengthPadded;
 
                     ++h_numQueries_;
                 }
@@ -208,17 +213,20 @@ public:
                 auto length = distance(first, last);
                 if(length >= kmerSize) {
                     h_queryIds_[h_numQueries_] = h_numSegments_;
-                    std::copy(first, last, h_sequences_+ h_sequenceOffsets_[h_numQueries_]);
-                    h_sequenceOffsets_[h_numQueries_+1] = h_sequenceOffsets_[h_numQueries_] + length;
+                    std::copy(first, last, h_sequences_ + h_sequenceOffsets_[h_numQueries_]);
+                    auto lengthPadded = (length + 3) / 4 * 4;
+                    std::fill(h_sequences_ + h_sequenceOffsets_[h_numQueries_] + length,
+                              h_sequences_ + h_sequenceOffsets_[h_numQueries_] + lengthPadded,
+                              'N');
+                    h_sequenceOffsets_[h_numQueries_+1] = h_sequenceOffsets_[h_numQueries_] + lengthPadded;
 
                     ++h_numQueries_;
                 }
             }
         );
 
-        h_maxWindowsInRange_[h_numSegments_] = window_id( 2 + (
-            std::max(seqLength1 + seqLength2, insertSizeMax) /
-            windowStride ));
+        h_maxWindowsInRange_[h_numSegments_] = window_id( 2 +
+            (std::max(seqLength1 + seqLength2, insertSizeMax) / windowStride ));
 
         ++h_numSegments_;
 
