@@ -68,8 +68,8 @@ struct build_options
 {
     int kmerlen = 16;
     int sketchlen = 16;
-    int winlen = 128;
-    int winstride = 113;
+    int winlen = 127;
+    int winstride = 112;
 
     float maxLoadFactor = -1;           //< 0 : use database default
     int maxLocationsPerFeature = database::max_supported_locations_per_feature();
