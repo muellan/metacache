@@ -5,7 +5,7 @@
 #include "dna_encoding.h"
 
 #include "../dep/cudahelpers/cuda_helpers.cuh"
-#include "cub/block/block_radix_sort.cuh"
+#include "../dep/bb_segsort/src/bb_exch_keys.cuh"
 
 namespace mc {
 
@@ -167,6 +167,140 @@ uint32_t copy_loctions(
 }
 
 
+//---------------------------------------------------------------
+template<class K>
+__device__ __inline__
+void warp_sort_128(K rg_k[4])
+{
+    const int tid = (threadIdx.x & 31);
+    const int bit1 = (tid>>0)&0x1;
+    const int bit2 = (tid>>1)&0x1;
+    const int bit3 = (tid>>2)&0x1;
+    const int bit4 = (tid>>3)&0x1;
+    const int bit5 = (tid>>4)&0x1;
+
+    // sort 128 elements
+    // exch_intxn: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
+    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
+    // exch_intxn: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[3] );
+    CMP_SWP_KEY(K,rg_k[1] ,rg_k[2] );
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
+    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
+    // exch_intxn: generate exch_intxn_keys()
+    exch_intxn_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x1,bit1);
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[2] );
+    CMP_SWP_KEY(K,rg_k[1] ,rg_k[3] );
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
+    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
+    // exch_intxn: generate exch_intxn_keys()
+    exch_intxn_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x3,bit2);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x1,bit1);
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[2] );
+    CMP_SWP_KEY(K,rg_k[1] ,rg_k[3] );
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
+    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
+    // exch_intxn: generate exch_intxn_keys()
+    exch_intxn_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x7,bit3);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x2,bit2);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x1,bit1);
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[2] );
+    CMP_SWP_KEY(K,rg_k[1] ,rg_k[3] );
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
+    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
+    // exch_intxn: generate exch_intxn_keys()
+    exch_intxn_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0xf,bit4);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x4,bit3);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x2,bit2);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x1,bit1);
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[2] );
+    CMP_SWP_KEY(K,rg_k[1] ,rg_k[3] );
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
+    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
+    // exch_intxn: generate exch_intxn_keys()
+    exch_intxn_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x1f,bit5);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x8,bit4);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x4,bit3);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x2,bit2);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x1,bit1);
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[2] );
+    CMP_SWP_KEY(K,rg_k[1] ,rg_k[3] );
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
+    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
+
+    // transpose blocked to striped
+    const int lane_id = threadIdx.x;
+    if(lane_id&0x1 ) SWP_KEY(K, rg_k[0] , rg_k[1] );
+    if(lane_id&0x1 ) SWP_KEY(K, rg_k[2] , rg_k[3] );
+    rg_k[1]  = __shfl_xor_sync(0xffffffff,rg_k[1] , 0x1 );
+    rg_k[3]  = __shfl_xor_sync(0xffffffff,rg_k[3] , 0x1 );
+    if(lane_id&0x1 ) SWP_KEY(K, rg_k[0] , rg_k[1] );
+    if(lane_id&0x1 ) SWP_KEY(K, rg_k[2] , rg_k[3] );
+    if(lane_id&0x2 ) SWP_KEY(K, rg_k[0] , rg_k[2] );
+    if(lane_id&0x2 ) SWP_KEY(K, rg_k[1] , rg_k[3] );
+    rg_k[2]  = __shfl_xor_sync(0xffffffff,rg_k[2] , 0x2 );
+    rg_k[3]  = __shfl_xor_sync(0xffffffff,rg_k[3] , 0x2 );
+    if(lane_id&0x2 ) SWP_KEY(K, rg_k[0] , rg_k[2] );
+    if(lane_id&0x2 ) SWP_KEY(K, rg_k[1] , rg_k[3] );
+    if(lane_id&0x4 ) SWP_KEY(K, rg_k[0] , rg_k[1] );
+    if(lane_id&0x4 ) SWP_KEY(K, rg_k[2] , rg_k[3] );
+    rg_k[1]  = __shfl_xor_sync(0xffffffff,rg_k[1] , 0x4 );
+    rg_k[3]  = __shfl_xor_sync(0xffffffff,rg_k[3] , 0x4 );
+    if(lane_id&0x4 ) SWP_KEY(K, rg_k[0] , rg_k[1] );
+    if(lane_id&0x4 ) SWP_KEY(K, rg_k[2] , rg_k[3] );
+    if(lane_id&0x8 ) SWP_KEY(K, rg_k[0] , rg_k[2] );
+    if(lane_id&0x8 ) SWP_KEY(K, rg_k[1] , rg_k[3] );
+    rg_k[2]  = __shfl_xor_sync(0xffffffff,rg_k[2] , 0x8 );
+    rg_k[3]  = __shfl_xor_sync(0xffffffff,rg_k[3] , 0x8 );
+    if(lane_id&0x8 ) SWP_KEY(K, rg_k[0] , rg_k[2] );
+    if(lane_id&0x8 ) SWP_KEY(K, rg_k[1] , rg_k[3] );
+    if(lane_id&0x10) SWP_KEY(K, rg_k[0] , rg_k[1] );
+    if(lane_id&0x10) SWP_KEY(K, rg_k[2] , rg_k[3] );
+    rg_k[1]  = __shfl_xor_sync(0xffffffff,rg_k[1] , 0x10);
+    rg_k[3]  = __shfl_xor_sync(0xffffffff,rg_k[3] , 0x10);
+    if(lane_id&0x10) SWP_KEY(K, rg_k[0] , rg_k[1] );
+    if(lane_id&0x10) SWP_KEY(K, rg_k[2] , rg_k[3] );
+
+    SWP_KEY(K, rg_k[1] , rg_k[2] );
+}
+
 
 /****************************************************************
  * @brief extract kmers from sequence
@@ -292,14 +426,12 @@ void insert_features(
 {
     using index_type = IndexT;
     using size_type = SizeT;
-    using BlockRadixSortT = cub::BlockRadixSort<feature, BLOCK_THREADS, ITEMS_PER_THREAD>;
 
     // constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
     constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
     constexpr uint8_t encodedBlocksPerWindow = 128 / ambigBits;
 
     __shared__ union {
-        typename BlockRadixSortT::TempStorage sort;
         //TODO MAX_SKETCH_SIZE
         feature sketch[16];
         struct {
@@ -331,9 +463,7 @@ void insert_features(
 
             __syncthreads();
 
-            BlockRadixSortT(tempStorage.sort).SortBlockedToStriped(items);
-
-            __syncthreads();
+            warp_sort_128(items);
 
             uint32_t sketchCounter =
                 unique_sketch<ITEMS_PER_THREAD>(items, tempStorage.sketch, maxSketchSize);
@@ -379,14 +509,12 @@ void gpu_hahstable_query(
     using bucket_size_type = BucketSizeT;
     using encodedseq_t = uint32_t;
     using encodedambig_t = uint16_t;
-    using BlockRadixSortT = cub::BlockRadixSort<feature, BLOCK_THREADS, ITEMS_PER_THREAD>;
 
     // constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
     constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
     constexpr uint8_t encodedBlocksPerWindow = 128 / ambigBits;
 
     __shared__ union {
-        typename BlockRadixSortT::TempStorage sort;
         //TODO MAX_SKETCH_SIZE
         uint64_t sketch[16];
         struct {
@@ -413,9 +541,7 @@ void gpu_hahstable_query(
 
             __syncthreads();
 
-            BlockRadixSortT(tempStorage.sort).SortBlockedToStriped(items);
-
-            __syncthreads();
+            warp_sort_128(items);
 
             uint32_t realSketchSize =
                 unique_sketch<ITEMS_PER_THREAD>(items, tempStorage.sketch, maxSketchSize);
