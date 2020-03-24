@@ -176,6 +176,7 @@ uint32_t copy_loctions(
  template<
     int BLOCK_THREADS,
     int ITEMS_PER_THREAD,
+    int BLOCKS_PER_WINDOW,
     class SizeT>
 __device__ __inline__
 void kmerize(
@@ -231,30 +232,18 @@ void kmerize(
     const encodedseq_t   kmerMask  = encodedseq_t(~0) << (encBits - 2*kmerSize);
     const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - kmerSize);
 
-    const size_t lastKmerBegin = sequenceLength - kmerSize + 1;
-
-    uint8_t numItems = 0;
-    //initialize thread local feature store
-    for(int i=0; i<ITEMS_PER_THREAD; ++i)
-        items[i] = feature(~0);
-
     //each thread extracts one feature
-    for(size_t tid  = threadIdx.x;
-               tid  < lastKmerBegin;
-               tid += BLOCK_THREADS)
-    {
-        const std::uint32_t  seq_slot    = tid / (ambigBits);
-        const std::uint8_t   kmer_slot   = tid & (ambigBits-1);
-        const encodedambig_t ambig_left  = s_ambig[seq_slot] << kmer_slot;
-        const encodedambig_t ambig_right = s_ambig[seq_slot+1] >> (ambigBits-kmer_slot);
-        // cuda-memcheck save version
-        // const encodedambig_t ambig_right = kmer_slot ? s_ambig[seq_slot+1] >> (ambigBits-kmer_slot) : 0;
+    for(int i = 0; i < ITEMS_PER_THREAD; ++i) {
+        const std::uint32_t seq_slot  = (2*i + threadIdx.x / ambigBits);
+        const std::uint8_t  kmer_slot = threadIdx.x % ambigBits;
 
-        //continue only if no bases ambiguous
+        const encodedambig_t ambig_left  = s_ambig[seq_slot] << kmer_slot;
+        encodedambig_t ambig_right = (seq_slot+1 < BLOCKS_PER_WINDOW) ?
+                                     s_ambig[seq_slot+1] : encodedambig_t(~0);
+        ambig_right >>= (ambigBits-kmer_slot);
+
         const encodedseq_t seq_left  = s_seq[seq_slot] << (2*kmer_slot);
         const encodedseq_t seq_right = s_seq[seq_slot+1] >> (encBits-(2*kmer_slot));
-        // cuda-memcheck save version
-        // const encodedseq_t seq_right = kmer_slot ? s_seq[seq_slot+1] >> (encBits-(2*kmer_slot)) : 0;
 
         //get highest bits
         kmer_type kmer = (seq_left+seq_right) & kmerMask;
@@ -264,7 +253,7 @@ void kmerize(
         kmer = make_canonical_2bit(kmer);
 
         bool pred = !((ambig_left+ambig_right) & ambigMask);
-        items[numItems++] = pred ? sketching_hash{}(kmer) : feature(~0);
+        items[i] = pred ? sketching_hash{}(kmer) : feature(~0);
     }
 }
 
@@ -333,7 +322,7 @@ void insert_features(
             const char * windowBegin = sequence + offsetBegin;
 
             feature items[ITEMS_PER_THREAD];
-            kmerize<BLOCK_THREADS,ITEMS_PER_THREAD>(
+            kmerize<BLOCK_THREADS,ITEMS_PER_THREAD,encodedBlocksPerWindow>(
                 windowBegin, thisWindowSize,
                 tempStorage.encodedWindow.seq,
                 tempStorage.encodedWindow.ambig,
@@ -415,7 +404,7 @@ void gpu_hahstable_query(
             const char * sequenceBegin = sequences + sequenceOffsets[queryId];
 
             feature items[ITEMS_PER_THREAD];
-            kmerize<BLOCK_THREADS,ITEMS_PER_THREAD>(
+            kmerize<BLOCK_THREADS,ITEMS_PER_THREAD,encodedBlocksPerWindow>(
                 sequenceBegin, sequenceLength,
                 tempStorage.encodedWindow.seq,
                 tempStorage.encodedWindow.ambig,
