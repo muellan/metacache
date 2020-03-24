@@ -166,6 +166,112 @@ uint32_t copy_loctions(
     return totalLocations;
 }
 
+
+
+/****************************************************************
+ * @brief extract kmers from sequence
+ *
+ * @details each of <BLOCK_THREADS> threads extracts <ITEMS_PER_THREAD> kmers
+ */
+ template<
+    int BLOCK_THREADS,
+    int ITEMS_PER_THREAD,
+    class SizeT>
+__device__ __inline__
+void kmerize(
+    const char * sequenceBegin,
+    SizeT sequenceLength,
+    encodedseq_t * s_seq,
+    encodedambig_t * s_ambig,
+    numk_t kmerSize,
+    feature items[ITEMS_PER_THREAD]
+)
+{
+    constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
+    constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
+
+    const int lane = ambigBits - threadIdx.x % ambigBits - 1;
+    constexpr int numSubwarps = BLOCK_THREADS / ambigBits;
+    const int subwarpId = threadIdx.x / ambigBits;
+    int blockCounter = subwarpId;
+    for(int i = 0; i < ITEMS_PER_THREAD; ++i) {
+        int tid = threadIdx.x + i*BLOCK_THREADS;
+
+        encodedseq_t seq = 0;
+        encodedambig_t ambig = 0;
+        char c = (tid < sequenceLength) ? sequenceBegin[tid] : 'N';
+
+        c &= 0b11011111; // to upper case
+
+        seq = (c == 'A') ? 0 : seq;
+        seq = (c == 'C') ? 1 : seq;
+        seq = (c == 'G') ? 2 : seq;
+        seq = (c == 'T') ? 3 : seq;
+        ambig = (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
+
+        seq <<= 2*lane;
+        ambig <<= lane;
+
+        for(int stride = 1; stride < ambigBits; stride <<= 1) {
+            seq   |= __shfl_xor_sync(0xFFFFFFFF, seq, stride);
+            ambig |= __shfl_xor_sync(0xFFFFFFFF, ambig, stride);
+        }
+
+        if(lane == 0) {
+            s_seq[blockCounter]   = seq;
+            s_ambig[blockCounter] = ambig;
+            // printf("query: %u tid: %d seq: %u ambig: %u\n", queryId, tid, seq, ambig);
+        }
+        blockCounter += numSubwarps;
+    }
+    __syncthreads();
+
+    //letters stored from high to low bits
+    //masks get highest bits
+    const encodedseq_t   kmerMask  = encodedseq_t(~0) << (encBits - 2*kmerSize);
+    const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - kmerSize);
+
+    const size_t lastKmerBegin = sequenceLength - kmerSize + 1;
+
+    uint8_t numItems = 0;
+    //initialize thread local feature store
+    for(int i=0; i<ITEMS_PER_THREAD; ++i)
+        items[i] = feature(~0);
+
+    //each thread extracts one feature
+    for(size_t tid  = threadIdx.x;
+               tid  < lastKmerBegin;
+               tid += BLOCK_THREADS)
+    {
+        const std::uint32_t  seq_slot    = tid / (ambigBits);
+        const std::uint8_t   kmer_slot   = tid & (ambigBits-1);
+        const encodedambig_t ambig_left  = s_ambig[seq_slot] << kmer_slot;
+        const encodedambig_t ambig_right = s_ambig[seq_slot+1] >> (ambigBits-kmer_slot);
+        // cuda-memcheck save version
+        // const encodedambig_t ambig_right = kmer_slot ? s_ambig[seq_slot+1] >> (ambigBits-kmer_slot) : 0;
+
+        //continue only if no bases ambiguous
+        const encodedseq_t seq_left  = s_seq[seq_slot] << (2*kmer_slot);
+        const encodedseq_t seq_right = s_seq[seq_slot+1] >> (encBits-(2*kmer_slot));
+        // cuda-memcheck save version
+        // const encodedseq_t seq_right = kmer_slot ? s_seq[seq_slot+1] >> (encBits-(2*kmer_slot)) : 0;
+
+        //get highest bits
+        kmer_type kmer = (seq_left+seq_right) & kmerMask;
+        //shift kmer to lowest bits
+        kmer >>= (encBits - 2*kmerSize);
+
+        kmer = make_canonical_2bit(kmer);
+
+        bool pred = !((ambig_left+ambig_right) & ambigMask);
+        items[numItems++] = pred ? sketching_hash{}(kmer) : feature(~0);
+    }
+}
+
+
+
+
+
 /****************************************************************
  *
  * @brief insert batch of sequences into hashtable
@@ -199,7 +305,7 @@ void insert_features(
     using size_type = SizeT;
     using BlockRadixSortT = cub::BlockRadixSort<feature, BLOCK_THREADS, ITEMS_PER_THREAD>;
 
-    constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
+    // constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
     constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
     constexpr uint8_t encodedBlocksPerWindow = 128 / ambigBits;
 
@@ -225,92 +331,15 @@ void insert_features(
             const size_type offsetEnd = min(sequenceOffsets[tgt+1], offsetBegin + windowSize);
             const size_type thisWindowSize = offsetEnd - offsetBegin;
             const char * windowBegin = sequence + offsetBegin;
-            const int lane = ambigBits - threadIdx.x % ambigBits - 1;
-            constexpr int numSubwarps = BLOCK_THREADS / ambigBits;
-            const int subwarpId = threadIdx.x / ambigBits;
-            int blockCounter = subwarpId;
-            for(int i = 0; i < ITEMS_PER_THREAD; ++i) {
-                int tid = threadIdx.x + i*BLOCK_THREADS;
 
-                encodedseq_t seq = 0;
-                encodedambig_t ambig = 0;
-                char c = (tid < thisWindowSize) ? windowBegin[tid] : 'N';
-
-                c &= 0b11011111; // to upper case
-
-                seq = (c == 'A') ? 0 : seq;
-                seq = (c == 'C') ? 1 : seq;
-                seq = (c == 'G') ? 2 : seq;
-                seq = (c == 'T') ? 3 : seq;
-                ambig = (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
-
-                seq <<= 2*lane;
-                ambig <<= lane;
-
-                for(int stride = 1; stride < ambigBits; stride <<= 1) {
-                    seq   |= __shfl_xor_sync(0xFFFFFFFF, seq, stride);
-                    ambig |= __shfl_xor_sync(0xFFFFFFFF, ambig, stride);
-                }
-
-                if(lane == 0) {
-                    tempStorage.encodedWindow.seq[blockCounter]   = seq;
-                    tempStorage.encodedWindow.ambig[blockCounter] = ambig;
-                    // printf("query: %u tid: %d seq: %u ambig: %u\n", queryId, tid, seq, ambig);
-                }
-                blockCounter += numSubwarps;
-            }
-            __syncthreads();
-
-            //letters stored from high to low bits
-            //masks get highest bits
-            const encodedseq_t   kmerMask  = encodedseq_t(~0) << (encBits - 2*kmerSize);
-            const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - kmerSize);
-
-            const size_t lastKmerBegin = thisWindowSize - kmerSize + 1;
-
-            uint8_t numItems = 0;
             feature items[ITEMS_PER_THREAD];
-            //initialize thread local feature store
-            for(int i=0; i<ITEMS_PER_THREAD; ++i)
-                items[i] = feature(~0);
+            kmerize<BLOCK_THREADS,ITEMS_PER_THREAD>(
+                windowBegin, thisWindowSize,
+                tempStorage.encodedWindow.seq,
+                tempStorage.encodedWindow.ambig,
+                kmerSize,
+                items);
 
-            //each thread extracts one feature
-            for(size_t tid  = threadIdx.x;
-                       tid  < lastKmerBegin;
-                       tid += BLOCK_THREADS)
-            {
-                const std::uint32_t  seq_slot    = tid / (ambigBits);
-                const std::uint8_t   kmer_slot   = tid & (ambigBits-1);
-                const encodedambig_t ambig_left  = tempStorage.encodedWindow.ambig[seq_slot] << kmer_slot;
-                const encodedambig_t ambig_right = tempStorage.encodedWindow.ambig[seq_slot+1] >> (ambigBits-kmer_slot);
-                // cuda-memcheck save version
-                // const encodedambig_t ambig_right = kmer_slot ? ambig[seq_slot+1] >> (ambigBits-kmer_slot) : 0;
-
-                //continue only if no bases ambiguous
-                const encodedseq_t seq_left  = tempStorage.encodedWindow.seq[seq_slot] << (2*kmer_slot);
-                const encodedseq_t seq_right = tempStorage.encodedWindow.seq[seq_slot+1] >> (encBits-(2*kmer_slot));
-                // cuda-memcheck save version
-                // const encodedseq_t seq_right = kmer_slot ? tempStorage.encodedWindow.seq[seq_slot+1] >> (encBits-(2*kmer_slot)) : 0;
-
-                //get highest bits
-                kmer_type kmer = (seq_left+seq_right) & kmerMask;
-                //shift kmer to lowest bits
-                kmer >>= (encBits - 2*kmerSize);
-
-                kmer = make_canonical_2bit(kmer);
-
-                bool pred = !((ambig_left+ambig_right) & ambigMask);
-                items[numItems++] = pred ? sketching_hash{}(kmer) : feature(~0);
-
-                // if(!((ambig_left+ambig_right) & ambigMask))
-                // {
-                //     items[numItems++] = sketching_hash{}(kmer);
-                // }
-                // else
-                // {
-                //     printf("ambiguous\n");
-                // }
-            }
             __syncthreads();
 
             BlockRadixSortT(tempStorage.sort).SortBlockedToStriped(items);
@@ -363,7 +392,7 @@ void gpu_hahstable_query(
     using encodedambig_t = uint16_t;
     using BlockRadixSortT = cub::BlockRadixSort<feature, BLOCK_THREADS, ITEMS_PER_THREAD>;
 
-    constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
+    // constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
     constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
     constexpr uint8_t encodedBlocksPerWindow = 128 / ambigBits;
 
@@ -384,92 +413,15 @@ void gpu_hahstable_query(
         //only process non-empty queries
         if(sequenceLength) {
             const char * sequenceBegin = sequences + sequenceOffsets[queryId];
-            const int lane = ambigBits - threadIdx.x % ambigBits - 1;
-            constexpr int numSubwarps = BLOCK_THREADS / ambigBits;
-            const int subwarpId = threadIdx.x / ambigBits;
-            int blockCounter = subwarpId;
-            for(int i = 0; i < ITEMS_PER_THREAD; ++i) {
-                int tid = threadIdx.x + i*BLOCK_THREADS;
 
-                encodedseq_t seq = 0;
-                encodedambig_t ambig = 0;
-                char c = (tid < sequenceLength) ? sequenceBegin[tid] : 'N';
-
-                c &= 0b11011111; // to upper case
-
-                seq = (c == 'A') ? 0 : seq;
-                seq = (c == 'C') ? 1 : seq;
-                seq = (c == 'G') ? 2 : seq;
-                seq = (c == 'T') ? 3 : seq;
-                ambig = (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
-
-                seq <<= 2*lane;
-                ambig <<= lane;
-
-                for(int stride = 1; stride < ambigBits; stride <<= 1) {
-                    seq   |= __shfl_xor_sync(0xFFFFFFFF, seq, stride);
-                    ambig |= __shfl_xor_sync(0xFFFFFFFF, ambig, stride);
-                }
-
-                if(lane == 0) {
-                    tempStorage.encodedWindow.seq[blockCounter]   = seq;
-                    tempStorage.encodedWindow.ambig[blockCounter] = ambig;
-                    // printf("query: %u tid: %d seq: %u ambig: %u\n", queryId, tid, seq, ambig);
-                }
-                blockCounter += numSubwarps;
-            }
-            __syncthreads();
-
-            //letters stored from high to low bits
-            //masks get highest bits
-            const encodedseq_t   kmerMask  = encodedseq_t(~0) << (encBits - 2*kmerSize);
-            const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - kmerSize);
-
-            const size_t lastKmerBegin = sequenceLength - kmerSize + 1;
-
-            uint8_t numItems = 0;
             feature items[ITEMS_PER_THREAD];
-            //initialize thread local feature store
-            for(int i=0; i<ITEMS_PER_THREAD; ++i)
-                items[i] = feature(~0);
+            kmerize<BLOCK_THREADS,ITEMS_PER_THREAD>(
+                sequenceBegin, sequenceLength,
+                tempStorage.encodedWindow.seq,
+                tempStorage.encodedWindow.ambig,
+                kmerSize,
+                items);
 
-            //each thread extracts one feature
-            for(int tid  = threadIdx.x;
-                    tid  < lastKmerBegin;
-                    tid += BLOCK_THREADS)
-            {
-                const std::uint32_t  seq_slot    = tid / (ambigBits);
-                const std::uint8_t   kmer_slot   = tid & (ambigBits-1);
-                const encodedambig_t ambig_left  = tempStorage.encodedWindow.ambig[seq_slot] << kmer_slot;
-                const encodedambig_t ambig_right = tempStorage.encodedWindow.ambig[seq_slot+1] >> (ambigBits-kmer_slot);
-                // cuda-memcheck save version
-                // const encodedambig_t ambig_right = kmer_slot ? tempStorage.encodedWindow.ambig[seq_slot+1] >> (ambigBits-kmer_slot) : 0;
-
-                //continue only if no bases ambiguous
-                const encodedseq_t seq_left  = tempStorage.encodedWindow.seq[seq_slot] << (2*kmer_slot);
-                const encodedseq_t seq_right = tempStorage.encodedWindow.seq[seq_slot+1] >> (encBits-(2*kmer_slot));
-                // cuda-memcheck save version
-                // const encodedseq_t seq_right = kmer_slot ? tempStorage.encodedWindow.seq[seq_slot+1] >> (encBits-(2*kmer_slot)) : 0;
-
-                //get highest bits
-                kmer_type kmer = (seq_left+seq_right) & kmerMask;
-                //shift kmer to lowest bits
-                kmer >>= (encBits - 2*kmerSize);
-
-                kmer = make_canonical_2bit(kmer);
-
-                bool pred = !((ambig_left+ambig_right) & ambigMask);
-                items[numItems++] = pred ? sketching_hash{}(kmer) : feature(~0);
-
-                // if(!((ambig_left+ambig_right) & ambigMask))
-                // {
-                //     items[numItems++] = sketching_hash{}(kmer);
-                // }
-                // else
-                // {
-                //     printf("ambiguous\n");
-                // }
-            }
             __syncthreads();
 
             BlockRadixSortT(tempStorage.sort).SortBlockedToStriped(items);
