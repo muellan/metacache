@@ -26,6 +26,7 @@ namespace mc {
 class query_batch
 {
     using id_type = uint32_t;
+    using size_type = uint32_t;
 
     using taxon_rank     = taxonomy::rank;
     using ranked_lineage = taxonomy::ranked_lineage;
@@ -36,9 +37,9 @@ public:
     //---------------------------------------------------------------
     /** @brief allocate memory on host and device */
     query_batch(id_type maxQueries,
-                size_t maxEncodeLength,
-                size_t maxResultsPerQuery,
-                uint32_t maxCandidatesPerQuery);
+                size_type maxEncodeLength,
+                size_type maxResultsPerQuery,
+                size_type maxCandidatesPerQuery);
     //-----------------------------------------------------
     query_batch(const query_batch&) = delete;
     //---------------------------------------------------------------
@@ -62,7 +63,7 @@ public:
         return d_numQueries_;
     }
     //---------------------------------------------------------------
-    encodinglen_t * sequence_offsets_device() const noexcept {
+    size_type * sequence_offsets_device() const noexcept {
         return d_sequenceOffsets_;
     }
     //---------------------------------------------------------------
@@ -257,32 +258,32 @@ private:
     id_type d_numQueries_;
     id_type maxQueries_;
 
-    size_t maxSequenceLength_;
-    size_t maxResultsPerQuery_;
-    uint32_t maxCandidatesPerQuery_;
+    size_type maxSequenceLength_;
+    size_type maxResultsPerQuery_;
+    size_type maxCandidatesPerQuery_;
 
-    id_type        * h_queryIds_;
-    id_type        * d_queryIds_;
+    id_type         * h_queryIds_;
+    id_type         * d_queryIds_;
 
-    encodinglen_t  * h_sequenceOffsets_;
-    encodinglen_t  * d_sequenceOffsets_;
-    char           * h_sequences_;
-    char           * d_sequences_;
+    size_type       * h_sequenceOffsets_;
+    size_type       * d_sequenceOffsets_;
+    char            * h_sequences_;
+    char            * d_sequences_;
 
-    window_id      * h_maxWindowsInRange_;
-    window_id      * d_maxWindowsInRange_;
+    window_id       * h_maxWindowsInRange_;
+    window_id       * d_maxWindowsInRange_;
 
-    result_type    * h_queryResults_;
-    result_type    * d_queryResults_;
-    result_type    * d_queryResultsTmp_;
+    result_type     * h_queryResults_;
+    result_type     * d_queryResults_;
+    result_type     * d_queryResultsTmp_;
 
-    int            * h_resultOffsets_;
-    int            * d_resultOffsets_;
-    int            * d_resultCounts_;
-    int            * d_binnedSegIds_;
+    int             * h_resultOffsets_;
+    int             * d_resultOffsets_;
+    int             * d_resultCounts_;
+    int             * d_binnedSegIds_;
 
-    int            * h_segBinCounters_;
-    int            * d_segBinCounters_;
+    int             * h_segBinCounters_;
+    int             * d_segBinCounters_;
 
     match_candidate * h_topCandidates_;
     match_candidate * d_topCandidates_;

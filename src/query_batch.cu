@@ -44,9 +44,9 @@ private:
 template<class result_type>
 query_batch<result_type>::query_batch(
     id_type maxQueries,
-    size_t maxSequenceLength,
-    size_t maxResultsPerQuery,
-    uint32_t maxCandidatesPerQuery
+    size_type maxSequenceLength,
+    size_type maxResultsPerQuery,
+    size_type maxCandidatesPerQuery
 ) :
     h_numSegments_{0},
     d_numSegments_{0},
@@ -64,8 +64,8 @@ query_batch<result_type>::query_batch(
         cudaMallocHost(&h_queryIds_, maxQueries_*sizeof(id_type));
         cudaMalloc    (&d_queryIds_, maxQueries_*sizeof(id_type));
 
-        cudaMallocHost(&h_sequenceOffsets_, (maxQueries_+1)*sizeof(encodinglen_t));
-        cudaMalloc    (&d_sequenceOffsets_, (maxQueries_+1)*sizeof(encodinglen_t));
+        cudaMallocHost(&h_sequenceOffsets_, (maxQueries_+1)*sizeof(size_type));
+        cudaMalloc    (&d_sequenceOffsets_, (maxQueries_+1)*sizeof(size_type));
         h_sequenceOffsets_[0] = 0;
 
         cudaMallocHost(&h_sequences_, maxSequenceLength_*sizeof(char));
@@ -172,7 +172,7 @@ void query_batch<result_type>::copy_queries_to_device_async() {
                     d_numQueries_*sizeof(id_type),
                     cudaMemcpyHostToDevice, stream_);
     cudaMemcpyAsync(d_sequenceOffsets_, h_sequenceOffsets_,
-                    (d_numQueries_+1)*sizeof(encodinglen_t),
+                    (d_numQueries_+1)*sizeof(size_type),
                     cudaMemcpyHostToDevice, stream_);
     cudaMemcpyAsync(d_sequences_, h_sequences_,
                     h_sequenceOffsets_[d_numQueries_]*sizeof(char),
@@ -289,7 +289,7 @@ void query_batch<result_type>::generate_and_copy_top_candidates_async(
     const ranked_lineage * lineages,
     taxon_rank lowestRank)
 {
-    const size_t numBlocks = d_numSegments_;
+    const id_type numBlocks = d_numSegments_;
 
     //TODO different max cand cases
     if(maxCandidatesPerQuery_ <= 2) {

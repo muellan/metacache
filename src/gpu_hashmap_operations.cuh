@@ -309,17 +309,23 @@ void warp_sort_128(K rg_k[4])
  *
  * @param sequenceLength max length is 128 (32*4)
  */
- template<class SizeT>
+ template<
+    class EncSeqT,
+    class EncAmbigT,
+    class SizeT>
 __device__ __inline__
 void warp_kmerize(
     const char * sequenceBegin,
     SizeT sequenceLength,
-    encodedseq_t * s_seq,
-    encodedambig_t * s_ambig,
+    EncSeqT * s_seq,
+    EncAmbigT * s_ambig,
     numk_t kmerSize,
     feature items[4]
 )
 {
+    using encodedseq_t = EncSeqT;
+    using encodedambig_t = EncAmbigT;
+
     constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
     constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
     constexpr uint8_t encodedBlocksPerWindow = 128 / ambigBits;
@@ -458,6 +464,8 @@ void insert_features(
 {
     using index_type = IndexT;
     using size_type = SizeT;
+    using encodedseq_t = uint32_t;
+    using encodedambig_t = uint16_t;
 
     // constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
     constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
@@ -519,13 +527,14 @@ template<
     int BLOCK_THREADS,
     int ITEMS_PER_THREAD,
     class Hashtable,
+    class SizeT,
     class BucketSizeT,
     class Location>
 __global__
 void gpu_hahstable_query(
     Hashtable hashtable,
     uint32_t numQueries,
-    const encodinglen_t * sequenceOffsets,
+    const SizeT * sequenceOffsets,
     const char * sequences,
     numk_t kmerSize,
     uint32_t maxSketchSize,
@@ -537,6 +546,7 @@ void gpu_hahstable_query(
     int      * locationCounts
 )
 {
+    using size_type = SizeT;
     using location = Location;
     using bucket_size_type = BucketSizeT;
     using encodedseq_t = uint32_t;
@@ -557,7 +567,7 @@ void gpu_hahstable_query(
 
     //each block processes one query (= one window)
     for(int queryId = blockIdx.x; queryId < numQueries; queryId += gridDim.x) {
-        const encodinglen_t sequenceLength = sequenceOffsets[queryId+1] - sequenceOffsets[queryId];
+        const size_type sequenceLength = sequenceOffsets[queryId+1] - sequenceOffsets[queryId];
 
         //only process non-empty queries
         if(sequenceLength) {
