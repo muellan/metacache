@@ -305,59 +305,91 @@ void warp_sort_128(K rg_k[4])
 /****************************************************************
  * @brief extract kmers from sequence
  *
- * @details each of <BLOCK_THREADS> threads extracts <ITEMS_PER_THREAD> kmers
+ * @details each thread processes 4 chars and extracts up to 4 kmers
+ *
+ * @param sequenceLength max length is 128 (32*4)
  */
- template<
-    int BLOCK_THREADS,
-    int ITEMS_PER_THREAD,
-    int BLOCKS_PER_WINDOW,
-    class SizeT>
+ template<class SizeT>
 __device__ __inline__
-void kmerize(
+void warp_kmerize(
     const char * sequenceBegin,
     SizeT sequenceLength,
     encodedseq_t * s_seq,
     encodedambig_t * s_ambig,
     numk_t kmerSize,
-    feature items[ITEMS_PER_THREAD]
+    feature items[4]
 )
 {
     constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
     constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
+    constexpr uint8_t encodedBlocksPerWindow = 128 / ambigBits;
 
-    const int lane = ambigBits - threadIdx.x % ambigBits - 1;
-    constexpr int numSubwarps = BLOCK_THREADS / ambigBits;
-    const int subwarpId = threadIdx.x / ambigBits;
-    int blockCounter = subwarpId;
-    for(int i = 0; i < ITEMS_PER_THREAD; ++i) {
-        int tid = threadIdx.x + i*BLOCK_THREADS;
+    const int lane = 4-1 - threadIdx.x % 4;
+    const int subwarpId = threadIdx.x / 4;
 
-        encodedseq_t seq = 0;
-        encodedambig_t ambig = 0;
-        char c = (tid < sequenceLength) ? sequenceBegin[tid] : 'N';
+    char4 chars = reinterpret_cast<const char4*>(sequenceBegin)[threadIdx.x];
 
-        c &= 0b11011111; // to upper case
+    encodedseq_t seq = 0;
+    encodedambig_t ambig = 0;
 
-        seq = (c == 'A') ? 0 : seq;
-        seq = (c == 'C') ? 1 : seq;
-        seq = (c == 'G') ? 2 : seq;
-        seq = (c == 'T') ? 3 : seq;
-        ambig = (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
+    char c;
+    c = (4*threadIdx.x+0 < sequenceLength) ? chars.x : 'N';
+    c &= 0b11011111; // to upper case
 
-        seq <<= 2*lane;
-        ambig <<= lane;
+    seq |= (c == 'A') ? 0 : 0;
+    seq |= (c == 'C') ? 1 : 0;
+    seq |= (c == 'G') ? 2 : 0;
+    seq |= (c == 'T') ? 3 : 0;
+    ambig |= (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
 
-        for(int stride = 1; stride < ambigBits; stride <<= 1) {
-            seq   |= __shfl_xor_sync(0xFFFFFFFF, seq, stride);
-            ambig |= __shfl_xor_sync(0xFFFFFFFF, ambig, stride);
-        }
+    seq   <<= 2;
+    ambig <<= 1;
 
-        if(lane == 0) {
-            s_seq[blockCounter]   = seq;
-            s_ambig[blockCounter] = ambig;
-            // printf("query: %u tid: %d seq: %u ambig: %u\n", queryId, tid, seq, ambig);
-        }
-        blockCounter += numSubwarps;
+    c = (4*threadIdx.x+1 < sequenceLength) ? chars.y : 'N';
+    c &= 0b11011111; // to upper case
+
+    seq |= (c == 'A') ? 0 : 0;
+    seq |= (c == 'C') ? 1 : 0;
+    seq |= (c == 'G') ? 2 : 0;
+    seq |= (c == 'T') ? 3 : 0;
+    ambig |= (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
+
+    seq   <<= 2;
+    ambig <<= 1;
+
+    c = (4*threadIdx.x+2 < sequenceLength) ? chars.z : 'N';
+    c &= 0b11011111; // to upper case
+
+    seq |= (c == 'A') ? 0 : 0;
+    seq |= (c == 'C') ? 1 : 0;
+    seq |= (c == 'G') ? 2 : 0;
+    seq |= (c == 'T') ? 3 : 0;
+    ambig |= (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
+
+    seq   <<= 2;
+    ambig <<= 1;
+
+    c = (4*threadIdx.x+3 < sequenceLength) ? chars.w : 'N';
+    c &= 0b11011111; // to upper case
+
+    seq |= (c == 'A') ? 0 : 0;
+    seq |= (c == 'C') ? 1 : 0;
+    seq |= (c == 'G') ? 2 : 0;
+    seq |= (c == 'T') ? 3 : 0;
+    ambig |= (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
+
+    seq <<= 8*lane;
+    ambig <<= 4*lane;
+
+    for(int stride = 1; stride < 4; stride <<= 1) {
+        seq   |= __shfl_xor_sync(0xFFFFFFFF, seq, stride);
+        ambig |= __shfl_xor_sync(0xFFFFFFFF, ambig, stride);
+    }
+
+    if(lane == 0) {
+        s_seq[subwarpId]   = seq;
+        s_ambig[subwarpId] = ambig;
+        // printf("id: %d seq: %u ambig: %u\n", subwarpId, seq, ambig);
     }
     __syncthreads();
 
@@ -367,12 +399,12 @@ void kmerize(
     const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - kmerSize);
 
     //each thread extracts one feature
-    for(int i = 0; i < ITEMS_PER_THREAD; ++i) {
+    for(int i = 0; i < 4; ++i) {
         const std::uint32_t seq_slot  = (2*i + threadIdx.x / ambigBits);
         const std::uint8_t  kmer_slot = threadIdx.x % ambigBits;
 
         const encodedambig_t ambig_left  = s_ambig[seq_slot] << kmer_slot;
-        encodedambig_t ambig_right = (seq_slot+1 < BLOCKS_PER_WINDOW) ?
+        encodedambig_t ambig_right = (seq_slot+1 < encodedBlocksPerWindow) ?
                                      s_ambig[seq_slot+1] : encodedambig_t(~0);
         ambig_right >>= (ambigBits-kmer_slot);
 
@@ -454,7 +486,7 @@ void insert_features(
             const char * windowBegin = sequence + offsetBegin;
 
             feature items[ITEMS_PER_THREAD];
-            kmerize<BLOCK_THREADS,ITEMS_PER_THREAD,encodedBlocksPerWindow>(
+            warp_kmerize(
                 windowBegin, thisWindowSize,
                 tempStorage.encodedWindow.seq,
                 tempStorage.encodedWindow.ambig,
@@ -532,7 +564,7 @@ void gpu_hahstable_query(
             const char * sequenceBegin = sequences + sequenceOffsets[queryId];
 
             feature items[ITEMS_PER_THREAD];
-            kmerize<BLOCK_THREADS,ITEMS_PER_THREAD,encodedBlocksPerWindow>(
+            warp_kmerize(
                 sequenceBegin, sequenceLength,
                 tempStorage.encodedWindow.seq,
                 tempStorage.encodedWindow.ambig,
