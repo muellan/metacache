@@ -310,36 +310,30 @@ void warp_sort_128(K rg_k[4])
  * @param sequenceLength max length is 128 (32*4)
  */
  template<
-    class EncSeqT,
-    class EncAmbigT,
     class SizeT>
 __device__ __inline__
 void warp_kmerize(
     const char * sequenceBegin,
     SizeT sequenceLength,
-    EncSeqT * s_seq,
-    EncAmbigT * s_ambig,
+    uint64_t * s_seq,
+    uint32_t * s_ambig,
     numk_t kmerSize,
     feature items[4]
 )
 {
-    using encodedseq_t = EncSeqT;
-    using encodedambig_t = EncAmbigT;
+    constexpr int subWarpSize = 4;
+    const int lane = subWarpSize-1 - threadIdx.x % subWarpSize;
+    const int subwarpId = threadIdx.x / subWarpSize;
 
-    constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
-    constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
-    constexpr uint8_t encodedBlocksPerWindow = 128 / ambigBits;
+    uint32_t seq = 0;
+    uint32_t ambig = 0;
 
-    const int lane = 4-1 - threadIdx.x % 4;
-    const int subwarpId = threadIdx.x / 4;
-
+    constexpr int charsPerThread = 4;
+    constexpr int charsPerSubWarp = subWarpSize*charsPerThread;
     char4 chars = reinterpret_cast<const char4*>(sequenceBegin)[threadIdx.x];
 
-    encodedseq_t seq = 0;
-    encodedambig_t ambig = 0;
-
     char c;
-    c = (4*threadIdx.x+0 < sequenceLength) ? chars.x : 'N';
+    c = (charsPerThread*threadIdx.x+0 < sequenceLength) ? chars.x : 'N';
     c &= 0b11011111; // to upper case
 
     seq |= (c == 'A') ? 0 : 0;
@@ -351,7 +345,7 @@ void warp_kmerize(
     seq   <<= 2;
     ambig <<= 1;
 
-    c = (4*threadIdx.x+1 < sequenceLength) ? chars.y : 'N';
+    c = (charsPerThread*threadIdx.x+1 < sequenceLength) ? chars.y : 'N';
     c &= 0b11011111; // to upper case
 
     seq |= (c == 'A') ? 0 : 0;
@@ -363,7 +357,7 @@ void warp_kmerize(
     seq   <<= 2;
     ambig <<= 1;
 
-    c = (4*threadIdx.x+2 < sequenceLength) ? chars.z : 'N';
+    c = (charsPerThread*threadIdx.x+2 < sequenceLength) ? chars.z : 'N';
     c &= 0b11011111; // to upper case
 
     seq |= (c == 'A') ? 0 : 0;
@@ -375,7 +369,7 @@ void warp_kmerize(
     seq   <<= 2;
     ambig <<= 1;
 
-    c = (4*threadIdx.x+3 < sequenceLength) ? chars.w : 'N';
+    c = (charsPerThread*threadIdx.x+3 < sequenceLength) ? chars.w : 'N';
     c &= 0b11011111; // to upper case
 
     seq |= (c == 'A') ? 0 : 0;
@@ -384,47 +378,57 @@ void warp_kmerize(
     seq |= (c == 'T') ? 3 : 0;
     ambig |= (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
 
-    seq <<= 8*lane;
-    ambig <<= 4*lane;
+    seq <<= 2*charsPerThread*lane;
+    ambig <<= charsPerThread*lane;
 
-    for(int stride = 1; stride < 4; stride <<= 1) {
+    // combine threads of same subwarp
+    for(int stride = 1; stride < subWarpSize; stride *= 2) {
         seq   |= __shfl_xor_sync(0xFFFFFFFF, seq, stride);
         ambig |= __shfl_xor_sync(0xFFFFFFFF, ambig, stride);
     }
 
+    // combine subwarp with subsequent subwarp
+    uint64_t seqStore = __shfl_down_sync(0xFFFFFFFF, seq, subWarpSize);
+    seqStore |= (uint64_t(seq) << 32) | seqStore;
+
+    uint32_t ambigStore = __shfl_down_sync(0xFFFFFFFF, ambig, subWarpSize);
+    // bounds checking: last subwarp adds ~0
+    ambigStore = (threadIdx.x < WARPSIZE - subWarpSize) ? ambigStore : uint32_t(~0);
+    ambigStore = (ambig << 16) | ambigStore;
+
     if(lane == 0) {
-        s_seq[subwarpId]   = seq;
-        s_ambig[subwarpId] = ambig;
+        s_seq[subwarpId]   = seqStore;
+        s_ambig[subwarpId] = ambigStore;
         // printf("id: %d seq: %u ambig: %u\n", subwarpId, seq, ambig);
     }
     __syncthreads();
 
-    //letters stored from high to low bits
-    //masks get highest bits
-    const encodedseq_t   kmerMask  = encodedseq_t(~0) << (encBits - 2*kmerSize);
-    const encodedambig_t ambigMask = encodedambig_t(~0) << (ambigBits - kmerSize);
+    // letters stored from high to low bits
+    // mask get lowest bits
+    constexpr uint8_t kmerBits = sizeof(kmer_type)*CHAR_BIT;
+    const kmer_type kmerMask = kmer_type(~0) >> (kmerBits - 2*kmerSize);
+    // mask get highest bits
+    const uint32_t ambigMask = uint32_t(~0) << (32 - kmerSize);
 
-    //each thread extracts one feature
+    // each thread extracts one feature
     for(int i = 0; i < 4; ++i) {
-        const std::uint32_t seq_slot  = (2*i + threadIdx.x / ambigBits);
-        const std::uint8_t  kmer_slot = threadIdx.x % ambigBits;
+        const uint8_t seqSlot  = (2*i + threadIdx.x / charsPerSubWarp);
+        const uint8_t kmerSlot = threadIdx.x % charsPerSubWarp;
 
-        const encodedambig_t ambig_left  = s_ambig[seq_slot] << kmer_slot;
-        encodedambig_t ambig_right = (seq_slot+1 < encodedBlocksPerWindow) ?
-                                     s_ambig[seq_slot+1] : encodedambig_t(~0);
-        ambig_right >>= (ambigBits-kmer_slot);
+        uint32_t ambig = s_ambig[seqSlot];
+        // shift to highest bits
+        ambig <<= kmerSlot;
 
-        const encodedseq_t seq_left  = s_seq[seq_slot] << (2*kmer_slot);
-        const encodedseq_t seq_right = s_seq[seq_slot+1] >> (encBits-(2*kmer_slot));
+        uint64_t seq = s_seq[seqSlot];
+        // shift kmer to lowest bits
+        seq >>= 64 - 2*(kmerSlot + kmerSize);
 
-        //get highest bits
-        kmer_type kmer = (seq_left+seq_right) & kmerMask;
-        //shift kmer to lowest bits
-        kmer >>= (encBits - 2*kmerSize);
+        // get lowest bits
+        kmer_type kmer = kmer_type(seq) & kmerMask;
 
         kmer = make_canonical_2bit(kmer);
 
-        bool pred = !((ambig_left+ambig_right) & ambigMask);
+        bool pred = !(ambig & ambigMask);
         items[i] = pred ? sketching_hash{}(kmer) : feature(~0);
     }
 }
@@ -464,19 +468,15 @@ void insert_features(
 {
     using index_type = IndexT;
     using size_type = SizeT;
-    using encodedseq_t = uint32_t;
-    using encodedambig_t = uint16_t;
 
-    // constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
-    constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
-    constexpr uint8_t encodedBlocksPerWindow = 128 / ambigBits;
+    constexpr uint8_t encodedBlocksPerWindow = 128 / 16;
 
     __shared__ union {
         //TODO MAX_SKETCH_SIZE
         feature sketch[16];
         struct {
-            encodedseq_t seq[encodedBlocksPerWindow];
-            encodedambig_t ambig[encodedBlocksPerWindow];
+            uint64_t seq[encodedBlocksPerWindow];
+            uint32_t ambig[encodedBlocksPerWindow];
         } encodedWindow;
     } tempStorage;
 
@@ -549,19 +549,15 @@ void gpu_hahstable_query(
     using size_type = SizeT;
     using location = Location;
     using bucket_size_type = BucketSizeT;
-    using encodedseq_t = uint32_t;
-    using encodedambig_t = uint16_t;
 
-    // constexpr uint8_t encBits   = sizeof(encodedseq_t)*CHAR_BIT;
-    constexpr uint8_t ambigBits = sizeof(encodedambig_t)*CHAR_BIT;
-    constexpr uint8_t encodedBlocksPerWindow = 128 / ambigBits;
+    constexpr uint8_t encodedBlocksPerWindow = 128 / 16;
 
     __shared__ union {
         //TODO MAX_SKETCH_SIZE
         uint64_t sketch[16];
         struct {
-            encodedseq_t seq[encodedBlocksPerWindow];
-            encodedambig_t ambig[encodedBlocksPerWindow];
+            uint64_t seq[encodedBlocksPerWindow];
+            uint32_t ambig[encodedBlocksPerWindow];
         } encodedWindow;
     } tempStorage;
 
