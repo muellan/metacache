@@ -53,7 +53,7 @@ void compact_kernel(
 
     // for(int tid = threadIdx.x + blockIdx.x * blockDim.x; tid < numQueries; tid += blockDim.x * gridDim.x) {
     //     const id_type segmentId = segmentIds[tid];
-    //     const id_type nextId    = (tid < numQueries) ? segmentIds[tid+1] : -1;
+    //     const id_type nextId    = (tid+1 < numQueries) ? segmentIds[tid+1] :  id_type(~0);;
 
     //     const int end = resultPrefixScan[tid];
 
@@ -80,7 +80,7 @@ void segment_kernel(
 {
     for(int tid = threadIdx.x + blockIdx.x * blockDim.x; tid < numQueries; tid += blockDim.x * gridDim.x) {
         const id_type segmentId = segmentIds[tid];
-        const id_type nextId    = (tid < numQueries) ? segmentIds[tid+1] : -1;
+        const id_type nextId    = (tid+1 < numQueries) ? segmentIds[tid+1] :  id_type(~0);;
 
         const int end = resultPrefixScan[tid];
 

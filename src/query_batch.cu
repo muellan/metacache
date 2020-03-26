@@ -60,40 +60,52 @@ query_batch<result_type>::query_batch(
     //TODO reuse/combine device arrays:
     // d_sequenceOffsets_ + d_resultOffsets_
 
+    size_t allocatedGpuMem = 0;
+
     if(maxQueries_ && maxSequenceLength_ && maxResultsPerQuery_) {
         cudaMallocHost(&h_queryIds_, maxQueries_*sizeof(id_type));
         cudaMalloc    (&d_queryIds_, maxQueries_*sizeof(id_type));
+        allocatedGpuMem += maxQueries_*sizeof(id_type);
 
         cudaMallocHost(&h_sequenceOffsets_, (maxQueries_+1)*sizeof(size_type));
         cudaMalloc    (&d_sequenceOffsets_, (maxQueries_+1)*sizeof(size_type));
+        allocatedGpuMem += (maxQueries_+1)*sizeof(size_type);
         h_sequenceOffsets_[0] = 0;
 
         cudaMallocHost(&h_sequences_, maxSequenceLength_*sizeof(char));
         cudaMalloc    (&d_sequences_, maxSequenceLength_*sizeof(char));
+        allocatedGpuMem += maxSequenceLength_*sizeof(char);
 
         cudaMallocHost(&h_queryResults_, maxQueries_*maxResultsPerQuery_*sizeof(result_type));
         cudaMalloc    (&d_queryResults_, maxQueries_*maxResultsPerQuery_*sizeof(result_type));
-
         cudaMalloc    (&d_queryResultsTmp_, maxQueries_*maxResultsPerQuery_*sizeof(result_type));
+        allocatedGpuMem += 2*maxQueries_*maxResultsPerQuery_*sizeof(result_type);
 
         cudaMallocHost(&h_resultOffsets_, (maxQueries_+1)*sizeof(int));
         cudaMalloc    (&d_resultOffsets_, (maxQueries_+1)*sizeof(int));
+        allocatedGpuMem += (maxQueries_+1)*sizeof(int);
         h_resultOffsets_[0] = 0;
         cudaMemcpy(d_resultOffsets_, h_resultOffsets_, sizeof(int), cudaMemcpyHostToDevice);
 
         cudaMalloc    (&d_resultCounts_, maxQueries_*sizeof(int));
+        allocatedGpuMem += maxQueries_*sizeof(int);
         d_binnedSegIds_ = d_resultCounts_;
 
         cudaMallocHost(&h_segBinCounters_, (SEGBIN_NUM+1)*sizeof(int));
         cudaMalloc    (&d_segBinCounters_, (SEGBIN_NUM+1)*sizeof(int));
+        allocatedGpuMem += (SEGBIN_NUM+1)*sizeof(int);
 
         cudaMallocHost(&h_topCandidates_, maxQueries_*maxCandidatesPerQuery_*sizeof(match_candidate));
         cudaMalloc    (&d_topCandidates_, maxQueries_*maxCandidatesPerQuery_*sizeof(match_candidate));
+        allocatedGpuMem += maxQueries_*maxCandidatesPerQuery_*sizeof(match_candidate);
 
         cudaMallocHost(&h_maxWindowsInRange_, maxQueries_*sizeof(window_id));
         cudaMalloc    (&d_maxWindowsInRange_, maxQueries_*sizeof(window_id));
+        allocatedGpuMem += maxQueries_*sizeof(window_id);
     }
     CUERR
+
+    // std::cerr << "query batch size on gpu: " << (allocatedGpuMem >> 20) << " MB\n";
 
     cudaStreamCreate(&stream_);
     cudaStreamCreate(&resultCopyStream_);
@@ -231,7 +243,7 @@ void query_batch<result_type>::compact_results_async() {
         exit(1);                                                           \
     }
 
-    compact_kernel<<<d_numQueries_,32,0,stream_>>>(
+    compact_kernel<<<d_numQueries_,128,0,stream_>>>(
         d_numQueries_,
         d_resultCounts_,
         maxResultsPerQuery_,
