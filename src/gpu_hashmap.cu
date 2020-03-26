@@ -105,7 +105,8 @@ public:
         cudaStreamWaitEvent(insertStream_, seqBatchHost.event(), 0); CUERR
 
         // max 32*4 features => max window size is 128
-        constexpr int threadsPerBlock = 32;
+        constexpr int warpsPerBlock = 1;
+        constexpr int threadsPerBlock = 32*warpsPerBlock;
         constexpr int itemsPerThread = 4;
 
         //TODO increase grid in x and y dim
@@ -420,10 +421,11 @@ public:
         const cudaStream_t stream = batch.stream();
 
         // max 32*4 features => max window size is 128
-        constexpr int threadsPerBlock = 32;
+        constexpr int warpsPerBlock = 2;
+        constexpr int threadsPerBlock = 32*warpsPerBlock;
         constexpr int itemsPerThread = 4;
 
-        const int numBlocks = batch.num_queries_device();
+        const int numBlocks = (batch.num_queries_device()+warpsPerBlock-1) / warpsPerBlock;
         gpu_hahstable_query<threadsPerBlock,itemsPerThread><<<numBlocks,threadsPerBlock,0,stream>>>(
             hashTable_,
             batch.num_queries_device(),
