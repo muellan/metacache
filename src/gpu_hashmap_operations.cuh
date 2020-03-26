@@ -61,7 +61,6 @@ uint32_t unique_sketch(
  *        a location consists of of target id and window id
  */
 template<
-    int BLOCK_THREADS,
     class Hashtable,
     class Feature>
 __device__ __inline__
@@ -79,7 +78,7 @@ void insert_into_hashtable(
     const auto group =
         cg::tiled_partition<Hashtable::cg_size()>(cg::this_thread_block());
 
-    for(uint32_t i = threadIdx.x; i < sketchCounter*Hashtable::cg_size(); i += BLOCK_THREADS) {
+    for(uint32_t i = threadIdx.x; i < sketchCounter*Hashtable::cg_size(); i += WARPSIZE) {
         const uint8_t gid = i / Hashtable::cg_size();
 
         const auto status = hashtable.insert(
@@ -97,7 +96,6 @@ void insert_into_hashtable(
  *        write the result back into sketch in place of the feature
  */
 template<
-    int BLOCK_THREADS,
     class Hashtable,
     class Feature>
 __device__ __inline__
@@ -111,7 +109,7 @@ void query_hashtable(
     const auto group =
         cg::tiled_partition<Hashtable::cg_size()>(cg::this_thread_block());
 
-    for(uint32_t i = threadIdx.x; i < sketchCounter*Hashtable::cg_size(); i += BLOCK_THREADS) {
+    for(uint32_t i = threadIdx.x; i < sketchCounter*Hashtable::cg_size(); i += WARPSIZE) {
         const uint8_t gid = i / Hashtable::cg_size();
         typename Hashtable::value_type valuesOffset = 0;
         //if key not found valuesOffset stays 0
@@ -134,7 +132,6 @@ void query_hashtable(
  * @brief for each feature in sketch copy its loctions to the output
  */
 template<
-    int BLOCK_THREADS,
     class Feature,
     class Location,
     class BucketSizeT>
@@ -156,7 +153,7 @@ uint32_t copy_loctions(
         bucketOffset >>= sizeof(bucket_size_type)*CHAR_BIT;
 
         //copy locations
-        for(uint32_t i = threadIdx.x; i < bucketSize; i += BLOCK_THREADS) {
+        for(uint32_t i = threadIdx.x; i < bucketSize; i += WARPSIZE) {
             out[totalLocations + i] = locations[bucketOffset + i];
         }
 
@@ -491,15 +488,14 @@ void insert_features(
             uint32_t sketchCounter =
                 unique_sketch<ITEMS_PER_THREAD>(items, tempStorage.sketch, maxSketchSize);
 
-            __syncthreads();
+            __syncwarp();
 
             const target_id targetId = targetIds[tgt];
             const window_id winOffset = winOffsets[tgt]+win ;
 
-            insert_into_hashtable<BLOCK_THREADS>(
-                hashtable, tempStorage.sketch, sketchCounter, targetId, winOffset);
+            insert_into_hashtable(hashtable, tempStorage.sketch, sketchCounter, targetId, winOffset);
 
-            __syncthreads();
+            __syncwarp();
         }
     }
 }
@@ -516,6 +512,7 @@ template<
     class BucketSizeT,
     class Location>
 __global__
+__launch_bounds__(BLOCK_THREADS)
 void gpu_hahstable_query(
     Hashtable hashtable,
     uint32_t numQueries,
@@ -556,15 +553,15 @@ void gpu_hahstable_query(
             uint32_t realSketchSize =
                 unique_sketch<ITEMS_PER_THREAD>(items, tempStorage.sketch, maxSketchSize);
 
-            __syncthreads();
+            __syncwarp();
 
-            query_hashtable<BLOCK_THREADS>(hashtable, tempStorage.sketch, realSketchSize);
+            query_hashtable(hashtable, tempStorage.sketch, realSketchSize);
 
-            __syncthreads();
+            __syncwarp();
 
             location * out = locations_out + queryId*maxSketchSize*maxLocationsPerFeature;
 
-            uint32_t numLocations = copy_loctions<BLOCK_THREADS>(
+            uint32_t numLocations = copy_loctions(
                 tempStorage.sketch, realSketchSize, locations, maxLocationsPerFeature, out);
 
             if(threadIdx.x == 0) {
@@ -572,7 +569,7 @@ void gpu_hahstable_query(
                 locationCounts[queryId] = numLocations;
             }
 
-            __syncthreads();
+            __syncwarp();
         }
         else {
             if(threadIdx.x == 0) {
