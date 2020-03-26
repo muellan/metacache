@@ -85,9 +85,9 @@ void insert_into_hashtable(
         const auto status = hashtable.insert(
             sketch[gid], location{winOffset, targetId}, group);
 
-        if(group.thread_rank() == 0 && status.has_any()) {
-            printf("status %d\n", status.has_any());
-        }
+        // if(group.thread_rank() == 0 && status.has_any()) {
+        //     printf("status %d\n", status.has_any());
+        // }
     }
 }
 
@@ -119,10 +119,10 @@ void query_hashtable(
             sketch[gid], valuesOffset, group);
 
         if(group.thread_rank() == 0) {
-            if(status.has_any()) {
-                printf("status %d\n", status.has_any());
+            // if(status.has_any()) {
+                // printf("status %d\n", status.has_any());
                 // printf("status %d\n", status.has_key_not_found());
-            }
+            // }
 
             sketch[gid] = valuesOffset;
         }
@@ -315,15 +315,12 @@ __device__ __inline__
 void warp_kmerize(
     const char * sequenceBegin,
     SizeT sequenceLength,
-    uint64_t * s_seq,
-    uint32_t * s_ambig,
     numk_t kmerSize,
     feature items[4]
 )
 {
     constexpr int subWarpSize = 4;
     const int lane = subWarpSize-1 - threadIdx.x % subWarpSize;
-    const int subwarpId = threadIdx.x / subWarpSize;
 
     uint32_t seq = 0;
     uint32_t ambig = 0;
@@ -396,12 +393,10 @@ void warp_kmerize(
     ambigStore = (threadIdx.x < WARPSIZE - subWarpSize) ? ambigStore : uint32_t(~0);
     ambigStore = (ambig << 16) | ambigStore;
 
-    if(lane == 0) {
-        s_seq[subwarpId]   = seqStore;
-        s_ambig[subwarpId] = ambigStore;
+    // if(lane == 0) {
+        // const int subwarpId = threadIdx.x / subWarpSize;
         // printf("id: %d seq: %u ambig: %u\n", subwarpId, seq, ambig);
-    }
-    __syncthreads();
+    // }
 
     // letters stored from high to low bits
     // mask get lowest bits
@@ -413,13 +408,14 @@ void warp_kmerize(
     // each thread extracts one feature
     for(int i = 0; i < 4; ++i) {
         const uint8_t seqSlot  = (2*i + threadIdx.x / charsPerSubWarp);
+        const uint8_t seqSrc   = seqSlot * 4;
         const uint8_t kmerSlot = threadIdx.x % charsPerSubWarp;
 
-        uint32_t ambig = s_ambig[seqSlot];
+        uint32_t ambig = __shfl_sync(0xFFFFFFFF, ambigStore, seqSrc);
         // shift to highest bits
         ambig <<= kmerSlot;
 
-        uint64_t seq = s_seq[seqSlot];
+        uint64_t seq = __shfl_sync(0xFFFFFFFF, seqStore, seqSrc);
         // shift kmer to lowest bits
         seq >>= 64 - 2*(kmerSlot + kmerSize);
 
@@ -469,15 +465,9 @@ void insert_features(
     using index_type = IndexT;
     using size_type = SizeT;
 
-    constexpr uint8_t encodedBlocksPerWindow = 128 / 16;
-
     __shared__ union {
         //TODO MAX_SKETCH_SIZE
         feature sketch[16];
-        struct {
-            uint64_t seq[encodedBlocksPerWindow];
-            uint32_t ambig[encodedBlocksPerWindow];
-        } encodedWindow;
     } tempStorage;
 
     for(index_type tgt = blockIdx.y; tgt < numTargets; tgt += gridDim.y) {
@@ -494,14 +484,7 @@ void insert_features(
             const char * windowBegin = sequence + offsetBegin;
 
             feature items[ITEMS_PER_THREAD];
-            warp_kmerize(
-                windowBegin, thisWindowSize,
-                tempStorage.encodedWindow.seq,
-                tempStorage.encodedWindow.ambig,
-                kmerSize,
-                items);
-
-            __syncthreads();
+            warp_kmerize(windowBegin, thisWindowSize, kmerSize, items);
 
             warp_sort_128(items);
 
@@ -515,6 +498,8 @@ void insert_features(
 
             insert_into_hashtable<BLOCK_THREADS>(
                 hashtable, tempStorage.sketch, sketchCounter, targetId, winOffset);
+
+            __syncthreads();
         }
     }
 }
@@ -550,15 +535,9 @@ void gpu_hahstable_query(
     using location = Location;
     using bucket_size_type = BucketSizeT;
 
-    constexpr uint8_t encodedBlocksPerWindow = 128 / 16;
-
     __shared__ union {
         //TODO MAX_SKETCH_SIZE
         uint64_t sketch[16];
-        struct {
-            uint64_t seq[encodedBlocksPerWindow];
-            uint32_t ambig[encodedBlocksPerWindow];
-        } encodedWindow;
     } tempStorage;
 
     //each block processes one query (= one window)
@@ -570,14 +549,7 @@ void gpu_hahstable_query(
             const char * sequenceBegin = sequences + sequenceOffsets[queryId];
 
             feature items[ITEMS_PER_THREAD];
-            warp_kmerize(
-                sequenceBegin, sequenceLength,
-                tempStorage.encodedWindow.seq,
-                tempStorage.encodedWindow.ambig,
-                kmerSize,
-                items);
-
-            __syncthreads();
+            warp_kmerize(sequenceBegin, sequenceLength, kmerSize, items);
 
             warp_sort_128(items);
 
@@ -586,8 +558,7 @@ void gpu_hahstable_query(
 
             __syncthreads();
 
-            query_hashtable<BLOCK_THREADS>(
-                hashtable, tempStorage.sketch, realSketchSize);
+            query_hashtable<BLOCK_THREADS>(hashtable, tempStorage.sketch, realSketchSize);
 
             __syncthreads();
 
