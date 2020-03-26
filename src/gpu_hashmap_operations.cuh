@@ -25,7 +25,7 @@ uint32_t unique_sketch(
 {
         uint32_t uniqueFeatureCounter = 0;
 
-        for(int i=0; i<ITEMS_PER_THREAD && uniqueFeatureCounter<sketchSize; ++i)
+        for(int i=0; i<ITEMS_PER_THREAD; ++i)
         {
             // load candidate and successor
             const Feature kmer = items[i];
