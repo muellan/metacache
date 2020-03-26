@@ -35,7 +35,8 @@ class gpu_hashmap<Key,ValueT>::build_hash_table {
         key_type, value_type,
         // warpcore::defaults::empty_key<key_type>(),       //=0
         key_type(-2),
-        warpcore::defaults::tombstone_key<key_type>()>;     //=-1
+        warpcore::defaults::tombstone_key<key_type>(),      //=-1
+        warpcore::storage::multi_value::DynamicSlabListStore<value_type,34,12,10>>;
 
     using size_type  = typename hash_table_t::index_type;
 
@@ -51,6 +52,8 @@ public:
         seqBatches_{},
         currentSeqBatch_{0}
     {
+        std::cerr << "hashtable status: " << hashTable_.pop_status() << "\n";
+
         std::cerr << "hashtable total: " << (hashTable_.bytes_total() >> 20) << " MB\n";
 
         seqBatches_.emplace_back(MAX_TARGETS_PER_BATCH, MAX_LENGTH_PER_BATCH);
@@ -369,7 +372,10 @@ class gpu_hashmap<Key,ValueT>::query_hash_table {
         key_type, value_type,
         // warpcore::defaults::empty_key<key_type>(),       //=0
         key_type(-2),
-        warpcore::defaults::tombstone_key<key_type>()>;     //=-1
+        warpcore::defaults::tombstone_key<key_type>(),      //=-1
+        warpcore::defaults::probing_scheme_t<key_type, 8>,
+        // warpcore::storage::key_value::SoAStore<key_type, value_type>>;
+        warpcore::storage::key_value::AoSStore<key_type, value_type>>;
 
 public:
     query_hash_table(size_t capacity) :
@@ -377,6 +383,11 @@ public:
         numKeys_(0), numLocations_(0),
         locations_(nullptr)
     {
+        size_t freeMemory = 0;
+        size_t totalMemory = 0;
+        cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
+        std::cerr << "freeMemory: " << (freeMemory >> 20) << " MB\n";
+
         // std::cerr << "capacity: " << hashTable_.capacity() << std::endl;
     }
 
@@ -613,6 +624,16 @@ public:
         }
         CUERR
 
+        size_t totalSize = hashTable_.capacity() * (sizeof(value_type) + sizeof(value_type))
+                         + nlocations*sizeof(location);
+
+        std::cerr << "hashtable total: " << (totalSize >> 20) << " MB\n";
+
+        size_t freeMemory = 0;
+        size_t totalMemory = 0;
+        cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
+        std::cerr << "freeMemory: " << (freeMemory >> 20) << " MB\n";
+
         numKeys_ = nkeys;
         numLocations_ = nlocations;
     }
@@ -767,7 +788,7 @@ void gpu_hashmap<Key,ValueT>::deserialize(std::istream& is)
     len_t nvalues = 0;
     read_binary(is, nvalues);
 
-    std::cout << "nkeys: " << nkeys << " nvalues: " << nvalues << std::endl;
+    std::cerr << "nkeys: " << nkeys << " nvalues: " << nvalues << std::endl;
 
     if(nkeys > 0) {
         //initialize hash table
