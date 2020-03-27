@@ -36,7 +36,7 @@ class gpu_hashmap<Key,ValueT>::build_hash_table {
         // warpcore::defaults::empty_key<key_type>(),       //=0
         key_type(-2),
         warpcore::defaults::tombstone_key<key_type>(),      //=-1
-        warpcore::storage::multi_value::DynamicSlabListStore<value_type,34,12,10>>;
+        warpcore::storage::multi_value::DynamicSlabListStore<value_type,34,8,8>>;
 
     using size_type  = typename hash_table_t::index_type;
 
@@ -731,8 +731,8 @@ void gpu_hashmap<Key,ValueT>::initialize_hash_table(
 
     constexpr size_t valueSize = sizeof(ValueT);
 
-    const size_t keyCapacity   = tableMemory *  1/11 / (2*valueSize);
-    const size_t valueCapacity = tableMemory * 10/11 / valueSize;
+    const size_t keyCapacity   = tableMemory * 2/10 / (2*valueSize);
+    const size_t valueCapacity = tableMemory * 8/10 / valueSize;
 
     std::cerr << "allocate hashtable for " << keyCapacity << " keys"
                                    " and " << valueCapacity << " values\n";
