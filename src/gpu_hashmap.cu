@@ -223,12 +223,14 @@ private:
         void * tmp,
         size_type tmpSize
     ) {
+        // get valuesCount
         hashTable_.retrieve(
             keys_d, batchSize, offsetBuffer_d,
             nullptr, valuesCount,
             tmp, tmpSize);
         CUERR
 
+        // reallocate if buffers to small
         if(valuesCount > valuesAlloc) {
             valuesAlloc = valuesCount * 1.1;
             cudaFreeHost(valueBuffer_h); CUERR
@@ -237,6 +239,7 @@ private:
             cudaMalloc    (&valueBuffer_d, valuesAlloc*sizeof(value_type)); CUERR
         }
 
+        // get values
         hashTable_.retrieve(
             keys_d, batchSize, offsetBuffer_d,
             valueBuffer_d, valuesCount,
@@ -254,7 +257,7 @@ private:
         write_binary(os, sizesBuffer.data(), batchSize);
 
         cudaMemcpy(valueBuffer_h, valueBuffer_d, valuesCount*sizeof(value_type), cudaMemcpyDeviceToHost);
-        // write_binary(os, valueBuffer_h, valuesCount);
+        write_binary(os, valueBuffer_h, valuesCount);
     }
 
 public:
@@ -271,8 +274,10 @@ public:
 
         key_type * keys_d = nullptr;
         size_type numKeys = 0;
+        // get numKeys
         hashTable_.retrieve_all_keys(keys_d, numKeys); CUERR
         cudaMalloc(&keys_d, numKeys*sizeof(key_type)); CUERR
+        // get keys
         hashTable_.retrieve_all_keys(keys_d, numKeys); CUERR
 
         std::vector<bucket_size_type> sizesBuffer(batchSize_);
@@ -285,12 +290,12 @@ public:
         size_type valuesCount = 0;
         size_type valuesAlloc = 0;
         size_type tmpSize = 0;
-        std::vector<std::vector<value_type>> allValues{};
 
         cudaMallocHost(&keyBuffer_h, batchSize_*sizeof(key_type)); CUERR
         cudaMallocHost(&offsetBuffer_h, batchSize_*sizeof(size_type)); CUERR
         cudaMalloc    (&offsetBuffer_d, batchSize_*sizeof(size_type)); CUERR
 
+        // get tmpSize
         hashTable_.retrieve(
             keys_d, batchSize_, offsetBuffer_d,
             nullptr, valuesCount,
@@ -301,7 +306,6 @@ public:
 
         const len_t numCycles = numKeys / batchSize_;
         const len_t lastBatchSize = numKeys % batchSize_;
-        allValues.resize(numCycles+1);
 
         for(len_t b = 0; b < numCycles; ++b) {
             retrieve_and_write_binary(os,
@@ -309,18 +313,12 @@ public:
                 offsetBuffer_h, offsetBuffer_d, sizesBuffer,
                 valueBuffer_h, valueBuffer_d, valuesCount, valuesAlloc,
                 tmp, tmpSize);
-            allValues[b] = std::vector<value_type>(valueBuffer_h, valueBuffer_h+valuesCount);
         }
         retrieve_and_write_binary(os,
             keys_d+numCycles*batchSize_, lastBatchSize, keyBuffer_h,
             offsetBuffer_h, offsetBuffer_d, sizesBuffer,
             valueBuffer_h, valueBuffer_d, valuesCount, valuesAlloc,
             tmp, tmpSize);
-        allValues[numCycles] = std::vector<value_type>(valueBuffer_h, valueBuffer_h+valuesCount);
-
-        for(const auto& someValues : allValues) {
-            write_binary(os, someValues.data(), someValues.size());
-        }
 
         cudaFree    (keys_d); CUERR
         cudaFreeHost(keyBuffer_h); CUERR
@@ -451,123 +449,169 @@ public:
         // CUERR
     }
 
+private:
+    //---------------------------------------------------------------
+    template<class LenT, class Status>
+    LenT deserialize_batch_of_buckets(
+        std::istream& is,
+        key_type * h_keyBuffer,
+        key_type * d_keyBuffer,
+        uint64_t * h_offsetBuffer,
+        uint64_t * d_offsetBuffer,
+        std::vector<bucket_size_type>& bsizeBuffer,
+        LenT batchSize,
+        location * valueBuffers[2],
+        cudaEvent_t events[2],
+        LenT valBatchSize,
+        location * d_values,
+        uint64_t valuesOffset,
+        Status * status,
+        cudaStream_t stream)
+    {
+        using len_t = LenT;
+        using handler_type = warpcore::status_handlers::ReturnStatus;
+
+        const size_type probingLength = hashTable_.capacity();
+
+        auto batchValuesOffset = valuesOffset;
+
+        //load batch
+        read_binary(is, h_keyBuffer, batchSize);
+        read_binary(is, bsizeBuffer.data(), batchSize);
+
+        for(len_t i = 0; i < batchSize; ++i) {
+            //store offset and size together in 64bit
+            //default is 56bit offset, 8bit size
+            h_offsetBuffer[i] = (valuesOffset << sizeof(bucket_size_type)*CHAR_BIT)
+                                + bsizeBuffer[i];
+
+            valuesOffset += bsizeBuffer[i];
+        }
+
+        //check status from previous batch
+        //implicit sync
+        const auto tableStatus = hashTable_.pop_status(stream);
+        if(tableStatus.has_any()) {
+            std::cerr << tableStatus << '\n';
+            for(size_t j=0; j<batchSize; ++j) {
+                if(status[j].has_any()) {
+                    std::cerr << h_keyBuffer[j] << ' ' << status[j] << '\n';
+                }
+            }
+        }
+
+        //insert batch
+        cudaMemcpy(d_keyBuffer, h_keyBuffer, batchSize*sizeof(key_type),
+                    cudaMemcpyHostToDevice);
+        cudaMemcpy(d_offsetBuffer, h_offsetBuffer, batchSize*sizeof(uint64_t),
+                    cudaMemcpyHostToDevice);
+        // insert(d_keyBuffer, d_offsetBuffer, batchSize);
+        hashTable_.template insert<handler_type>(
+            d_keyBuffer, d_offsetBuffer, batchSize, stream, probingLength, status);
+
+
+        std::uint64_t batchValuesCount = valuesOffset - batchValuesOffset;
+        //read batches of locations and copy to device
+        const len_t numBatches = batchValuesCount / valBatchSize;
+        const size_t remainingSize = batchValuesCount % valBatchSize;
+
+        d_values += batchValuesOffset;
+
+        for(len_t i = 0; i < numBatches; ++i) {
+            const len_t id = i % 2;
+            cudaEventSynchronize(events[id]);
+            read_binary(is, valueBuffers[id], valBatchSize);
+            cudaMemcpyAsync(d_values, valueBuffers[id], valBatchSize*sizeof(location),
+                            cudaMemcpyHostToDevice, stream);
+            cudaEventRecord(events[id], stream);
+
+            d_values += valBatchSize;
+        }
+        //read remaining locations and copy to device
+        const len_t id = numBatches % 2;
+        cudaEventSynchronize(events[id]);
+        read_binary(is, valueBuffers[id], remainingSize);
+        cudaMemcpyAsync(d_values, valueBuffers[id], remainingSize*sizeof(location),
+                        cudaMemcpyHostToDevice, stream);
+
+
+        return batchValuesCount;
+    }
+
+public:
     //---------------------------------------------------------------
     template<class len_t>
     void deserialize(std::istream& is, len_t nkeys, len_t nlocations)
     {
-        len_t keyBatchSize = 0;
-        read_binary(is, keyBatchSize);
+        len_t batchSize = 0;
+        read_binary(is, batchSize);
 
         //TODO tune sizes
-        const size_t valBatchSize = 1UL << 20;
+        const len_t valBatchSize = 1UL << 20;
 
         cudaStream_t stream = 0;
+
+        //allocate large memory chunk for all locations,
+        //individual buckets will then point into this array
+        cudaMalloc(&locations_, nlocations*sizeof(location)); CUERR
+        uint64_t locsOffset = 0;
 
         {//load hash table
             //allocate insert buffers
             key_type * h_keyBuffer;
             key_type * d_keyBuffer;
-            cudaMallocHost(&h_keyBuffer, keyBatchSize*sizeof(key_type));
-            cudaMalloc    (&d_keyBuffer, keyBatchSize*sizeof(key_type));
+            cudaMallocHost(&h_keyBuffer, batchSize*sizeof(key_type));
+            cudaMalloc    (&d_keyBuffer, batchSize*sizeof(key_type));
             uint64_t * h_offsetBuffer;
             uint64_t * d_offsetBuffer;
-            cudaMallocHost(&h_offsetBuffer, keyBatchSize*sizeof(uint64_t));
-            cudaMalloc    (&d_offsetBuffer, keyBatchSize*sizeof(uint64_t));
+            cudaMallocHost(&h_offsetBuffer, batchSize*sizeof(uint64_t));
+            cudaMalloc    (&d_offsetBuffer, batchSize*sizeof(uint64_t));
+            location * valueBuffers[2];
+            cudaMallocHost(&valueBuffers[0], valBatchSize*sizeof(location));
+            cudaMallocHost(&valueBuffers[1], valBatchSize*sizeof(location));
+            cudaEvent_t events[2];
+            cudaEventCreate(&events[0]);
+            cudaEventCreate(&events[1]);
+            CUERR
 
-            std::vector<bucket_size_type> bsizeBuffer(keyBatchSize);
+            std::vector<bucket_size_type> bsizeBuffer(batchSize);
 
             using handler_type = warpcore::status_handlers::ReturnStatus;
             using handler_base_type = handler_type::base_type;
 
             handler_base_type * status;
-            cudaMallocManaged(&status, keyBatchSize*sizeof(handler_base_type));
-            cudaMemset(status, 0, keyBatchSize*sizeof(handler_base_type));
-
-            const size_type probingLength = hashTable_.capacity();
-
-            uint64_t locsOffset = 0;
+            cudaMallocManaged(&status, batchSize*sizeof(handler_base_type));
+            cudaMemset(status, 0, batchSize*sizeof(handler_base_type));
 
             //load full batches
-            const len_t numBatches = nkeys / keyBatchSize;
+            const len_t numBatches = nkeys / batchSize;
             for(len_t b = 0; b < numBatches; ++b) {
-                //load batch
-                read_binary(is, h_keyBuffer, keyBatchSize);
-                read_binary(is, bsizeBuffer.data(), keyBatchSize);
+                auto batchValuesCount = deserialize_batch_of_buckets(is,
+                    h_keyBuffer, d_keyBuffer, h_offsetBuffer, d_offsetBuffer,
+                    bsizeBuffer, batchSize,
+                    valueBuffers, events, valBatchSize, locations_, locsOffset,
+                    status, stream);
 
-                for(len_t i = 0; i < keyBatchSize; ++i) {
-                    //store offset and size together in 64bit
-                    //default is 56bit offset, 8bit size
-                    h_offsetBuffer[i] = (locsOffset << sizeof(bucket_size_type)*CHAR_BIT)
-                                        + bsizeBuffer[i];
+                locsOffset += batchValuesCount;
+            }
 
-                    locsOffset += bsizeBuffer[i];
-                }
+            //load last batch
+            const size_t remainingSize = nkeys % batchSize;
+            if(remainingSize) {
+                auto batchValuesCount = deserialize_batch_of_buckets(is,
+                    h_keyBuffer, d_keyBuffer, h_offsetBuffer, d_offsetBuffer,
+                    bsizeBuffer, remainingSize,
+                    valueBuffers, events, valBatchSize, locations_, locsOffset,
+                    status, stream);
 
-                //check status from previous batch
+                locsOffset += batchValuesCount;
+
+                //check status from last batch
                 //implicit sync
                 const auto tableStatus = hashTable_.pop_status(stream);
                 if(tableStatus.has_any()) {
                     std::cerr << tableStatus << '\n';
-                    for(size_t j=0; j<keyBatchSize; ++j) {
-                        if(status[j].has_any()) {
-                            std::cerr << h_keyBuffer[j] << ' ' << status[j] << '\n';
-                        }
-                    }
-                }
-
-                //insert full batch
-                cudaMemcpy(d_keyBuffer, h_keyBuffer, keyBatchSize*sizeof(key_type),
-                            cudaMemcpyHostToDevice);
-                cudaMemcpy(d_offsetBuffer, h_offsetBuffer, keyBatchSize*sizeof(uint64_t),
-                            cudaMemcpyHostToDevice);
-                // insert(d_keyBuffer, d_offsetBuffer, keyBatchSize);
-                hashTable_.template insert<handler_type>(
-                    d_keyBuffer, d_offsetBuffer, keyBatchSize, stream, probingLength, status);
-            }
-
-            //load last batch
-            const size_t remainingSize = nkeys % keyBatchSize;
-            if(remainingSize) {
-                //load batch
-                read_binary(is, h_keyBuffer, remainingSize);
-                read_binary(is, bsizeBuffer.data(), remainingSize);
-
-                for(len_t i = 0; i < remainingSize; ++i) {
-                    //store offset and size together in 64bit
-                    //default is 56bit offset, 8bit size
-                    h_offsetBuffer[i] = (locsOffset << sizeof(bucket_size_type)*CHAR_BIT)
-                                        + bsizeBuffer[i];
-
-                    locsOffset += bsizeBuffer[i];
-                }
-
-                //check status from previous batch
-                //implicit sync
-                auto tableStatus = hashTable_.pop_status(stream);
-                if(tableStatus.has_any()) {
-                    std::cerr << tableStatus << '\n';
-                    for(size_t j=0; j<keyBatchSize; ++j) {
-                        if(status[j].has_any()) {
-                            std::cerr << h_keyBuffer[j] << ' ' << status[j] << '\n';
-                        }
-                    }
-                }
-
-                //insert last batch
-                cudaMemcpy(d_keyBuffer, h_keyBuffer, remainingSize*sizeof(key_type),
-                            cudaMemcpyHostToDevice);
-                cudaMemcpy(d_offsetBuffer, h_offsetBuffer, remainingSize*sizeof(uint64_t),
-                            cudaMemcpyHostToDevice);
-                // insert(d_keyBuffer, d_offsetBuffer, remainingSize);
-                hashTable_.template insert<handler_type>(
-                    d_keyBuffer, d_offsetBuffer, remainingSize, stream, probingLength, status);
-
-                //check status from last batch
-                //implicit sync
-                tableStatus = hashTable_.pop_status(stream);
-                if(tableStatus.has_any()) {
-                    std::cerr << tableStatus << '\n';
-                    for(size_t j=0; j<keyBatchSize; ++j) {
+                    for(size_t j=0; j<batchSize; ++j) {
                         if(status[j].has_any()) {
                             std::cerr << h_keyBuffer[j] << ' ' << status[j] << '\n';
                         }
@@ -579,52 +623,13 @@ public:
             cudaFree    (d_keyBuffer);
             cudaFreeHost(h_offsetBuffer);
             cudaFree    (d_offsetBuffer);
-        }
-
-        {//load locations
-            //allocate large memory chunk for all locations,
-            //individual buckets will then point into this array
-            cudaMalloc(&locations_, nlocations*sizeof(location));
-
-            //allocate buffer
-            location * valueBuffers[2];
-            cudaMallocHost(&valueBuffers[0], valBatchSize*sizeof(location));
-            cudaMallocHost(&valueBuffers[1], valBatchSize*sizeof(location));
-
-            cudaEvent_t events[2];
-            cudaEventCreate(&events[0]);
-            cudaEventCreate(&events[1]);
-
-            //read batches of locations and copy to device
-            auto locsOffset = locations_;
-            const len_t numBatches = nlocations / valBatchSize;
-            for(len_t i = 0; i < numBatches; ++i) {
-                const len_t id = i % 2;
-                cudaEventSynchronize(events[id]);
-                read_binary(is, valueBuffers[id], valBatchSize);
-                cudaMemcpyAsync(locsOffset, valueBuffers[id], valBatchSize*sizeof(location),
-                                cudaMemcpyHostToDevice, stream);
-                cudaEventRecord(events[id], stream);
-
-                locsOffset += valBatchSize;
-            }
-            //read remaining locations and copy to device
-            const size_t remainingSize = nlocations % valBatchSize;
-            const len_t id = numBatches % 2;
-            cudaEventSynchronize(events[id]);
-            read_binary(is, valueBuffers[id], remainingSize);
-            cudaMemcpyAsync(locsOffset, valueBuffers[id], remainingSize*sizeof(location),
-                            cudaMemcpyHostToDevice, stream);
-
-            cudaStreamSynchronize(stream);
 
             cudaFreeHost(valueBuffers[0]);
             cudaFreeHost(valueBuffers[1]);
-
             cudaEventDestroy(events[0]);
             cudaEventDestroy(events[1]);
+            CUERR
         }
-        CUERR
 
         size_t totalSize = hashTable_.capacity() * (sizeof(value_type) + sizeof(value_type))
                          + nlocations*sizeof(location);
