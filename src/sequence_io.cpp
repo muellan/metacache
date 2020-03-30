@@ -25,6 +25,7 @@
 
 #include <sstream>
 #include <stdexcept>
+#include <limits>
 #include <regex>
 
 #include "io_error.h"

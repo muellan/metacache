@@ -84,8 +84,7 @@ public:
         io_error(what), filename_(filename)
     {}
 
-    virtual const char*
-    filename() const noexcept {
+    const char* filename() const noexcept {
         return filename_.c_str();
     }
 
