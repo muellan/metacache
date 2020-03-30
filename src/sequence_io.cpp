@@ -291,6 +291,9 @@ void fastq_reader::read_next(header_type* header, data_type* data,
     if(linebuffer_.empty()) {
         pos_ = -1;
         invalidate();
+        if(header) header->clear();
+        if(data) data->clear();
+        if(qualities) qualities->clear();
         return;
     }
 
