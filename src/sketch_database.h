@@ -1048,14 +1048,14 @@ public:
         if(seqBatches_[currentSeqBatch_].num_targets())
             featureStoreGPU_.insert(seqBatches_[currentSeqBatch_], targetSketcher_);
         featureStoreGPU_.wait_until_insert_finished();
+
+        featureStoreGPU_.pop_status();
     }
 
 
     //---------------------------------------------------------------
     bool add_target_failed() {
-        //TODO
-        //check hash table status
-        return false;
+        return !featureStoreGPU_.valid();
     }
 
 

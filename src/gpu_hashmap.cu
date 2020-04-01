@@ -36,9 +36,10 @@ class gpu_hashmap<Key,ValueT>::build_hash_table {
         // warpcore::defaults::empty_key<key_type>(),       //=0
         key_type(-2),
         warpcore::defaults::tombstone_key<key_type>(),      //=-1
-        warpcore::storage::multi_value::DynamicSlabListStore<value_type,34,8,8>>;
+        warpcore::storage::multi_value::DynamicSlabListStore<value_type,40,8,8>>;
 
     using size_type  = typename hash_table_t::index_type;
+    using status_type  = typename warpcore::Status;
 
 public:
     build_hash_table(
@@ -46,7 +47,8 @@ public:
         size_type value_capacity,
         std::uint64_t maxLocsPerFeature
     ) :
-        hashTable_{key_capacity, value_capacity},
+        hashTable_{key_capacity, value_capacity,
+            warpcore::defaults::seed<key_type>(), 1.051}, // seed, bucket grow factor
         batchSize_{default_batch_size()},
         maxLocsPerFeature_{maxLocsPerFeature},
         seqBatches_{},
@@ -63,6 +65,18 @@ public:
         cudaStreamCreate(&insertStream_); CUERR
 
         // cudaDeviceSynchronize(); CUERR
+    }
+
+    //---------------------------------------------------------------
+    bool validate() {
+        if(hashTable_.peek_status() - status_type::index_overflow())
+            return false;
+        return true;
+    }
+
+    //---------------------------------------------------------------
+    status_type pop_status() {
+        return hashTable_.pop_status();
     }
 
     //---------------------------------------------------------------
@@ -95,6 +109,7 @@ public:
         sequence_batch<policy::Host>& seqBatchHost,
         const sketcher& targetSketcher
     ) {
+        // wait for previous insert of current batch to finish
         cudaEventSynchronize(seqBatches_[currentSeqBatch_].event());
 
         copy_host_to_device_async(
@@ -391,6 +406,11 @@ public:
     }
 
     //---------------------------------------------------------------
+    auto pop_status() {
+        return hashTable_.pop_status();
+    }
+
+    //---------------------------------------------------------------
     float load_factor() noexcept {
         return hashTable_.load_factor();
     }
@@ -667,7 +687,8 @@ private:
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 gpu_hashmap<Key,ValueT>::gpu_hashmap() :
-    maxLoadFactor_(default_max_load_factor())
+    maxLoadFactor_(default_max_load_factor()),
+    valid_(true)
 {}
 
 //-----------------------------------------------------
@@ -679,6 +700,21 @@ template<class Key, class ValueT>
 gpu_hashmap<Key,ValueT>::gpu_hashmap(gpu_hashmap&&) = default;
 
 
+
+//---------------------------------------------------------------
+template<class Key, class ValueT>
+bool gpu_hashmap<Key,ValueT>::valid() const noexcept {
+    return valid_;
+}
+
+//---------------------------------------------------------------
+template<class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::pop_status() {
+    if(buildHashTable_)
+        std::cerr << "hashtable status: " << buildHashTable_->pop_status() << "\n";
+    else if(queryHashTable_)
+        std::cerr << "hashtable status: " << queryHashTable_->pop_status() << "\n";
+}
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
@@ -736,8 +772,8 @@ void gpu_hashmap<Key,ValueT>::initialize_hash_table(
 
     constexpr size_t valueSize = sizeof(ValueT);
 
-    const size_t keyCapacity   = tableMemory * 2/10 / (2*valueSize);
-    const size_t valueCapacity = tableMemory * 8/10 / valueSize;
+    const size_t keyCapacity   = tableMemory *  2/13 / (2*valueSize);
+    const size_t valueCapacity = tableMemory * 11/13 / valueSize;
 
     std::cerr << "allocate hashtable for " << keyCapacity << " keys"
                                    " and " << valueCapacity << " values\n";
@@ -755,9 +791,14 @@ void gpu_hashmap<Key,ValueT>::insert(
     sequence_batch<policy::Host>& seqBatchHost,
     const sketcher& targetSketcher)
 {
-    buildHashTable_->insert_async(
-        seqBatchHost,
-        targetSketcher);
+    if(valid_ && buildHashTable_->validate()) {
+        buildHashTable_->insert_async(
+            seqBatchHost,
+            targetSketcher);
+    }
+    else {
+        valid_ = false;
+    }
 }
 //-----------------------------------------------------
 template<class Key, class ValueT>

@@ -54,6 +54,12 @@ public:
 
 public:
     //---------------------------------------------------------------
+    bool valid() const noexcept;
+
+    //---------------------------------------------------------------
+    void pop_status();
+
+    //---------------------------------------------------------------
     static constexpr std::size_t
     max_bucket_size() noexcept {
         return std::numeric_limits<bucket_size_type>::max();
@@ -152,6 +158,8 @@ private:
     std::unique_ptr<query_hash_table> queryHashTable_;
 
     float maxLoadFactor_;
+
+    bool valid_;
 };
 
 
