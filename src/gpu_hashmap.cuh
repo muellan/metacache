@@ -97,6 +97,7 @@ public:
      * @brief allocate gpu hash table for database building
      */
     void initialize_hash_table(
+        int numGPUs,
         std::uint64_t maxLocsPerFeature);
 
     //---------------------------------------------------------------
@@ -146,6 +147,10 @@ private:
 
 private:
     //---------------------------------------------------------------
+    int numGPUs_;
+    float maxLoadFactor_;
+    bool valid_;
+
     /**
      * @brief multi value hashtable for building,
      *        which maps feature -> values
@@ -156,10 +161,6 @@ private:
      *        which maps feature -> values pointer
      */
     std::unique_ptr<query_hash_table> queryHashTable_;
-
-    float maxLoadFactor_;
-
-    bool valid_;
 };
 
 

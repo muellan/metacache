@@ -66,12 +66,14 @@ using std::endl;
  *****************************************************************************/
 struct build_options
 {
+    int numGPUs = std::numeric_limits<int>::max(); // use all available gpus
+
     int kmerlen = 16;
     int sketchlen = 16;
     int winlen = 127;
     int winstride = 112;
 
-    float maxLoadFactor = -1;           //< 0 : use database default
+    float maxLoadFactor = -1;           // < 0 : use database default
     int maxLocationsPerFeature = database::max_supported_locations_per_feature();
     bool removeOverpopulatedFeatures = true;
 
@@ -108,6 +110,8 @@ get_build_options(const args_parser& args, const build_options& defaults = {})
     } else if(args.contains("verbose")) {
         opt.infoLevel = info_level::verbose;
     }
+
+    opt.numGPUs   = args.get<int>({"numgpus","num-gpus", "num_gpus"}, defaults.numGPUs);
 
     opt.kmerlen   = args.get<int>({"kmerlen"}, defaults.kmerlen);
     opt.sketchlen = args.get<int>({"sketchlen"}, defaults.sketchlen);
@@ -535,7 +539,7 @@ void prepare_database(database& db, const build_options& opt)
         }
     }
 
-    db.initialize_gpu_hash_table();
+    db.initialize_gpu_hash_table(opt.numGPUs);
 }
 
 

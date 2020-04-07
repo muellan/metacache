@@ -467,8 +467,8 @@ public:
 
 
     //---------------------------------------------------------------
-    void initialize_gpu_hash_table() {
-        featureStoreGPU_.initialize_hash_table(maxLocsPerFeature_);
+    void initialize_gpu_hash_table(int numGPUs) {
+        featureStoreGPU_.initialize_hash_table(numGPUs, maxLocsPerFeature_);
     }
 
 

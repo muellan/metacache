@@ -154,9 +154,8 @@ public:
 
     //---------------------------------------------------------------
     statistics_accumulator
-    location_list_size_statistics() {
-        auto priSize = statistics_accumulator{};
-
+    location_list_size_statistics(statistics_accumulator priSize = {})
+    {
         cudaDeviceSynchronize(); CUERR
 
         key_type * keys = nullptr;
@@ -668,9 +667,14 @@ private:
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 gpu_hashmap<Key,ValueT>::gpu_hashmap() :
+    numGPUs_(0),
     maxLoadFactor_(default_max_load_factor()),
     valid_(true)
-{}
+{
+    cudaGetDeviceCount(&numGPUs_); CUERR
+
+    std::cerr << "found " << numGPUs_ << " CUDA devices\n";
+}
 
 //-----------------------------------------------------
 template<class Key, class ValueT>
@@ -741,8 +745,12 @@ statistics_accumulator gpu_hashmap<Key,ValueT>::location_list_size_statistics() 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::initialize_hash_table(
+    int numGPUs,
     std::uint64_t maxLocsPerFeature)
 {
+    if(numGPUs < numGPUs_)
+        numGPUs_ = numGPUs;
+
     size_t freeMemory = 0;
     size_t totalMemory = 0;
     cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
