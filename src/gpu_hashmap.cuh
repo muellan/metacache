@@ -68,17 +68,15 @@ public:
     //---------------------------------------------------------------
     size_type bucket_count() const noexcept;
     //-----------------------------------------------------
-    size_type key_count() const noexcept;
+    size_type key_count() noexcept;
     //-----------------------------------------------------
-    size_type tombstone_count() const noexcept { /*TODO*/ return 0;}
+    size_type tombstone_count() noexcept { /*TODO*/ return 0;}
     //-----------------------------------------------------
-    size_type value_count() const noexcept;
+    size_type value_count() noexcept;
     //-----------------------------------------------------
-    bool empty() const noexcept {
+    bool empty() noexcept {
         return key_count() < 1;
     }
-    //---------------------------------------------------------------
-    float load_factor() const noexcept;
 
     //---------------------------------------------------------------
     static constexpr float default_max_load_factor() noexcept {
@@ -91,7 +89,7 @@ public:
 
     //---------------------------------------------------------------
     statistics_accumulator
-    location_list_size_statistics() const;
+    location_list_size_statistics();
 
     /****************************************************************
      * @brief allocate gpu hash table for database building
@@ -126,7 +124,7 @@ public:
     /****************************************************************
      * @brief serialize hashmap to output stream
      */
-    friend void write_binary(std::ostream& os, const gpu_hashmap& m) {
+    friend void write_binary(std::ostream& os, gpu_hashmap& m) {
         m.serialize(os);
     }
 
@@ -142,7 +140,7 @@ private:
     /**
      * @brief binary serialization of all non-emtpy buckets
      */
-    void serialize(std::ostream& os) const;
+    void serialize(std::ostream& os);
 
 
 private:
@@ -152,10 +150,10 @@ private:
     bool valid_;
 
     /**
-     * @brief multi value hashtable for building,
+     * @brief multi value hashtables for building,
      *        which maps feature -> values
      */
-    std::unique_ptr<build_hash_table> buildHashTable_;
+    std::vector<build_hash_table> buildHashTables_;
     /**
      * @brief single value hashtable for querying,
      *        which maps feature -> values pointer

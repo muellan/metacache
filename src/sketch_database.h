@@ -1009,10 +1009,6 @@ public:
     std::uint64_t location_count() const noexcept {
         return featureStoreGPU_.value_count();
     }
-    //-----------------------------------------------------
-    float load_factor() const noexcept {
-        return featureStoreGPU_.load_factor();
-    }
 
 
     //---------------------------------------------------------------
@@ -1205,7 +1201,7 @@ private:
     std::uint64_t maxLocsPerFeature_;
     target_id targetCount_;
     feature_store features_;
-    feature_store_gpu featureStoreGPU_;
+    mutable feature_store_gpu featureStoreGPU_;
     std::vector<const taxon*> targets_;
     taxonomy taxa_;
     mutable ranked_lineages_cache ranksCache_;
