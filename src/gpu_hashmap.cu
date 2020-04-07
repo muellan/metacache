@@ -110,7 +110,7 @@ public:
         const sketcher& targetSketcher
     ) {
         // wait for previous insert of current batch to finish
-        cudaEventSynchronize(seqBatches_[currentSeqBatch_].event());
+        cudaStreamWaitEvent(copyStream_, seqBatches_[currentSeqBatch_].event(), 0); CUERR
 
         copy_host_to_device_async(
             seqBatchHost, seqBatches_[currentSeqBatch_], copyStream_);
