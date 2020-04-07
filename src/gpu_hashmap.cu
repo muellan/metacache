@@ -7,7 +7,7 @@
 #include "gpu_hashmap_operations.cuh"
 
 #include "../dep/warpcore/include/single_value_hash_table.cuh"
-#include "../dep/warpcore/include/multi_value_hash_table.cuh"
+#include "../dep/warpcore/include/bucket_list_hash_table.cuh"
 
 namespace mc {
 
@@ -31,12 +31,13 @@ class gpu_hashmap<Key,ValueT>::build_hash_table {
 
     using ranked_lineage = taxonomy::ranked_lineage;
 
-    using hash_table_t = warpcore::MultiValueHashTable<
+    using hash_table_t = warpcore::BucketListHashTable<
         key_type, value_type,
         // warpcore::defaults::empty_key<key_type>(),       //=0
         key_type(-2),
         warpcore::defaults::tombstone_key<key_type>(),      //=-1
-        warpcore::storage::multi_value::DynamicSlabListStore<value_type,40,8,8>>;
+        warpcore::storage::multi_value::BucketListStore<value_type,40,8,8>
+    >;
 
     using size_type  = typename hash_table_t::index_type;
     using status_type  = typename warpcore::Status;
@@ -48,15 +49,14 @@ public:
         std::uint64_t maxLocsPerFeature
     ) :
         hashTable_{key_capacity, value_capacity,
-            warpcore::defaults::seed<key_type>(), 1.051}, // seed, bucket grow factor
+            warpcore::defaults::seed<key_type>(),   // seed
+            1.051, 1, max_bucket_size(),            // grow factor, min & max bucket size
+            maxLocsPerFeature},                     // max values per key
         batchSize_{default_batch_size()},
-        maxLocsPerFeature_{maxLocsPerFeature},
         seqBatches_{},
         currentSeqBatch_{0}
     {
         std::cerr << "hashtable status: " << hashTable_.pop_status() << "\n";
-
-        std::cerr << "hashtable total: " << (hashTable_.bytes_total() >> 20) << " MB\n";
 
         seqBatches_.emplace_back(MAX_TARGETS_PER_BATCH, MAX_LENGTH_PER_BATCH);
         seqBatches_.emplace_back(MAX_TARGETS_PER_BATCH, MAX_LENGTH_PER_BATCH);
@@ -69,7 +69,7 @@ public:
 
     //---------------------------------------------------------------
     bool validate() {
-        if(hashTable_.peek_status() - status_type::index_overflow())
+        if(hashTable_.peek_status() - status_type::max_values_for_key_reached())
             return false;
         return true;
     }
@@ -97,11 +97,11 @@ public:
     }
     //-----------------------------------------------------
     size_type key_count() noexcept {
-        return hashTable_.size_keys();
+        return hashTable_.num_keys();
     }
     //-----------------------------------------------------
     size_type location_count() noexcept {
-        return hashTable_.size_values();
+        return hashTable_.num_values();
     }
 
     //---------------------------------------------------------------
@@ -164,58 +164,47 @@ public:
         cudaMalloc(&keys, numKeys*sizeof(key_type)); CUERR
         hashTable_.retrieve_all_keys(keys, numKeys); CUERR
 
-        size_type  * offsetBuffer_d = nullptr;
-        size_type  * offsetBuffer_h = nullptr;
-        void       * tmp = nullptr;
-        size_type valuesCount = 0;
-        size_type tmpSize = 0;
+        size_type  * numValuesBuffer_d = nullptr;
+        size_type  * numValuesBuffer_h = nullptr;
+        cudaMalloc    (&numValuesBuffer_d, batchSize_*sizeof(size_type)); CUERR
+        cudaMallocHost(&numValuesBuffer_h, batchSize_*sizeof(size_type)); CUERR
 
-        cudaMalloc    (&offsetBuffer_d, batchSize_*sizeof(size_type)); CUERR
-        cudaMallocHost(&offsetBuffer_h, batchSize_*sizeof(size_type)); CUERR
-
-        hashTable_.retrieve(
-            keys, batchSize_, offsetBuffer_d,
-            nullptr, valuesCount,
-            nullptr, tmpSize);
-        CUERR
-
-        cudaMalloc(&tmp, tmpSize); CUERR
+        size_type * valuesCountPtr = nullptr;
+        cudaMallocHost(&valuesCountPtr, sizeof(size_type)); CUERR
+        *valuesCountPtr = 0;
 
         const size_type numCycles = numKeys / batchSize_;
         const size_type lastBatchSize = numKeys % batchSize_;
 
         for(size_type b = 0; b < numCycles; ++b) {
-            hashTable_.retrieve(
-                keys+b*batchSize_, batchSize_, offsetBuffer_d,
-                nullptr, valuesCount,
-                tmp, tmpSize);
+            hashTable_.num_values(
+                keys+b*batchSize_, batchSize_, *valuesCountPtr,
+                numValuesBuffer_d);
             CUERR
 
-            cudaMemcpy(offsetBuffer_h, offsetBuffer_d, batchSize_*sizeof(size_type),
+            cudaMemcpy(numValuesBuffer_h, numValuesBuffer_d, batchSize_*sizeof(size_type),
                        cudaMemcpyDeviceToHost); CUERR
 
-            priSize += offsetBuffer_h[0];
-            for(size_type i = 1; i < batchSize_; ++i)
-                priSize += offsetBuffer_h[i] - offsetBuffer_h[i-1];
+            for(size_type i = 0; i < batchSize_; ++i)
+                priSize += numValuesBuffer_h[i];
+        }
+        if(lastBatchSize) {
+            hashTable_.num_values(
+                keys+numCycles*batchSize_, lastBatchSize, *valuesCountPtr,
+                numValuesBuffer_d);
+            CUERR
+
+            cudaMemcpy(numValuesBuffer_h, numValuesBuffer_d, lastBatchSize*sizeof(size_type),
+                    cudaMemcpyDeviceToHost); CUERR
+
+            for(size_type i = 0; i < lastBatchSize; ++i)
+                priSize += numValuesBuffer_h[i];
         }
 
-        hashTable_.retrieve(
-            keys+numCycles*batchSize_, lastBatchSize, offsetBuffer_d,
-            nullptr, valuesCount,
-            tmp, tmpSize);
-        CUERR
-
-        cudaMemcpy(offsetBuffer_h, offsetBuffer_d, lastBatchSize*sizeof(size_type),
-        cudaMemcpyDeviceToHost); CUERR
-
-        priSize += offsetBuffer_h[0];
-        for(size_type i = 1; i < lastBatchSize; ++i)
-            priSize += offsetBuffer_h[i] - offsetBuffer_h[i-1];
-
         cudaFree(keys); CUERR
-        cudaFree(offsetBuffer_d); CUERR
-        cudaFreeHost(offsetBuffer_h); CUERR
-        cudaFree(tmp); CUERR
+        cudaFree(numValuesBuffer_d); CUERR
+        cudaFreeHost(numValuesBuffer_h); CUERR
+        cudaFreeHost(valuesCountPtr); CUERR
 
         return priSize;
     }
@@ -234,15 +223,13 @@ private:
         value_type *& valueBuffer_h,
         value_type *& valueBuffer_d,
         size_type& valuesCount,
-        size_type& valuesAlloc,
-        void * tmp,
-        size_type tmpSize
+        size_type& valuesAlloc
     ) {
         // get valuesCount
         hashTable_.retrieve(
-            keys_d, batchSize, offsetBuffer_d,
-            nullptr, valuesCount,
-            tmp, tmpSize);
+            keys_d, batchSize,
+            offsetBuffer_d, offsetBuffer_d+1,
+            nullptr, valuesCount);
         CUERR
 
         // reallocate if buffers to small
@@ -256,18 +243,17 @@ private:
 
         // get values
         hashTable_.retrieve(
-            keys_d, batchSize, offsetBuffer_d,
-            valueBuffer_d, valuesCount,
-            tmp, tmpSize);
+            keys_d, batchSize,
+            offsetBuffer_d, offsetBuffer_d+1,
+            valueBuffer_d, valuesCount);
         CUERR
 
         cudaMemcpy(keyBuffer_h, keys_d, batchSize*sizeof(key_type), cudaMemcpyDeviceToHost);
         write_binary(os, keyBuffer_h, batchSize);
 
-        cudaMemcpy(offsetBuffer_h, offsetBuffer_d, batchSize*sizeof(size_type), cudaMemcpyDeviceToHost);
-        sizesBuffer[0] = offsetBuffer_h[0];
-        for(size_type i = 1; i < batchSize; ++i)
-            sizesBuffer[i] = offsetBuffer_h[i] - offsetBuffer_h[i-1];
+        cudaMemcpy(offsetBuffer_h, offsetBuffer_d, (batchSize+1)*sizeof(size_type), cudaMemcpyDeviceToHost);
+        for(size_type i = 0; i < batchSize; ++i)
+            sizesBuffer[i] = offsetBuffer_h[i+1] - offsetBuffer_h[i];
 
         write_binary(os, sizesBuffer.data(), batchSize);
 
@@ -301,23 +287,15 @@ public:
         size_type  * offsetBuffer_d = nullptr;
         value_type * valueBuffer_h = nullptr;
         value_type * valueBuffer_d = nullptr;
-        void       * tmp = nullptr;
-        size_type valuesCount = 0;
-        size_type valuesAlloc = 0;
-        size_type tmpSize = 0;
 
         cudaMallocHost(&keyBuffer_h, batchSize_*sizeof(key_type)); CUERR
-        cudaMallocHost(&offsetBuffer_h, batchSize_*sizeof(size_type)); CUERR
-        cudaMalloc    (&offsetBuffer_d, batchSize_*sizeof(size_type)); CUERR
+        cudaMallocHost(&offsetBuffer_h, (batchSize_+1)*sizeof(size_type)); CUERR
+        cudaMalloc    (&offsetBuffer_d, (batchSize_+1)*sizeof(size_type)); CUERR
 
-        // get tmpSize
-        hashTable_.retrieve(
-            keys_d, batchSize_, offsetBuffer_d,
-            nullptr, valuesCount,
-            nullptr, tmpSize);
-        CUERR
-
-        cudaMalloc(&tmp, tmpSize); CUERR
+        size_type valuesAlloc = 0;
+        size_type * valuesCountPtr = nullptr;
+        cudaMallocHost(&valuesCountPtr, sizeof(size_type)); CUERR
+        *valuesCountPtr = 0;
 
         const len_t numCycles = numKeys / batchSize_;
         const len_t lastBatchSize = numKeys % batchSize_;
@@ -326,29 +304,30 @@ public:
             retrieve_and_write_binary(os,
                 keys_d+b*batchSize_, batchSize_, keyBuffer_h,
                 offsetBuffer_h, offsetBuffer_d, sizesBuffer,
-                valueBuffer_h, valueBuffer_d, valuesCount, valuesAlloc,
-                tmp, tmpSize);
+                valueBuffer_h, valueBuffer_d, *valuesCountPtr, valuesAlloc);
         }
-        retrieve_and_write_binary(os,
-            keys_d+numCycles*batchSize_, lastBatchSize, keyBuffer_h,
-            offsetBuffer_h, offsetBuffer_d, sizesBuffer,
-            valueBuffer_h, valueBuffer_d, valuesCount, valuesAlloc,
-            tmp, tmpSize);
+        if(lastBatchSize) {
+            retrieve_and_write_binary(os,
+                keys_d+numCycles*batchSize_, lastBatchSize, keyBuffer_h,
+                offsetBuffer_h, offsetBuffer_d, sizesBuffer,
+                valueBuffer_h, valueBuffer_d, *valuesCountPtr, valuesAlloc);
+        }
 
         cudaFree    (keys_d); CUERR
         cudaFreeHost(keyBuffer_h); CUERR
         cudaFreeHost(offsetBuffer_h); CUERR
         cudaFree    (offsetBuffer_d); CUERR
-        cudaFreeHost(valueBuffer_h); CUERR
-        cudaFree    (valueBuffer_d); CUERR
-        cudaFree    (tmp); CUERR
+        cudaFreeHost(valuesCountPtr); CUERR
+        if(valuesAlloc) {
+            cudaFreeHost(valueBuffer_h); CUERR
+            cudaFree    (valueBuffer_d); CUERR
+        }
     }
 
 private:
     hash_table_t hashTable_;
 
     size_type batchSize_;
-    std::uint64_t maxLocsPerFeature_;
 
     size_t maxBatches_;
     std::vector<sequence_batch<policy::Device>> seqBatches_;
