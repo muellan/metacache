@@ -469,6 +469,8 @@ public:
     //---------------------------------------------------------------
     void initialize_gpu_hash_table(int numGPUs) {
         featureStoreGPU_.initialize_hash_table(numGPUs, maxLocsPerFeature_);
+
+        provide_sequence_batches(2*numGPUs);
     }
 
 
@@ -1045,8 +1047,6 @@ public:
 
     //---------------------------------------------------------------
     void wait_until_add_target_complete() {
-        if(seqBatches_[currentSeqBatch_].num_targets())
-            featureStoreGPU_.insert(seqBatches_[currentSeqBatch_], targetSketcher_);
         featureStoreGPU_.wait_until_insert_finished();
 
         featureStoreGPU_.pop_status();
@@ -1076,7 +1076,9 @@ private:
     {
         using std::distance;
 
-        if(seqBatches_.size() < 2) provide_sequence_batches(2);
+        const int gpuId = tgt % featureStoreGPU_.num_gpus();
+
+        seqBatches_[currentSeqBatch_].clear();
 
         window_id totalWindows = 0;
 
@@ -1090,12 +1092,17 @@ private:
 
             // if no windows were processed batch must be full
             if(!processedWindows && seqBatches_[currentSeqBatch_].num_targets()) {
-                featureStoreGPU_.insert(seqBatches_[currentSeqBatch_], targetSketcher_);
-                currentSeqBatch_ ^= 1;
+                featureStoreGPU_.insert(gpuId, seqBatches_[currentSeqBatch_], targetSketcher_);
+                currentSeqBatch_ = (currentSeqBatch_+1) % seqBatches_.size();
                 seqBatches_[currentSeqBatch_].clear();
             }
 
             totalWindows += processedWindows;
+        }
+
+        if(seqBatches_[currentSeqBatch_].num_targets()) {
+            featureStoreGPU_.insert(gpuId, seqBatches_[currentSeqBatch_], targetSketcher_);
+            currentSeqBatch_ = (currentSeqBatch_+1) % seqBatches_.size();
         }
 
         return totalWindows;

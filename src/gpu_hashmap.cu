@@ -806,11 +806,10 @@ void gpu_hashmap<Key,ValueT>::initialize_hash_table(
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::insert(
+    int gpuId,
     sequence_batch<policy::Host>& seqBatchHost,
     const sketcher& targetSketcher)
 {
-    //TODO choose gpu
-    int gpuId = 0;
     cudaSetDevice(gpuId); CUERR
 
     if(valid_ && buildHashTables_[gpuId].validate()) {
