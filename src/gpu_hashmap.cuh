@@ -3,6 +3,7 @@
 
 #include <limits>
 #include <memory>
+#include <atomic>
 
 #include "config.h"
 #include "sequence_batch.cuh"
@@ -63,6 +64,7 @@ public:
 
     //---------------------------------------------------------------
     void pop_status();
+    void pop_status(int gpuId);
 
     //---------------------------------------------------------------
     static constexpr std::size_t
@@ -99,7 +101,7 @@ public:
     /****************************************************************
      * @brief allocate gpu hash table for database building
      */
-    void initialize_hash_table(
+    bool initialize_hash_table(
         int numGPUs,
         std::uint64_t maxLocsPerFeature);
 
@@ -109,6 +111,7 @@ public:
         sequence_batch<policy::Host>& seqBatchHost,
         const sketcher& targetSketcher);
     //-----------------------------------------------------
+    void wait_until_insert_finished(int gpuId) const;
     void wait_until_insert_finished() const;
 
     //---------------------------------------------------------------
@@ -153,7 +156,7 @@ private:
     //---------------------------------------------------------------
     int numGPUs_;
     float maxLoadFactor_;
-    bool valid_;
+    std::atomic_bool valid_;
 
     /**
      * @brief multi value hashtables for building,

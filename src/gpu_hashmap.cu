@@ -682,7 +682,13 @@ gpu_hashmap<Key,ValueT>::~gpu_hashmap() = default;
 
 //-----------------------------------------------------
 template<class Key, class ValueT>
-gpu_hashmap<Key,ValueT>::gpu_hashmap(gpu_hashmap&&) = default;
+gpu_hashmap<Key,ValueT>::gpu_hashmap(gpu_hashmap&& other) :
+    numGPUs_{other.numGPUs_},
+    maxLoadFactor_{other.maxLoadFactor_},
+    valid_{other.valid_.exchange(false)},
+    buildHashTables_{std::move(other.buildHashTables_)},
+    queryHashTable_{std::move(other.queryHashTable_)}
+{};
 
 
 
@@ -692,6 +698,14 @@ bool gpu_hashmap<Key,ValueT>::valid() const noexcept {
     return valid_;
 }
 
+//---------------------------------------------------------------
+template<class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::pop_status(int gpuId) {
+    if(gpuId < numGPUs_) {
+        cudaSetDevice(gpuId); CUERR
+        std::cerr << "hashtable status: " << buildHashTables_[gpuId].pop_status() << "\n";
+    }
+}
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::pop_status() {
@@ -767,7 +781,7 @@ statistics_accumulator gpu_hashmap<Key,ValueT>::location_list_size_statistics() 
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::initialize_hash_table(
+bool gpu_hashmap<Key,ValueT>::initialize_hash_table(
     int numGPUs,
     std::uint64_t maxLocsPerFeature)
 {
@@ -800,6 +814,8 @@ void gpu_hashmap<Key,ValueT>::initialize_hash_table(
         cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
         std::cerr << "gpu " << gpuId << " freeMemory: " << (freeMemory >> 20) << " MB\n";
     }
+
+    return numGPUs_;
 }
 
 
@@ -818,6 +834,15 @@ void gpu_hashmap<Key,ValueT>::insert(
     }
     else {
         valid_ = false;
+    }
+}
+//-----------------------------------------------------
+template<class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::wait_until_insert_finished(int gpuId) const
+{
+    if(gpuId < numGPUs_) {
+        cudaSetDevice(gpuId); CUERR
+        buildHashTables_[gpuId].wait_until_insert_finished();
     }
 }
 //-----------------------------------------------------

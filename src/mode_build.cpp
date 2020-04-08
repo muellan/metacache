@@ -66,7 +66,8 @@ using std::endl;
  *****************************************************************************/
 struct build_options
 {
-    int numGPUs = std::numeric_limits<int>::max(); // use all available gpus
+    // int numGPUs = std::numeric_limits<int>::max(); // use all available gpus
+    int numGPUs = 1;
 
     int kmerlen = 16;
     int sketchlen = 16;
@@ -367,6 +368,7 @@ using input_batch = std::vector<input_sequence>;
  *****************************************************************************/
 void add_targets_to_database(
     database& db,
+    int dbPart,
     const input_batch& batch,
     const std::map<string,taxon_id>& sequ2taxid,
     info_level infoLvl = info_level::moderate)
@@ -396,7 +398,7 @@ void add_targets_to_database(
 
             // try to add to database
             bool added = db.add_target(
-                seq.data, seqId, parentTaxId, seq.fileSource);
+                dbPart, seq.data, seqId, parentTaxId, seq.fileSource);
 
             if(infoLvl == info_level::verbose && !added) {
                 cout << seqId << " not added to database" << endl;
@@ -414,6 +416,7 @@ void add_targets_to_database(
  *
  *****************************************************************************/
 void add_targets_to_database(database& db,
+    int numGPUs,
     const std::vector<string>& infiles,
     const std::map<string,taxon_id>& sequ2taxid,
     info_level infoLvl = info_level::moderate)
@@ -426,7 +429,7 @@ void add_targets_to_database(database& db,
     batch_processing_options<input_sequence> execOpt;
     execOpt.batch_size(8);
     execOpt.queue_size(4);
-    execOpt.concurrency(1);
+    execOpt.concurrency(numGPUs);
 
     execOpt.abort_if([&] { return db.add_target_failed(); });
 
@@ -443,11 +446,11 @@ void add_targets_to_database(database& db,
         }
     });
 
-    execOpt.on_work_done([&] (int) { db.wait_until_add_target_complete(); });
+    execOpt.on_work_done([&] (int id) { db.wait_until_add_target_complete(id); });
 
     batch_executor<input_sequence> executor { execOpt,
-        [&] (int, const auto& batch) {
-            add_targets_to_database(db, batch, sequ2taxid, infoLvl);
+        [&] (int id, const auto& batch) {
+            add_targets_to_database(db, id, batch, sequ2taxid, infoLvl);
         }};
 
     // read sequences in main thread
@@ -486,6 +489,8 @@ void add_targets_to_database(database& db,
         }
         ++i;
     }
+
+    db.mark_cached_lineages_outdated();
 }
 
 
@@ -618,7 +623,7 @@ void add_to_database(database& db, const build_options& opt)
 
         if(notSilent) cout << "Processing reference sequences." << endl;
 
-        add_targets_to_database(db, opt.infiles, taxonMap, opt.infoLevel);
+        add_targets_to_database(db, opt.numGPUs, opt.infiles, taxonMap, opt.infoLevel);
 
         if(notSilent) {
             clear_current_line(cout);
