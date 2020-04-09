@@ -140,7 +140,7 @@ public:
             targetSketcher.window_size(),
             targetSketcher.window_stride());
 
-        cudaEventRecord(seqBatches_[currentSeqBatch_].event(), insertStream_);
+        cudaEventRecord(seqBatches_[currentSeqBatch_].event(), insertStream_); CUERR
 
         // cudaStreamSynchronize(insertStream_); CUERR
 
@@ -781,7 +781,7 @@ statistics_accumulator gpu_hashmap<Key,ValueT>::location_list_size_statistics() 
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-int gpu_hashmap<Key,ValueT>::initialize_hash_table(
+int gpu_hashmap<Key,ValueT>::initialize_build_hash_table(
     int numGPUs,
     std::uint64_t maxLocsPerFeature)
 {
@@ -789,6 +789,8 @@ int gpu_hashmap<Key,ValueT>::initialize_hash_table(
         numGPUs_ = numGPUs;
 
     std::cerr << "using " << numGPUs_ << " CUDA devices\n";
+
+    insertBuffers_.reserve(numGPUs_);
 
     for(int gpuId = 0; gpuId < numGPUs_; ++gpuId) {
         cudaSetDevice(gpuId); CUERR
@@ -813,9 +815,60 @@ int gpu_hashmap<Key,ValueT>::initialize_hash_table(
 
         cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
         std::cerr << "gpu " << gpuId << " freeMemory: " << (freeMemory >> 20) << " MB\n";
+
+        // allocate host buffers
+        insertBuffers_.emplace_back();
     }
 
     return numGPUs_;
+}
+
+
+//---------------------------------------------------------------
+template<class Key, class ValueT>
+window_id gpu_hashmap<Key,ValueT>::add_target(
+    int gpuId, const sequence& seq, target_id tgt, const sketcher& targetSketcher)
+{
+    using std::begin;
+    using std::end;
+
+    return add_target(gpuId, begin(seq), end(seq), tgt, targetSketcher);
+}
+//-----------------------------------------------------
+template<class Key, class ValueT>
+window_id gpu_hashmap<Key,ValueT>::add_target(
+    int gpuId,
+    sequence::const_iterator first,
+    sequence::const_iterator last,
+    target_id tgt,
+    const sketcher& targetSketcher)
+{
+    // std::cerr << "add target " << tgt << " to gpu " << gpuId << "\n";
+
+    using std::distance;
+
+    window_id totalWindows = 0;
+
+    for(window_id processedWindows = 0;
+        distance(first, last) >= targetSketcher.kmer_size();
+        first += processedWindows*targetSketcher.window_stride())
+    {
+        //fill sequence batch
+        processedWindows = insertBuffers_[gpuId].current_seq_batch().add_target(
+            first, last, tgt, totalWindows, targetSketcher);
+
+        // if no windows were processed batch must be full
+        if(!processedWindows && insertBuffers_[gpuId].current_seq_batch().num_targets()) {
+            // std::cerr << "gpu " << gpuId << " insert\n";
+            insert(gpuId, insertBuffers_[gpuId].current_seq_batch(), targetSketcher);
+            insertBuffers_[gpuId].switch_seq_batch();
+            insertBuffers_[gpuId].current_seq_batch().clear();
+        }
+
+        totalWindows += processedWindows;
+    }
+
+    return totalWindows;
 }
 
 
@@ -838,19 +891,31 @@ void gpu_hashmap<Key,ValueT>::insert(
 }
 //-----------------------------------------------------
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::wait_until_insert_finished(int gpuId) const
+void gpu_hashmap<Key,ValueT>::wait_until_add_target_complete(
+    int gpuId, const sketcher& targetSketcher)
 {
     if(gpuId < numGPUs_) {
         cudaSetDevice(gpuId); CUERR
+
+        if(insertBuffers_[gpuId].current_seq_batch().num_targets()) {
+            insert(gpuId, insertBuffers_[gpuId].current_seq_batch(), targetSketcher);
+        }
+
         buildHashTables_[gpuId].wait_until_insert_finished();
     }
 }
 //-----------------------------------------------------
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::wait_until_insert_finished() const
+void gpu_hashmap<Key,ValueT>::wait_until_add_target_complete(
+    const sketcher& targetSketcher)
 {
     for(int gpuId = 0; gpuId < numGPUs_; ++gpuId) {
         cudaSetDevice(gpuId); CUERR
+
+        if(insertBuffers_[gpuId].current_seq_batch().num_targets()) {
+            insert(gpuId, insertBuffers_[gpuId].current_seq_batch(), targetSketcher);
+        }
+
         buildHashTables_[gpuId].wait_until_insert_finished();
     }
 }

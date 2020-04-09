@@ -203,31 +203,6 @@ private:
 
     //-----------------------------------------------------
     /// @brief needed for batched, asynchonous insertion into feature_store
-    struct insert_buffer
-    {
-        insert_buffer() :
-            seqBatches_{{
-                {MAX_TARGETS_PER_BATCH, MAX_LENGTH_PER_BATCH},
-                {MAX_TARGETS_PER_BATCH, MAX_LENGTH_PER_BATCH}
-            }},
-            currentSeqBatch_(0)
-        {};
-
-        sequence_batch<policy::Host>& current_seq_batch() noexcept {
-            return seqBatches_[currentSeqBatch_];
-        }
-
-        void switch_seq_batch() noexcept {
-            currentSeqBatch_ ^= 1;
-        }
-
-        std::array<sequence_batch<policy::Host>,2> seqBatches_;
-        unsigned currentSeqBatch_;
-    };
-
-
-    //-----------------------------------------------------
-    /// @brief needed for batched, asynchonous insertion into feature_store
     struct window_sketch
     {
         window_sketch() = default;
@@ -336,8 +311,7 @@ public:
         taxa_{},
         ranksCache_{taxa_, taxon_rank::Sequence},
         targetLineages_{taxa_},
-        name2tax_{},
-        insertBuffers_{}
+        name2tax_{}
     {
         features_.max_load_factor(default_max_load_factor());
     }
@@ -353,8 +327,7 @@ public:
         taxa_{std::move(other.taxa_)},
         ranksCache_{std::move(other.ranksCache_)},
         targetLineages_{std::move(other.targetLineages_)},
-        name2tax_{std::move(other.name2tax_)},
-        insertBuffers_{std::move(other.insertBuffers_)}
+        name2tax_{std::move(other.name2tax_)}
     {}
 
     database& operator = (const database&) = delete;
@@ -497,9 +470,7 @@ public:
 
     //---------------------------------------------------------------
     void initialize_gpu_hash_table(int numGPUs) {
-        featureStoreGPU_.initialize_hash_table(numGPUs, maxLocsPerFeature_);
-
-        insertBuffers_.resize(num_gpus());
+        featureStoreGPU_.initialize_build_hash_table(numGPUs, maxLocsPerFeature_);
     }
 
 
@@ -536,7 +507,7 @@ public:
         const auto taxid = taxon_id_of_target(targetId);
 
         // sketch sequence -> insert features
-        source.windows = add_target_gpu(dbPart, seq, targetId);
+        source.windows = featureStoreGPU_.add_target(dbPart, seq, targetId, targetSketcher_);
 
         if(parentTaxid < 1) parentTaxid = 0;
         const taxon* newtax = nullptr;
@@ -565,60 +536,9 @@ public:
     }
 
 
-private:
-    //---------------------------------------------------------------
-    window_id add_target_gpu(int gpuId, const sequence& seq, target_id tgt)
-    {
-        using std::begin;
-        using std::end;
-
-        return add_target_gpu(gpuId, begin(seq), end(seq), tgt);
-    }
-    //---------------------------------------------------------------
-    window_id add_target_gpu(
-        int gpuId,
-        sequence::const_iterator first,
-        sequence::const_iterator last,
-        target_id tgt)
-    {
-        // std::cerr << "add target " << tgt << " to gpu " << gpuId << "\n";
-
-        using std::distance;
-
-        window_id totalWindows = 0;
-
-        for(window_id processedWindows = 0;
-            distance(first, last) >= targetSketcher_.kmer_size();
-            first += processedWindows*targetSketcher_.window_stride())
-        {
-            //fill sequence batch
-            processedWindows = insertBuffers_[gpuId].current_seq_batch().add_target(
-                first, last, tgt, totalWindows, targetSketcher_);
-
-            // if no windows were processed batch must be full
-            if(!processedWindows && insertBuffers_[gpuId].current_seq_batch().num_targets()) {
-                // std::cerr << "gpu " << gpuId << " insert\n";
-                featureStoreGPU_.insert(
-                    gpuId, insertBuffers_[gpuId].current_seq_batch(), targetSketcher_);
-                insertBuffers_[gpuId].switch_seq_batch();
-                insertBuffers_[gpuId].current_seq_batch().clear();
-            }
-
-            totalWindows += processedWindows;
-        }
-
-        return totalWindows;
-    }
-
-
-public:
     //---------------------------------------------------------------
     void wait_until_add_target_complete(int gpuId) {
-        if(insertBuffers_[gpuId].current_seq_batch().num_targets()) {
-            featureStoreGPU_.insert(
-                gpuId, insertBuffers_[gpuId].current_seq_batch(), targetSketcher_);
-        }
-        featureStoreGPU_.wait_until_insert_finished(gpuId);
+        featureStoreGPU_.wait_until_add_target_complete(gpuId, targetSketcher_);
 
         featureStoreGPU_.pop_status(gpuId);
     }
@@ -1256,7 +1176,6 @@ private:
     mutable ranked_lineages_of_targets targetLineages_;
     std::map<taxon_name,const taxon*> name2tax_;
 
-    std::vector<insert_buffer> insertBuffers_;
     std::mutex name2taxMtx;
     std::mutex taxaMtx;
 

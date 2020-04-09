@@ -36,13 +36,39 @@ class gpu_hashmap
     class build_hash_table;
     class query_hash_table;
 
+     //-----------------------------------------------------
+    /// @brief needed for batched, asynchonous insertion into build hash table
+    struct insert_buffer
+    {
+        insert_buffer() :
+            seqBatches_{{
+                {MAX_TARGETS_PER_BATCH, MAX_LENGTH_PER_BATCH},
+                {MAX_TARGETS_PER_BATCH, MAX_LENGTH_PER_BATCH}
+            }},
+            currentSeqBatch_(0)
+        {};
+
+        sequence_batch<policy::Host>& current_seq_batch() noexcept {
+            return seqBatches_[currentSeqBatch_];
+        }
+
+        void switch_seq_batch() noexcept {
+            currentSeqBatch_ ^= 1;
+        }
+
+        std::array<sequence_batch<policy::Host>,2> seqBatches_;
+        unsigned currentSeqBatch_;
+    };
+
 public:
     //---------------------------------------------------------------
     using key_type         = Key;
     using value_type       = ValueT;
     using bucket_size_type = loclist_size_t;
-
     using size_type        = size_t;
+    using target_id        = mc::target_id;
+    using window_id        = mc::window_id;
+    using sketcher         = mc::sketcher;
 
     using ranked_lineage = taxonomy::ranked_lineage;
 
@@ -101,18 +127,32 @@ public:
     /****************************************************************
      * @brief allocate gpu hash table for database building
      */
-    int initialize_hash_table(
-        int numGPUs,
-        std::uint64_t maxLocsPerFeature);
+    int initialize_build_hash_table(int numGPUs, std::uint64_t maxLocsPerFeature);
+
+    /****************************************************************
+     * @brief split sequence into batches and insert into build hash table
+     */
+    window_id add_target(
+        int gpuId,
+        const sequence& seq,
+        target_id tgt,
+        const sketcher& targetSketcher);
+    //-----------------------------------------------------
+    window_id add_target(
+        int gpuId,
+        sequence::const_iterator first,
+        sequence::const_iterator last,
+        target_id tgt,
+        const sketcher& targetSketcher);
 
     //---------------------------------------------------------------
     void insert(
-        int gpuId,
-        sequence_batch<policy::Host>& seqBatchHost,
+        int gpuId, sequence_batch<policy::Host>& seqBatchHost,
         const sketcher& targetSketcher);
+
     //-----------------------------------------------------
-    void wait_until_insert_finished(int gpuId) const;
-    void wait_until_insert_finished() const;
+    void wait_until_add_target_complete(int gpuId, const sketcher& targetSketcher);
+    void wait_until_add_target_complete(const sketcher& targetSketcher);
 
     //---------------------------------------------------------------
     void query_async(
@@ -157,6 +197,8 @@ private:
     int numGPUs_;
     float maxLoadFactor_;
     std::atomic_bool valid_;
+
+    std::vector<insert_buffer> insertBuffers_;
 
     /**
      * @brief multi value hashtables for building,
