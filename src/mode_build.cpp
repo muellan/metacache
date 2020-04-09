@@ -66,8 +66,7 @@ using std::endl;
  *****************************************************************************/
 struct build_options
 {
-    // int numGPUs = std::numeric_limits<int>::max(); // use all available gpus
-    int numGPUs = 1;
+    int numGPUs = std::numeric_limits<int>::max(); // use all available gpus
 
     int kmerlen = 16;
     int sketchlen = 16;
@@ -416,7 +415,6 @@ void add_targets_to_database(
  *
  *****************************************************************************/
 void add_targets_to_database(database& db,
-    int numGPUs,
     const std::vector<string>& infiles,
     const std::map<string,taxon_id>& sequ2taxid,
     info_level infoLvl = info_level::moderate)
@@ -429,7 +427,7 @@ void add_targets_to_database(database& db,
     batch_processing_options<input_sequence> execOpt;
     execOpt.batch_size(8);
     execOpt.queue_size(4);
-    execOpt.concurrency(numGPUs);
+    execOpt.concurrency(db.num_gpus());
 
     execOpt.abort_if([&] { return db.add_target_failed(); });
 
@@ -623,7 +621,7 @@ void add_to_database(database& db, const build_options& opt)
 
         if(notSilent) cout << "Processing reference sequences." << endl;
 
-        add_targets_to_database(db, opt.numGPUs, opt.infiles, taxonMap, opt.infoLevel);
+        add_targets_to_database(db, opt.infiles, taxonMap, opt.infoLevel);
 
         if(notSilent) {
             clear_current_line(cout);

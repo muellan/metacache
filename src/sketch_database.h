@@ -490,10 +490,16 @@ public:
 
 
     //---------------------------------------------------------------
-    void initialize_gpu_hash_table(int numGPUs) {
-        int realNumGPUs = featureStoreGPU_.initialize_hash_table(numGPUs, maxLocsPerFeature_);
+    int num_gpus() const noexcept {
+        return featureStoreGPU_.num_gpus();
+    }
 
-        insertBuffers_.resize(realNumGPUs);
+
+    //---------------------------------------------------------------
+    void initialize_gpu_hash_table(int numGPUs) {
+        featureStoreGPU_.initialize_hash_table(numGPUs, maxLocsPerFeature_);
+
+        insertBuffers_.resize(num_gpus());
     }
 
 
@@ -556,6 +562,71 @@ public:
         }
 
         return true;
+    }
+
+
+private:
+    //---------------------------------------------------------------
+    window_id add_target_gpu(int gpuId, const sequence& seq, target_id tgt)
+    {
+        using std::begin;
+        using std::end;
+
+        return add_target_gpu(gpuId, begin(seq), end(seq), tgt);
+    }
+    //---------------------------------------------------------------
+    window_id add_target_gpu(
+        int gpuId,
+        sequence::const_iterator first,
+        sequence::const_iterator last,
+        target_id tgt)
+    {
+        // std::cerr << "add target " << tgt << " to gpu " << gpuId << "\n";
+
+        using std::distance;
+
+        window_id totalWindows = 0;
+
+        for(window_id processedWindows = 0;
+            distance(first, last) >= targetSketcher_.kmer_size();
+            first += processedWindows*targetSketcher_.window_stride())
+        {
+            //fill sequence batch
+            processedWindows = insertBuffers_[gpuId].current_seq_batch().add_target(
+                first, last, tgt, totalWindows, targetSketcher_);
+
+            // if no windows were processed batch must be full
+            if(!processedWindows && insertBuffers_[gpuId].current_seq_batch().num_targets()) {
+                // std::cerr << "gpu " << gpuId << " insert\n";
+                featureStoreGPU_.insert(
+                    gpuId, insertBuffers_[gpuId].current_seq_batch(), targetSketcher_);
+                insertBuffers_[gpuId].switch_seq_batch();
+                insertBuffers_[gpuId].current_seq_batch().clear();
+            }
+
+            totalWindows += processedWindows;
+        }
+
+        return totalWindows;
+    }
+
+
+public:
+    //---------------------------------------------------------------
+    void wait_until_add_target_complete(int gpuId) {
+        if(insertBuffers_[gpuId].current_seq_batch().num_targets()) {
+            featureStoreGPU_.insert(
+                gpuId, insertBuffers_[gpuId].current_seq_batch(), targetSketcher_);
+        }
+        featureStoreGPU_.wait_until_insert_finished(gpuId);
+
+        featureStoreGPU_.pop_status(gpuId);
+    }
+
+
+    //---------------------------------------------------------------
+    bool add_target_failed() {
+        return !featureStoreGPU_.valid();
     }
 
 
@@ -1084,70 +1155,8 @@ public:
         }
     }
 
-    //---------------------------------------------------------------
-    void wait_until_add_target_complete(int gpuId) {
-        if(insertBuffers_[gpuId].current_seq_batch().num_targets()) {
-            featureStoreGPU_.insert(
-                gpuId, insertBuffers_[gpuId].current_seq_batch(), targetSketcher_);
-        }
-        featureStoreGPU_.wait_until_insert_finished(gpuId);
-
-        featureStoreGPU_.pop_status(gpuId);
-    }
-
-
-    //---------------------------------------------------------------
-    bool add_target_failed() {
-        return !featureStoreGPU_.valid();
-    }
-
 
 private:
-    //---------------------------------------------------------------
-    window_id add_target_gpu(int gpuId, const sequence& seq, target_id tgt)
-    {
-        using std::begin;
-        using std::end;
-
-        return add_target_gpu(gpuId, begin(seq), end(seq), tgt);
-    }
-    //---------------------------------------------------------------
-    window_id add_target_gpu(
-        int gpuId,
-        sequence::const_iterator first,
-        sequence::const_iterator last,
-        target_id tgt)
-    {
-        // std::cerr << "add target " << tgt << " to gpu " << gpuId << "\n";
-
-        using std::distance;
-
-        window_id totalWindows = 0;
-
-        for(window_id processedWindows = 0;
-            distance(first, last) >= targetSketcher_.kmer_size();
-            first += processedWindows*targetSketcher_.window_stride())
-        {
-            //fill sequence batch
-            processedWindows = insertBuffers_[gpuId].current_seq_batch().add_target(
-                first, last, tgt, totalWindows, targetSketcher_);
-
-            // if no windows were processed batch must be full
-            if(!processedWindows && insertBuffers_[gpuId].current_seq_batch().num_targets()) {
-                // std::cerr << "gpu " << gpuId << " insert\n";
-                featureStoreGPU_.insert(
-                    gpuId, insertBuffers_[gpuId].current_seq_batch(), targetSketcher_);
-                insertBuffers_[gpuId].switch_seq_batch();
-                insertBuffers_[gpuId].current_seq_batch().clear();
-            }
-
-            totalWindows += processedWindows;
-        }
-
-        return totalWindows;
-    }
-
-
     /*************************************************************************//**
     *
     * @brief concurrency-safe ranked lineage cache

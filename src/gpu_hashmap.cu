@@ -781,7 +781,7 @@ statistics_accumulator gpu_hashmap<Key,ValueT>::location_list_size_statistics() 
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-bool gpu_hashmap<Key,ValueT>::initialize_hash_table(
+int gpu_hashmap<Key,ValueT>::initialize_hash_table(
     int numGPUs,
     std::uint64_t maxLocsPerFeature)
 {
