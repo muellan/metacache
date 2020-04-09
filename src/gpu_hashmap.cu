@@ -63,13 +63,14 @@ public:
 
         cudaStreamCreate(&copyStream_); CUERR
         cudaStreamCreate(&insertStream_); CUERR
+        cudaStreamCreate(&statusStream_); CUERR
 
         // cudaDeviceSynchronize(); CUERR
     }
 
     //---------------------------------------------------------------
     bool validate() {
-        if(hashTable_.peek_status() - status_type::max_values_for_key_reached())
+        if(hashTable_.peek_status(statusStream_) - status_type::max_values_for_key_reached())
             return false;
         return true;
     }
@@ -335,6 +336,7 @@ private:
 
     cudaStream_t copyStream_;
     cudaStream_t insertStream_;
+    cudaStream_t statusStream_;
 };
 
 
@@ -772,8 +774,7 @@ void gpu_hashmap<Key,ValueT>::insert(
 {
     if(valid_ && buildHashTable_->validate()) {
         buildHashTable_->insert_async(
-            seqBatchHost,
-            targetSketcher);
+            seqBatchHost, targetSketcher);
     }
     else {
         valid_ = false;
