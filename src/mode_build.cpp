@@ -420,14 +420,14 @@ void add_targets_to_database(database& db,
     info_level infoLvl = info_level::moderate)
 {
     int numFiles = infiles.size();
-    int fileCounter = 0;
+    std::atomic_int fileCounter{0};
 
     // make executor that runs database insertion (concurrently) in batches
     // IMPORTANT: do not use more than one worker thread!
     batch_processing_options<input_sequence> execOpt;
     execOpt.batch_size(8);
     execOpt.queue_size(4);
-    execOpt.concurrency(1, db.num_gpus());
+    execOpt.concurrency(4, db.num_gpus());
 
     execOpt.abort_if([&] { return db.add_target_failed(); });
 
@@ -451,41 +451,52 @@ void add_targets_to_database(database& db,
             add_targets_to_database(db, id, batch, sequ2taxid, infoLvl);
         }};
 
-    // read sequences in main thread
-    for(const auto& filename : infiles) {
-        if(infoLvl == info_level::verbose) {
-            cout << "  " << filename << " ... " << flush;
-        } else if(infoLvl != info_level::silent) {
-            show_progress_indicator(cout, fileCounter/float(numFiles));
-        }
+    // spawn threads to read sequences
+    std::vector<std::future<void>> producers;
 
-        try {
-            const auto fileId = extract_accession_string(
-                                    filename, sequence_id_type::acc_ver);
+    for(int producerId = 0; producerId < execOpt.num_producers(); ++producerId) {
+        producers.emplace_back(std::async(std::launch::async, [&, producerId] {
+            auto fileId = fileCounter++;
+            while(fileId < numFiles) {
+                const auto& filename = infiles[fileId];
+                if(infoLvl == info_level::verbose) {
+                    cout << "  " << filename << endl;
+                } else if((infoLvl != info_level::silent) && (fileId % 8 == 0) ) {
+                    show_progress_indicator(cout, fileId/float(numFiles));
+                }
 
-            const taxon_id fileTaxId = find_taxon_id(sequ2taxid, fileId);
+                try {
+                    const auto fileId = extract_accession_string(
+                                            filename, sequence_id_type::acc_ver);
 
-            auto reader = make_sequence_reader(filename);
+                    const taxon_id fileTaxId = find_taxon_id(sequ2taxid, fileId);
 
-            while(reader->has_next() && executor.valid()) {
-                // get (ref to) next input sequence storage and fill it
-                auto& seq = executor.next_item(0);
-                seq.fileSource.filename = filename;
-                seq.fileSource.index = reader->index();
-                seq.fileTaxId = fileTaxId;
-                reader->next_header_and_data(seq.header, seq.data);
+                    auto reader = make_sequence_reader(filename);
+
+                    while(reader->has_next() && executor.valid()) {
+                        // get (ref to) next input sequence storage and fill it
+                        auto& seq = executor.next_item(producerId);
+                        seq.fileSource.filename = filename;
+                        seq.fileSource.index = reader->index();
+                        seq.fileTaxId = fileTaxId;
+                        reader->next_header_and_data(seq.header, seq.data);
+                    }
+                }
+                catch(std::exception& e) {
+                    if(infoLvl == info_level::verbose) {
+                        cout << "FAIL: " << e.what() << endl;
+                    }
+                }
+
+                fileId = fileCounter++;
             }
 
-            if(infoLvl == info_level::verbose) {
-                cout << "done." << endl;
-            }
-        }
-        catch(std::exception& e) {
-            if(infoLvl == info_level::verbose) {
-                cout << "FAIL: " << e.what() << endl;
-            }
-        }
-        ++fileCounter;
+            executor.finalize_producer(producerId);
+        }));
+    }
+
+    for(auto& producer : producers) {
+        if(producer.valid()) producer.get();
     }
 
     db.mark_cached_lineages_outdated();
