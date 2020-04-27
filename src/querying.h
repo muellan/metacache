@@ -202,7 +202,7 @@ query_id query_batched(
 
     // get executor that runs classification in batches
     batch_processing_options<sequence_query> execOpt;
-    execOpt.concurrency(opt.process.numThreads - 1);
+    execOpt.concurrency(1, opt.process.numThreads - 1);
     execOpt.batch_size(opt.process.batchSize);
     execOpt.queue_size(opt.process.numThreads > 1 ? opt.process.numThreads + 4 : 0);
     execOpt.on_error(handleErrors);

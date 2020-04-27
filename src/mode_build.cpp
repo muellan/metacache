@@ -419,15 +419,15 @@ void add_targets_to_database(database& db,
     const std::map<string,taxon_id>& sequ2taxid,
     info_level infoLvl = info_level::moderate)
 {
-    int n = infiles.size();
-    int i = 0;
+    int numFiles = infiles.size();
+    int fileCounter = 0;
 
     // make executor that runs database insertion (concurrently) in batches
     // IMPORTANT: do not use more than one worker thread!
     batch_processing_options<input_sequence> execOpt;
     execOpt.batch_size(8);
     execOpt.queue_size(4);
-    execOpt.concurrency(db.num_gpus());
+    execOpt.concurrency(1, db.num_gpus());
 
     execOpt.abort_if([&] { return db.add_target_failed(); });
 
@@ -456,7 +456,7 @@ void add_targets_to_database(database& db,
         if(infoLvl == info_level::verbose) {
             cout << "  " << filename << " ... " << flush;
         } else if(infoLvl != info_level::silent) {
-            show_progress_indicator(cout, i/float(n));
+            show_progress_indicator(cout, fileCounter/float(numFiles));
         }
 
         try {
@@ -469,7 +469,7 @@ void add_targets_to_database(database& db,
 
             while(reader->has_next() && executor.valid()) {
                 // get (ref to) next input sequence storage and fill it
-                auto& seq = executor.next_item();
+                auto& seq = executor.next_item(0);
                 seq.fileSource.filename = filename;
                 seq.fileSource.index = reader->index();
                 seq.fileTaxId = fileTaxId;
@@ -485,7 +485,7 @@ void add_targets_to_database(database& db,
                 cout << "FAIL: " << e.what() << endl;
             }
         }
-        ++i;
+        ++fileCounter;
     }
 
     db.mark_cached_lineages_outdated();
