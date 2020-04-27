@@ -734,7 +734,8 @@ void print_content_properties(const database& db)
                                    << " <> " << lss.skewness() << '\n'
         << "features             " << db.feature_count() << '\n'
         << "dead features        " << db.dead_feature_count() << '\n'
-        << "locations            " << db.location_count() << '\n';
+        << "locations            " << db.location_count() << '\n'
+        << "storage density      " << db.load_factor() << '\n';
     }
     std::cout
         << "------------------------------------------------\n";

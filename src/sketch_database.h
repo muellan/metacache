@@ -1009,6 +1009,10 @@ public:
     std::uint64_t location_count() const noexcept {
         return featureStoreGPU_.value_count();
     }
+    //-----------------------------------------------------
+    float load_factor() const noexcept {
+        return featureStoreGPU_.load_factor();
+    }
 
 
     //---------------------------------------------------------------
