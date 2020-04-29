@@ -95,6 +95,7 @@ private:
         std::size_t workCount_{0};
         std::size_t workSize_{0};
         batch_type batch_{};
+        bool finalized_{false};
     };
 
 public:
@@ -155,14 +156,11 @@ public:
     // -----------------------------------------------------------------------
     ~batch_executor() {
         try {
-            for(int i = 0; i < param_.num_producers(); ++i) {
-                finalize_producer(i);
+            for(int producerId = 0; producerId < param_.num_producers(); ++producerId) {
+                finalize_producer(producerId);
             }
 
-            if(consumers_.empty()) {
-                param_.finalize_(0);
-            }
-            else {
+            if(!consumers_.empty()) {
                 // signal all consumers to finish as soon as no work is left
                 keepWorking_.store(false);
                 // wait until consumers are finished
@@ -193,10 +191,12 @@ public:
 
     // -----------------------------------------------------------------------
     /** @brief  get reference to next work item */
-    WorkItem& next_item(int i = 0) {
-        auto& handler = producerBatches_[i];
+    WorkItem& next_item(int producerId = 0) {
+        auto& handler = producerBatches_[producerId];
 
-        consume_batch_if_full(handler);
+        handler.finalized_ = false;
+
+        consume_batch_if_full(producerId);
 
         if(handler.workCount_ >= handler.batch_.size()) {
             handler.batch_.resize(handler.workCount_+1);
@@ -207,22 +207,33 @@ public:
 
     // -----------------------------------------------------------------------
     /** @brief  consume last batch if not empty */
-    void finalize_producer(int i = 0) {
-        auto& handler = producerBatches_[i];
+    void finalize_producer(int producerId = 0) {
+        auto& handler = producerBatches_[producerId];
 
-        consume_batch_if_full(handler);
-        // finalize last batch
-        if(handler.workCount_ > 0) {
-            handler.batch_.resize(handler.workCount_);
-            consume_batch(handler);
-            handler.workCount_ = 0;
+        if(!handler.finalized_) {
+            consume_batch_if_full(producerId);
+
+            // finalize last batch
+            if(handler.workCount_ > 0) {
+                handler.batch_.resize(handler.workCount_);
+                consume_batch(producerId);
+                handler.workCount_ = 0;
+            }
+
+            if(consumers_.empty()) {
+                param_.finalize_(producerId);
+            }
+
+            handler.finalized_ = true;
         }
     }
 
 
 private:
     // -----------------------------------------------------------------------
-    void consume_batch_if_full(batch_handler& handler) {
+    void consume_batch_if_full(int producerId) {
+        auto& handler = producerBatches_[producerId];
+
         if(handler.workCount_ > 0) {
             std::size_t lastSize = param_.measureWorkItem_(handler.batch_[handler.workCount_-1]);
             handler.workSize_ += lastSize;
@@ -235,7 +246,7 @@ private:
 
                 handler.batch_.resize(handler.workCount_);
 
-                consume_batch(handler);
+                consume_batch(producerId);
 
                 // get new batch storage
                 if(!consumers_.empty()) {
@@ -260,7 +271,9 @@ private:
 
 
     // -----------------------------------------------------------------------
-    void consume_batch(batch_handler& handler) {
+    void consume_batch(int producerId) {
+        auto& handler = producerBatches_[producerId];
+
         // either enqueue if using consumer threads...
         if(!consumers_.empty()) {
             workQueue_.enqueue(std::move(handler.batch_));
@@ -268,7 +281,7 @@ private:
         // ... or consume directly if only producer threads
         else {
             validate();
-            if(valid()) consume_(0, handler.batch_);
+            if(valid()) consume_(producerId, handler.batch_);
         }
     }
 
