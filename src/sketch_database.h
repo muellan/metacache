@@ -44,7 +44,7 @@
 #include "config.h"
 #include "io_error.h"
 #include "io_options.h"
-#include "stat_combined.h"
+#include "stat_combined.cuh"
 #include "taxonomy.h"
 #include "hash_multimap.h"
 #include "gpu_hashmap.cuh"
@@ -1044,7 +1044,7 @@ public:
 
 
     //---------------------------------------------------------------
-    statistics_accumulator
+    statistics_accumulator_gpu<policy::Host>
     location_list_size_statistics() const {
         return featureStoreGPU_.location_list_size_statistics();
     }

@@ -5,6 +5,7 @@
 #include "hash_int.h"
 #include "sketch_database.h"
 #include "gpu_hashmap_operations.cuh"
+#include "stat_combined.cuh"
 
 #include "../dep/warpcore/include/single_value_hash_table.cuh"
 #include "../dep/warpcore/include/bucket_list_hash_table.cuh"
@@ -153,8 +154,8 @@ public:
     }
 
     //---------------------------------------------------------------
-    statistics_accumulator
-    location_list_size_statistics(statistics_accumulator priSize = {})
+    statistics_accumulator_gpu<policy::Host>
+    location_list_size_statistics()
     {
         cudaDeviceSynchronize(); CUERR
 
@@ -165,13 +166,13 @@ public:
         hashTable_.retrieve_all_keys(keys, numKeys); CUERR
 
         size_type  * numValuesBuffer_d = nullptr;
-        size_type  * numValuesBuffer_h = nullptr;
-        cudaMalloc    (&numValuesBuffer_d, batchSize_*sizeof(size_type)); CUERR
-        cudaMallocHost(&numValuesBuffer_h, batchSize_*sizeof(size_type)); CUERR
+        cudaMalloc(&numValuesBuffer_d, batchSize_*sizeof(size_type)); CUERR
 
         size_type * valuesCountPtr = nullptr;
         cudaMallocHost(&valuesCountPtr, sizeof(size_type)); CUERR
         *valuesCountPtr = 0;
+
+        statistics_accumulator_gpu<policy::Device> accumulator_d{};
 
         const size_type numCycles = numKeys / batchSize_;
         const size_type lastBatchSize = numKeys % batchSize_;
@@ -182,11 +183,7 @@ public:
                 numValuesBuffer_d);
             CUERR
 
-            cudaMemcpy(numValuesBuffer_h, numValuesBuffer_d, batchSize_*sizeof(size_type),
-                       cudaMemcpyDeviceToHost); CUERR
-
-            for(size_type i = 0; i < batchSize_; ++i)
-                priSize += numValuesBuffer_h[i];
+            accumulator_d.accumulate(numValuesBuffer_d, batchSize_);
         }
         if(lastBatchSize) {
             hashTable_.num_values(
@@ -194,19 +191,17 @@ public:
                 numValuesBuffer_d);
             CUERR
 
-            cudaMemcpy(numValuesBuffer_h, numValuesBuffer_d, lastBatchSize*sizeof(size_type),
-                    cudaMemcpyDeviceToHost); CUERR
-
-            for(size_type i = 0; i < lastBatchSize; ++i)
-                priSize += numValuesBuffer_h[i];
+            accumulator_d.accumulate(numValuesBuffer_d, lastBatchSize);
         }
 
         cudaFree(keys); CUERR
         cudaFree(numValuesBuffer_d); CUERR
-        cudaFreeHost(numValuesBuffer_h); CUERR
         cudaFreeHost(valuesCountPtr); CUERR
 
-        return priSize;
+        statistics_accumulator_gpu<policy::Host> accumulator_h{};
+        accumulator_h = accumulator_d;
+
+        return accumulator_h;
     }
 
 
@@ -766,15 +761,30 @@ size_t gpu_hashmap<Key,ValueT>::value_count() noexcept {
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-statistics_accumulator gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
-    statistics_accumulator priSize = {};
+statistics_accumulator_gpu<policy::Host>
+gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
+    statistics_accumulator_gpu<policy::Host> totalAccumulator = {};
 
     for(int gpuId = 0; gpuId < numGPUs_; ++gpuId) {
         cudaSetDevice(gpuId); CUERR
-        priSize = buildHashTables_[gpuId].location_list_size_statistics(priSize);
+        auto accumulator = buildHashTables_[gpuId].location_list_size_statistics();
+
+        std::cout
+            << "------------------------------------------------\n"
+            << "gpu " << gpuId << ":\n"
+            << "buckets              " << buildHashTables_[gpuId].bucket_count() << '\n'
+            << "bucket size          " << "max: " << accumulator.max()
+                                       << " mean: " << accumulator.mean()
+                                       << " +/- " << accumulator.stddev()
+                                       << " <> " << accumulator.skewness() << '\n'
+            << "features             " << std::uint64_t(accumulator.size()) << '\n'
+            << "dead features        " << tombstone_count() << '\n'
+            << "locations            " << std::uint64_t(accumulator.sum()) << '\n';
+
+        totalAccumulator += accumulator;
     }
 
-    return priSize;
+    return totalAccumulator;
 }
 
 

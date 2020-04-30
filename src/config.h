@@ -129,6 +129,9 @@ using classification_candidates =
 //    distinct_matches_in_contiguous_window_ranges;
 
 
+enum class policy {Host, Device};
+
+
 } // namespace mc
 
 

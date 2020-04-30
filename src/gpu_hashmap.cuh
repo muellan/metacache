@@ -9,7 +9,7 @@
 #include "sequence_batch.cuh"
 #include "query_batch.cuh"
 #include "taxonomy.h"
-#include "stat_combined.h"
+#include "stat_combined.cuh"
 
 namespace mc {
 
@@ -121,7 +121,7 @@ public:
     }
 
     //---------------------------------------------------------------
-    statistics_accumulator
+    statistics_accumulator_gpu<policy::Host>
     location_list_size_statistics();
 
     /****************************************************************

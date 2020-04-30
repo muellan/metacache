@@ -60,6 +60,8 @@ HEADERS = \
           src/sketch_database.h \
           src/stat_confusion.h \
           src/stat_moments.h \
+          src/stat_combined.cuh \
+          src/stat_combined.h \
           src/string_utils.h \
           src/taxonomy.h \
           src/taxonomy_io.h \
@@ -85,6 +87,7 @@ SOURCES = \
           src/sequence_batch.cu \
           src/sequence_io.cpp \
           src/sketch_database.cpp \
+          src/stat_combined.cu \
           src/taxonomy_io.cpp
 
 
@@ -196,6 +199,9 @@ $(REL_DIR)/gpu_hashmap.o : src/gpu_hashmap.cu $(HEADERS)
 $(REL_DIR)/sequence_batch.o : src/sequence_batch.cu $(HEADERS)
 	$(REL_COMPILE_NP)
 
+$(REL_DIR)/stat_combined.o : src/stat_combined.cu $(HEADERS)
+	$(REL_COMPILE_NP)
+
 $(REL_DIR)/query_batch.o : src/query_batch.cu $(HEADERS)
 	$(REL_COMPILE_NP)
 
@@ -263,6 +269,9 @@ $(DBG_DIR)/gpu_hashmap.o : src/gpu_hashmap.cu $(HEADERS)
 $(DBG_DIR)/sequence_batch.o : src/sequence_batch.cu $(HEADERS)
 	$(DBG_COMPILE_NP)
 
+$(DBG_DIR)/stat_combined.o : src/stat_combined.cu $(HEADERS)
+	$(DBG_COMPILE_NP)
+
 $(DBG_DIR)/query_batch.o : src/query_batch.cu $(HEADERS)
 	$(DBG_COMPILE_NP)
 
@@ -328,6 +337,9 @@ $(PRF_DIR)/gpu_hashmap.o : src/gpu_hashmap.cu $(HEADERS)
 	$(PRF_COMPILE_NP)
 
 $(PRF_DIR)/sequence_batch.o : src/sequence_batch.cu $(HEADERS)
+	$(PRF_COMPILE_NP)
+
+$(PRF_DIR)/stat_combined.o : src/stat_combined.cu $(HEADERS)
 	$(PRF_COMPILE_NP)
 
 $(PRF_DIR)/query_batch.o : src/query_batch.cu $(HEADERS)
