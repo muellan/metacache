@@ -44,6 +44,7 @@ HEADERS = \
           src/querying.h \
           src/sequence_io.h \
           src/sequence_view.h \
+          src/stat_combined.h \
           src/stat_confusion.h \
           src/stat_moments.h \
           src/string_utils.h \
