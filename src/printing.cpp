@@ -732,9 +732,9 @@ void print_content_properties(const database& db)
                                    << " mean: " << lss.mean()
                                    << " +/- " << lss.stddev()
                                    << " <> " << lss.skewness() << '\n'
-        << "features             " << db.feature_count() << '\n'
+        << "features             " << std::uint64_t(lss.size()) << '\n'
         << "dead features        " << db.dead_feature_count() << '\n'
-        << "locations            " << db.location_count() << '\n';
+        << "locations            " << std::uint64_t(lss.sum()) << '\n';
     }
     std::cout
         << "------------------------------------------------\n";
