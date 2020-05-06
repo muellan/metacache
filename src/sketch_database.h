@@ -982,12 +982,12 @@ public:
         featureStoreGPU_.copy_target_lineages_to_gpu(targetLineages_.lineages());
     }
 
-
+private:
     //-------------------------------------------------------------------
     /**
-     * @brief   write database to binary file
+     * @brief   write all database parts to binary files
      */
-    void write(const std::string& filename) const
+    void write(const std::string& filename, int gpuId) const
     {
         using std::uint64_t;
         using std::uint8_t;
@@ -1021,9 +1021,24 @@ public:
         write_binary(os, target_id(targetCount_));
 
         //hash table
-        write_binary(os, featureStoreGPU_);
+        write_binary(os, featureStoreGPU_, gpuId);
     }
 
+public:
+    //-------------------------------------------------------------------
+    /**
+     * @brief   write database part to binary file
+     */
+    void write(const std::string& filename) const
+    {
+        if(featureStoreGPU_.num_gpus() == 1) {
+            write(filename, 0);
+        }
+        else {
+            for(int gpuId = 0; gpuId < featureStoreGPU_.num_gpus(); ++gpuId)
+                write(filename+'_'+std::to_string(gpuId), gpuId);
+        }
+    }
 
     //---------------------------------------------------------------
     std::uint64_t bucket_count() const noexcept {

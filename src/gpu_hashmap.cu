@@ -1046,12 +1046,10 @@ void gpu_hashmap<Key,ValueT>::deserialize(std::istream& is)
 * @brief binary serialization of all non-empty buckets
 */
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::serialize(std::ostream& os)
+void gpu_hashmap<Key,ValueT>::serialize(std::ostream& os, int gpuId)
 {
-    for(int gpuId = 0; gpuId < numGPUs_; ++gpuId) {
-        cudaSetDevice(gpuId); CUERR
-        buildHashTables_[gpuId].serialize(os);
-    }
+    cudaSetDevice(gpuId); CUERR
+    buildHashTables_[gpuId].serialize(os);
 }
 
 

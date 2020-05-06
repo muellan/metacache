@@ -173,8 +173,8 @@ public:
     /****************************************************************
      * @brief serialize hashmap to output stream
      */
-    friend void write_binary(std::ostream& os, gpu_hashmap& m) {
-        m.serialize(os);
+    friend void write_binary(std::ostream& os, gpu_hashmap& m, int gpuId) {
+        m.serialize(os, gpuId);
     }
 
     //---------------------------------------------------------------
@@ -189,7 +189,7 @@ private:
     /**
      * @brief binary serialization of all non-emtpy buckets
      */
-    void serialize(std::ostream& os);
+    void serialize(std::ostream& os, int gpuId);
 
 
 private:
