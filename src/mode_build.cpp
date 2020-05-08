@@ -426,8 +426,8 @@ void add_targets_to_database(database& db,
     // IMPORTANT: do not use more than one worker thread!
     batch_processing_options<input_sequence> execOpt;
     execOpt.batch_size(8);
-    execOpt.queue_size(4);
-    execOpt.concurrency(4, db.num_gpus());
+    execOpt.queue_size(8);
+    execOpt.concurrency(6, db.num_gpus());
 
     execOpt.abort_if([&] { return db.add_target_failed(); });
 
