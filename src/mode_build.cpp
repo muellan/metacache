@@ -66,7 +66,7 @@ using std::endl;
  *****************************************************************************/
 struct build_options
 {
-    int numGPUs = std::numeric_limits<int>::max(); // use all available gpus
+    unsigned numGPUs = std::numeric_limits<unsigned>::max(); // use all available gpus
 
     int kmerlen = 16;
     int sketchlen = 16;
@@ -111,7 +111,7 @@ get_build_options(const args_parser& args, const build_options& defaults = {})
         opt.infoLevel = info_level::verbose;
     }
 
-    opt.numGPUs   = args.get<int>({"numgpus","num-gpus", "num_gpus"}, defaults.numGPUs);
+    opt.numGPUs   = args.get<unsigned>({"numgpus","num-gpus", "num_gpus"}, defaults.numGPUs);
 
     opt.kmerlen   = args.get<int>({"kmerlen"}, defaults.kmerlen);
     opt.sketchlen = args.get<int>({"sketchlen"}, defaults.sketchlen);

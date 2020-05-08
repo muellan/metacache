@@ -199,6 +199,7 @@ private:
     //-----------------------------------------------------
     /// @brief "heart of the database": maps features to target locations
     using feature_store_gpu = gpu_hashmap<feature, location>; //key, value
+    using gpu_id = typename feature_store_gpu::gpu_id;
 
 
     //-----------------------------------------------------
@@ -463,20 +464,20 @@ public:
 
 
     //---------------------------------------------------------------
-    int num_gpus() const noexcept {
+    gpu_id num_gpus() const noexcept {
         return featureStoreGPU_.num_gpus();
     }
 
 
     //---------------------------------------------------------------
-    void initialize_gpu_hash_table(int numGPUs) {
+    void initialize_gpu_hash_table(gpu_id numGPUs) {
         featureStoreGPU_.initialize_build_hash_table(numGPUs, maxLocsPerFeature_);
     }
 
 
     //---------------------------------------------------------------
     bool add_target(
-        int dbPart,
+        gpu_id dbPart,
         const sequence& seq, taxon_name sid,
         taxon_id parentTaxid = 0,
         file_source source = file_source{})
@@ -537,7 +538,7 @@ public:
 
 
     //---------------------------------------------------------------
-    void wait_until_add_target_complete(int gpuId) {
+    void wait_until_add_target_complete(gpu_id gpuId) {
         featureStoreGPU_.wait_until_add_target_complete(gpuId, targetSketcher_);
     }
 
@@ -985,7 +986,7 @@ private:
     /**
      * @brief   write all database parts to binary files
      */
-    void write(const std::string& filename, int gpuId) const
+    void write(const std::string& filename, gpu_id gpuId) const
     {
         using std::uint64_t;
         using std::uint8_t;
@@ -1033,7 +1034,7 @@ public:
             write(filename, 0);
         }
         else {
-            for(int gpuId = 0; gpuId < featureStoreGPU_.num_gpus(); ++gpuId)
+            for(gpu_id gpuId = 0; gpuId < featureStoreGPU_.num_gpus(); ++gpuId)
                 write(filename+'_'+std::to_string(gpuId), gpuId);
         }
     }

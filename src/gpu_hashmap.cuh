@@ -62,6 +62,8 @@ class gpu_hashmap
 
 public:
     //---------------------------------------------------------------
+    using gpu_id           = unsigned;
+
     using key_type         = Key;
     using value_type       = ValueT;
     using bucket_size_type = loclist_size_t;
@@ -81,7 +83,7 @@ public:
 
 public:
     //---------------------------------------------------------------
-    int num_gpus() const noexcept {
+    unsigned num_gpus() const noexcept {
         return numGPUs_;
     }
 
@@ -90,7 +92,7 @@ public:
 
     //---------------------------------------------------------------
     void pop_status();
-    void pop_status(int gpuId);
+    void pop_status(gpu_id gpuId);
 
     //---------------------------------------------------------------
     static constexpr std::size_t
@@ -127,19 +129,19 @@ public:
     /****************************************************************
      * @brief allocate gpu hash table for database building
      */
-    int initialize_build_hash_table(int numGPUs, std::uint64_t maxLocsPerFeature);
+    gpu_id initialize_build_hash_table(gpu_id numGPUs, std::uint64_t maxLocsPerFeature);
 
     /****************************************************************
      * @brief split sequence into batches and insert into build hash table
      */
     window_id add_target(
-        int gpuId,
+        gpu_id gpuId,
         const sequence& seq,
         target_id tgt,
         const sketcher& targetSketcher);
     //-----------------------------------------------------
     window_id add_target(
-        int gpuId,
+        gpu_id gpuId,
         sequence::const_iterator first,
         sequence::const_iterator last,
         target_id tgt,
@@ -147,11 +149,11 @@ public:
 
     //---------------------------------------------------------------
     void insert(
-        int gpuId, sequence_batch<policy::Host>& seqBatchHost,
+        gpu_id gpuId, sequence_batch<policy::Host>& seqBatchHost,
         const sketcher& targetSketcher);
 
     //-----------------------------------------------------
-    void wait_until_add_target_complete(int gpuId, const sketcher& targetSketcher);
+    void wait_until_add_target_complete(gpu_id gpuId, const sketcher& targetSketcher);
     void wait_until_add_target_complete(const sketcher& targetSketcher);
 
     //---------------------------------------------------------------
@@ -173,7 +175,7 @@ public:
     /****************************************************************
      * @brief serialize hashmap to output stream
      */
-    friend void write_binary(std::ostream& os, gpu_hashmap& m, int gpuId) {
+    friend void write_binary(std::ostream& os, gpu_hashmap& m, unsigned gpuId) {
         m.serialize(os, gpuId);
     }
 
@@ -189,12 +191,12 @@ private:
     /**
      * @brief binary serialization of all non-emtpy buckets
      */
-    void serialize(std::ostream& os, int gpuId);
+    void serialize(std::ostream& os, unsigned gpuId);
 
 
 private:
     //---------------------------------------------------------------
-    int numGPUs_;
+    gpu_id numGPUs_;
     float maxLoadFactor_;
     std::atomic_bool valid_;
 

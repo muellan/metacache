@@ -736,7 +736,9 @@ gpu_hashmap<Key,ValueT>::gpu_hashmap() :
     maxLoadFactor_(default_max_load_factor()),
     valid_(true)
 {
-    cudaGetDeviceCount(&numGPUs_); CUERR
+    int deviceCount = 0;
+    cudaGetDeviceCount(&deviceCount); CUERR
+    numGPUs_ = deviceCount;
 
     std::cerr << "found " << numGPUs_ << " CUDA devices\n";
 }
@@ -765,7 +767,7 @@ bool gpu_hashmap<Key,ValueT>::valid() const noexcept {
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::pop_status(int gpuId) {
+void gpu_hashmap<Key,ValueT>::pop_status(gpu_id gpuId) {
     if(gpuId < buildHashTables_.size()) {
         cudaSetDevice(gpuId); CUERR
         std::cerr << "hashtable status: " << buildHashTables_[gpuId].pop_status() << "\n";
@@ -775,7 +777,7 @@ void gpu_hashmap<Key,ValueT>::pop_status(int gpuId) {
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::pop_status() {
     if(!buildHashTables_.empty()) {
-        for(int gpuId = 0; gpuId < numGPUs_; ++gpuId) {
+        for(gpu_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
             cudaSetDevice(gpuId); CUERR
             std::cerr << "hashtable status: " << buildHashTables_[gpuId].pop_status() << "\n";
         }
@@ -789,7 +791,7 @@ template<class Key, class ValueT>
 size_t gpu_hashmap<Key,ValueT>::bucket_count() const noexcept {
     if(!buildHashTables_.empty()) {
         size_t count = 0;
-        for(int gpuId = 0; gpuId < numGPUs_; ++gpuId) {
+        for(gpu_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
             cudaSetDevice(gpuId); CUERR
             count += buildHashTables_[gpuId].bucket_count();
         }
@@ -804,7 +806,7 @@ template<class Key, class ValueT>
 size_t gpu_hashmap<Key,ValueT>::key_count() noexcept {
     if(!buildHashTables_.empty()) {
         size_t count = 0;
-        for(int gpuId = 0; gpuId < numGPUs_; ++gpuId) {
+        for(gpu_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
             cudaSetDevice(gpuId); CUERR
             count += buildHashTables_[gpuId].key_count();
         }
@@ -819,7 +821,7 @@ template<class Key, class ValueT>
 size_t gpu_hashmap<Key,ValueT>::value_count() noexcept {
     if(!buildHashTables_.empty()) {
         size_t count = 0;
-        for(int gpuId = 0; gpuId < numGPUs_; ++gpuId) {
+        for(gpu_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
             cudaSetDevice(gpuId); CUERR
             count += buildHashTables_[gpuId].location_count();
         }
@@ -835,7 +837,7 @@ statistics_accumulator_gpu<policy::Host>
 gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
     statistics_accumulator_gpu<policy::Host> totalAccumulator = {};
 
-    for(int gpuId = 0; gpuId < numGPUs_; ++gpuId) {
+    for(gpu_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         auto accumulator = buildHashTables_[gpuId].location_list_size_statistics();
 
@@ -862,8 +864,8 @@ gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-int gpu_hashmap<Key,ValueT>::initialize_build_hash_table(
-    int numGPUs,
+gpu_hashmap<Key,ValueT>::gpu_id gpu_hashmap<Key,ValueT>::initialize_build_hash_table(
+    gpu_id numGPUs,
     std::uint64_t maxLocsPerFeature)
 {
     if(numGPUs < numGPUs_)
@@ -873,7 +875,7 @@ int gpu_hashmap<Key,ValueT>::initialize_build_hash_table(
 
     insertBuffers_.reserve(numGPUs_);
 
-    for(int gpuId = 0; gpuId < numGPUs_; ++gpuId) {
+    for(gpu_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
         cudaSetDevice(gpuId); CUERR
 
         size_t freeMemory = 0;
@@ -908,7 +910,7 @@ int gpu_hashmap<Key,ValueT>::initialize_build_hash_table(
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 window_id gpu_hashmap<Key,ValueT>::add_target(
-    int gpuId, const sequence& seq, target_id tgt, const sketcher& targetSketcher)
+    gpu_id gpuId, const sequence& seq, target_id tgt, const sketcher& targetSketcher)
 {
     using std::begin;
     using std::end;
@@ -918,7 +920,7 @@ window_id gpu_hashmap<Key,ValueT>::add_target(
 //-----------------------------------------------------
 template<class Key, class ValueT>
 window_id gpu_hashmap<Key,ValueT>::add_target(
-    int gpuId,
+    gpu_id gpuId,
     sequence::const_iterator first,
     sequence::const_iterator last,
     target_id tgt,
@@ -956,7 +958,7 @@ window_id gpu_hashmap<Key,ValueT>::add_target(
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::insert(
-    int gpuId,
+    gpu_id gpuId,
     sequence_batch<policy::Host>& seqBatchHost,
     const sketcher& targetSketcher)
 {
@@ -973,7 +975,7 @@ void gpu_hashmap<Key,ValueT>::insert(
 //-----------------------------------------------------
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::wait_until_add_target_complete(
-    int gpuId, const sketcher& targetSketcher)
+    gpu_id gpuId, const sketcher& targetSketcher)
 {
     if(gpuId < numGPUs_) {
         cudaSetDevice(gpuId); CUERR
@@ -990,7 +992,7 @@ template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::wait_until_add_target_complete(
     const sketcher& targetSketcher)
 {
-    for(int gpuId = 0; gpuId < numGPUs_; ++gpuId) {
+    for(gpu_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
         cudaSetDevice(gpuId); CUERR
 
         if(insertBuffers_[gpuId].current_seq_batch().num_targets()) {
@@ -1047,7 +1049,7 @@ void gpu_hashmap<Key,ValueT>::deserialize(std::istream& is)
 * @brief binary serialization of all non-empty buckets
 */
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::serialize(std::ostream& os, int gpuId)
+void gpu_hashmap<Key,ValueT>::serialize(std::ostream& os, gpu_id gpuId)
 {
     cudaSetDevice(gpuId); CUERR
     buildHashTables_[gpuId].serialize(os);
