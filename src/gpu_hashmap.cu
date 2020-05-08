@@ -766,7 +766,7 @@ bool gpu_hashmap<Key,ValueT>::valid() const noexcept {
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::pop_status(int gpuId) {
-    if(gpuId < numGPUs_) {
+    if(gpuId < buildHashTables_.size()) {
         cudaSetDevice(gpuId); CUERR
         std::cerr << "hashtable status: " << buildHashTables_[gpuId].pop_status() << "\n";
     }
@@ -842,6 +842,7 @@ gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
         std::cout
             << "------------------------------------------------\n"
             << "gpu " << gpuId << ":\n"
+            << "hashtable status     " << buildHashTables_[gpuId].pop_status() << '\n'
             << "buckets              " << buildHashTables_[gpuId].bucket_count() << '\n'
             << "bucket size          " << "max: " << accumulator.max()
                                        << " mean: " << accumulator.mean()

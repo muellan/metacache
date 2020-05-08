@@ -539,8 +539,6 @@ public:
     //---------------------------------------------------------------
     void wait_until_add_target_complete(int gpuId) {
         featureStoreGPU_.wait_until_add_target_complete(gpuId, targetSketcher_);
-
-        featureStoreGPU_.pop_status(gpuId);
     }
 
 
