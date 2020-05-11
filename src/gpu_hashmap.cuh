@@ -211,7 +211,7 @@ private:
      * @brief single value hashtable for querying,
      *        which maps feature -> values pointer
      */
-    std::unique_ptr<query_hash_table> queryHashTable_;
+    std::vector<query_hash_table> queryHashTables_;
 };
 
 
