@@ -100,6 +100,9 @@ get_query_processing_options(const args_parser& args,
     auto numThreads = args.get<int>("threads", defaults.numThreads);
     if(numThreads >= 1) opt.numThreads = numThreads;
 
+    unsigned numGPUs = args.get<unsigned>("gpus", defaults.numGPUs);
+    opt.numGPUs = numGPUs;
+
     auto batchSize = args.get<int>("batch-size", defaults.batchSize);
     if(batchSize >= 1) opt.batchSize = batchSize;
 

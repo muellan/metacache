@@ -41,7 +41,8 @@ make_database(const std::string& filename, database::scope what, info_level info
                   << filename << "' ... " << std::flush;
     }
     try {
-        db.read(filename, what);
+        unsigned numGPUs = 1;
+        db.read(filename, numGPUs, what);
         if(showInfo) std::cerr << "done." << std::endl;
     }
     catch(const file_access_error& e) {

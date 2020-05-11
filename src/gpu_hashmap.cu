@@ -1038,7 +1038,7 @@ void gpu_hashmap<Key,ValueT>::query_async(
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::deserialize(std::istream& is)
+void gpu_hashmap<Key,ValueT>::deserialize(std::istream& is, gpu_id gpuId)
 {
     using len_t = std::uint64_t;
 
@@ -1050,7 +1050,6 @@ void gpu_hashmap<Key,ValueT>::deserialize(std::istream& is)
     std::cerr << "nkeys: " << nkeys << " nvalues: " << nvalues << std::endl;
 
     if(nkeys > 0) {
-        gpu_id gpuId = queryHashTables_.size();
         cudaSetDevice(gpuId); CUERR
 
         //initialize hash table
@@ -1076,9 +1075,9 @@ void gpu_hashmap<Key,ValueT>::serialize(std::ostream& os, gpu_id gpuId)
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::copy_target_lineages_to_gpu(
-    const std::vector<ranked_lineage>& lins)
+    const std::vector<ranked_lineage>& lins,
+    gpu_id gpuId)
 {
-    gpu_id gpuId = 0;
     cudaSetDevice(gpuId); CUERR
     queryHashTables_[gpuId].copy_target_lineages_to_gpu(lins);
 }

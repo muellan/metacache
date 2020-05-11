@@ -111,7 +111,7 @@ get_build_options(const args_parser& args, const build_options& defaults = {})
         opt.infoLevel = info_level::verbose;
     }
 
-    opt.numGPUs   = args.get<unsigned>({"numgpus","num-gpus", "num_gpus"}, defaults.numGPUs);
+    opt.numGPUs   = args.get<unsigned>("gpus", defaults.numGPUs);
 
     opt.kmerlen   = args.get<int>({"kmerlen"}, defaults.kmerlen);
     opt.sketchlen = args.get<int>({"sketchlen"}, defaults.sketchlen);

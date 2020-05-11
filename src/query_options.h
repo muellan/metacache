@@ -104,6 +104,8 @@ struct query_processing_options
 
     int numThreads = std::thread::hardware_concurrency();
 
+    unsigned numGPUs = std::numeric_limits<unsigned>::max(); // use all available gpus
+
     //number of windows per batch handled by cpu threads
     std::size_t batchSize = 4096;
 

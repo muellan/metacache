@@ -130,7 +130,7 @@ public:
     using match_count_type = std::uint16_t;
 
     //---------------------------------------------------------------
-    enum class scope { everything, metadata_only };
+    enum class scope { everything, metadata_only, hashtable_only };
 
 
     //-----------------------------------------------------
@@ -878,6 +878,7 @@ public:
     }
 
 
+private:
     //---------------------------------------------------------------
     /**
      * @brief   read database from binary file
@@ -886,12 +887,12 @@ public:
      *          This should make DB files more robust against changes in the
      *          internal mapping structure.
      */
-    void read(const std::string& filename, scope what = scope::everything)
+    void read_single(const std::string& filename, gpu_id gpuId, scope what)
     {
         std::ifstream is{filename, std::ios::in | std::ios::binary};
 
         if(!is.good()) {
-            throw file_access_error{"can't open file " + filename};
+            throw file_access_error{"Could not read database file '" + filename + "'"};
         }
 
         //database version info
@@ -938,53 +939,103 @@ public:
             }
         }
 
-        clear();
+        if(what != scope::hashtable_only) {
+            clear();
 
-        //sketching parameters
-        read_binary(is, targetSketcher_);
-        read_binary(is, querySketcher_);
+            //sketching parameters
+            read_binary(is, targetSketcher_);
+            read_binary(is, querySketcher_);
 
-        //target insertion parameters
-        read_binary(is, maxLocsPerFeature_);
+            //target insertion parameters
+            read_binary(is, maxLocsPerFeature_);
 
-        //taxon metadata
-        read_binary(is, taxa_);
+            //taxon metadata
+            read_binary(is, taxa_);
 
-        target_id targetCount = 0;
-        read_binary(is, targetCount);
-        if(targetCount < 1) return;
+            target_id targetCount = 0;
+            read_binary(is, targetCount);
+            if(targetCount < 1) return;
 
-        targetCount_ = targetCount;
+            targetCount_ = targetCount;
 
-        //update target id -> target taxon lookup table
-        targets_.reserve(targetCount);
-        for(decltype(targetCount) i = 0 ; i < targetCount; ++i) {
-            targets_.push_back(taxa_[taxon_id_of_target(i)]);
+            //update target id -> target taxon lookup table
+            targets_.reserve(targetCount);
+            for(decltype(targetCount) i = 0 ; i < targetCount; ++i) {
+                targets_.push_back(taxa_[taxon_id_of_target(i)]);
+            }
+
+            //sequence id lookup
+            name2tax_.clear();
+            for(const auto& t : taxa_) {
+                if(t.rank() == taxon_rank::Sequence) {
+                    name2tax_.insert({t.name(), &t});
+                }
+            }
+
+            mark_cached_lineages_outdated();
+            update_cached_lineages(taxon_rank::Sequence);
+        }
+        else {
+            //skip metadata
+
+            //sketching parameters
+            sketcher skecherDummy;
+            read_binary(is, skecherDummy);
+            read_binary(is, skecherDummy);
+
+            //target insertion parameters
+            uint64_t dummy;
+            read_binary(is, dummy);
+
+            //taxon metadata
+            taxonomy dummyTaxa;
+            read_binary(is, dummyTaxa);
+
+            target_id targetCount = 0;
+            read_binary(is, targetCount);
+            if(targetCount < 1) return;
         }
 
-        //sequence id lookup
-        name2tax_.clear();
-        for(const auto& t : taxa_) {
-            if(t.rank() == taxon_rank::Sequence) {
-                name2tax_.insert({t.name(), &t});
+        if(what != scope::metadata_only) {
+            //hash table
+            read_binary(is, featureStoreGPU_, gpuId);
+
+            featureStoreGPU_.copy_target_lineages_to_gpu(targetLineages_.lineages(), gpuId);
+        }
+    }
+
+public:
+    //-------------------------------------------------------------------
+    /**
+     * @brief   read all database parts from binary files
+     */
+    void read(const std::string& filename, gpu_id numGPUs, scope what = scope::everything)
+    {
+        if(numGPUs > num_gpus()) {
+            numGPUs = num_gpus();
+        }
+        std::cerr << "using " << numGPUs << " GPUs ...";
+
+        if(numGPUs == 1) {
+            read_single(filename, 0, what);
+        }
+        else {
+            gpu_id gpuId = 0;
+            read_single(filename+'_'+std::to_string(gpuId), gpuId, what);
+
+            if(what != scope::metadata_only) {
+                for(gpu_id gpuId = 1; gpuId < numGPUs; ++gpuId) {
+                    read_single(filename+'_'+std::to_string(gpuId), gpuId, scope::hashtable_only);
+                }
             }
         }
-
-        mark_cached_lineages_outdated();
-        update_cached_lineages(taxon_rank::Sequence);
-
-        if(what == scope::metadata_only) return;
-
-        //hash table
-        read_binary(is, featureStoreGPU_);
-
-        featureStoreGPU_.copy_target_lineages_to_gpu(targetLineages_.lineages());
     }
+
 
 private:
     //-------------------------------------------------------------------
     /**
-     * @brief   write all database parts to binary files
+     * @brief   write database to binary file
      */
     void write(const std::string& filename, gpu_id gpuId) const
     {
@@ -1026,7 +1077,7 @@ private:
 public:
     //-------------------------------------------------------------------
     /**
-     * @brief   write database part to binary file
+     * @brief   write all database parts to binary files
      */
     void write(const std::string& filename) const
     {

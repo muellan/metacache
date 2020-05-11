@@ -306,7 +306,7 @@ void run_interactive_query_mode(const vector<string>& initInfiles,
  *
  *****************************************************************************/
 database
-read_database(const string& filename, const database_query_options& opt)
+read_database(const string& filename, unsigned numGPUs, const database_query_options& opt)
 {
     database db;
 
@@ -316,15 +316,15 @@ read_database(const string& filename, const database_query_options& opt)
              << opt.maxLoadFactor << endl;
     }
 
-    cerr << "Reading database from file '" << filename << "' ... " << flush;
+    cerr << "Reading database from file '" << filename << "' ";
 
     try {
-        db.read(filename);
+        db.read(filename, numGPUs);
         cerr << "done." << endl;
     }
     catch(const file_access_error& e) {
         cerr << "FAIL" << endl;
-        throw file_access_error{"Could not read database file '" + filename + "'"};
+        throw;
     }
 
     if(opt.removeOverpopulatedFeatures) {
@@ -388,7 +388,7 @@ void main_mode_query(const args_parser& args)
     auto dbname = database_name(args);
     if(dbname.empty()) throw file_access_error{"No database name given"};
 
-    auto db = read_database(dbname, get_database_query_options(args));
+    auto db = read_database(dbname, opt.process.numGPUs, get_database_query_options(args));
 
     if(opt.output.showDBproperties) {
         print_static_properties(db);

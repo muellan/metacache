@@ -168,30 +168,30 @@ public:
     /****************************************************************
      * @brief deserialize hashmap from input stream
      */
-     friend void read_binary(std::istream& is, gpu_hashmap& m) {
-        m.deserialize(is);
+     friend void read_binary(std::istream& is, gpu_hashmap& m, gpu_id gpuId) {
+        m.deserialize(is, gpuId);
     }
 
     /****************************************************************
      * @brief serialize hashmap to output stream
      */
-    friend void write_binary(std::ostream& os, gpu_hashmap& m, unsigned gpuId) {
+    friend void write_binary(std::ostream& os, gpu_hashmap& m, gpu_id gpuId) {
         m.serialize(os, gpuId);
     }
 
     //---------------------------------------------------------------
-    void copy_target_lineages_to_gpu(const std::vector<ranked_lineage>& lins);
+    void copy_target_lineages_to_gpu(const std::vector<ranked_lineage>& lins, gpu_id gpuId);
 
 
 private:
     //---------------------------------------------------------------
-    void deserialize(std::istream& is);
+    void deserialize(std::istream& is, gpu_id gpuId);
 
     //---------------------------------------------------------------
     /**
      * @brief binary serialization of all non-emtpy buckets
      */
-    void serialize(std::ostream& os, unsigned gpuId);
+    void serialize(std::ostream& os, gpu_id gpuId);
 
 
 private:
