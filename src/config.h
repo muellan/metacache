@@ -129,6 +129,10 @@ using classification_candidates =
 //    distinct_matches_in_contiguous_window_ranges;
 
 
+/**************************************************************************
+ * @brief gpu stuff
+ */
+using gpu_id = unsigned;
 enum class policy {Host, Device};
 
 

@@ -199,7 +199,6 @@ private:
     //-----------------------------------------------------
     /// @brief "heart of the database": maps features to target locations
     using feature_store_gpu = gpu_hashmap<feature, location>; //key, value
-    using gpu_id = typename feature_store_gpu::gpu_id;
 
 
     //-----------------------------------------------------

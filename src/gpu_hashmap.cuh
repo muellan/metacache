@@ -62,8 +62,6 @@ class gpu_hashmap
 
 public:
     //---------------------------------------------------------------
-    using gpu_id           = unsigned;
-
     using key_type         = Key;
     using value_type       = ValueT;
     using bucket_size_type = loclist_size_t;
