@@ -35,7 +35,14 @@ class query_batch
 
     class segmented_sort;
 
-    struct query_host_input {
+    //---------------------------------------------------------------
+    struct query_host_input
+    {
+        query_host_input(index_type maxQueries,
+                         size_type maxSequenceLength);
+        query_host_input(const query_host_input&) = delete;
+        ~query_host_input();
+
         /*************************************************************************//**
         *
         * @brief add sequence pair to batch as windows of encoded characters
@@ -145,12 +152,13 @@ class query_batch
             using std::begin;
             using std::end;
 
-            return add_paired_read(begin(seq1), end(seq1),
-                                begin(seq2), end(seq2),
-                                querySketcher,
-                                insertSizeMax,
-                                maxQueries,
-                                maxSequenceLength);
+            return add_paired_read(
+                begin(seq1), end(seq1),
+                begin(seq2), end(seq2),
+                querySketcher,
+                insertSizeMax,
+                maxQueries,
+                maxSequenceLength);
         }
 
         //---------------------------------------------------------------
@@ -163,7 +171,15 @@ class query_batch
         window_id  * maxWindowsInRange_;
     };
 
-    struct query_host_ouput {
+    //---------------------------------------------------------------
+    struct query_host_output
+    {
+        query_host_output(index_type maxQueries,
+                          size_type maxResultsPerQuery,
+                          size_type maxCandidatesPerQuery);
+        query_host_output(const query_host_output&) = delete;
+        ~query_host_output();
+
         index_type        numSegments_;
 
         location_type   * queryResults_;
@@ -171,7 +187,17 @@ class query_batch
         match_candidate * topCandidates_;
     };
 
-    struct query_gpu_data {
+    //---------------------------------------------------------------
+    struct query_gpu_data
+    {
+        query_gpu_data(index_type maxQueries,
+                       size_type maxSequenceLength,
+                       size_type maxResultsPerQuery,
+                       size_type maxCandidatesPerQuery,
+                       bool multiGPU);
+        query_gpu_data(const query_gpu_data&) = delete;
+        ~query_gpu_data();
+
         index_type        numSegments_;
         index_type        numQueries_;
 
@@ -199,7 +225,7 @@ public:
                 size_type maxEncodeLength,
                 size_type maxResultsPerQuery,
                 size_type maxCandidatesPerQuery,
-                bool multiGPU = false);
+                unsigned numGPUs = 1);
     //-----------------------------------------------------
     query_batch(const query_batch&) = delete;
     //---------------------------------------------------------------
@@ -313,7 +339,8 @@ private:
     size_type  maxCandidatesPerQuery_;
 
     query_host_input hostInput_;
-    query_host_ouput hostOutput_;
+    query_host_output hostOutput_;
+    // std::vector<query_gpu_data>
     query_gpu_data   gpuData_;
 
     std::unique_ptr<segmented_sort> sorter_;
@@ -323,8 +350,6 @@ private:
     cudaEvent_t queriesCopiedEvent_;
     cudaEvent_t offsetsCopiedEvent_;
     cudaEvent_t resultReadyEvent_;
-
-    bool multiGPU_;
 };
 
 

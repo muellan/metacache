@@ -40,6 +40,122 @@ private:
 };
 
 
+//---------------------------------------------------------------
+template<class Location>
+query_batch<Location>::query_host_input::query_host_input(
+    index_type maxQueries,
+    size_type maxSequenceLength
+) :
+    numSegments_{0},
+    numQueries_{0}
+{
+    cudaMallocHost(&queryIds_, maxQueries*sizeof(index_type));
+    cudaMallocHost(&sequenceOffsets_, (maxQueries+1)*sizeof(size_type));
+    sequenceOffsets_[0] = 0;
+    cudaMallocHost(&sequences_, maxSequenceLength*sizeof(char));
+    cudaMallocHost(&maxWindowsInRange_, maxQueries*sizeof(window_id));
+    CUERR
+}
+//---------------------------------------------------------------
+template<class Location>
+query_batch<Location>::query_host_input::~query_host_input()
+{
+    if(queryIds_)          cudaFreeHost(queryIds_);
+    if(sequenceOffsets_)   cudaFreeHost(sequenceOffsets_);
+    if(sequences_)         cudaFreeHost(sequences_);
+    if(maxWindowsInRange_) cudaFreeHost(maxWindowsInRange_);
+    CUERR
+}
+
+
+//---------------------------------------------------------------
+template<class Location>
+query_batch<Location>::query_host_output::query_host_output(
+    index_type maxQueries,
+    size_type maxResultsPerQuery,
+    size_type maxCandidatesPerQuery
+) :
+    numSegments_{0}
+{
+    cudaMallocHost(&queryResults_, maxQueries*maxResultsPerQuery*sizeof(location_type));
+    cudaMallocHost(&resultOffsets_, (maxQueries+1)*sizeof(int));
+    resultOffsets_[0] = 0;
+    cudaMallocHost(&topCandidates_, maxQueries*maxCandidatesPerQuery*sizeof(match_candidate));
+    CUERR
+}
+template<class Location>
+query_batch<Location>::query_host_output::~query_host_output()
+{
+    if(queryResults_)  cudaFreeHost(queryResults_);
+    if(resultOffsets_) cudaFreeHost(resultOffsets_);
+    if(topCandidates_) cudaFreeHost(topCandidates_);
+    CUERR
+}
+
+
+//---------------------------------------------------------------
+template<class Location>
+query_batch<Location>::query_gpu_data::query_gpu_data(
+    index_type maxQueries,
+    size_type maxSequenceLength,
+    size_type maxResultsPerQuery,
+    size_type maxCandidatesPerQuery,
+    bool multiGPU
+) :
+    numSegments_{0},
+    numQueries_{0}
+{
+    size_t allocatedGpuMem = 0;
+
+    cudaMalloc    (&queryIds_, maxQueries*sizeof(index_type));
+    allocatedGpuMem += maxQueries*sizeof(index_type);
+    cudaMalloc    (&sequenceOffsets_, (maxQueries+1)*sizeof(size_type));
+    allocatedGpuMem += (maxQueries+1)*sizeof(size_type);
+    cudaMalloc    (&sequences_, maxSequenceLength*sizeof(char));
+    allocatedGpuMem += maxSequenceLength*sizeof(char);
+    if(multiGPU) {
+        cudaMalloc    (&sketches_, maxQueries*sizeof(feature_type));
+        allocatedGpuMem += maxQueries*sizeof(feature_type);
+    }
+    else {
+        sketches_ = nullptr;
+    }
+    cudaMalloc    (&queryResults_, maxQueries*maxResultsPerQuery*sizeof(location_type));
+    cudaMalloc    (&queryResultsTmp_, maxQueries*maxResultsPerQuery*sizeof(location_type));
+    allocatedGpuMem += 2*maxQueries*maxResultsPerQuery*sizeof(location_type);
+    cudaMalloc    (&resultOffsets_, (maxQueries+1)*sizeof(int));
+    allocatedGpuMem += (maxQueries+1)*sizeof(int);
+    cudaMemset(resultOffsets_, 0, sizeof(int));
+    cudaMalloc    (&resultCounts_, maxQueries*sizeof(int));
+    allocatedGpuMem += maxQueries*sizeof(int);
+    cudaMalloc    (&segBinCounters_, (SEGBIN_NUM+1)*sizeof(int));
+    allocatedGpuMem += (SEGBIN_NUM+1)*sizeof(int);
+    cudaMalloc    (&topCandidates_, maxQueries*maxCandidatesPerQuery*sizeof(match_candidate));
+    allocatedGpuMem += maxQueries*maxCandidatesPerQuery*sizeof(match_candidate);
+    cudaMalloc    (&maxWindowsInRange_, maxQueries*sizeof(window_id));
+    allocatedGpuMem += maxQueries*sizeof(window_id);
+    CUERR
+
+    // std::cerr << "query batch size on gpu: " << (allocatedGpuMem >> 20) << " MB\n";
+}
+//---------------------------------------------------------------
+template<class Location>
+query_batch<Location>::query_gpu_data::~query_gpu_data()
+{
+    if(queryIds_)          cudaFree    (queryIds_);
+    if(sequenceOffsets_)   cudaFree    (sequenceOffsets_);
+    if(sequences_)         cudaFree    (sequences_);
+    if(sketches_)          cudaFree    (sketches_);
+    if(queryResults_)      cudaFree    (queryResults_);
+    if(queryResultsTmp_)   cudaFree    (queryResultsTmp_);
+    if(resultOffsets_)     cudaFree    (resultOffsets_);
+    if(resultCounts_)      cudaFree    (resultCounts_);
+    if(segBinCounters_)    cudaFree    (segBinCounters_);
+    if(topCandidates_)     cudaFree    (topCandidates_);
+    if(maxWindowsInRange_) cudaFree    (maxWindowsInRange_);
+    CUERR
+}
+
 
 //---------------------------------------------------------------
 template<class Location>
@@ -48,74 +164,16 @@ query_batch<Location>::query_batch(
     size_type maxSequenceLength,
     size_type maxResultsPerQuery,
     size_type maxCandidatesPerQuery,
-    bool multiGPU
+    unsigned numGPUs
 ) :
-    hostInput_{},
-    hostOutput_{},
-    gpuData_{},
+    hostInput_{maxQueries, maxSequenceLength},
+    hostOutput_{maxQueries, maxResultsPerQuery, maxCandidatesPerQuery},
+    gpuData_{maxQueries, maxSequenceLength, maxResultsPerQuery, maxCandidatesPerQuery, numGPUs > 1},
     maxQueries_{maxQueries},
     maxSequenceLength_{maxSequenceLength},
     maxResultsPerQuery_{maxResultsPerQuery},
-    maxCandidatesPerQuery_{maxCandidatesPerQuery},
-    multiGPU_{multiGPU}
+    maxCandidatesPerQuery_{maxCandidatesPerQuery}
 {
-    hostInput_.numSegments_ = 0;
-    hostOutput_.numSegments_ = 0;
-    gpuData_.numSegments_ = 0;
-
-    hostInput_.numQueries_ = 0;
-    gpuData_.numQueries_ = 0;
-
-    size_t allocatedGpuMem = 0;
-
-    if(maxQueries_ && maxSequenceLength_ && maxResultsPerQuery_) {
-        cudaMallocHost(&hostInput_.queryIds_, maxQueries_*sizeof(index_type));
-        cudaMalloc    (&gpuData_.queryIds_, maxQueries_*sizeof(index_type));
-        allocatedGpuMem += maxQueries_*sizeof(index_type);
-
-        cudaMallocHost(&hostInput_.sequenceOffsets_, (maxQueries_+1)*sizeof(size_type));
-        cudaMalloc    (&gpuData_.sequenceOffsets_, (maxQueries_+1)*sizeof(size_type));
-        allocatedGpuMem += (maxQueries_+1)*sizeof(size_type);
-        hostInput_.sequenceOffsets_[0] = 0;
-
-        cudaMallocHost(&hostInput_.sequences_, maxSequenceLength_*sizeof(char));
-        cudaMalloc    (&gpuData_.sequences_, maxSequenceLength_*sizeof(char));
-        allocatedGpuMem += maxSequenceLength_*sizeof(char);
-
-        if(multiGPU_) {
-            cudaMalloc    (&gpuData_.sketches_, maxQueries_*sizeof(feature_type));
-            allocatedGpuMem += maxQueries_*sizeof(feature_type);
-        }
-
-        cudaMallocHost(&hostOutput_.queryResults_, maxQueries_*maxResultsPerQuery_*sizeof(location_type));
-        cudaMalloc    (&gpuData_.queryResults_, maxQueries_*maxResultsPerQuery_*sizeof(location_type));
-        cudaMalloc    (&gpuData_.queryResultsTmp_, maxQueries_*maxResultsPerQuery_*sizeof(location_type));
-        allocatedGpuMem += 2*maxQueries_*maxResultsPerQuery_*sizeof(location_type);
-
-        cudaMallocHost(&hostOutput_.resultOffsets_, (maxQueries_+1)*sizeof(int));
-        cudaMalloc    (&gpuData_.resultOffsets_, (maxQueries_+1)*sizeof(int));
-        allocatedGpuMem += (maxQueries_+1)*sizeof(int);
-        hostOutput_.resultOffsets_[0] = 0;
-        cudaMemcpy(gpuData_.resultOffsets_, hostOutput_.resultOffsets_, sizeof(int), cudaMemcpyHostToDevice);
-
-        cudaMalloc    (&gpuData_.resultCounts_, maxQueries_*sizeof(int));
-        allocatedGpuMem += maxQueries_*sizeof(int);
-
-        cudaMalloc    (&gpuData_.segBinCounters_, (SEGBIN_NUM+1)*sizeof(int));
-        allocatedGpuMem += (SEGBIN_NUM+1)*sizeof(int);
-
-        cudaMallocHost(&hostOutput_.topCandidates_, maxQueries_*maxCandidatesPerQuery_*sizeof(match_candidate));
-        cudaMalloc    (&gpuData_.topCandidates_, maxQueries_*maxCandidatesPerQuery_*sizeof(match_candidate));
-        allocatedGpuMem += maxQueries_*maxCandidatesPerQuery_*sizeof(match_candidate);
-
-        cudaMallocHost(&hostInput_.maxWindowsInRange_, maxQueries_*sizeof(window_id));
-        cudaMalloc    (&gpuData_.maxWindowsInRange_, maxQueries_*sizeof(window_id));
-        allocatedGpuMem += maxQueries_*sizeof(window_id);
-    }
-    CUERR
-
-    // std::cerr << "query batch size on gpu: " << (allocatedGpuMem >> 20) << " MB\n";
-
     cudaStreamCreate(&stream_);
     cudaStreamCreate(&resultCopyStream_);
 
@@ -140,44 +198,9 @@ query_batch<Location>::query_batch(
 //---------------------------------------------------------------
 template<class Location>
 query_batch<Location>::~query_batch() {
-    CUERR
-
-    if(maxQueries_ && maxSequenceLength_ && maxResultsPerQuery_) {
-        cudaFreeHost(hostInput_.queryIds_);
-        cudaFree    (gpuData_.queryIds_);
-
-        cudaFreeHost(hostInput_.sequenceOffsets_);
-        cudaFree    (gpuData_.sequenceOffsets_);
-
-        cudaFreeHost(hostInput_.sequences_);
-        cudaFree    (gpuData_.sequences_);
-
-        if(multiGPU_)
-            cudaFree    (gpuData_.sketches_);
-
-        cudaFreeHost(hostOutput_.queryResults_);
-        cudaFree    (gpuData_.queryResults_);
-
-        cudaFree    (gpuData_.queryResultsTmp_);
-
-        cudaFreeHost(hostOutput_.resultOffsets_);
-        cudaFree    (gpuData_.resultOffsets_);
-
-        cudaFree    (gpuData_.resultCounts_);
-
-        cudaFree    (gpuData_.segBinCounters_);
-
-        cudaFreeHost(hostOutput_.topCandidates_);
-        cudaFree    (gpuData_.topCandidates_);
-
-        cudaFreeHost(hostInput_.maxWindowsInRange_);
-        cudaFree    (gpuData_.maxWindowsInRange_);
-    }
-    CUERR
-
     cudaStreamDestroy(stream_);
     cudaStreamDestroy(resultCopyStream_);
-
+    CUERR
     cudaEventDestroy(queriesCopiedEvent_);
     cudaEventDestroy(offsetsCopiedEvent_);
     cudaEventDestroy(resultReadyEvent_);
