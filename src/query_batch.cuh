@@ -22,12 +22,13 @@ namespace mc {
  *        uses its own stream
  *
  *****************************************************************************/
- template<class Location>
+template<class Location>
 class query_batch
 {
     using index_type     = uint32_t;
     using size_type      = uint32_t;
     using location_type  = Location;
+    using feature_type   = typename sketcher::feature_type;
 
     using taxon_rank     = taxonomy::rank;
     using ranked_lineage = taxonomy::ranked_lineage;
@@ -177,6 +178,7 @@ class query_batch
         index_type      * queryIds_;
         size_type       * sequenceOffsets_;
         char            * sequences_;
+        feature_type    * sketches_;
         window_id       * maxWindowsInRange_;
 
         location_type   * queryResults_;
@@ -196,7 +198,8 @@ public:
     query_batch(index_type maxQueries,
                 size_type maxEncodeLength,
                 size_type maxResultsPerQuery,
-                size_type maxCandidatesPerQuery);
+                size_type maxCandidatesPerQuery,
+                bool multiGPU = false);
     //-----------------------------------------------------
     query_batch(const query_batch&) = delete;
     //---------------------------------------------------------------
@@ -222,6 +225,10 @@ public:
     //---------------------------------------------------------------
     char * gpu_sequences() const noexcept {
         return gpuData_.sequences_;
+    }
+    //---------------------------------------------------------------
+    feature_type * gpu_sketches() const noexcept {
+        return gpuData_.sketches_;
     }
     //---------------------------------------------------------------
     location_type * gpu_query_results() const noexcept {
@@ -316,6 +323,8 @@ private:
     cudaEvent_t queriesCopiedEvent_;
     cudaEvent_t offsetsCopiedEvent_;
     cudaEvent_t resultReadyEvent_;
+
+    bool multiGPU_;
 };
 
 

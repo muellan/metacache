@@ -525,6 +525,7 @@ void gpu_hahstable_query(
     uint32_t numQueries,
     const SizeT * sequenceOffsets,
     const char * sequences,
+    feature * sketches,
     numk_t kmerSize,
     uint32_t maxSketchSize,
     uint32_t windowSize,
@@ -567,6 +568,14 @@ void gpu_hahstable_query(
 
             __syncwarp();
 
+            if(sketches != nullptr) {
+                if(warpLane < maxSketchSize)
+                    sketches[queryId*maxSketchSize + warpLane] =
+                        (warpLane < realSketchSize) ?
+                        tempStorage.sketch[warpId*16 + warpLane] :
+                        feature(~0);
+            }
+
             query_hashtable(hashtable, tempStorage.sketch+warpId*16, realSketchSize);
 
             __syncwarp();
@@ -584,6 +593,11 @@ void gpu_hahstable_query(
             __syncwarp();
         }
         else {
+            if(sketches != nullptr) {
+                if(warpLane < maxSketchSize)
+                    sketches[queryId*maxSketchSize + warpLane] = feature(~0);
+            }
+
             if(warpLane == 0) {
                 //store number of results of this query
                 locationCounts[queryId] = 0;

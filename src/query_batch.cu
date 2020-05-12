@@ -47,7 +47,8 @@ query_batch<Location>::query_batch(
     index_type maxQueries,
     size_type maxSequenceLength,
     size_type maxResultsPerQuery,
-    size_type maxCandidatesPerQuery
+    size_type maxCandidatesPerQuery,
+    bool multiGPU
 ) :
     hostInput_{},
     hostOutput_{},
@@ -55,7 +56,8 @@ query_batch<Location>::query_batch(
     maxQueries_{maxQueries},
     maxSequenceLength_{maxSequenceLength},
     maxResultsPerQuery_{maxResultsPerQuery},
-    maxCandidatesPerQuery_{maxCandidatesPerQuery}
+    maxCandidatesPerQuery_{maxCandidatesPerQuery},
+    multiGPU_{multiGPU}
 {
     hostInput_.numSegments_ = 0;
     hostOutput_.numSegments_ = 0;
@@ -79,6 +81,11 @@ query_batch<Location>::query_batch(
         cudaMallocHost(&hostInput_.sequences_, maxSequenceLength_*sizeof(char));
         cudaMalloc    (&gpuData_.sequences_, maxSequenceLength_*sizeof(char));
         allocatedGpuMem += maxSequenceLength_*sizeof(char);
+
+        if(multiGPU_) {
+            cudaMalloc    (&gpuData_.sketches_, maxQueries_*sizeof(feature_type));
+            allocatedGpuMem += maxQueries_*sizeof(feature_type);
+        }
 
         cudaMallocHost(&hostOutput_.queryResults_, maxQueries_*maxResultsPerQuery_*sizeof(location_type));
         cudaMalloc    (&gpuData_.queryResults_, maxQueries_*maxResultsPerQuery_*sizeof(location_type));
@@ -144,6 +151,9 @@ query_batch<Location>::~query_batch() {
 
         cudaFreeHost(hostInput_.sequences_);
         cudaFree    (gpuData_.sequences_);
+
+        if(multiGPU_)
+            cudaFree    (gpuData_.sketches_);
 
         cudaFreeHost(hostOutput_.queryResults_);
         cudaFree    (gpuData_.queryResults_);

@@ -494,6 +494,7 @@ public:
             batch.num_gpu_queries(),
             batch.gpu_sequence_offsets(),
             batch.gpu_sequences(),
+            batch.gpu_sketches(),
             querySketcher.kmer_size(),
             querySketcher.sketch_size(),
             querySketcher.window_size(),
