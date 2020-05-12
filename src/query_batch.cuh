@@ -196,6 +196,7 @@ class query_batch
                        size_type maxCandidatesPerQuery,
                        bool multiGPU);
         query_gpu_data(const query_gpu_data&) = delete;
+        query_gpu_data(query_gpu_data&&);
         ~query_gpu_data();
 
         index_type        numSegments_;
@@ -225,7 +226,7 @@ public:
                 size_type maxEncodeLength,
                 size_type maxResultsPerQuery,
                 size_type maxCandidatesPerQuery,
-                unsigned numGPUs = 1);
+                gpu_id numGPUs = 1);
     //-----------------------------------------------------
     query_batch(const query_batch&) = delete;
     //---------------------------------------------------------------
@@ -241,28 +242,28 @@ public:
         return hostInput_.numQueries_;
     }
     //---------------------------------------------------------------
-    index_type num_gpu_queries() const noexcept {
-        return gpuData_.numQueries_;
+    index_type num_gpu_queries(gpu_id gpuId = 0) const noexcept {
+        return gpuData_[gpuId].numQueries_;
     }
     //---------------------------------------------------------------
-    size_type * gpu_sequence_offsets() const noexcept {
-        return gpuData_.sequenceOffsets_;
+    size_type * gpu_sequence_offsets(gpu_id gpuId = 0) const noexcept {
+        return gpuData_[gpuId].sequenceOffsets_;
     }
     //---------------------------------------------------------------
-    char * gpu_sequences() const noexcept {
-        return gpuData_.sequences_;
+    char * gpu_sequences(gpu_id gpuId = 0) const noexcept {
+        return gpuData_[gpuId].sequences_;
     }
     //---------------------------------------------------------------
-    feature_type * gpu_sketches() const noexcept {
-        return gpuData_.sketches_;
+    feature_type * gpu_sketches(gpu_id gpuId = 0) const noexcept {
+        return gpuData_[gpuId].sketches_;
     }
     //---------------------------------------------------------------
-    location_type * gpu_query_results() const noexcept {
-        return gpuData_.queryResults_;
+    location_type * gpu_query_results(gpu_id gpuId = 0) const noexcept {
+        return gpuData_[gpuId].queryResults_;
     }
     //---------------------------------------------------------------
-    int * gpu_result_counts() const noexcept {
-        return gpuData_.resultCounts_;
+    int * gpu_result_counts(gpu_id gpuId = 0) const noexcept {
+        return gpuData_[gpuId].resultCounts_;
     }
     //---------------------------------------------------------------
     span<location_type> allhits(index_type id) const noexcept {
@@ -293,14 +294,20 @@ public:
     void sync_result_stream();
 
     //---------------------------------------------------------------
-    void clear_host() noexcept {
+    void clear_input() noexcept {
         hostInput_.numSegments_ = 0;
         hostInput_.numQueries_ = 0;
     }
 
-    void clear_device() noexcept {
-        gpuData_.numSegments_ = 0;
-        gpuData_.numQueries_ = 0;
+    void clear_device(gpu_id gpuId) noexcept {
+        gpuData_[gpuId].numSegments_ = 0;
+        gpuData_[gpuId].numQueries_ = 0;
+    }
+
+    void clear_output() noexcept {
+        for(gpu_id gpuId = 0; gpuId < gpuData_.size(); ++gpuId)
+            clear_device(gpuId);
+
         hostOutput_.numSegments_ = 0;
     }
 
@@ -311,7 +318,7 @@ public:
     void wait_for_queries_copied();
 private:
     //---------------------------------------------------------------
-    void compact_results_async();
+    void compact_results_async(gpu_id gpuId);
 public:
     //-----------------------------------------------------
     /** @brief asynchronously compact, sort and copy results to host using stream_ */
@@ -340,16 +347,17 @@ private:
 
     query_host_input hostInput_;
     query_host_output hostOutput_;
-    // std::vector<query_gpu_data>
-    query_gpu_data   gpuData_;
+    std::vector<query_gpu_data> gpuData_;
 
-    std::unique_ptr<segmented_sort> sorter_;
+    std::vector<segmented_sort> sorters_;
 
     cudaStream_t stream_;
     cudaStream_t resultCopyStream_;
     cudaEvent_t queriesCopiedEvent_;
     cudaEvent_t offsetsCopiedEvent_;
     cudaEvent_t resultReadyEvent_;
+
+    gpu_id numGPUs_;
 };
 
 

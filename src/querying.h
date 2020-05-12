@@ -116,7 +116,7 @@ void process_gpu_batch_results(
         }
         // std::cout << '\n';
 
-        queryBatch.clear_device();
+        queryBatch.clear_output();
     }
 }
 
@@ -140,7 +140,7 @@ void schedule_gpu_batch(
 
         queryBatch.wait_for_queries_copied();
 
-        queryBatch.clear_host();
+        queryBatch.clear_input();
     }
 }
 
