@@ -1084,6 +1084,21 @@ void gpu_hashmap<Key,ValueT>::copy_target_lineages_to_gpu(
 }
 
 
+//---------------------------------------------------------------
+template<class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::enable_all_peer_access(gpu_id numGPUs)
+{
+    for (gpu_id srcId = 0; srcId < numGPUs; ++srcId) {
+        cudaSetDevice(srcId);
+        for (gpu_id dstId = 0; dstId < numGPUs; ++dstId) {
+            if (srcId != dstId) {
+                 cudaDeviceEnablePeerAccess(dstId, 0);
+            }
+        }
+    }
+}
+
+
 
 //---------------------------------------------------------------
 template class gpu_hashmap<kmer_type, location>;

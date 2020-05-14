@@ -1027,6 +1027,8 @@ public:
                     read_single(filename+'_'+std::to_string(gpuId), gpuId, scope::hashtable_only);
                 }
             }
+
+            featureStoreGPU_.enable_all_peer_access(numGPUs);
         }
     }
 

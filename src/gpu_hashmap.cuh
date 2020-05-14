@@ -180,6 +180,9 @@ public:
     //---------------------------------------------------------------
     void copy_target_lineages_to_gpu(const std::vector<ranked_lineage>& lins, gpu_id gpuId);
 
+    //---------------------------------------------------------------
+    void enable_all_peer_access(gpu_id numGPUs);
+
 
 private:
     //---------------------------------------------------------------

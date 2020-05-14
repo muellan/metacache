@@ -353,6 +353,7 @@ private:
 
     cudaStream_t stream_;
     cudaStream_t resultCopyStream_;
+
     cudaEvent_t queriesCopiedEvent_;
     cudaEvent_t offsetsCopiedEvent_;
     cudaEvent_t resultReadyEvent_;
