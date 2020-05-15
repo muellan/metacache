@@ -471,6 +471,10 @@ public:
     size_type location_count() const noexcept {
         return numLocations_;
     }
+    //---------------------------------------------------------------
+    ranked_lineage * lineages() const noexcept {
+        return lineages_;
+    }
 
     //---------------------------------------------------------------
     template<class result_type>
@@ -478,11 +482,8 @@ public:
         query_batch<result_type>& batch,
         const sketcher& querySketcher,
         bucket_size_type maxLocationPerFeature,
-        bool copyAllHits,
-        taxon_rank lowestRank) const
+        cudaStream_t stream) const
     {
-        const cudaStream_t stream = batch.stream();
-
         // max 32*4 features => max window size is 128
         constexpr int warpsPerBlock = 2;
         constexpr int threadsPerBlock = 32*warpsPerBlock;
@@ -504,15 +505,6 @@ public:
             batch.gpu_query_results(),
             batch.gpu_result_counts()
         );
-        // batch.sync_streams();
-        // CUERR
-
-        batch.compact_sort_and_copy_allhits_async(copyAllHits);
-
-        batch.generate_and_copy_top_candidates_async(lineages_, lowestRank);
-
-        // batch.sync_result_stream();
-        // CUERR
     }
 
 private:
@@ -1028,12 +1020,23 @@ void gpu_hashmap<Key,ValueT>::query_async(
 {
     gpu_id gpuId = 0;
     cudaSetDevice(gpuId); CUERR
+
     queryHashTables_[gpuId].query_async(
         batch,
         querySketcher,
         maxLocationPerFeature,
-        copyAllHits,
-        lowestRank);
+        batch.work_stream(gpuId));
+
+    // batch.sync_work_stream(gpuId)
+    // CUERR
+
+    batch.compact_sort_and_copy_allhits_async(copyAllHits, gpuId);
+
+    batch.generate_and_copy_top_candidates_async(
+        queryHashTables_[gpuId].lineages(), lowestRank, gpuId);
+
+    // batch.sync_copy_stream(gpuId);
+    // CUERR
 }
 
 

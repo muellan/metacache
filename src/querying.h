@@ -89,7 +89,7 @@ void process_gpu_batch_results(
     Buffer& batchBuffer, BufferUpdate& update)
 {
     if(queryBatch.num_output_segments() > 0) {
-        queryBatch.sync_result_stream();
+        queryBatch.sync_copy_stream(0);
 
         for(size_t s = 0; s < queryBatch.num_output_segments(); ++s) {
             span<location> allhits = copyAllHits ? queryBatch.allhits(s) : span<location>();

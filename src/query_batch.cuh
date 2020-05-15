@@ -180,7 +180,9 @@ class query_batch
         query_host_output(const query_host_output&) = delete;
         ~query_host_output();
 
+        //---------------------------------------------------------------
         index_type        numSegments_;
+        index_type        numQueries_;
 
         location_type   * queryResults_;
         int             * resultOffsets_;
@@ -194,14 +196,13 @@ class query_batch
                        size_type maxSequenceLength,
                        size_type maxResultsPerQuery,
                        size_type maxCandidatesPerQuery,
-                       bool multiGPU);
+                       bool multiGPU = false,
+                       gpu_id gpuId = 0);
         query_gpu_data(const query_gpu_data&) = delete;
         query_gpu_data(query_gpu_data&&);
         ~query_gpu_data();
 
-        index_type        numSegments_;
-        index_type        numQueries_;
-
+        //---------------------------------------------------------------
         index_type      * queryIds_;
         size_type       * sequenceOffsets_;
         char            * sequences_;
@@ -216,6 +217,18 @@ class query_batch
         int             * segBinCounters_;
 
         match_candidate * topCandidates_;
+
+        cudaStream_t workStream_;
+        cudaStream_t copyStream_;
+
+        cudaEvent_t sketchesReadyEvent_;
+        cudaEvent_t sketchesCopiedEvent_;
+        cudaEvent_t offsetsReadyEvent_;
+        cudaEvent_t offsetsCopiedEvent_;
+        cudaEvent_t allhitsReadyEvent_;
+        cudaEvent_t allhitsCopiedEvent_;
+        cudaEvent_t tophitsReadyEvent_;
+        cudaEvent_t tophitsCopiedEvent_;
     };
 
 
@@ -242,8 +255,8 @@ public:
         return hostInput_.numQueries_;
     }
     //---------------------------------------------------------------
-    index_type num_gpu_queries(gpu_id gpuId = 0) const noexcept {
-        return gpuData_[gpuId].numQueries_;
+    index_type num_gpu_queries() const noexcept {
+        return hostOutput_.numQueries_;
     }
     //---------------------------------------------------------------
     size_type * gpu_sequence_offsets(gpu_id gpuId = 0) const noexcept {
@@ -286,12 +299,12 @@ public:
             return span<match_candidate>{};
     }
     //---------------------------------------------------------------
-    const cudaStream_t& stream() const noexcept {
-        return stream_;
+    const cudaStream_t& work_stream(gpu_id gpu_id) const noexcept {
+        return gpuData_[gpu_id].workStream_;
     }
     //---------------------------------------------------------------
-    void sync_streams();
-    void sync_result_stream();
+    void sync_work_stream(gpu_id gpu_id);
+    void sync_copy_stream(gpu_id gpu_id);
 
     //---------------------------------------------------------------
     void clear_input() noexcept {
@@ -299,20 +312,13 @@ public:
         hostInput_.numQueries_ = 0;
     }
 
-    void clear_device(gpu_id gpuId) noexcept {
-        gpuData_[gpuId].numSegments_ = 0;
-        gpuData_[gpuId].numQueries_ = 0;
-    }
-
     void clear_output() noexcept {
-        for(gpu_id gpuId = 0; gpuId < gpuData_.size(); ++gpuId)
-            clear_device(gpuId);
-
         hostOutput_.numSegments_ = 0;
+        hostOutput_.numQueries_ = 0;
     }
 
     //---------------------------------------------------------------
-    /** @brief asynchronously copy queries to device using stream_ */
+    /** @brief asynchronously copy queries to device */
     void copy_queries_to_device_async();
     //-----------------------------------------------------
     void wait_for_queries_copied();
@@ -321,13 +327,14 @@ private:
     void compact_results_async(gpu_id gpuId);
 public:
     //-----------------------------------------------------
-    /** @brief asynchronously compact, sort and copy results to host using stream_ */
-    void compact_sort_and_copy_allhits_async(bool copyAllHits);
+    /** @brief asynchronously compact, sort and copy results to host */
+    void compact_sort_and_copy_allhits_async(bool copyAllHits, gpu_id gpuId);
     //---------------------------------------------------------------
-    /** @brief asynchronously generate and copy top candidates using stream_ */
+    /** @brief asynchronously generate and copy top candidates */
     void generate_and_copy_top_candidates_async(
         const ranked_lineage * lineages,
-        taxon_rank lowestRank);
+        taxon_rank lowestRank,
+        gpu_id gpuId);
 
     //---------------------------------------------------------------
     template<class... Args>
@@ -351,12 +358,9 @@ private:
 
     std::vector<segmented_sort> sorters_;
 
-    cudaStream_t stream_;
-    cudaStream_t resultCopyStream_;
+    cudaStream_t h2dCopyStream_;
 
     cudaEvent_t queriesCopiedEvent_;
-    cudaEvent_t offsetsCopiedEvent_;
-    cudaEvent_t resultReadyEvent_;
 
     gpu_id numGPUs_;
 };
