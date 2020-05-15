@@ -538,7 +538,6 @@ void gpu_hahstable_query(
 {
     using size_type = SizeT;
     using location = Location;
-    using bucket_size_type = BucketSizeT;
 
     constexpr int warpsPerBlock = BLOCK_THREADS / WARPSIZE;
 
@@ -567,6 +566,18 @@ void gpu_hahstable_query(
                 unique_sketch<ITEMS_PER_THREAD>(items, tempStorage.sketch+warpId*16, maxSketchSize);
 
             __syncwarp();
+
+            // if(warpLane == 0) {
+            //     printf("query %d features %llu %llu %llu %llu %llu %llu %llu %llu ...\n", queryId,
+            //         tempStorage.sketch[warpId*16 + 0],
+            //         tempStorage.sketch[warpId*16 + 1],
+            //         tempStorage.sketch[warpId*16 + 2],
+            //         tempStorage.sketch[warpId*16 + 3],
+            //         tempStorage.sketch[warpId*16 + 4],
+            //         tempStorage.sketch[warpId*16 + 5],
+            //         tempStorage.sketch[warpId*16 + 6],
+            //         tempStorage.sketch[warpId*16 + 7]);
+            // }
 
             if(sketches != nullptr) {
                 if(warpLane < maxSketchSize)
@@ -605,6 +616,102 @@ void gpu_hahstable_query(
         }
     }
 }
+
+
+//---------------------------------------------------------------
+// BLOCK_THREADS has to be 32
+template<
+    int BLOCK_THREADS,
+    int ITEMS_PER_THREAD,
+    class Hashtable,
+    class BucketSizeT,
+    class Location>
+__global__
+__launch_bounds__(BLOCK_THREADS)
+void gpu_hahstable_query(
+    Hashtable hashtable,
+    uint32_t numQueries,
+    const feature * sketches,
+    numk_t kmerSize,
+    uint32_t maxSketchSize,
+    uint32_t windowSize,
+    uint32_t windowStride,
+    const Location * locations,
+    BucketSizeT maxLocationsPerFeature,
+    Location * locations_out,
+    int      * locationCounts
+)
+{
+    using location = Location;
+
+    constexpr int warpsPerBlock = BLOCK_THREADS / WARPSIZE;
+
+    __shared__ union {
+        //TODO MAX_SKETCH_SIZE
+        uint64_t sketch[warpsPerBlock*16];
+    } tempStorage;
+
+    const int warpId = threadIdx.x / WARPSIZE;
+    const int warpLane = threadIdx.x % WARPSIZE;
+
+    //each block processes one query (= one window)
+    for(int queryId = blockIdx.x * warpsPerBlock + warpId; queryId < numQueries; queryId += warpsPerBlock * gridDim.x)
+    {
+        const feature f = (warpLane < maxSketchSize) ?
+                          sketches[queryId*maxSketchSize + warpLane] :
+                          feature(~0);
+
+        const bool validFeature = f != feature(~0);
+
+        const uint32_t sketchMask = __ballot_sync(0xFFFFFFFF, validFeature);
+
+        const uint32_t realSketchSize = __popc(sketchMask);
+
+        //only process non-empty queries
+        if(realSketchSize) {
+
+            if(warpLane < realSketchSize)
+                tempStorage.sketch[warpId*16 + warpLane] = f;
+
+            __syncwarp();
+
+            // if(warpLane == 0) {
+            //     printf("query %d features %llu %llu %llu %llu %llu %llu %llu %llu ...\n", queryId,
+            //         tempStorage.sketch[warpId*16 + 0],
+            //         tempStorage.sketch[warpId*16 + 1],
+            //         tempStorage.sketch[warpId*16 + 2],
+            //         tempStorage.sketch[warpId*16 + 3],
+            //         tempStorage.sketch[warpId*16 + 4],
+            //         tempStorage.sketch[warpId*16 + 5],
+            //         tempStorage.sketch[warpId*16 + 6],
+            //         tempStorage.sketch[warpId*16 + 7]);
+            // }
+
+            query_hashtable(hashtable, tempStorage.sketch+warpId*16, realSketchSize);
+
+            __syncwarp();
+
+            location * out = locations_out + queryId*maxSketchSize*maxLocationsPerFeature;
+
+            uint32_t numLocations = copy_loctions(
+                tempStorage.sketch+warpId*16, realSketchSize, locations, maxLocationsPerFeature, out);
+
+            if(warpLane == 0) {
+                //store number of results of this query
+                locationCounts[queryId] = numLocations;
+            }
+
+            __syncwarp();
+        }
+        else {
+            if(warpLane == 0) {
+                //store number of results of this query
+                locationCounts[queryId] = 0;
+            }
+        }
+    }
+}
+
 
 
 } // namespace mc
