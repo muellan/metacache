@@ -194,6 +194,7 @@ class query_batch
     {
         query_gpu_data(index_type maxQueries,
                        size_type maxSequenceLength,
+                       size_type maxSketchSize,
                        size_type maxResultsPerQuery,
                        size_type maxCandidatesPerQuery,
                        bool multiGPU = false,
@@ -237,15 +238,20 @@ public:
     /** @brief allocate memory on host and device */
     query_batch(index_type maxQueries,
                 size_type maxEncodeLength,
+                size_type maxSketchSize,
                 size_type maxResultsPerQuery,
                 size_type maxCandidatesPerQuery,
-                gpu_id numGPUs = 1);
+                gpu_id numGPUs);
     //-----------------------------------------------------
     query_batch(const query_batch&) = delete;
     //---------------------------------------------------------------
     /** @brief free memory allocation */
     ~query_batch();
 
+    //---------------------------------------------------------------
+    gpu_id num_gpus() const noexcept {
+        return numGPUs_;
+    }
     //---------------------------------------------------------------
     index_type num_output_segments() const noexcept {
         return hostOutput_.numSegments_;
@@ -259,23 +265,23 @@ public:
         return hostOutput_.numQueries_;
     }
     //---------------------------------------------------------------
-    size_type * gpu_sequence_offsets(gpu_id gpuId = 0) const noexcept {
+    size_type * gpu_sequence_offsets(gpu_id gpuId) const noexcept {
         return gpuData_[gpuId].sequenceOffsets_;
     }
     //---------------------------------------------------------------
-    char * gpu_sequences(gpu_id gpuId = 0) const noexcept {
+    char * gpu_sequences(gpu_id gpuId) const noexcept {
         return gpuData_[gpuId].sequences_;
     }
     //---------------------------------------------------------------
-    feature_type * gpu_sketches(gpu_id gpuId = 0) const noexcept {
+    feature_type * gpu_sketches(gpu_id gpuId) const noexcept {
         return gpuData_[gpuId].sketches_;
     }
     //---------------------------------------------------------------
-    location_type * gpu_query_results(gpu_id gpuId = 0) const noexcept {
+    location_type * gpu_query_results(gpu_id gpuId) const noexcept {
         return gpuData_[gpuId].queryResults_;
     }
     //---------------------------------------------------------------
-    int * gpu_result_counts(gpu_id gpuId = 0) const noexcept {
+    int * gpu_result_counts(gpu_id gpuId) const noexcept {
         return gpuData_[gpuId].resultCounts_;
     }
     //---------------------------------------------------------------
@@ -298,11 +304,12 @@ public:
         else
             return span<match_candidate>{};
     }
+
     //---------------------------------------------------------------
     const cudaStream_t& work_stream(gpu_id gpu_id) const noexcept {
         return gpuData_[gpu_id].workStream_;
     }
-    //---------------------------------------------------------------
+    //-----------------------------------------------------
     void sync_work_stream(gpu_id gpu_id);
     void sync_copy_stream(gpu_id gpu_id);
 
@@ -311,32 +318,14 @@ public:
         hostInput_.numSegments_ = 0;
         hostInput_.numQueries_ = 0;
     }
-
+    //-----------------------------------------------------
     void clear_output() noexcept {
         hostOutput_.numSegments_ = 0;
         hostOutput_.numQueries_ = 0;
     }
 
     //---------------------------------------------------------------
-    /** @brief asynchronously copy queries to device */
-    void copy_queries_to_device_async();
-    //-----------------------------------------------------
-    void wait_for_queries_copied();
-private:
-    //---------------------------------------------------------------
-    void compact_results_async(gpu_id gpuId);
-public:
-    //-----------------------------------------------------
-    /** @brief asynchronously compact, sort and copy results to host */
-    void compact_sort_and_copy_allhits_async(bool copyAllHits, gpu_id gpuId);
-    //---------------------------------------------------------------
-    /** @brief asynchronously generate and copy top candidates */
-    void generate_and_copy_top_candidates_async(
-        const ranked_lineage * lineages,
-        taxon_rank lowestRank,
-        gpu_id gpuId);
-
-    //---------------------------------------------------------------
+    /** @brief add read to host batch */
     template<class... Args>
     bool add_paired_read(Args&&... args)
     {
@@ -345,10 +334,45 @@ public:
                                           maxSequenceLength_);
     }
 
+    //---------------------------------------------------------------
+    /** @brief asynchronously copy queries to device */
+    void copy_queries_to_device_async();
+    void copy_queries_to_next_device_async(gpu_id gpuId);
+    //-----------------------------------------------------
+    /** @brief synchronize event after copy to device 0 */
+    void wait_for_queries_copied();
+    //---------------------------------------------------------------
+    /** @brief record event after sketch creation on device 0 */
+    void mark_sketches_ready();
+private:
+    //---------------------------------------------------------------
+    /** @brief asynchronously compact results in work stream */
+    void compact_results_async(gpu_id gpuId);
+public:
+    //---------------------------------------------------------------
+    /**
+     * @brief asynchronously compact and sort in work stream,
+     *        and copy allhits to host in copy stream if needed
+     */
+    void compact_sort_and_copy_allhits_async(bool copyAllHits, gpu_id gpuId);
 
+    /**
+     * @brief asynchronously generate top candidates in work stream
+     *        and copy top candidates in copy stream
+     */
+    void generate_and_copy_top_candidates_async(
+        const ranked_lineage * lineages,
+        taxon_rank lowestRank,
+        gpu_id gpuId);
+    //-----------------------------------------------------
+    /** @brief synchronize event after copy to host */
+    void wait_for_results_copied();
+
+    //---------------------------------------------------------------
 private:
     index_type maxQueries_;
     size_type  maxSequenceLength_;
+    size_type  maxSketchSize_;
     size_type  maxResultsPerQuery_;
     size_type  maxCandidatesPerQuery_;
 

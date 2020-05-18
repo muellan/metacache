@@ -478,11 +478,11 @@ public:
 
     //---------------------------------------------------------------
     template<class result_type>
-    void query_async(
+    void query_sequences_async(
         query_batch<result_type>& batch,
         const sketcher& querySketcher,
         bucket_size_type maxLocationPerFeature,
-        cudaStream_t stream) const
+        gpu_id gpuId) const
     {
         // max 32*4 features => max window size is 128
         constexpr int warpsPerBlock = 2;
@@ -490,20 +490,49 @@ public:
         constexpr int itemsPerThread = 4;
 
         const int numBlocks = (batch.num_gpu_queries()+warpsPerBlock-1) / warpsPerBlock;
-        gpu_hahstable_query<threadsPerBlock,itemsPerThread><<<numBlocks,threadsPerBlock,0,stream>>>(
+        gpu_hahstable_query<threadsPerBlock,itemsPerThread><<<numBlocks,threadsPerBlock,0,batch.work_stream(gpuId)>>>(
             hashTable_,
             batch.num_gpu_queries(),
-            batch.gpu_sequence_offsets(),
-            batch.gpu_sequences(),
-            batch.gpu_sketches(),
+            batch.gpu_sequence_offsets(gpuId),
+            batch.gpu_sequences(gpuId),
+            batch.gpu_sketches(gpuId),
             querySketcher.kmer_size(),
             querySketcher.sketch_size(),
             querySketcher.window_size(),
             querySketcher.window_stride(),
             locations_,
             maxLocationPerFeature,
-            batch.gpu_query_results(),
-            batch.gpu_result_counts()
+            batch.gpu_query_results(gpuId),
+            batch.gpu_result_counts(gpuId)
+        );
+    }
+
+    //---------------------------------------------------------------
+    template<class result_type>
+    void query_sketches_async(
+        query_batch<result_type>& batch,
+        const sketcher& querySketcher,
+        bucket_size_type maxLocationPerFeature,
+        gpu_id gpuId) const
+    {
+        // max 32*4 features => max window size is 128
+        constexpr int warpsPerBlock = 2;
+        constexpr int threadsPerBlock = 32*warpsPerBlock;
+        constexpr int itemsPerThread = 4;
+
+        const int numBlocks = (batch.num_gpu_queries()+warpsPerBlock-1) / warpsPerBlock;
+        gpu_hahstable_query<threadsPerBlock,itemsPerThread><<<numBlocks,threadsPerBlock,0,batch.work_stream(gpuId)>>>(
+            hashTable_,
+            batch.num_gpu_queries(),
+            batch.gpu_sketches(gpuId),
+            querySketcher.kmer_size(),
+            querySketcher.sketch_size(),
+            querySketcher.window_size(),
+            querySketcher.window_stride(),
+            locations_,
+            maxLocationPerFeature,
+            batch.gpu_query_results(gpuId),
+            batch.gpu_result_counts(gpuId)
         );
     }
 
@@ -1018,25 +1047,41 @@ void gpu_hashmap<Key,ValueT>::query_async(
     bool copyAllHits,
     taxon_rank lowestRank) const
 {
-    gpu_id gpuId = 0;
-    cudaSetDevice(gpuId); CUERR
+    for(gpu_id gpuId = 0; gpuId < batch.num_gpus(); ++gpuId)
+    {
+        cudaSetDevice(gpuId); CUERR
 
-    queryHashTables_[gpuId].query_async(
-        batch,
-        querySketcher,
-        maxLocationPerFeature,
-        batch.work_stream(gpuId));
+        if(gpuId == 0) {
+            batch.copy_queries_to_device_async();
 
-    // batch.sync_work_stream(gpuId)
-    // CUERR
+            queryHashTables_[gpuId].query_sequences_async(
+                batch,
+                querySketcher,
+                maxLocationPerFeature,
+                gpuId);
 
-    batch.compact_sort_and_copy_allhits_async(copyAllHits, gpuId);
+            batch.mark_sketches_ready();
+        }
+        else {
+            queryHashTables_[gpuId].query_sketches_async(
+                batch,
+                querySketcher,
+                maxLocationPerFeature,
+                gpuId);
+        }
 
-    batch.generate_and_copy_top_candidates_async(
-        queryHashTables_[gpuId].lineages(), lowestRank, gpuId);
+        // batch.sync_work_stream(gpuId); CUERR
 
-    // batch.sync_copy_stream(gpuId);
-    // CUERR
+        if(gpuId < batch.num_gpus()-1)
+            batch.copy_queries_to_next_device_async(gpuId);
+
+        batch.compact_sort_and_copy_allhits_async(copyAllHits, gpuId);
+
+        batch.generate_and_copy_top_candidates_async(
+            queryHashTables_[gpuId].lineages(), lowestRank, gpuId);
+
+        // batch.sync_copy_stream(gpuId); CUERR
+    }
 }
 
 

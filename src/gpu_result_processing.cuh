@@ -325,7 +325,8 @@ void generate_top_candidates(
     const ranked_lineage * lineages,
     taxon_rank mergeBelow,
     uint32_t maxCandidatesPerQuery,
-    match_candidate * topCandidates)
+    match_candidate * topCandidates,
+    bool updateTopCandidates)
 {
     using hit_count = match_candidate::count_type;
 
@@ -339,12 +340,21 @@ void generate_top_candidates(
     {
         const int tid = threadIdx.x;
 
+        // if(tid == 0)
+        //     printf("block %d offsets %d %d\n", bid, segmentOffsets[bid], segmentOffsets[bid+1]);
+
         auto begin = locations + segmentOffsets[bid];
         const auto end = locations + segmentOffsets[bid+1];
 
         match_candidate top[MAX_CANDIDATES];
         for(int i = 0; i < MAX_CANDIDATES; ++i) {
             top[i].hits = 0;
+        }
+
+        if(updateTopCandidates && tid < maxCandidatesPerQuery) {
+            top[0] = topCandidates[bid*maxCandidatesPerQuery+tid];
+            // if(top[0].hits > 0)
+            //     printf("bid: %d top: %d tgt: %d hits: %d tax: %llu\n", bid, tid, top[0].tgt, top[0].hits, top[0].tax);
         }
 
         if(tid < maxCandidatesPerQuery) {
@@ -410,11 +420,10 @@ void generate_top_candidates(
 
             // find top candidates in whole warp
             for(int i = 1; i < 32; i *= 2) {
-                hit_count otherHits = __shfl_up_sync(0xFFFFFFFF, maxHits, i);
+                hit_count otherHits = __shfl_xor_sync(0xFFFFFFFF, maxHits, i);
                 if(maxHits < otherHits)
                     maxHits = otherHits;
             }
-            maxHits = __shfl_sync(0xFFFFFFFF, maxHits, 32-1);
 
             //TODO use whole warp for insertion
             bool insert = false;

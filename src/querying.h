@@ -89,7 +89,7 @@ void process_gpu_batch_results(
     Buffer& batchBuffer, BufferUpdate& update)
 {
     if(queryBatch.num_output_segments() > 0) {
-        queryBatch.sync_copy_stream(0);
+        queryBatch.wait_for_results_copied();
 
         for(size_t s = 0; s < queryBatch.num_output_segments(); ++s) {
             span<location> allhits = copyAllHits ? queryBatch.allhits(s) : span<location>();
@@ -133,8 +133,6 @@ void schedule_gpu_batch(
     query_batch<location>& queryBatch)
 {
     if(queryBatch.num_input_queries() > 0) {
-
-        queryBatch.copy_queries_to_device_async();
 
         db.query_gpu_async(queryBatch, copyAllHits, opt.lowestRank);
 
@@ -241,8 +239,10 @@ query_id query_batched(
                 gpuBatches[id] = std::make_unique<query_batch<location>>(
                     opt.process.batchSize,
                     opt.process.batchSize*db.query_sketcher().window_size(),
+                    db.query_sketcher().sketch_size(),
                     db.query_sketcher().sketch_size()*db.max_locations_per_feature(),
-                    opt.classify.maxNumCandidatesPerQuery);
+                    opt.classify.maxNumCandidatesPerQuery,
+                    opt.process.numGPUs);
 
             for(const auto& seq : batch) {
                 if(!gpuBatches[id]->add_paired_read(seq.seq1, seq.seq2, db.query_sketcher(), opt.classify.insertSizeMax)) {
