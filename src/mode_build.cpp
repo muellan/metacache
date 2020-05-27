@@ -649,7 +649,7 @@ void add_to_database(database& db, const build_options& opt)
     post_process_features(db, opt);
 
     if(notSilent) {
-        cout << "Writing database to file '" << opt.dbfile << "' ... " << flush;
+        cout << "Writing database to file ... " << flush;
     }
     try {
         db.write(opt.dbfile);

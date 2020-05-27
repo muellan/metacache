@@ -316,11 +316,8 @@ read_database(const string& filename, unsigned numGPUs, const database_query_opt
              << opt.maxLoadFactor << endl;
     }
 
-    cerr << "Reading database from file '" << filename << "' ";
-
     try {
         db.read(filename, numGPUs);
-        cerr << "done." << endl;
     }
     catch(const file_access_error& e) {
         cerr << "FAIL" << endl;
