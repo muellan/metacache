@@ -385,6 +385,7 @@ private:
     cudaStream_t h2dCopyStream_;
 
     cudaEvent_t queriesCopiedEvent_;
+    cudaEvent_t maxWinCopiedEvent_;
 
     gpu_id numGPUs_;
 };

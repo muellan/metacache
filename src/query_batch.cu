@@ -265,6 +265,7 @@ query_batch<Location>::query_batch(
     cudaStreamCreate(&h2dCopyStream_);
 
     cudaEventCreate(&queriesCopiedEvent_);
+    cudaEventCreate(&maxWinCopiedEvent_);
     CUERR
 
     using location_type_equivalent = uint64_t;
@@ -292,6 +293,7 @@ query_batch<Location>::~query_batch()
     cudaStreamDestroy(h2dCopyStream_);
     CUERR
     cudaEventDestroy(queriesCopiedEvent_);
+    cudaEventDestroy(maxWinCopiedEvent_);
     CUERR
 }
 
@@ -317,13 +319,16 @@ void query_batch<Location>::copy_queries_to_device_async()
     cudaMemcpyAsync(gpuData_[gpuId].sequences_, hostInput_.sequences_,
                     hostInput_.sequenceOffsets_[hostOutput_.numQueries_]*sizeof(char),
                     cudaMemcpyHostToDevice, h2dCopyStream_);
+
+    cudaEventRecord(queriesCopiedEvent_, h2dCopyStream_);
+
     cudaMemcpyAsync(gpuData_[gpuId].maxWindowsInRange_, hostInput_.maxWindowsInRange_,
                     hostOutput_.numSegments_*sizeof(window_id),
                     cudaMemcpyHostToDevice, h2dCopyStream_);
 
-    cudaEventRecord(queriesCopiedEvent_, h2dCopyStream_);
+    cudaEventRecord(maxWinCopiedEvent_, h2dCopyStream_);
 
-    // cudaEventSynchronize((queriesCopiedEvent_);
+    // cudaEventSynchronize((maxWinCopiedEvent_);
     // CUERR
 
     cudaStreamWaitEvent(gpuData_[gpuId].workStream_, queriesCopiedEvent_, 0);
@@ -337,7 +342,8 @@ void query_batch<Location>::copy_queries_to_next_device_async(gpu_id gpuId)
     // copy from device gpuId to device gpuId+1
     cudaSetDevice(gpuId);
 
-    cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, gpuData_[gpuId].sketchesReadyEvent_, 0);
+    if(gpuId == 0)
+        cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, gpuData_[gpuId].sketchesReadyEvent_, 0);
 
     cudaMemcpyPeerAsync(gpuData_[gpuId+1].queryIds_, gpuId+1,
                         gpuData_[gpuId].queryIds_, gpuId,
@@ -346,10 +352,6 @@ void query_batch<Location>::copy_queries_to_next_device_async(gpu_id gpuId)
     cudaMemcpyPeerAsync(gpuData_[gpuId+1].sketches_, gpuId+1,
                         gpuData_[gpuId].sketches_, gpuId,
                         hostOutput_.numQueries_*maxSketchSize_*sizeof(feature_type),
-                        gpuData_[gpuId].copyStream_);
-    cudaMemcpyPeerAsync(gpuData_[gpuId+1].maxWindowsInRange_, gpuId+1,
-                        gpuData_[gpuId].maxWindowsInRange_, gpuId,
-                        hostOutput_.numSegments_*sizeof(window_id),
                         gpuData_[gpuId].copyStream_);
 
     cudaEventRecord(gpuData_[gpuId].sketchesCopiedEvent_, gpuData_[gpuId].copyStream_);
@@ -360,8 +362,6 @@ void query_batch<Location>::copy_queries_to_next_device_async(gpu_id gpuId)
     cudaSetDevice(gpuId+1);
 
     cudaStreamWaitEvent(gpuData_[gpuId+1].copyStream_, gpuData_[gpuId].sketchesCopiedEvent_, 0);
-    cudaEventRecord(gpuData_[gpuId+1].sketchesReadyEvent_, gpuData_[gpuId+1].copyStream_);
-
     cudaStreamWaitEvent(gpuData_[gpuId+1].workStream_, gpuData_[gpuId].sketchesCopiedEvent_, 0);
 }
 
@@ -370,7 +370,7 @@ void query_batch<Location>::copy_queries_to_next_device_async(gpu_id gpuId)
 template<class Location>
 void query_batch<Location>::wait_for_queries_copied()
 {
-    cudaEventSynchronize(queriesCopiedEvent_);
+    cudaEventSynchronize(maxWinCopiedEvent_);
     CUERR
 }
 
@@ -476,6 +476,18 @@ void query_batch<Location>::generate_and_copy_top_candidates_async(
 {
     cudaSetDevice(gpuId);
 
+    cudaEvent_t& event = (gpuId == 0) ? maxWinCopiedEvent_ : gpuData_[gpuId-1].tophitsCopiedEvent_;
+
+    cudaStreamWaitEvent(gpuData_[gpuId].workStream_, event, 0);
+    if(gpuId+1 < numGPUs_) {
+        // copy maxWindowsInRange to next device
+        cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, event, 0);
+        cudaMemcpyPeerAsync(gpuData_[gpuId+1].maxWindowsInRange_, gpuId+1,
+            gpuData_[gpuId].maxWindowsInRange_, gpuId,
+            hostOutput_.numSegments_*sizeof(window_id),
+            gpuData_[gpuId].copyStream_);
+    }
+
     const index_type numBlocks = hostOutput_.numSegments_;
 
     //TODO different max cand cases
@@ -483,9 +495,6 @@ void query_batch<Location>::generate_and_copy_top_candidates_async(
         constexpr int maxCandidates = 2;
 
         bool update = gpuId > 0;
-
-        if(update)
-            cudaStreamWaitEvent(gpuData_[gpuId].workStream_, gpuData_[gpuId-1].tophitsCopiedEvent_, 0);
 
         generate_top_candidates<maxCandidates><<<numBlocks,32,0,gpuData_[gpuId].workStream_>>>(
             hostOutput_.numSegments_,
