@@ -223,7 +223,7 @@ public:
         cudaStream_t workStream_;
         cudaStream_t copyStream_;
 
-        cudaEvent_t sketchesReadyEvent_;
+        cudaEvent_t queryFinishedEvent_;
         cudaEvent_t sketchesCopiedEvent_;
         cudaEvent_t offsetsReadyEvent_;
         cudaEvent_t offsetsCopiedEvent_;
@@ -325,7 +325,7 @@ public:
     void wait_for_queries_copied();
     //---------------------------------------------------------------
     /** @brief record event after sketch creation on device 0 */
-    void mark_sketches_ready();
+    void mark_query_finished();
 private:
     //---------------------------------------------------------------
     /** @brief asynchronously compact results in work stream */

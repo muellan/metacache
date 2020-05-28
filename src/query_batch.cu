@@ -151,7 +151,7 @@ query_batch<Location>::query_gpu_data::query_gpu_data(
     cudaStreamCreate(&workStream_);
     cudaStreamCreate(&copyStream_);
     CUERR
-    cudaEventCreate(&sketchesReadyEvent_);
+    cudaEventCreate(&queryFinishedEvent_);
     cudaEventCreate(&sketchesCopiedEvent_);
     cudaEventCreate(&offsetsReadyEvent_);
     cudaEventCreate(&offsetsCopiedEvent_);
@@ -193,8 +193,8 @@ query_batch<Location>::query_gpu_data::query_gpu_data(query_gpu_data&& other)
     copyStream_ = other.copyStream_;
     other.copyStream_ = 0;
 
-    sketchesReadyEvent_ = other.sketchesReadyEvent_;
-    other.sketchesReadyEvent_ = 0;
+    queryFinishedEvent_ = other.queryFinishedEvent_;
+    other.queryFinishedEvent_ = 0;
     sketchesCopiedEvent_ = other.sketchesCopiedEvent_;
     other.sketchesCopiedEvent_ = 0;
     offsetsReadyEvent_ = other.offsetsReadyEvent_;
@@ -229,7 +229,7 @@ query_batch<Location>::query_gpu_data::~query_gpu_data()
     if(workStream_) cudaStreamDestroy(workStream_);
     if(copyStream_) cudaStreamDestroy(copyStream_);
     CUERR
-    if(sketchesReadyEvent_)  cudaEventDestroy(sketchesReadyEvent_);
+    if(queryFinishedEvent_)  cudaEventDestroy(queryFinishedEvent_);
     if(sketchesCopiedEvent_) cudaEventDestroy(sketchesCopiedEvent_);
     if(offsetsReadyEvent_)  cudaEventDestroy(offsetsReadyEvent_);
     if(offsetsCopiedEvent_) cudaEventDestroy(offsetsCopiedEvent_);
@@ -343,7 +343,7 @@ void query_batch<Location>::copy_queries_to_next_device_async(gpu_id gpuId)
     cudaSetDevice(gpuId);
 
     if(gpuId == 0)
-        cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, gpuData_[gpuId].sketchesReadyEvent_, 0);
+        cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, gpuData_[gpuId].queryFinishedEvent_, 0);
 
     cudaMemcpyPeerAsync(gpuData_[gpuId+1].queryIds_, gpuId+1,
                         gpuData_[gpuId].queryIds_, gpuId,
@@ -370,6 +370,7 @@ void query_batch<Location>::copy_queries_to_next_device_async(gpu_id gpuId)
 template<class Location>
 void query_batch<Location>::wait_for_queries_copied()
 {
+    // cudaEventSynchronize(queriesCopiedEvent_);
     cudaEventSynchronize(maxWinCopiedEvent_);
     CUERR
 }
@@ -377,10 +378,10 @@ void query_batch<Location>::wait_for_queries_copied()
 
 //---------------------------------------------------------------
 template<class Location>
-void query_batch<Location>::mark_sketches_ready()
+void query_batch<Location>::mark_query_finished()
 {
     gpu_id gpuId = 0;
-    cudaEventRecord(gpuData_[gpuId].sketchesReadyEvent_, gpuData_[gpuId].workStream_);
+    cudaEventRecord(gpuData_[gpuId].queryFinishedEvent_, gpuData_[gpuId].workStream_);
 }
 
 

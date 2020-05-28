@@ -1057,8 +1057,6 @@ void gpu_hashmap<Key,ValueT>::query_async(
                 batch.gpu_data(gpuId),
                 querySketcher,
                 maxLocationPerFeature);
-
-            batch.mark_sketches_ready();
         }
         else {
             queryHashTables_[gpuId].query_sketches_async(
@@ -1067,6 +1065,7 @@ void gpu_hashmap<Key,ValueT>::query_async(
                 querySketcher,
                 maxLocationPerFeature);
         }
+        batch.mark_query_finished();
 
         // batch.sync_work_stream(gpuId); CUERR
 
