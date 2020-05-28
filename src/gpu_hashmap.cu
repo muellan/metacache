@@ -1040,6 +1040,7 @@ void gpu_hashmap<Key,ValueT>::wait_until_add_target_complete(
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::query_async(
     query_batch<value_type>& batch,
+    gpu_id hostId,
     const sketcher& querySketcher,
     bucket_size_type maxLocationPerFeature,
     bool copyAllHits,
@@ -1050,34 +1051,34 @@ void gpu_hashmap<Key,ValueT>::query_async(
         cudaSetDevice(gpuId); CUERR
 
         if(gpuId == 0) {
-            batch.copy_queries_to_device_async();
+            batch.copy_queries_to_device_async(hostId);
 
             queryHashTables_[gpuId].query_sequences_async(
-                batch.num_gpu_queries(),
+                batch.host_data(hostId).num_queries(),
                 batch.gpu_data(gpuId),
                 querySketcher,
                 maxLocationPerFeature);
         }
         else {
             queryHashTables_[gpuId].query_sketches_async(
-                batch.num_gpu_queries(),
+                batch.host_data(hostId).num_queries(),
                 batch.gpu_data(gpuId),
                 querySketcher,
                 maxLocationPerFeature);
         }
         batch.mark_query_finished();
 
-        // batch.sync_work_stream(gpuId); CUERR
+        batch.sync_work_stream(gpuId); CUERR
 
         if(gpuId < batch.num_gpus()-1)
-            batch.copy_queries_to_next_device_async(gpuId);
+            batch.copy_queries_to_next_device_async(hostId, gpuId);
 
-        batch.compact_sort_and_copy_allhits_async(copyAllHits, gpuId);
+        batch.compact_sort_and_copy_allhits_async(hostId, gpuId, copyAllHits);
 
         batch.generate_and_copy_top_candidates_async(
-            queryHashTables_[gpuId].lineages(), lowestRank, gpuId);
+            hostId, gpuId, queryHashTables_[gpuId].lineages(), lowestRank);
 
-        // batch.sync_copy_stream(gpuId); CUERR
+        batch.sync_copy_stream(gpuId); CUERR
     }
 }
 

@@ -157,6 +157,7 @@ public:
     //---------------------------------------------------------------
     void query_async(
         query_batch<value_type>& batch,
+        gpu_id hostId,
         const sketcher& querySketcher,
         bucket_size_type maxLocationPerFeature,
         bool copyAllHits,

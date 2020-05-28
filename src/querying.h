@@ -86,20 +86,21 @@ void process_gpu_batch_results(
     const std::vector<sequence_query>& sequenceBatch,
     bool copyAllHits,
     query_batch<location>& queryBatch,
+    gpu_id hostId,
     Buffer& batchBuffer, BufferUpdate& update)
 {
-    if(queryBatch.num_output_segments() > 0) {
+    if(queryBatch.host_data(hostId).num_segments() > 0) {
         queryBatch.wait_for_results_copied();
 
-        for(size_t s = 0; s < queryBatch.num_output_segments(); ++s) {
-            span<location> allhits = copyAllHits ? queryBatch.allhits(s) : span<location>();
+        for(size_t s = 0; s < queryBatch.host_data(hostId).num_segments(); ++s) {
+            span<location> allhits = copyAllHits ? queryBatch.host_data(hostId).allhits(s) : span<location>();
 
             // std::cout << s << ". targetMatches:    ";
             // for(const auto& m : allhits)
             //     std::cout << m.tgt << ':' << m.win << ' ';
             // std::cout << '\n';
 
-            span<match_candidate> tophits = queryBatch.top_candidates(s);
+            span<match_candidate> tophits = queryBatch.host_data(hostId).top_candidates(s);
 
             // std::cout << s << ". top hits: ";
             // for(const auto& t : tophits) {
@@ -116,7 +117,7 @@ void process_gpu_batch_results(
         }
         // std::cout << '\n';
 
-        queryBatch.clear_output();
+        queryBatch.host_data(hostId).clear();
     }
 }
 
@@ -130,15 +131,16 @@ void schedule_gpu_batch(
     const database& db,
     const classification_options& opt,
     bool copyAllHits,
-    query_batch<location>& queryBatch)
+    query_batch<location>& queryBatch,
+    gpu_id hostId)
 {
-    if(queryBatch.num_input_queries() > 0) {
+    // std::cerr << "host id " << hostId << ": " << queryBatch.host_data(hostId).num_queries() << " queries\n";
 
-        db.query_gpu_async(queryBatch, copyAllHits, opt.lowestRank);
+    if(queryBatch.host_data(hostId).num_queries() > 0) {
+
+        db.query_gpu_async(queryBatch, hostId, copyAllHits, opt.lowestRank);
 
         queryBatch.wait_for_queries_copied();
-
-        queryBatch.clear_input();
     }
 }
 
@@ -186,8 +188,14 @@ query_id query_batched(
 
     std::mutex finalizeMtx;
 
-    // each thread may have a gpu batch for querying
-    std::vector<std::unique_ptr<query_batch<location>>> gpuBatches(opt.process.numThreads);
+    query_batch<location> queryBatch(
+        opt.process.batchSize,
+        opt.process.batchSize*db.query_sketcher().window_size(),
+        db.query_sketcher().sketch_size(),
+        db.query_sketcher().sketch_size()*db.max_locations_per_feature(),
+        opt.classify.maxNumCandidatesPerQuery,
+        (opt.process.numThreads - (opt.process.numThreads > 1)),
+        opt.process.numGPUs);
 
     // get executor that runs classification in batches
     batch_processing_options<sequence_query> execOpt;
@@ -218,24 +226,15 @@ query_id query_batched(
         [&](int id, std::vector<sequence_query>& batch) {
             auto resultsBuffer = getBuffer();
 
-            if(!gpuBatches[id])
-                gpuBatches[id] = std::make_unique<query_batch<location>>(
-                    opt.process.batchSize,
-                    opt.process.batchSize*db.query_sketcher().window_size(),
-                    db.query_sketcher().sketch_size(),
-                    db.query_sketcher().sketch_size()*db.max_locations_per_feature(),
-                    opt.classify.maxNumCandidatesPerQuery,
-                    opt.process.numGPUs);
-
             for(const auto& seq : batch) {
-                if(!gpuBatches[id]->add_paired_read(seq.seq1, seq.seq2, db.query_sketcher(), opt.classify.insertSizeMax)) {
+                if(!queryBatch.add_paired_read(id, seq.seq1, seq.seq2, db.query_sketcher(), opt.classify.insertSizeMax)) {
                     std::cerr << "query batch is too small for a single read!" << std::endl;
                 }
             }
             // send new batch to gpu
-            schedule_gpu_batch(db, opt.classify, copyAllHits, *(gpuBatches[id]));
+            schedule_gpu_batch(db, opt.classify, copyAllHits, queryBatch, id);
             // process results from previous batch
-            process_gpu_batch_results(batch, copyAllHits, *(gpuBatches[id]), resultsBuffer, update);
+            process_gpu_batch_results(batch, copyAllHits, queryBatch, id, resultsBuffer, update);
 
             std::lock_guard<std::mutex> lock(finalizeMtx);
             finalize(std::move(resultsBuffer));

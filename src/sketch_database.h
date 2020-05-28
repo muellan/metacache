@@ -850,11 +850,13 @@ public:
     //---------------------------------------------------------------
     void
     query_gpu_async(query_batch<location>& queryBatch,
+                    gpu_id hostId,
                     bool copyAllHits,
                     taxon_rank lowestRank) const
     {
         featureStoreGPU_.query_async(
             queryBatch,
+            hostId,
             query_sketcher(),
             max_locations_per_feature(),
             copyAllHits,

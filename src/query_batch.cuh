@@ -25,6 +25,9 @@ namespace mc {
 template<class Location>
 class query_batch
 {
+    class segmented_sort;
+
+public:
     using index_type     = uint32_t;
     using size_type      = uint32_t;
     using location_type  = Location;
@@ -33,16 +36,16 @@ class query_batch
     using taxon_rank     = taxonomy::rank;
     using ranked_lineage = taxonomy::ranked_lineage;
 
-    class segmented_sort;
-
     //---------------------------------------------------------------
-    struct query_host_data
+    class query_host_data
     {
+    public:
         query_host_data(index_type maxQueries,
                         size_type maxSequenceLength,
                         size_type maxResultsPerQuery,
                         size_type maxCandidatesPerQuery);
         query_host_data(const query_host_data&) = delete;
+        query_host_data(query_host_data&&);
         ~query_host_data();
 
         /*************************************************************************//**
@@ -164,8 +167,51 @@ class query_batch
         }
 
         //---------------------------------------------------------------
-        index_type   numSegments_;
-        index_type   numQueries_;
+        span<location_type> allhits(index_type id) const noexcept {
+            if(id < num_segments())
+                return span<location_type>{
+                    query_results()+result_offsets()[id],
+                    query_results()+result_offsets()[id+1]
+                };
+            else
+                return span<location_type>{};
+        }
+        //---------------------------------------------------------------
+        span<match_candidate> top_candidates(index_type id) const noexcept {
+            if(id < num_segments())
+                return span<match_candidate>{
+                    top_candidates()+id*maxCandidatesPerQuery_,
+                    top_candidates()+(id+1)*maxCandidatesPerQuery_
+                };
+            else
+                return span<match_candidate>{};
+        }
+
+        //---------------------------------------------------------------
+        index_type num_segments() const noexcept { return numSegments_; }
+        index_type num_queries() const noexcept { return numQueries_; }
+
+        index_type * query_ids() const noexcept { return queryIds_; };
+        size_type  * sequence_offsets() const noexcept { return sequenceOffsets_; };
+        char       * sequences() const noexcept { return sequences_; };
+        window_id  * max_windows_in_range() const noexcept { return maxWindowsInRange_; };
+
+        location_type   * query_results() const noexcept { return queryResults_; }
+        int             * result_offsets() const noexcept { return resultOffsets_; }
+        match_candidate * top_candidates() const noexcept { return topCandidates_; }
+
+        //---------------------------------------------------------------
+        void clear() noexcept {
+            numSegments_ = 0;
+            numQueries_ = 0;
+        }
+
+    private:
+        index_type numSegments_;
+        index_type numQueries_;
+
+        size_type  maxCandidatesPerQuery_;
+
         // input
         index_type * queryIds_;
         size_type  * sequenceOffsets_;
@@ -177,7 +223,6 @@ class query_batch
         match_candidate * topCandidates_;
     };
 
-public:
     //---------------------------------------------------------------
     struct query_gpu_data
     {
@@ -222,7 +267,6 @@ public:
     };
 
 
-public:
     //---------------------------------------------------------------
     /** @brief allocate memory on host and device */
     query_batch(index_type maxQueries,
@@ -230,6 +274,7 @@ public:
                 size_type maxSketchSize,
                 size_type maxResultsPerQuery,
                 size_type maxCandidatesPerQuery,
+                gpu_id numHostThreads,
                 gpu_id numGPUs);
     //-----------------------------------------------------
     query_batch(const query_batch&) = delete;
@@ -242,16 +287,8 @@ public:
         return numGPUs_;
     }
     //---------------------------------------------------------------
-    index_type num_output_segments() const noexcept {
-        return hostData_.numSegments_;
-    }
-    //---------------------------------------------------------------
-    index_type num_input_queries() const noexcept {
-        return hostData_.numQueries_;
-    }
-    //---------------------------------------------------------------
-    index_type num_gpu_queries() const noexcept {
-        return hostData_.numQueries_;
+    query_host_data& host_data(gpu_id hostId) noexcept {
+        return hostData_[hostId];
     }
     //---------------------------------------------------------------
     const query_gpu_data& gpu_data(gpu_id gpuId) const noexcept {
@@ -259,55 +296,24 @@ public:
     }
 
     //---------------------------------------------------------------
-    span<location_type> allhits(index_type id) const noexcept {
-        if(id < hostData_.numSegments_)
-            return span<location_type>{
-                hostData_.queryResults_+hostData_.resultOffsets_[id],
-                hostData_.queryResults_+hostData_.resultOffsets_[id+1]
-            };
-        else
-            return span<location_type>{};
-    }
-    //---------------------------------------------------------------
-    span<match_candidate> top_candidates(index_type id) const noexcept {
-        if(id < hostData_.numSegments_)
-            return span<match_candidate>{
-                hostData_.topCandidates_+id*maxCandidatesPerQuery_,
-                hostData_.topCandidates_+(id+1)*maxCandidatesPerQuery_
-            };
-        else
-            return span<match_candidate>{};
-    }
-
-    //---------------------------------------------------------------
     void sync_work_stream(gpu_id gpu_id);
     void sync_copy_stream(gpu_id gpu_id);
 
     //---------------------------------------------------------------
-    void clear_input() noexcept {
-        hostData_.numSegments_ = 0;
-        hostData_.numQueries_ = 0;
-    }
-    //-----------------------------------------------------
-    void clear_output() noexcept {
-        hostData_.numSegments_ = 0;
-        hostData_.numQueries_ = 0;
-    }
-
-    //---------------------------------------------------------------
     /** @brief add read to host batch */
     template<class... Args>
-    bool add_paired_read(Args&&... args)
+    bool add_paired_read(gpu_id hostId, Args&&... args)
     {
-        return hostData_.add_paired_read(std::forward<Args>(args)...,
-                                          maxQueries_,
-                                          maxSequenceLength_);
+        return hostData_[hostId].add_paired_read(
+            std::forward<Args>(args)...,
+            maxQueries_,
+            maxSequenceLength_);
     }
 
     //---------------------------------------------------------------
     /** @brief asynchronously copy queries to device */
-    void copy_queries_to_device_async();
-    void copy_queries_to_next_device_async(gpu_id gpuId);
+    void copy_queries_to_device_async(gpu_id hostId);
+    void copy_queries_to_next_device_async(gpu_id hostId, gpu_id gpuId);
     //-----------------------------------------------------
     /** @brief synchronize event after copy to device 0 */
     void wait_for_queries_copied();
@@ -317,23 +323,27 @@ public:
 private:
     //---------------------------------------------------------------
     /** @brief asynchronously compact results in work stream */
-    void compact_results_async(gpu_id gpuId);
+    void compact_results_async(gpu_id hostId, gpu_id gpuId);
 public:
     //---------------------------------------------------------------
     /**
      * @brief asynchronously compact and sort in work stream,
      *        and copy allhits to host in copy stream if needed
      */
-    void compact_sort_and_copy_allhits_async(bool copyAllHits, gpu_id gpuId);
+    void compact_sort_and_copy_allhits_async(
+        gpu_id hostId,
+        gpu_id gpuId,
+        bool copyAllHits);
 
     /**
      * @brief asynchronously generate top candidates in work stream
      *        and copy top candidates in copy stream
      */
     void generate_and_copy_top_candidates_async(
+        gpu_id hostId,
+        gpu_id gpuId,
         const ranked_lineage * lineages,
-        taxon_rank lowestRank,
-        gpu_id gpuId);
+        taxon_rank lowestRank);
     //-----------------------------------------------------
     /** @brief synchronize event after copy to host */
     void wait_for_results_copied();
@@ -346,7 +356,7 @@ private:
     size_type  maxResultsPerQuery_;
     size_type  maxCandidatesPerQuery_;
 
-    query_host_data hostData_;
+    std::vector<query_host_data> hostData_;
     std::vector<query_gpu_data> gpuData_;
 
     std::vector<segmented_sort> sorters_;
