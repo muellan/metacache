@@ -189,6 +189,7 @@ class query_batch
         match_candidate * topCandidates_;
     };
 
+public:
     //---------------------------------------------------------------
     struct query_gpu_data
     {
@@ -265,25 +266,10 @@ public:
         return hostOutput_.numQueries_;
     }
     //---------------------------------------------------------------
-    size_type * gpu_sequence_offsets(gpu_id gpuId) const noexcept {
-        return gpuData_[gpuId].sequenceOffsets_;
+    const query_gpu_data& gpu_data(gpu_id gpuId) const noexcept {
+        return gpuData_[gpuId];
     }
-    //---------------------------------------------------------------
-    char * gpu_sequences(gpu_id gpuId) const noexcept {
-        return gpuData_[gpuId].sequences_;
-    }
-    //---------------------------------------------------------------
-    feature_type * gpu_sketches(gpu_id gpuId) const noexcept {
-        return gpuData_[gpuId].sketches_;
-    }
-    //---------------------------------------------------------------
-    location_type * gpu_query_results(gpu_id gpuId) const noexcept {
-        return gpuData_[gpuId].queryResults_;
-    }
-    //---------------------------------------------------------------
-    int * gpu_result_counts(gpu_id gpuId) const noexcept {
-        return gpuData_[gpuId].resultCounts_;
-    }
+
     //---------------------------------------------------------------
     span<location_type> allhits(index_type id) const noexcept {
         if(id < hostOutput_.numSegments_)
@@ -306,10 +292,6 @@ public:
     }
 
     //---------------------------------------------------------------
-    const cudaStream_t& work_stream(gpu_id gpu_id) const noexcept {
-        return gpuData_[gpu_id].workStream_;
-    }
-    //-----------------------------------------------------
     void sync_work_stream(gpu_id gpu_id);
     void sync_copy_stream(gpu_id gpu_id);
 

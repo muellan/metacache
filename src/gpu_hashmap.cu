@@ -477,62 +477,60 @@ public:
     }
 
     //---------------------------------------------------------------
-    template<class result_type>
     void query_sequences_async(
-        query_batch<result_type>& batch,
+        uint32_t numQueries,
+        const typename query_batch<location_type>::query_gpu_data& gpuData,
         const sketcher& querySketcher,
-        bucket_size_type maxLocationPerFeature,
-        gpu_id gpuId) const
+        bucket_size_type maxLocationPerFeature) const
     {
         // max 32*4 features => max window size is 128
         constexpr int warpsPerBlock = 2;
         constexpr int threadsPerBlock = 32*warpsPerBlock;
         constexpr int itemsPerThread = 4;
 
-        const int numBlocks = (batch.num_gpu_queries()+warpsPerBlock-1) / warpsPerBlock;
-        gpu_hahstable_query<threadsPerBlock,itemsPerThread><<<numBlocks,threadsPerBlock,0,batch.work_stream(gpuId)>>>(
+        const int numBlocks = (numQueries+warpsPerBlock-1) / warpsPerBlock;
+        gpu_hahstable_query<threadsPerBlock,itemsPerThread><<<numBlocks,threadsPerBlock,0,gpuData.workStream_>>>(
             hashTable_,
-            batch.num_gpu_queries(),
-            batch.gpu_sequence_offsets(gpuId),
-            batch.gpu_sequences(gpuId),
-            batch.gpu_sketches(gpuId),
+            numQueries,
+            gpuData.sequenceOffsets_,
+            gpuData.sequences_,
+            gpuData.sketches_,
             querySketcher.kmer_size(),
             querySketcher.sketch_size(),
             querySketcher.window_size(),
             querySketcher.window_stride(),
             locations_,
             maxLocationPerFeature,
-            batch.gpu_query_results(gpuId),
-            batch.gpu_result_counts(gpuId)
+            gpuData.queryResults_,
+            gpuData.resultCounts_
         );
     }
 
     //---------------------------------------------------------------
-    template<class result_type>
     void query_sketches_async(
-        query_batch<result_type>& batch,
+        uint32_t numQueries,
+        const typename query_batch<location_type>::query_gpu_data& gpuData,
         const sketcher& querySketcher,
-        bucket_size_type maxLocationPerFeature,
-        gpu_id gpuId) const
+        bucket_size_type maxLocationPerFeature) const
     {
         // max 32*4 features => max window size is 128
         constexpr int warpsPerBlock = 2;
         constexpr int threadsPerBlock = 32*warpsPerBlock;
         constexpr int itemsPerThread = 4;
 
-        const int numBlocks = (batch.num_gpu_queries()+warpsPerBlock-1) / warpsPerBlock;
-        gpu_hahstable_query<threadsPerBlock,itemsPerThread><<<numBlocks,threadsPerBlock,0,batch.work_stream(gpuId)>>>(
+        const int numBlocks = (numQueries+warpsPerBlock-1) / warpsPerBlock;
+        gpu_hahstable_query<threadsPerBlock,itemsPerThread><<<numBlocks,threadsPerBlock,0,gpuData.workStream_>>>(
             hashTable_,
-            batch.num_gpu_queries(),
-            batch.gpu_sketches(gpuId),
+            numQueries,
+            gpuData.sketches_,
             querySketcher.kmer_size(),
             querySketcher.sketch_size(),
             querySketcher.window_size(),
             querySketcher.window_stride(),
             locations_,
             maxLocationPerFeature,
-            batch.gpu_query_results(gpuId),
-            batch.gpu_result_counts(gpuId)
+            gpuData.queryResults_,
+            gpuData.resultCounts_
         );
     }
 
@@ -1055,19 +1053,19 @@ void gpu_hashmap<Key,ValueT>::query_async(
             batch.copy_queries_to_device_async();
 
             queryHashTables_[gpuId].query_sequences_async(
-                batch,
+                batch.num_gpu_queries(),
+                batch.gpu_data(gpuId),
                 querySketcher,
-                maxLocationPerFeature,
-                gpuId);
+                maxLocationPerFeature);
 
             batch.mark_sketches_ready();
         }
         else {
             queryHashTables_[gpuId].query_sketches_async(
-                batch,
+                batch.num_gpu_queries(),
+                batch.gpu_data(gpuId),
                 querySketcher,
-                maxLocationPerFeature,
-                gpuId);
+                maxLocationPerFeature);
         }
 
         // batch.sync_work_stream(gpuId); CUERR
