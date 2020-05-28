@@ -200,6 +200,11 @@ public:
         int             * result_offsets() const noexcept { return resultOffsets_; }
         match_candidate * top_candidates() const noexcept { return topCandidates_; }
 
+        cudaEvent_t& results_copied_event() noexcept { return resultsCopiedEvent_; }
+
+        //---------------------------------------------------------------
+        void wait_for_results();
+
         //---------------------------------------------------------------
         void clear() noexcept {
             numSegments_ = 0;
@@ -221,6 +226,8 @@ public:
         location_type   * queryResults_;
         int             * resultOffsets_;
         match_candidate * topCandidates_;
+
+        cudaEvent_t resultsCopiedEvent_;
     };
 
     //---------------------------------------------------------------

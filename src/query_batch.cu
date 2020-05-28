@@ -63,6 +63,9 @@ query_batch<Location>::query_host_data::query_host_data(
     resultOffsets_[0] = 0;
     cudaMallocHost(&topCandidates_, maxQueries*maxCandidatesPerQuery_*sizeof(match_candidate));
     CUERR
+
+    cudaEventCreate(&resultsCopiedEvent_);
+    CUERR
 }
 //---------------------------------------------------------------
 template<class Location>
@@ -76,6 +79,9 @@ query_batch<Location>::query_host_data::~query_host_data()
     if(queryResults_)  cudaFreeHost(queryResults_);
     if(resultOffsets_) cudaFreeHost(resultOffsets_);
     if(topCandidates_) cudaFreeHost(topCandidates_);
+    CUERR
+
+    if(resultsCopiedEvent_)  cudaEventDestroy(resultsCopiedEvent_);
     CUERR
 }
 //---------------------------------------------------------------
@@ -101,6 +107,16 @@ query_batch<Location>::query_host_data::query_host_data(query_host_data&& other)
     other.resultOffsets_ = nullptr;
     topCandidates_       = other.topCandidates_;
     other.topCandidates_ = nullptr;
+
+    resultsCopiedEvent_ = other.resultsCopiedEvent_;
+    other.resultsCopiedEvent_ = 0;
+}
+//---------------------------------------------------------------
+template<class Location>
+void query_batch<Location>::query_host_data::wait_for_results()
+{
+    cudaEventSynchronize(resultsCopiedEvent_);
+    CUERR
 }
 
 
@@ -278,6 +294,8 @@ query_batch<Location>::query_batch(
     cudaEventCreate(&queriesCopiedEvent_);
     cudaEventCreate(&maxWinCopiedEvent_);
     CUERR
+
+    cudaSetDevice(numGPUs_-1); CUERR
 
     for(gpu_id hostId = 0; hostId < numHostThreads; ++hostId) {
         hostData_.emplace_back(maxQueries, maxSequenceLength, maxResultsPerQuery, maxCandidatesPerQuery);
@@ -534,6 +552,8 @@ void query_batch<Location>::generate_and_copy_top_candidates_async(
         cudaMemcpyAsync(hostData_[hostId].top_candidates(), gpuData_[gpuId].topCandidates_,
                         hostData_[hostId].num_segments()*maxCandidatesPerQuery_*sizeof(match_candidate),
                         cudaMemcpyDeviceToHost, gpuData_[gpuId].copyStream_);
+
+        cudaEventRecord(hostData_[hostId].results_copied_event(), gpuData_[gpuId].copyStream_);
     }
     else {
         // copy candidates to next device

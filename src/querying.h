@@ -82,15 +82,22 @@ struct sequence_query
  *
  *****************************************************************************/
 template<class Buffer, class BufferUpdate>
-void process_gpu_batch_results(
+void query_gpu(
+    const database& db,
+    const classification_options& opt,
     const std::vector<sequence_query>& sequenceBatch,
     bool copyAllHits,
     query_batch<location>& queryBatch,
     gpu_id hostId,
     Buffer& batchBuffer, BufferUpdate& update)
 {
-    if(queryBatch.host_data(hostId).num_segments() > 0) {
-        queryBatch.wait_for_results_copied();
+    // std::cerr << "host id " << hostId << ": " << queryBatch.host_data(hostId).num_queries() << " queries\n";
+
+    if(queryBatch.host_data(hostId).num_queries() > 0)
+    {
+        db.query_gpu_async(queryBatch, hostId, copyAllHits, opt.lowestRank);
+
+        queryBatch.host_data(hostId).wait_for_results();
 
         for(size_t s = 0; s < queryBatch.host_data(hostId).num_segments(); ++s) {
             span<location> allhits = copyAllHits ? queryBatch.host_data(hostId).allhits(s) : span<location>();
@@ -118,29 +125,6 @@ void process_gpu_batch_results(
         // std::cout << '\n';
 
         queryBatch.host_data(hostId).clear();
-    }
-}
-
-/*************************************************************************//**
- *
- * @brief schedule batch of sequence data for gpu database query
- *
- *****************************************************************************/
-template<int I = 0>
-void schedule_gpu_batch(
-    const database& db,
-    const classification_options& opt,
-    bool copyAllHits,
-    query_batch<location>& queryBatch,
-    gpu_id hostId)
-{
-    // std::cerr << "host id " << hostId << ": " << queryBatch.host_data(hostId).num_queries() << " queries\n";
-
-    if(queryBatch.host_data(hostId).num_queries() > 0) {
-
-        db.query_gpu_async(queryBatch, hostId, copyAllHits, opt.lowestRank);
-
-        queryBatch.wait_for_queries_copied();
     }
 }
 
@@ -231,10 +215,8 @@ query_id query_batched(
                     std::cerr << "query batch is too small for a single read!" << std::endl;
                 }
             }
-            // send new batch to gpu
-            schedule_gpu_batch(db, opt.classify, copyAllHits, queryBatch, id);
-            // process results from previous batch
-            process_gpu_batch_results(batch, copyAllHits, queryBatch, id, resultsBuffer, update);
+            // query batch to gpu and wait for results
+            query_gpu(db, opt.classify, batch, copyAllHits, queryBatch, id, resultsBuffer, update);
 
             std::lock_guard<std::mutex> lock(finalizeMtx);
             finalize(std::move(resultsBuffer));
