@@ -189,11 +189,6 @@ query_id query_batched(
     // each thread may have a gpu batch for querying
     std::vector<std::unique_ptr<query_batch<location>>> gpuBatches(opt.process.numThreads);
 
-    std::vector<std::vector<sequence_query>> swapBatches(opt.process.numThreads);
-    for(auto& batch : swapBatches) {
-        batch.resize(32);
-    }
-
     // get executor that runs classification in batches
     batch_processing_options<sequence_query> execOpt;
     execOpt.concurrency(1, opt.process.numThreads - 1);
@@ -217,18 +212,6 @@ query_id query_batched(
         return std::max(window_id(1), numWindows1 + numWindows2);
     });
 
-    execOpt.on_work_done([&](int id) {
-        if(gpuBatches[id]) {
-            auto resultsBuffer = getBuffer();
-
-            // process last batch
-            process_gpu_batch_results(swapBatches[id], copyAllHits, *(gpuBatches[id]), resultsBuffer, update);
-
-            std::lock_guard<std::mutex> lock(finalizeMtx);
-            finalize(std::move(resultsBuffer));
-        }
-    });
-
     batch_executor<sequence_query> executor {
         execOpt,
         // classifies a batch of input queries
@@ -249,12 +232,10 @@ query_id query_batched(
                     std::cerr << "query batch is too small for a single read!" << std::endl;
                 }
             }
-            // process results from previous batch
-            process_gpu_batch_results(swapBatches[id], copyAllHits, *(gpuBatches[id]), resultsBuffer, update);
             // send new batch to gpu
             schedule_gpu_batch(db, opt.classify, copyAllHits, *(gpuBatches[id]));
-
-            batch.swap(swapBatches[id]);
+            // process results from previous batch
+            process_gpu_batch_results(batch, copyAllHits, *(gpuBatches[id]), resultsBuffer, update);
 
             std::lock_guard<std::mutex> lock(finalizeMtx);
             finalize(std::move(resultsBuffer));

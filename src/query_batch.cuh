@@ -36,12 +36,14 @@ class query_batch
     class segmented_sort;
 
     //---------------------------------------------------------------
-    struct query_host_input
+    struct query_host_data
     {
-        query_host_input(index_type maxQueries,
-                         size_type maxSequenceLength);
-        query_host_input(const query_host_input&) = delete;
-        ~query_host_input();
+        query_host_data(index_type maxQueries,
+                        size_type maxSequenceLength,
+                        size_type maxResultsPerQuery,
+                        size_type maxCandidatesPerQuery);
+        query_host_data(const query_host_data&) = delete;
+        ~query_host_data();
 
         /*************************************************************************//**
         *
@@ -164,26 +166,12 @@ class query_batch
         //---------------------------------------------------------------
         index_type   numSegments_;
         index_type   numQueries_;
-
+        // input
         index_type * queryIds_;
         size_type  * sequenceOffsets_;
         char       * sequences_;
         window_id  * maxWindowsInRange_;
-    };
-
-    //---------------------------------------------------------------
-    struct query_host_output
-    {
-        query_host_output(index_type maxQueries,
-                          size_type maxResultsPerQuery,
-                          size_type maxCandidatesPerQuery);
-        query_host_output(const query_host_output&) = delete;
-        ~query_host_output();
-
-        //---------------------------------------------------------------
-        index_type        numSegments_;
-        index_type        numQueries_;
-
+        // output
         location_type   * queryResults_;
         int             * resultOffsets_;
         match_candidate * topCandidates_;
@@ -255,15 +243,15 @@ public:
     }
     //---------------------------------------------------------------
     index_type num_output_segments() const noexcept {
-        return hostOutput_.numSegments_;
+        return hostData_.numSegments_;
     }
     //---------------------------------------------------------------
     index_type num_input_queries() const noexcept {
-        return hostInput_.numQueries_;
+        return hostData_.numQueries_;
     }
     //---------------------------------------------------------------
     index_type num_gpu_queries() const noexcept {
-        return hostOutput_.numQueries_;
+        return hostData_.numQueries_;
     }
     //---------------------------------------------------------------
     const query_gpu_data& gpu_data(gpu_id gpuId) const noexcept {
@@ -272,20 +260,20 @@ public:
 
     //---------------------------------------------------------------
     span<location_type> allhits(index_type id) const noexcept {
-        if(id < hostOutput_.numSegments_)
+        if(id < hostData_.numSegments_)
             return span<location_type>{
-                hostOutput_.queryResults_+hostOutput_.resultOffsets_[id],
-                hostOutput_.queryResults_+hostOutput_.resultOffsets_[id+1]
+                hostData_.queryResults_+hostData_.resultOffsets_[id],
+                hostData_.queryResults_+hostData_.resultOffsets_[id+1]
             };
         else
             return span<location_type>{};
     }
     //---------------------------------------------------------------
     span<match_candidate> top_candidates(index_type id) const noexcept {
-        if(id < hostOutput_.numSegments_)
+        if(id < hostData_.numSegments_)
             return span<match_candidate>{
-                hostOutput_.topCandidates_+id*maxCandidatesPerQuery_,
-                hostOutput_.topCandidates_+(id+1)*maxCandidatesPerQuery_
+                hostData_.topCandidates_+id*maxCandidatesPerQuery_,
+                hostData_.topCandidates_+(id+1)*maxCandidatesPerQuery_
             };
         else
             return span<match_candidate>{};
@@ -297,13 +285,13 @@ public:
 
     //---------------------------------------------------------------
     void clear_input() noexcept {
-        hostInput_.numSegments_ = 0;
-        hostInput_.numQueries_ = 0;
+        hostData_.numSegments_ = 0;
+        hostData_.numQueries_ = 0;
     }
     //-----------------------------------------------------
     void clear_output() noexcept {
-        hostOutput_.numSegments_ = 0;
-        hostOutput_.numQueries_ = 0;
+        hostData_.numSegments_ = 0;
+        hostData_.numQueries_ = 0;
     }
 
     //---------------------------------------------------------------
@@ -311,7 +299,7 @@ public:
     template<class... Args>
     bool add_paired_read(Args&&... args)
     {
-        return hostInput_.add_paired_read(std::forward<Args>(args)...,
+        return hostData_.add_paired_read(std::forward<Args>(args)...,
                                           maxQueries_,
                                           maxSequenceLength_);
     }
@@ -358,8 +346,7 @@ private:
     size_type  maxResultsPerQuery_;
     size_type  maxCandidatesPerQuery_;
 
-    query_host_input hostInput_;
-    query_host_output hostOutput_;
+    query_host_data hostData_;
     std::vector<query_gpu_data> gpuData_;
 
     std::vector<segmented_sort> sorters_;
