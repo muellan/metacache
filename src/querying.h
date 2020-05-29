@@ -89,14 +89,18 @@ void query_gpu(
     bool copyAllHits,
     query_batch<location>& queryBatch,
     gpu_id hostId,
-    Buffer& batchBuffer, BufferUpdate& update)
+    Buffer& batchBuffer, BufferUpdate& update,
+    std::mutex& scheduleMtx)
 {
     // std::cerr << "host id " << hostId << ": " << queryBatch.host_data(hostId).num_queries() << " queries\n";
 
     if(queryBatch.host_data(hostId).num_queries() > 0)
     {
-        db.query_gpu_async(queryBatch, hostId, copyAllHits, opt.lowestRank);
+        {
+            std::lock_guard<std::mutex> lock(scheduleMtx);
 
+            db.query_gpu_async(queryBatch, hostId, copyAllHits, opt.lowestRank);
+        }
         queryBatch.host_data(hostId).wait_for_results();
 
         for(size_t s = 0; s < queryBatch.host_data(hostId).num_segments(); ++s) {
@@ -170,6 +174,7 @@ query_id query_batched(
                     || opt.output.showHitsPerTargetList
                     || opt.classify.covPercentile > 0;
 
+    std::mutex scheduleMtx;
     std::mutex finalizeMtx;
 
     query_batch<location> queryBatch(
@@ -216,7 +221,7 @@ query_id query_batched(
                 }
             }
             // query batch to gpu and wait for results
-            query_gpu(db, opt.classify, batch, copyAllHits, queryBatch, id, resultsBuffer, update);
+            query_gpu(db, opt.classify, batch, copyAllHits, queryBatch, id, resultsBuffer, update, scheduleMtx);
 
             std::lock_guard<std::mutex> lock(finalizeMtx);
             finalize(std::move(resultsBuffer));

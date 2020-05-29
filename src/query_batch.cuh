@@ -327,6 +327,10 @@ public:
     //---------------------------------------------------------------
     /** @brief record event after sketch creation on device 0 */
     void mark_query_finished();
+    //---------------------------------------------------------------
+    /** @brief make work stream wait for allhits copy (before starting new query) */
+    void wait_for_allhits_copied(gpu_id gpuId);
+
 private:
     //---------------------------------------------------------------
     /** @brief asynchronously compact results in work stream */
@@ -351,9 +355,7 @@ public:
         gpu_id gpuId,
         const ranked_lineage * lineages,
         taxon_rank lowestRank);
-    //-----------------------------------------------------
-    /** @brief synchronize event after copy to host */
-    void wait_for_results_copied();
+
 
     //---------------------------------------------------------------
 private:

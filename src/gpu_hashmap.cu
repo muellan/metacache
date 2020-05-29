@@ -1050,6 +1050,8 @@ void gpu_hashmap<Key,ValueT>::query_async(
     {
         cudaSetDevice(gpuId); CUERR
 
+        batch.wait_for_allhits_copied(gpuId);
+
         if(gpuId == 0) {
             batch.copy_queries_to_device_async(hostId);
 
@@ -1068,7 +1070,7 @@ void gpu_hashmap<Key,ValueT>::query_async(
         }
         batch.mark_query_finished();
 
-        batch.sync_work_stream(gpuId); CUERR
+        // batch.sync_work_stream(gpuId); CUERR
 
         if(gpuId < batch.num_gpus()-1)
             batch.copy_queries_to_next_device_async(hostId, gpuId);
@@ -1078,7 +1080,7 @@ void gpu_hashmap<Key,ValueT>::query_async(
         batch.generate_and_copy_top_candidates_async(
             hostId, gpuId, queryHashTables_[gpuId].lineages(), lowestRank);
 
-        batch.sync_copy_stream(gpuId); CUERR
+        // batch.sync_copy_stream(gpuId); CUERR
     }
 }
 
