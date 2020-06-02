@@ -31,8 +31,8 @@ public:
             stream}
     {}
 
-    void run(int numSegs, cudaStream_t stream) const {
-        sorter_.run(numSegs, stream);
+    void run(int numSegs, int maxSegmentSize, cudaStream_t stream) const {
+        sorter_.run(numSegs, maxSegmentSize, stream);
     }
 
 private:
@@ -50,6 +50,7 @@ query_batch<Location>::query_host_data::query_host_data(
 ) :
     numSegments_{0},
     numQueries_{0},
+    largestSegmentSize_{0},
     maxCandidatesPerQuery_{maxCandidatesPerQuery}
 {
     cudaMallocHost(&queryIds_, maxQueries*sizeof(index_type));
@@ -90,6 +91,7 @@ query_batch<Location>::query_host_data::query_host_data(query_host_data&& other)
 {
     numSegments_ = other.numSegments_;
     numQueries_  = other.numQueries_;
+    largestSegmentSize_ = other.largestSegmentSize_;
     maxCandidatesPerQuery_  = other.maxCandidatesPerQuery_;
 
     queryIds_       = other.queryIds_;
@@ -490,7 +492,7 @@ void query_batch<Location>::compact_sort_and_copy_allhits_async(
         // CUERR
     }
 
-    sorters_[gpuId].run(hostData_[hostId].num_segments(), gpuData_[gpuId].workStream_);
+    sorters_[gpuId].run(hostData_[hostId].num_segments(), hostData_[hostId].largest_segment_size(), gpuData_[gpuId].workStream_);
     // cudaStreamSynchronize(gpuData_[gpuId].workStream_);
     // CUERR
 

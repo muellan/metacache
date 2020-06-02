@@ -65,7 +65,8 @@ public:
             const sketcher& querySketcher,
             size_t insertSizeMax,
             index_type maxQueries,
-            uint32_t maxSequenceLength
+            uint32_t maxSequenceLength,
+            size_type maxResultsPerQuery
         ) {
             using std::distance;
 
@@ -101,6 +102,8 @@ public:
             // batch full, nothing processed
             if((numWindows1 + numWindows2)*windowSizePadded > availableSize) return false;
 
+            index_type queriesPerSegment = 0;
+
             // insert first sequence into batch as separate windows
             for_each_window(first1, last1, windowSize, windowStride,
                 [&] (InputIterator first, InputIterator last) {
@@ -115,6 +118,7 @@ public:
                         sequenceOffsets_[numQueries_+1] = sequenceOffsets_[numQueries_] + lengthPadded;
 
                         ++numQueries_;
+                        ++queriesPerSegment;
                     }
                 }
             );
@@ -133,6 +137,7 @@ public:
                         sequenceOffsets_[numQueries_+1] = sequenceOffsets_[numQueries_] + lengthPadded;
 
                         ++numQueries_;
+                        ++queriesPerSegment;
                     }
                 }
             );
@@ -141,6 +146,9 @@ public:
                 (std::max(seqLength1 + seqLength2, insertSizeMax) / windowStride ));
 
             ++numSegments_;
+
+            size_type segmentSize = queriesPerSegment*maxResultsPerQuery;
+            if(largestSegmentSize_ < segmentSize) largestSegmentSize_ = segmentSize;
 
             return true;
         }
@@ -152,7 +160,8 @@ public:
             const sketcher& querySketcher,
             size_t insertSizeMax,
             index_type maxQueries,
-            uint32_t maxSequenceLength
+            uint32_t maxSequenceLength,
+            size_type maxResultsPerQuery
         ) {
             using std::begin;
             using std::end;
@@ -163,7 +172,8 @@ public:
                 querySketcher,
                 insertSizeMax,
                 maxQueries,
-                maxSequenceLength);
+                maxSequenceLength,
+                maxResultsPerQuery);
         }
 
         //---------------------------------------------------------------
@@ -190,6 +200,7 @@ public:
         //---------------------------------------------------------------
         index_type num_segments() const noexcept { return numSegments_; }
         index_type num_queries() const noexcept { return numQueries_; }
+        size_type  largest_segment_size() const noexcept { return largestSegmentSize_; }
 
         index_type * query_ids() const noexcept { return queryIds_; };
         size_type  * sequence_offsets() const noexcept { return sequenceOffsets_; };
@@ -209,11 +220,13 @@ public:
         void clear() noexcept {
             numSegments_ = 0;
             numQueries_ = 0;
+            largestSegmentSize_ = 0;
         }
 
     private:
         index_type numSegments_;
         index_type numQueries_;
+        size_type largestSegmentSize_;
 
         size_type  maxCandidatesPerQuery_;
 
@@ -314,7 +327,8 @@ public:
         return hostData_[hostId].add_paired_read(
             std::forward<Args>(args)...,
             maxQueries_,
-            maxSequenceLength_);
+            maxSequenceLength_,
+            maxResultsPerQuery_);
     }
 
     //---------------------------------------------------------------

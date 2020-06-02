@@ -8,7 +8,7 @@ WARNINGS     = -Xcompiler="-Wall -Wextra -Wpedantic"
 WARNINGS_NP  = -Xcompiler="-Wall -Wextra"
 OPTIMIZATION = -O3
 #-march native -fomit-frame-pointer
-NVCC_FLAGS  = -arch=sm_61 -lineinfo --expt-relaxed-constexpr --extended-lambda -rdc=true -Idep/cub
+NVCC_FLAGS  = -arch=sm_70 -lineinfo -Idep/cub --expt-relaxed-constexpr --extended-lambda
 
 REL_FLAGS   = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) $(OPTIMIZATION) $(WARNINGS)
 DBG_FLAGS   = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) -O0 -g $(WARNINGS)
