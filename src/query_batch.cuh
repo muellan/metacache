@@ -43,7 +43,8 @@ public:
         query_host_data(index_type maxQueries,
                         size_type maxSequenceLength,
                         size_type maxResultsPerQuery,
-                        size_type maxCandidatesPerQuery);
+                        size_type maxCandidatesPerQuery,
+                        bool copyAllHits);
         query_host_data(const query_host_data&) = delete;
         query_host_data(query_host_data&&);
         ~query_host_data();
@@ -251,8 +252,8 @@ public:
                        size_type maxSketchSize,
                        size_type maxResultsPerQuery,
                        size_type maxCandidatesPerQuery,
-                       bool multiGPU = false,
-                       gpu_id gpuId = 0);
+                       bool multiGPU,
+                       gpu_id gpuId);
         query_gpu_data(const query_gpu_data&) = delete;
         query_gpu_data(query_gpu_data&&);
         ~query_gpu_data();
@@ -294,6 +295,7 @@ public:
                 size_type maxSketchSize,
                 size_type maxResultsPerQuery,
                 size_type maxCandidatesPerQuery,
+                bool copyAllHits,
                 gpu_id numHostThreads,
                 gpu_id numGPUs);
     //-----------------------------------------------------

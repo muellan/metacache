@@ -183,6 +183,7 @@ query_id query_batched(
         db.query_sketcher().sketch_size(),
         db.query_sketcher().sketch_size()*db.max_locations_per_feature(),
         opt.classify.maxNumCandidatesPerQuery,
+        copyAllHits,
         (opt.process.numThreads - (opt.process.numThreads > 1)),
         opt.process.numGPUs);
 
@@ -190,7 +191,7 @@ query_id query_batched(
     batch_processing_options<sequence_query> execOpt;
     execOpt.concurrency(1, opt.process.numThreads - 1);
     execOpt.batch_size(opt.process.batchSize);
-    execOpt.queue_size(opt.process.numThreads > 1 ? opt.process.numThreads + 4 : 0);
+    execOpt.queue_size(opt.process.numThreads > 1 ? opt.process.numThreads + 8 : 0);
     execOpt.on_error(handleErrors);
     execOpt.work_item_measure([&] (const auto& query) {
         using std::begin;

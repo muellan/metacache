@@ -46,7 +46,8 @@ query_batch<Location>::query_host_data::query_host_data(
     index_type maxQueries,
     size_type maxSequenceLength,
     size_type maxResultsPerQuery,
-    size_type maxCandidatesPerQuery
+    size_type maxCandidatesPerQuery,
+    bool copyAllHits
 ) :
     numSegments_{0},
     numQueries_{0},
@@ -59,7 +60,10 @@ query_batch<Location>::query_host_data::query_host_data(
     cudaMallocHost(&sequences_, maxSequenceLength*sizeof(char));
     cudaMallocHost(&maxWindowsInRange_, maxQueries*sizeof(window_id));
     CUERR
-    cudaMallocHost(&queryResults_, maxQueries*maxResultsPerQuery*sizeof(location_type));
+    if(copyAllHits)
+        cudaMallocHost(&queryResults_, maxQueries*maxResultsPerQuery*sizeof(location_type));
+    else
+        queryResults_ = nullptr;
     cudaMallocHost(&resultOffsets_, (maxQueries+1)*sizeof(int));
     resultOffsets_[0] = 0;
     cudaMallocHost(&topCandidates_, maxQueries*maxCandidatesPerQuery_*sizeof(match_candidate));
@@ -278,6 +282,7 @@ query_batch<Location>::query_batch(
     size_type maxSketchSize,
     size_type maxResultsPerQuery,
     size_type maxCandidatesPerQuery,
+    bool copyAllHits,
     gpu_id numHostThreads,
     gpu_id numGPUs
 ) :
@@ -300,7 +305,7 @@ query_batch<Location>::query_batch(
     cudaSetDevice(numGPUs_-1); CUERR
 
     for(gpu_id hostId = 0; hostId < numHostThreads; ++hostId) {
-        hostData_.emplace_back(maxQueries, maxSequenceLength, maxResultsPerQuery, maxCandidatesPerQuery);
+        hostData_.emplace_back(maxQueries, maxSequenceLength, maxResultsPerQuery, maxCandidatesPerQuery, copyAllHits);
     }
 
     using location_type_equivalent = uint64_t;
