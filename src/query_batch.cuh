@@ -179,11 +179,16 @@ public:
 
         //---------------------------------------------------------------
         span<location_type> allhits(index_type id) const noexcept {
-            if(id < num_segments())
-                return span<location_type>{
-                    query_results()+result_offsets()[id],
-                    query_results()+result_offsets()[id+1]
-                };
+            if(id < num_segments()) {
+                location_type * begin = query_results()+result_offsets()[id];
+                location_type * end = query_results()+result_offsets()[id+1];
+
+                // remove padding at the end
+                while((end > begin) && (end-1)->tgt == std::numeric_limits<target_id>::max())
+                    --end;
+
+                return span<location_type>{begin, end};
+            }
             else
                 return span<location_type>{};
         }

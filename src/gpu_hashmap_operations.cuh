@@ -145,7 +145,10 @@ uint32_t copy_loctions(
     BucketSizeT maxLocationsPerFeature,
     Location * out)
 {
+    using location = Location;
     using bucket_size_type = BucketSizeT;
+
+    const int warpLane = threadIdx.x % WARPSIZE;
 
     uint32_t totalLocations = 0;
 
@@ -155,14 +158,19 @@ uint32_t copy_loctions(
         bucketOffset >>= sizeof(bucket_size_type)*CHAR_BIT;
 
         //copy locations
-        for(uint32_t i = (threadIdx.x % WARPSIZE); i < bucketSize; i += WARPSIZE) {
+        for(uint32_t i = warpLane; i < bucketSize; i += WARPSIZE) {
             out[totalLocations + i] = locations[bucketOffset + i];
         }
 
         totalLocations += bucketSize;
     }
 
-    return totalLocations;
+    const uint32_t padding = totalLocations % 2;
+    if(padding && (warpLane == 0)) {
+        out[totalLocations] = location{~0, ~0};
+    }
+
+    return totalLocations + padding;
 }
 
 

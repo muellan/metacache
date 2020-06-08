@@ -33,10 +33,10 @@ void compact_kernel(
         const int end   = resultPrefixScan[bid];
         const int numResults = end - begin;
 
-        const result_type * inPtr  = results_in + bid*maxResultsPerQuery;
-        result_type * outPtr = results_out + begin;
+        const ulonglong2 * inPtr = reinterpret_cast<const ulonglong2 *>(results_in + bid*maxResultsPerQuery);
+        ulonglong2 * outPtr = reinterpret_cast<ulonglong2 *>(results_out + begin);
 
-        for(int tid = threadIdx.x; tid < numResults; tid += blockDim.x) {
+        for(int tid = threadIdx.x; tid < numResults/2; tid += blockDim.x) {
             outPtr[tid] = inPtr[tid];
         }
 
@@ -155,7 +155,7 @@ int reduce_locations(Iterator begin, Iterator end, match * matches, int numLocat
     otherLocation.tgt = __shfl_up_sync(0xFFFFFFFF, myLocation.tgt, 1);
 
     // find threads which have to write
-    bool predicate = (myPointer < end && !(myLocation == otherLocation));
+    bool predicate = !(myLocation == otherLocation);
 
     if(tid == 0) {
         // predicate is false because myLocation == otherLocation
@@ -168,6 +168,8 @@ int reduce_locations(Iterator begin, Iterator end, match * matches, int numLocat
             predicate = true;
         }
     }
+
+    predicate = predicate && (myLocation.tgt != target_id{~0});
 
     // find write positions
     const uint32_t mask = __ballot_sync(0xFFFFFFFF, predicate);
