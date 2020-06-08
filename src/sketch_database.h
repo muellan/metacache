@@ -148,8 +148,6 @@ public:
     /** @brief internal location representation = (window index, target index)
      *         these are stored in the in-memory database and on disk
      */
-    #pragma pack(push, 1)
-    //avoid padding bits
     struct location
     {
         window_id win;
@@ -168,8 +166,6 @@ public:
             return (a.win < b.win);
         }
     };
-    //avoid padding bits
-    #pragma pack(pop)
 
     using match_locations = std::vector<location>;
 
