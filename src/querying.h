@@ -92,6 +92,12 @@ void query_gpu(
     Buffer& batchBuffer, BufferUpdate& update,
     std::mutex& scheduleMtx)
 {
+    for(const auto& seq : sequenceBatch) {
+        if(!queryBatch.add_paired_read(hostId, seq.seq1, seq.seq2, db.query_sketcher(), opt.insertSizeMax)) {
+            std::cerr << "query batch is too small for a single read!" << std::endl;
+        }
+    }
+
     // std::cerr << "host id " << hostId << ": " << queryBatch.host_data(hostId).num_queries() << " queries\n";
 
     if(queryBatch.host_data(hostId).num_queries() > 0)
@@ -216,11 +222,6 @@ query_id query_batched(
         [&](int id, std::vector<sequence_query>& batch) {
             auto resultsBuffer = getBuffer();
 
-            for(const auto& seq : batch) {
-                if(!queryBatch.add_paired_read(id, seq.seq1, seq.seq2, db.query_sketcher(), opt.classify.insertSizeMax)) {
-                    std::cerr << "query batch is too small for a single read!" << std::endl;
-                }
-            }
             // query batch to gpu and wait for results
             query_gpu(db, opt.classify, batch, copyAllHits, queryBatch, id, resultsBuffer, update, scheduleMtx);
 
