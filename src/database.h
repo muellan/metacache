@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -54,8 +54,7 @@
 
 #include "../dep/cudahelpers/cuda_helpers.cuh"
 
-#include "../dep/queue/readerwriterqueue.h"
-
+#include "batch_processing.h"
 
 namespace mc {
 
@@ -176,8 +175,6 @@ public:
 
 
 private:
-    static constexpr std::size_t insert_batch_size() noexcept { return 10000; };
-
     //use negative numbers for sequence level taxon ids
     static constexpr taxon_id
     taxon_id_of_target(target_id id) noexcept { return -taxon_id(id)-1; }
@@ -212,7 +209,6 @@ private:
     };
 
     using sketch_batch = std::vector<window_sketch>;
-    using sketch_queue = moodycamel::BlockingReaderWriterQueue<sketch_batch>;
 
 
 public:
@@ -300,7 +296,6 @@ public:
         targetSketcher_{std::move(targetSketcher)},
         querySketcher_{std::move(querySketcher)},
         maxLocsPerFeature_(max_supported_locations_per_feature()),
-        targetCount_{0},
         features_{},
         featureStoreGPU_{},
         targets_{},
@@ -328,7 +323,6 @@ public:
 
     database& operator = (const database&) = delete;
     database& operator = (database&&)      = default;
-
 
 
     //---------------------------------------------------------------
@@ -363,19 +357,8 @@ public:
 
 
     //---------------------------------------------------------------
-    void max_locations_per_feature(bucket_size_type n)
-    {
-        if(n < 1) n = 1;
-        if(n >= max_supported_locations_per_feature()) {
-            n = max_supported_locations_per_feature();
-        }
-        else if(n < maxLocsPerFeature_) {
-            for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
-                if(i->size() > n) features_.shrink(i, n);
-            }
-        }
-        maxLocsPerFeature_ = n;
-    }
+    void max_locations_per_feature(bucket_size_type);
+
     //-----------------------------------------------------
     bucket_size_type
     max_locations_per_feature() const noexcept {
@@ -389,20 +372,7 @@ public:
 
     //-----------------------------------------------------
     feature_count_type
-    remove_features_with_more_locations_than(bucket_size_type n)
-    {
-        //note that features are not really removed, because the hashmap
-        //does not support erasing keys; instead all values belonging to
-        //the key are cleared and the key is kept without values
-        feature_count_type rem = 0;
-        for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
-            if(i->size() > n) {
-                features_.clear(i);
-                ++rem;
-            }
-        }
-        return rem;
-    }
+    remove_features_with_more_locations_than(bucket_size_type);
 
 
     //---------------------------------------------------------------
@@ -414,48 +384,7 @@ public:
      * @return number of features (hash table buckets) that were removed
      */
     feature_count_type
-    remove_ambiguous_features(taxon_rank r, bucket_size_type maxambig)
-    {
-        feature_count_type rem = 0;
-
-        if(taxa_.empty()) {
-            throw std::runtime_error{"no taxonomy available!"};
-        }
-
-        if(maxambig == 0) maxambig = 1;
-
-        if(r == taxon_rank::Sequence) {
-            for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
-                if(!i->empty()) {
-                    std::set<target_id> targets;
-                    for(auto loc : *i) {
-                        targets.insert(loc.tgt);
-                        if(targets.size() > maxambig) {
-                            features_.clear(i);
-                            ++rem;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        else {
-            for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
-                if(!i->empty()) {
-                    std::set<const taxon*> taxa;
-                    for(auto loc : *i) {
-                        taxa.insert(targetLineages_[loc.tgt][int(r)]);
-                        if(taxa.size() > maxambig) {
-                            features_.clear(i);
-                            ++rem;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        return rem;
-    }
+    remove_ambiguous_features(taxon_rank, bucket_size_type maxambig);
 
 
     //---------------------------------------------------------------
@@ -475,61 +404,7 @@ public:
         gpu_id dbPart,
         const sequence& seq, taxon_name sid,
         taxon_id parentTaxid = 0,
-        file_source source = file_source{})
-    {
-        using std::begin;
-        using std::end;
-
-        // reached hard limit for number of targets
-        if(targetCount_.load() >= max_target_count()) {
-            throw target_limit_exceeded_error{};
-        }
-        const std::uint64_t targetCount = targetCount_++;
-        // reached hard limit for number of targets
-        // in case of multi concurrent increments
-        if(targetCount >= max_target_count()) {
-            throw target_limit_exceeded_error{};
-        }
-
-        if(seq.empty()) return false;
-
-        // don't allow non-unique sequence ids
-        {
-            std::lock_guard<std::mutex> lock(name2taxMtx);
-            if(name2tax_.find(sid) != name2tax_.end()) return false;
-        }
-
-        const auto targetId = target_id(targetCount);
-        const auto taxid = taxon_id_of_target(targetId);
-
-        // sketch sequence -> insert features
-        source.windows = featureStoreGPU_.add_target(dbPart, seq, targetId, targetSketcher_);
-
-        if(parentTaxid < 1) parentTaxid = 0;
-        const taxon* newtax = nullptr;
-        // insert sequence metadata as a new taxon
-        {
-            std::lock_guard<std::mutex> lock(taxaMtx);
-            auto nit = taxa_.emplace(
-                taxid, parentTaxid, sid,
-                taxon_rank::Sequence, std::move(source));
-
-            // should never happen
-            if(nit == taxa_.end()) {
-                throw std::runtime_error{"target taxon could not be created"};
-            }
-
-            newtax = &(*nit);
-        }
-
-        // allows lookup via sequence id (e.g. NCBI accession number)
-        {
-            std::lock_guard<std::mutex> lock(name2taxMtx);
-            name2tax_.insert({std::move(sid), newtax});
-        }
-
-        return true;
-    }
+        file_source source = file_source{});
 
 
     //---------------------------------------------------------------
@@ -565,24 +440,12 @@ public:
 
 
     //---------------------------------------------------------------
-    void clear() {
-        ranksCache_.clear();
-        targetLineages_.clear();
-        name2tax_.clear();
-        features_.clear();
-    }
+    void clear();
 
-
-    //-----------------------------------------------------
     /**
      * @brief very dangerous! clears feature map without memory deallocation
      */
-    void clear_without_deallocation() {
-        ranksCache_.clear();
-        targetLineages_.clear();
-        name2tax_.clear();
-        features_.clear_without_deallocation();
-    }
+    void clear_without_deallocation();
 
 
     //---------------------------------------------------------------
@@ -819,7 +682,7 @@ public:
                        matches_sorter& res) const
     {
         querySketcher_.for_each_sketch(queryBegin, queryEnd,
-            [this, &res] (auto sk) {
+            [this, &res] (const auto& sk) {
                  res.offsets_.reserve(res.offsets_.size() + sk.size());
 
                 for(auto f : sk) {
@@ -860,7 +723,6 @@ public:
     }
 
 
-
     //---------------------------------------------------------------
     void max_load_factor(float lf) {
         features_.max_load_factor(lf);
@@ -876,216 +738,32 @@ public:
 
 
 private:
-    //---------------------------------------------------------------
-    /**
+    /****************************************************************
      * @brief   read database from binary file
      * @details Note that the map is not just de-serialized but
      *          rebuilt by inserting individual keys and values
      *          This should make DB files more robust against changes in the
      *          internal mapping structure.
-     */
-    void read_single(const std::string& filename, gpu_id gpuId, scope what)
-    {
-        std::cerr << "Reading database from file '" << filename << "' to GPU " << gpuId << " ... ";
-
-        std::ifstream is{filename, std::ios::in | std::ios::binary};
-
-        if(!is.good()) {
-            throw file_access_error{"Could not read database file '" + filename + "'"};
-        }
-
-        //database version info
-        using std::uint64_t;
-        using std::uint8_t;
-        uint64_t dbVer = 0;
-        read_binary(is, dbVer);
-
-        if(uint64_t( MC_DB_VERSION ) != dbVer) {
-            throw file_read_error{
-                "Database " + filename + " (version " + std::to_string(dbVer) + ")"
-                + " is incompatible\nwith this version of MetaCache"
-                + " (uses version " + std::to_string(MC_DB_VERSION) + ")" };
-        }
-
-        //data type info
-        {
-            //data type widths
-            uint8_t featureSize = 0; read_binary(is, featureSize);
-            uint8_t targetSize = 0;  read_binary(is, targetSize);
-            uint8_t windowSize = 0;  read_binary(is, windowSize);
-            uint8_t bucketSize = 0;  read_binary(is, bucketSize);
-            uint8_t taxidSize = 0;   read_binary(is, taxidSize);
-            uint8_t numTaxRanks = 0; read_binary(is, numTaxRanks);
-
-            if( (sizeof(feature) != featureSize) ||
-                (sizeof(target_id) != targetSize) ||
-                (sizeof(bucket_size_type) != bucketSize) ||
-                (sizeof(window_id) != windowSize) )
-            {
-                throw file_read_error{
-                    "Database " + filename +
-                    " is incompatible with this variant of MetaCache" +
-                    " due to different data type sizes"};
-            }
-
-            if( (sizeof(taxon_id) != taxidSize) ||
-                (taxonomy::num_ranks != numTaxRanks) )
-            {
-                throw file_read_error{
-                    "Database " + filename +
-                    " is incompatible with this variant of MetaCache" +
-                    " due to different taxonomy data types"};
-            }
-        }
-
-        if(what != scope::hashtable_only) {
-            clear();
-
-            //sketching parameters
-            read_binary(is, targetSketcher_);
-            read_binary(is, querySketcher_);
-
-            //target insertion parameters
-            read_binary(is, maxLocsPerFeature_);
-
-            //taxon metadata
-            read_binary(is, taxa_);
-
-            target_id targetCount = 0;
-            read_binary(is, targetCount);
-            if(targetCount < 1) return;
-
-            targetCount_ = targetCount;
-
-            //update target id -> target taxon lookup table
-            targets_.reserve(targetCount);
-            for(decltype(targetCount) i = 0 ; i < targetCount; ++i) {
-                targets_.push_back(taxa_[taxon_id_of_target(i)]);
-            }
-
-            //sequence id lookup
-            name2tax_.clear();
-            for(const auto& t : taxa_) {
-                if(t.rank() == taxon_rank::Sequence) {
-                    name2tax_.insert({t.name(), &t});
-                }
-            }
-
-            mark_cached_lineages_outdated();
-            update_cached_lineages(taxon_rank::Sequence);
-        }
-        else {
-            //skip metadata
-
-            //sketching parameters
-            sketcher skecherDummy;
-            read_binary(is, skecherDummy);
-            read_binary(is, skecherDummy);
-
-            //target insertion parameters
-            uint64_t dummy;
-            read_binary(is, dummy);
-
-            //taxon metadata
-            taxonomy dummyTaxa;
-            read_binary(is, dummyTaxa);
-
-            target_id targetCount = 0;
-            read_binary(is, targetCount);
-            if(targetCount < 1) return;
-        }
-
-        if(what != scope::metadata_only) {
-            //hash table
-            read_binary(is, featureStoreGPU_, gpuId);
-
-            featureStoreGPU_.copy_target_lineages_to_gpu(targetLineages_.lineages(), gpuId);
-        }
-
-        std::cerr << "done." << std::endl;
-    }
+     ****************************************************************/
+    void read_single(const std::string& filename, gpu_id gpuId, scope what);
 
 public:
-    //-------------------------------------------------------------------
-    /**
+    /****************************************************************
      * @brief   read all database parts from binary files
-     */
-    void read(const std::string& filename, gpu_id numGPUs, scope what = scope::everything)
-    {
-        if(numGPUs > num_gpus()) {
-            numGPUs = num_gpus();
-        }
-
-        if(numGPUs == 1) {
-            gpu_id gpuId = 0;
-            read_single(filename, gpuId, what);
-        }
-        else {
-            gpu_id gpuId = 0;
-            read_single(filename+'_'+std::to_string(gpuId), gpuId, what);
-
-            if(what != scope::metadata_only) {
-                for(gpu_id gpuId = 1; gpuId < numGPUs; ++gpuId) {
-                    read_single(filename+'_'+std::to_string(gpuId), gpuId, scope::hashtable_only);
-                }
-            }
-
-            featureStoreGPU_.enable_all_peer_access(numGPUs);
-        }
-    }
+     ****************************************************************/
+    void read(const std::string& filename, gpu_id numGPUs, scope what = scope::everything);
 
 
 private:
-    //-------------------------------------------------------------------
-    /**
+    /****************************************************************
      * @brief   write database to binary file
-     */
-    void write(const std::string& filename, gpu_id gpuId) const
-    {
-        std::cerr << "Writing database from GPU " << gpuId << " to file '" << filename << "' ... ";
-
-        using std::uint64_t;
-        using std::uint8_t;
-
-        std::ofstream os{filename, std::ios::out | std::ios::binary};
-
-        if(!os.good()) {
-            throw file_access_error{"can't open file " + filename};
-        }
-
-        //database version info
-        write_binary(os, uint64_t( MC_DB_VERSION ));
-
-        //data type widths
-        write_binary(os, uint8_t(sizeof(feature)));
-        write_binary(os, uint8_t(sizeof(target_id)));
-        write_binary(os, uint8_t(sizeof(window_id)));
-        write_binary(os, uint8_t(sizeof(bucket_size_type)));
-        write_binary(os, uint8_t(sizeof(taxon_id)));
-        write_binary(os, uint8_t(taxonomy::num_ranks));
-
-        //sketching parameters
-        write_binary(os, targetSketcher_);
-        write_binary(os, querySketcher_);
-
-        //target insertion parameters
-        write_binary(os, maxLocsPerFeature_);
-
-        //taxon & target metadata
-        write_binary(os, taxa_);
-        write_binary(os, target_id(targetCount_));
-
-        //hash table
-        write_binary(os, featureStoreGPU_, gpuId);
-
-        std::cerr << "done." << std::endl;
-    }
+     ****************************************************************/
+    void write(const std::string& filename, gpu_id gpuId) const;
 
 public:
-    //-------------------------------------------------------------------
-    /**
+    /****************************************************************
      * @brief   write all database parts to binary files
-     */
+     ****************************************************************/
     void write(const std::string& filename) const
     {
         if(featureStoreGPU_.num_gpus() == 1) {
@@ -1097,6 +775,7 @@ public:
                 write(filename+'_'+std::to_string(gpuId), gpuId);
         }
     }
+
 
     //---------------------------------------------------------------
     std::uint64_t bucket_count() const noexcept {
@@ -1251,7 +930,6 @@ private:
 
     std::mutex name2taxMtx;
     std::mutex taxaMtx;
-
 };
 
 

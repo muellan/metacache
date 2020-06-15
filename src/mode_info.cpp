@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,10 +27,9 @@
 #include <vector>
 #include <typeinfo>
 
-#include "args_handling.h"
-#include "query_options.h"
+#include "options.h"
 #include "candidates.h"
-#include "sketch_database.h"
+#include "database.h"
 #include "printing.h"
 #include "typename.h"
 
@@ -40,33 +39,18 @@ namespace mc {
 using std::cout;
 using std::cerr;
 using std::endl;
+using std::string;
 
 
 /*************************************************************************//**
  *
  *
  *****************************************************************************/
-database
-make_database(const args_parser& args,
-              database::scope scope = database::scope::everything)
+void show_database_config(const string& dbfile)
 {
-    auto dbfilename = database_name(args);
-    if(dbfilename.empty()) {
-        throw std::invalid_argument{"No database filename provided."};
-    }
-    return make_database(dbfilename, scope);
-}
-
-
-
-/*************************************************************************//**
- *
- *
- *****************************************************************************/
-void show_database_config(const args_parser& args)
-{
-    print_static_properties(make_database(args, database::scope::metadata_only));
-    cout << endl;
+    auto db = make_database(dbfile, database::scope::metadata_only);
+    print_static_properties(db);
+    print_content_properties(db);
 }
 
 
@@ -79,8 +63,7 @@ void print_query_config()
 {
     cout << "hit classifier       "
          << type_name<classification_candidates>() << '\n'
-         << "------------------------------------------------\n"
-         << endl;
+         << "------------------------------------------------\n";
 }
 
 
@@ -89,9 +72,9 @@ void print_query_config()
  *
  *
  *****************************************************************************/
-void show_database_statistics(const args_parser& args)
+void show_database_statistics(const string& dbfile)
 {
-    auto db = make_database(args);
+    auto db = make_database(dbfile);
     print_static_properties(db);
     print_content_properties(db);
 }
@@ -103,9 +86,9 @@ void show_database_statistics(const args_parser& args)
  *
  *
  *****************************************************************************/
-void show_feature_map(const args_parser& args)
+void show_feature_map(const string& dbfile)
 {
-    auto db = make_database(args);
+    auto db = make_database(dbfile);
     print_static_properties(db);
     print_content_properties(db);
     cout << "===================================================\n";
@@ -119,9 +102,9 @@ void show_feature_map(const args_parser& args)
  *
  *
  *****************************************************************************/
-void show_feature_counts(const args_parser& args)
+void show_feature_counts(const string& dbfile)
 {
-    auto db = make_database(args);
+    auto db = make_database(dbfile);
     print_static_properties(db);
     print_content_properties(db);
     cout << "===================================================\n";
@@ -145,7 +128,7 @@ void show_target_info(std::ostream& os, const database& db, const taxon& tax)
 
     for(const taxon* t : db.ranks(tax)) {
         if(t) {
-            auto rn = std::string(t->rank_name()) + ":";
+            auto rn = string(t->rank_name()) + ":";
             rn.resize(12, ' ');
             os << "\n    " << rn << "(" << t->id() << ") " << t->name();
         }
@@ -154,29 +137,25 @@ void show_target_info(std::ostream& os, const database& db, const taxon& tax)
 }
 
 
+
 /*************************************************************************//**
  *
  * @brief
  *
  *****************************************************************************/
-void show_target_info(const args_parser& args)
+void show_target_info(const info_options& opt)
 {
-    auto sids = std::vector<std::string>{};
-    for(std::size_t i = 3; i < args.non_prefixed_count(); ++i) {
-        sids.push_back(args.non_prefixed(i));
-    }
+    auto db = make_database(opt.dbfile, database::scope::metadata_only);
 
-    auto db = make_database(args, database::scope::metadata_only);
-
-    if(!sids.empty()) {
-        for(const auto& sid : sids) {
-            const taxon* tax = db.taxon_with_name(sid);
+    if(!opt.targetIds.empty()) {
+        for(const auto& tid : opt.targetIds) {
+            const taxon* tax = db.taxon_with_name(tid);
             if(tax) {
                 show_target_info(cout, db, *tax);
             }
             else {
-                cout << "Target (reference sequence) " << sid
-                     << " not found in database.\n";
+                cout << "Target (reference sequence) '" << tid
+                     << "' not found in database.\n";
             }
         }
     }
@@ -195,11 +174,11 @@ void show_target_info(const args_parser& args)
  * @brief
  *
  *****************************************************************************/
-void show_lineage_table(const args_parser& args)
+void show_lineage_table(const info_options& opt)
 {
     using rank = taxonomy::rank;
 
-    auto db = make_database(args, database::scope::metadata_only);
+    auto db = make_database(opt.dbfile, database::scope::metadata_only);
     if(db.target_count() < 1) return;
 
     //table header
@@ -229,21 +208,22 @@ void show_lineage_table(const args_parser& args)
  * @brief
  *
  *****************************************************************************/
-void show_rank_statistics(const args_parser& args)
+void show_rank_statistics(const info_options& opt)
 {
-    auto rankName = args.non_prefixed(3);
-    auto rank = taxonomy::rank_from_name(rankName);
-    if(rank == taxonomy::rank::none) {
-        cerr << "rank not recognized" << endl;
+    if(opt.rank == taxon_rank::none) {
+        cerr << "Please specify a taxonomic rank:\n";
+        for(auto r = taxon_rank::Sequence; r <= taxon_rank::Domain; ++r) {
+            cerr << "    " << taxonomy::rank_name(r) << '\n';
+        }
         return;
     }
 
-    auto db = make_database(args, database::scope::metadata_only);
+    auto db = make_database(opt.dbfile, database::scope::metadata_only);
 
     std::map<const taxon*, std::size_t> stat;
 
     for(const auto& tax : db.target_taxa()) {
-        const taxon* t = db.ranks(tax)[int(rank)];
+        const taxon* t = db.ranks(tax)[int(opt.rank)];
         if(t) {
             auto it = stat.find(t);
             if(it != stat.end()) {
@@ -254,7 +234,8 @@ void show_rank_statistics(const args_parser& args)
         }
     }
 
-    cout << "Sequence distribution for rank " << rankName << ":\n"
+    cout << "Sequence distribution for rank '"
+         << taxonomy::rank_name(opt.rank) << "':\n"
          << "taxid \t taxon_name \t sequences" << endl;
 
     for(const auto& s : stat) {
@@ -286,59 +267,37 @@ void show_basic_exec_info()
  * @brief shows database properties
  *
  *****************************************************************************/
-void main_mode_info(const args_parser& args)
+void main_mode_info(const cmdline_args& args)
 {
-    const auto nargs = args.non_prefixed_count();
+    auto opt = get_info_options(args);
 
-    if(nargs < 2) {
-        show_basic_exec_info();
-    }
-    else if(nargs == 2) {
-        try {
-            show_database_config(args);
+    switch(opt.mode) {
+        default:
+        case info_mode::basic:
+            show_basic_exec_info();
+            break;
+        case info_mode::targets:
+            show_target_info(opt);
+            break;
+        case info_mode::tax_lineages:
+            show_lineage_table(opt);
+            break;
+        case info_mode::tax_ranks:
+            show_rank_statistics(opt);
+            break;
+        case info_mode::db_config:
+            show_database_config(opt.dbfile);
             print_query_config();
-        }
-        catch(std::exception& e) {
-            cout << '\n' << e.what() << "!\n";
-        }
-    }
-    else {
-        const auto mode = args.non_prefixed(2);
-
-        if(mode == "target" || mode == "targets"  ||
-           mode == "sequ"   || mode == "sequence" || mode == "sequences")
-        {
-            show_target_info(args);
-        }
-        else if(mode == "lineages" || mode == "lineage" || mode == "lin")
-        {
-            show_lineage_table(args);
-        }
-        else if(mode == "rank") {
-            if(args.non_prefixed_count() > 3) {
-                show_rank_statistics(args);
-            } else {
-                cerr << "Please specify a taxonomic rank:\n";
-                for(auto r = taxon_rank::Sequence; r <= taxon_rank::Domain; ++r) {
-                    cerr << "    " << taxonomy::rank_name(r) << '\n';
-                }
-            }
-        }
-        else if(mode == "statistics" || mode == "stat") {
-            show_database_statistics(args);
-        }
-        else if(mode == "features" || mode == "featuremap") {
-            show_feature_map(args);
-        }
-        else if(mode == "featurecounts" || mode == "featuresizes") {
-            show_feature_counts(args);
-        }
-        else {
-            cerr << "Info mode '" << mode << "' not recognized.\n"
-                      << "Properties of database " << args.non_prefixed(1)
-                      << ":" << endl;
-            show_database_config(args);
-        }
+            break;
+        case info_mode::db_statistics:
+            show_database_statistics(opt.dbfile);
+            break;
+        case info_mode::db_feature_map:
+            show_feature_map(opt.dbfile);
+            break;
+        case info_mode::db_feature_counts:
+            show_feature_counts(opt.dbfile);
+            break;
     }
 }
 

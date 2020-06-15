@@ -1,6 +1,6 @@
 
 #include "query_batch.cuh"
-#include "sketch_database.h"
+#include "database.h"
 #include "gpu_result_processing.cuh"
 
 #include "cub/device/device_scan.cuh"

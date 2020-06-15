@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -27,7 +27,7 @@
 #include <cstdint>
 #include <limits>
 
-#include "sketch_database.h"
+#include "database.h"
 #include "candidate_generation.h"
 
 

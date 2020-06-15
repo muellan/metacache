@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -26,10 +26,9 @@
 #include <vector>
 #include <iostream>
 
-#include "sketch_database.h"
+#include "database.h"
+#include "options.h"
 #include "sequence_io.h"
-#include "cmdline_utility.h"
-#include "query_options.h"
 #include "cmdline_utility.h"
 #include "batch_processing.h"
 #include "query_batch.cuh"
@@ -171,33 +170,33 @@ query_id query_batched(
     BufferSource&& getBuffer, BufferUpdate&& update, BufferSink&& finalize,
     ErrorHandler&& handleErrors)
 {
-    if(opt.process.queryLimit < 1) return idOffset;
-    size_t queryLimit = opt.process.queryLimit > 0 ?
-                        size_t(opt.process.queryLimit) :
+    if(opt.performance.queryLimit < 1) return idOffset;
+    size_t queryLimit = opt.performance.queryLimit > 0 ?
+                        size_t(opt.performance.queryLimit) :
                         std::numeric_limits<size_t>::max();
 
-    bool copyAllHits = opt.output.showAllHits
-                    || opt.output.showHitsPerTargetList
+    bool copyAllHits = opt.output.analysis.showAllHits
+                    || opt.output.analysis.showHitsPerTargetList
                     || opt.classify.covPercentile > 0;
 
     std::mutex scheduleMtx;
     std::mutex finalizeMtx;
 
     query_batch<location> queryBatch(
-        opt.process.batchSize,
-        opt.process.batchSize*db.query_sketcher().window_size(),
+        opt.performance.batchSize,
+        opt.performance.batchSize*db.query_sketcher().window_size(),
         db.query_sketcher().sketch_size(),
         db.query_sketcher().sketch_size()*db.max_locations_per_feature(),
         opt.classify.maxNumCandidatesPerQuery,
         copyAllHits,
-        (opt.process.numThreads - (opt.process.numThreads > 1)),
-        opt.process.numGPUs);
+        (opt.performance.numThreads - (opt.performance.numThreads > 1)),
+        opt.dbconfig.numGPUs);
 
     // get executor that runs classification in batches
     batch_processing_options<sequence_query> execOpt;
-    execOpt.concurrency(1, opt.process.numThreads - 1);
-    execOpt.batch_size(opt.process.batchSize);
-    execOpt.queue_size(opt.process.numThreads > 1 ? opt.process.numThreads + 8 : 0);
+    execOpt.concurrency(1, opt.performance.numThreads - 1);
+    execOpt.batch_size(opt.performance.batchSize);
+    execOpt.queue_size(opt.performance.numThreads > 1 ? opt.performance.numThreads + 8 : 0);
     execOpt.on_error(handleErrors);
     execOpt.work_item_measure([&] (const auto& query) {
         using std::begin;
@@ -286,7 +285,7 @@ void query_database(
     InfoCallback&& showInfo, ProgressHandler&& showProgress,
     ErrorHandler&& errorHandler)
 {
-    const size_t stride = opt.process.pairing == pairing_mode::files ? 1 : 0;
+    const size_t stride = opt.pairing == pairing_mode::files ? 1 : 0;
     const std::string nofile;
     query_id queryIdOffset = 0;
 
@@ -299,10 +298,10 @@ void query_database(
         //pair up reads from two consecutive files in the list
         const auto& fname1 = infilenames[i];
 
-        const auto& fname2 = (opt.process.pairing == pairing_mode::none)
+        const auto& fname2 = (opt.pairing == pairing_mode::none)
                              ? nofile : infilenames[i+stride];
 
-        if(opt.process.pairing == pairing_mode::files) {
+        if(opt.pairing == pairing_mode::files) {
             showInfo(fname1 + " + " + fname2);
         } else {
             showInfo(fname1);

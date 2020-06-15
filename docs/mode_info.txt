@@ -1,0 +1,71 @@
+SYNOPSIS
+
+    metacache info 
+    metacache info <database>
+    metacache info <database> reference [<sequence_id>]...
+    metacache info <database> rank <rank_name>
+    metacache info <database> lineages
+    metacache info <database> statistics
+    metacache info <database> locations
+    metacache info <database> featurecounts
+
+
+DESCRIPTION
+
+    Display (meta-)information stored in a database.
+
+
+SUB-MODES
+
+    metacache info
+        show basic properties of MetaCache executable (data type widths, etc.)
+
+    matacache info <database>
+        show basic properties of <database>
+
+    matacache info <database> ref[erence]
+       list meta information for all reference sequences in <database>
+
+    matacache info <database> ref[erence] <sequence_id>...
+       list meta information for specific reference sequences
+
+    matacache info <database> rank <rank_name>
+       list reference sequence distribution on rank <rank_name>
+
+    matacache info <database> lin[eages]
+       print table with ranked lineages for all reference sequences
+
+    matacache info <database> stat[istics]
+       print database statistics / hash table properties
+
+    matacache info <database> loc[ations]
+       print map (feature -> list of reference locations)
+
+    matacache info <database> featurecounts
+       print map (feature -> number of reference locations)
+
+
+PARAMETERS
+
+    <database>        database file name;
+                      A MetaCache database contains taxonomic information and
+                      min-hash signatures of reference sequences (complete
+                      genomes, scaffolds, contigs, ...).
+
+    <rank_name>       Valid values: sequence, form, variety, subspecies,
+                      species, subgenus, genus, subtribe, tribe, subfamily,
+                      family, suborder, order, subclass, class, subphylum,
+                      phylum, subkingdom, kingdom, domain
+
+
+EXAMPLES
+
+    List metadata for all reference sequences in database 'refseq':
+        metacache info refseq.db ref
+
+    List metadata for the sequence with id NC_12345.6 in database 'refseq':
+        metacache info refseq.db ref NC_12345.6
+
+    List distribution of the number of sequences on rank 'phylum':
+        metacache info refseq.db rank phylum
+

@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -210,15 +210,10 @@ public:
                 using std::end;
 
                 const auto n = distance(first,last);
-                if(n < k_) {
-                    consume(sketch_type{});
-                    return;
-                }
+                if(n < k_) return;
+
                 const auto s = std::min(sketchSize_, sketch_size_type(n - k_ + 1));
-                if(s < 1) {
-                    consume(sketch_type{});
-                    return;
-                }
+                if(s < 1) return;
 
                 auto sketch = sketch_type(s, feature_type(~0));
 
@@ -245,7 +240,7 @@ public:
                     }
                 }
 
-                consume(sketch);
+                consume(std::move(sketch));
             });
     }
 

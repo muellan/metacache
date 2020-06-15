@@ -3,7 +3,7 @@
 #include "gpu_hashmap.cuh"
 #include "hash_dna.h"
 #include "hash_int.h"
-#include "sketch_database.h"
+#include "database.h"
 #include "gpu_hashmap_operations.cuh"
 #include "stat_combined.cuh"
 

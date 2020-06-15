@@ -100,7 +100,7 @@ function add_formatting_tests {
 query=data/fmt.fa
 
 tests=""
-add_formatting_tests $query "-nosummary -noqueryparams $threads"
+add_formatting_tests $query "-no-summary -no-query-params $threads"
 
 echo -e ${tests} | ../metacache query bacteria1 $gpus | grep "NC_" > results/fmt_fa.out
 
@@ -115,7 +115,7 @@ fi
 query=data/fmt.fa
 
 tests=""
-add_formatting_tests $query "-nosummary -noqueryparams $threads"
+add_formatting_tests $query "-no-summary -no-query-params $threads"
 
 echo -e ${tests} | ../metacache query bacteria1 $gpus | grep "NC_" > results/fmt_fq.out
 
@@ -130,8 +130,8 @@ fi
 # ---------------------------------------------------------
 # classification tests
 # ---------------------------------------------------------
-# common="-noqueryparams -mapped-only -precision -ground-truth -tophits -allhits -hits-per-seq -abundances -abundance-per species $threads"
-common="-noqueryparams -mapped-only -precision -ground-truth -tophits -allhits $threads -queryid"
+# common="-no-query-params -mapped-only -precision -ground-truth -tophits -allhits -hits-per-ref -abundances -abundance-per species $threads"
+common="-no-query-params -mapped-only -precision -ground-truth -tophits -allhits $threads -queryids"
 
 # fasta -------------------------------
 tests_fa=""

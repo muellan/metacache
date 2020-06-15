@@ -26,8 +26,6 @@ PRF_LDFLAGS  = -Xcompiler="-pthread"  $(NVCC_FLAGS)
 #--------------------------------------------------------------------
 HEADERS = \
           src/alignment.h \
-          src/args_handling.h \
-          src/args_parser.h \
           src/batch_processing.h \
           src/bitmanip.h \
           src/candidates.h \
@@ -37,6 +35,7 @@ HEADERS = \
           src/classification_statistics.h \
           src/cmdline_utility.h \
           src/config.h \
+          src/database.h \
           src/dna_encoding.h \
           src/filesys_utility.h \
           src/gpu_hashmap.cuh \
@@ -50,14 +49,13 @@ HEADERS = \
           src/io_serialize.h \
           src/matches_per_target.h \
           src/modes.h \
+          src/options.h \
           src/printing.h \
           src/query_batch.cuh \
-          src/query_options.h \
           src/querying.h \
           src/sequence_batch.cuh \
           src/sequence_io.h \
           src/sequence_view.h \
-          src/sketch_database.h \
           src/stat_confusion.h \
           src/stat_moments.h \
           src/stat_combined.cuh \
@@ -69,24 +67,22 @@ HEADERS = \
           src/version.h
 
 SOURCES = \
-          src/args_handling.cpp \
           src/classification.cpp \
           src/cmdline_utility.cpp \
+          src/database.cpp \
           src/filesys_utility.cpp \
 		  src/gpu_hashmap.cu \
           src/main.cpp \
-          src/mode_annotate.cpp \
           src/mode_build.cpp \
           src/mode_help.cpp \
           src/mode_info.cpp \
           src/mode_merge.cpp \
           src/mode_query.cpp \
+          src/options.cpp \
           src/printing.cpp \
           src/query_batch.cu \
-          src/query_options.cpp \
           src/sequence_batch.cu \
           src/sequence_io.cpp \
-          src/sketch_database.cpp \
           src/stat_combined.cu \
           src/taxonomy_io.cpp
 
@@ -154,12 +150,6 @@ $(REL_DIR)/printing.o : src/printing.cpp $(HEADERS)
 $(REL_DIR)/classification.o : src/classification.cpp $(HEADERS)
 	$(REL_COMPILE)
 
-$(REL_DIR)/query_options.o : src/query_options.cpp $(HEADERS)
-	$(REL_COMPILE)
-
-$(REL_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)
-	$(REL_COMPILE)
-
 $(REL_DIR)/mode_build.o : src/mode_build.cpp $(HEADERS)
 	$(REL_COMPILE)
 
@@ -175,16 +165,16 @@ $(REL_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 $(REL_DIR)/taxonomy_io.o : src/taxonomy_io.cpp $(HEADERS)
 	$(REL_COMPILE)
 
-$(REL_DIR)/sketch_database.o : src/sketch_database.cpp $(HEADERS)
+$(REL_DIR)/database.o : src/database.cpp $(HEADERS)
 	$(REL_COMPILE)
 
-$(REL_DIR)/mode_help.o : src/mode_help.cpp src/modes.h src/args_handling.h src/filesys_utility.h
+$(REL_DIR)/options.o : src/options.cpp $(HEADERS)
+	$(REL_COMPILE)
+
+$(REL_DIR)/mode_help.o : src/mode_help.cpp src/modes.h src/filesys_utility.h
 	$(REL_COMPILE)
 
 $(REL_DIR)/sequence_io.o : src/sequence_io.cpp src/sequence_io.h src/io_error.h
-	$(REL_COMPILE)
-
-$(REL_DIR)/args_handling.o : src/args_handling.cpp src/args_handling.h src/args_parser.h src/filesys_utility.h
 	$(REL_COMPILE)
 
 $(REL_DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.h
@@ -224,12 +214,6 @@ $(DBG_DIR)/printing.o : src/printing.cpp $(HEADERS)
 $(DBG_DIR)/classification.o : src/classification.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
-$(DBG_DIR)/query_options.o : src/query_options.cpp $(HEADERS)
-	$(DBG_COMPILE)
-
-$(DBG_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)
-	$(DBG_COMPILE)
-
 $(DBG_DIR)/mode_build.o : src/mode_build.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
@@ -245,16 +229,16 @@ $(DBG_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 $(DBG_DIR)/taxonomy_io.o : src/taxonomy_io.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
-$(DBG_DIR)/sketch_database.o : src/sketch_database.cpp $(HEADERS)
+$(DBG_DIR)/database.o : src/database.cpp $(HEADERS)
 	$(DBG_COMPILE)
 
-$(DBG_DIR)/mode_help.o : src/mode_help.cpp src/modes.h src/args_handling.h src/filesys_utility.h
+$(DBG_DIR)/options.o : src/options.cpp $(HEADERS)
+	$(DBG_COMPILE)
+
+$(DBG_DIR)/mode_help.o : src/mode_help.cpp src/modes.h  src/filesys_utility.h
 	$(DBG_COMPILE)
 
 $(DBG_DIR)/sequence_io.o : src/sequence_io.cpp src/sequence_io.h src/io_error.h
-	$(DBG_COMPILE)
-
-$(DBG_DIR)/args_handling.o : src/args_handling.cpp src/args_handling.h src/args_parser.h src/filesys_utility.h
 	$(DBG_COMPILE)
 
 $(DBG_DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.h
@@ -294,12 +278,6 @@ $(PRF_DIR)/printing.o : src/printing.cpp $(HEADERS)
 $(PRF_DIR)/classification.o : src/classification.cpp $(HEADERS)
 	$(PRF_COMPILE)
 
-$(PRF_DIR)/query_options.o : src/query_options.cpp $(HEADERS)
-	$(PRF_COMPILE)
-
-$(PRF_DIR)/mode_annotate.o : src/mode_annotate.cpp $(HEADERS)
-	$(PRF_COMPILE)
-
 $(PRF_DIR)/mode_build.o : src/mode_build.cpp $(HEADERS)
 	$(PRF_COMPILE)
 
@@ -315,16 +293,16 @@ $(PRF_DIR)/mode_query.o : src/mode_query.cpp $(HEADERS)
 $(PRF_DIR)/taxonomy_io.o : src/taxonomy_io.cpp $(HEADERS)
 	$(PRF_COMPILE)
 
-$(PRF_DIR)/sketch_database.o : src/sketch_database.cpp $(HEADERS)
+$(PRF_DIR)/database.o : src/database.cpp $(HEADERS)
 	$(PRF_COMPILE)
 
-$(PRF_DIR)/mode_help.o : src/mode_help.cpp src/modes.h src/args_handling.h src/filesys_utility.h
+$(PRF_DIR)/options.o : src/options.cpp $(HEADERS)
+	$(PRF_COMPILE)
+
+$(PRF_DIR)/mode_help.o : src/mode_help.cpp src/modes.h src/filesys_utility.h
 	$(PRF_COMPILE)
 
 $(PRF_DIR)/sequence_io.o : src/sequence_io.cpp src/sequence_io.h src/io_error.h
-	$(PRF_COMPILE)
-
-$(PRF_DIR)/args_handling.o : src/args_handling.cpp src/args_handling.h src/args_parser.h src/filesys_utility.h
 	$(PRF_COMPILE)
 
 $(PRF_DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.h

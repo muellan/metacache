@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -26,10 +26,9 @@
 #include <string>
 #include <vector>
 
-#include "args_handling.h"
+#include "options.h"
 #include "cmdline_utility.h"
 #include "filesys_utility.h"
-#include "query_options.h"
 #include "classification.h"
 #include "classification_statistics.h"
 #include "printing.h"
@@ -79,13 +78,13 @@ void process_input_files(const vector<string>& infiles,
         }
     }
 
-    std::ofstream targetsFile;
+    std::ofstream targetMappingsFile;
     if(!targetsFilename.empty()) {
-        targetsFile.open(targetsFilename, std::ios::out);
+        targetMappingsFile.open(targetsFilename, std::ios::out);
 
-        if(targetsFile.good()) {
+        if(targetMappingsFile.good()) {
             cout << "Per-Target mappings will be written to file: " << targetsFilename << endl;
-            perTargetOut = &targetsFile;
+            perTargetOut = &targetMappingsFile;
         }
         else {
             throw file_write_error{"Could not write to file " + targetsFilename};
@@ -133,89 +132,93 @@ void process_input_files(const vector<string>& infiles,
  *        handles output file split
  *
  *****************************************************************************/
-void process_input_files(const vector<string>& infiles,
-                         const database& db,
+void process_input_files(const database& db,
                          const query_options& opt)
 {
+    const auto& infiles = opt.infiles;
+
     if(infiles.empty()) {
-        cerr << "No input filenames provided!" << endl;
+        cerr << "No input filenames provided!\n";
         return;
     }
     else {
         bool noneReadable = std::none_of(infiles.begin(), infiles.end(),
                            [](const auto& f) { return file_readable(f); });
         if(noneReadable) {
-            throw std::runtime_error{
-                        "None of the query sequence files could be opened"};
+            string msg = "None of the following query sequence files could be opened:";
+            for(const auto& f : infiles) { msg += "\n    " + f; }
+            throw std::runtime_error{std::move(msg)};
         }
     }
 
     //process files / file pairs separately
-    if(opt.output.splitFiles) {
+    const auto& ano = opt.output.analysis;
+
+    if(opt.splitOutputPerInput) {
         string queryMappingsFile;
-        string targetsFile;
+        string targetMappingsFile;
         string abundanceFile;
         //process each input file pair separately
-        if(opt.process.pairing == pairing_mode::files && infiles.size() > 1) {
+        if(opt.pairing == pairing_mode::files && infiles.size() > 1) {
             for(std::size_t i = 0; i < infiles.size(); i += 2) {
                 const auto& f1 = infiles[i];
                 const auto& f2 = infiles[i+1];
-                if(!opt.output.queryMappingsFile.empty()) {
-                    queryMappingsFile = opt.output.queryMappingsFile
+                if(!opt.queryMappingsFile.empty()) {
+                    queryMappingsFile = opt.queryMappingsFile
                             + "_" + extract_filename(f1)
                             + "_" + extract_filename(f2)
                             + ".txt";
                 }
-                if(!opt.output.targetsFile.empty() &&
-                    opt.output.targetsFile != opt.output.queryMappingsFile)
+                if(!ano.targetMappingsFile.empty() &&
+                    ano.targetMappingsFile != opt.queryMappingsFile)
                 {
-                    targetsFile = opt.output.targetsFile
+                    targetMappingsFile = ano.targetMappingsFile
                             + "_" + extract_filename(f1)
                             + "_" + extract_filename(f2)
                             + ".txt";
                 }
-                if(!opt.output.abundanceFile.empty() &&
-                    opt.output.abundanceFile != opt.output.queryMappingsFile)
+                if(!ano.abundanceFile.empty() &&
+                    ano.abundanceFile != opt.queryMappingsFile)
                 {
-                    abundanceFile = opt.output.abundanceFile
+                    abundanceFile = ano.abundanceFile
                             + "_" + extract_filename(f1)
                             + "_" + extract_filename(f2)
                             + ".txt";
                 }
                 process_input_files(vector<string>{f1,f2}, db, opt,
-                                    queryMappingsFile, targetsFile, abundanceFile);
+                    queryMappingsFile, targetMappingsFile, abundanceFile);
             }
         }
         //process each input file separately
         else {
             for(const auto& f : infiles) {
-                if(!opt.output.queryMappingsFile.empty()) {
-                    queryMappingsFile = opt.output.queryMappingsFile + "_"
+                if(!opt.queryMappingsFile.empty()) {
+                    queryMappingsFile = opt.queryMappingsFile + "_"
                             + extract_filename(f) + ".txt";
                 }
-                if(!opt.output.targetsFile.empty() &&
-                    opt.output.targetsFile != opt.output.queryMappingsFile)
+                if(!ano.targetMappingsFile.empty() &&
+                    ano.targetMappingsFile != opt.queryMappingsFile)
                 {
-                    targetsFile = opt.output.targetsFile + "_"
+                    targetMappingsFile = ano.targetMappingsFile + "_"
                             + extract_filename(f) + ".txt";
                 }
-                if(!opt.output.abundanceFile.empty() &&
-                    opt.output.abundanceFile != opt.output.queryMappingsFile)
+                if(!ano.abundanceFile.empty() &&
+                    ano.abundanceFile != opt.queryMappingsFile)
                 {
-                    abundanceFile = opt.output.abundanceFile + "_"
+                    abundanceFile = ano.abundanceFile + "_"
                             + extract_filename(f) + ".txt";
                 }
                 process_input_files(vector<string>{f}, db, opt,
-                                    queryMappingsFile, targetsFile, abundanceFile);
+                    queryMappingsFile, targetMappingsFile, abundanceFile);
             }
         }
     }
     //process all input files at once
     else {
         process_input_files(infiles, db, opt,
-                            opt.output.queryMappingsFile,
-                            opt.output.targetsFile,
-                            opt.output.abundanceFile);
+                            opt.queryMappingsFile,
+                            ano.targetMappingsFile,
+                            ano.abundanceFile);
     }
 }
 
@@ -249,9 +252,7 @@ void adapt_options_to_database(classification_options& opt, const database& db)
  * @brief primitive REPL mode for repeated querying using the same database
  *
  *****************************************************************************/
-void run_interactive_query_mode(const vector<string>& initInfiles,
-                                const string& dbname,
-                                const database& db,
+void run_interactive_query_mode(const database& db,
                                 const query_options& initOpt)
 {
     while(true) {
@@ -269,29 +270,18 @@ void run_interactive_query_mode(const vector<string>& initInfiles,
         }
         else {
             //tokenize input into whitespace-separated words and build args list
-            vector<string> arglist {"query", dbname};
+            vector<string> args {initOpt.dbfile};
             std::istringstream iss(input);
-            while(iss >> input) { arglist.push_back(input); }
-            args_parser args{std::move(arglist)};
+            while(iss >> input) { args.push_back(input); }
 
             //read command line options (use initial ones as defaults)
-            auto infiles = sequence_filenames(args);
-            if(!initInfiles.empty()) {
-                infiles.insert(infiles.begin(), initInfiles.begin(),
-                                                initInfiles.end());
-            }
-            auto opt = get_query_options(args, infiles, initOpt);
-            adapt_options_to_database(opt.classify, db);
-
-            if(opt.process.pairing == pairing_mode::files) {
-                std::sort(infiles.begin(), infiles.end());
-            }
-
             try {
-                process_input_files(infiles, db, opt);
+                auto opt = get_query_options(args, initOpt);
+                adapt_options_to_database(opt.classify, db);
+                process_input_files(db, opt);
             }
             catch(std::exception& e) {
-                if(initOpt.output.showErrors) cerr << e.what() << endl;
+                if(initOpt.output.showErrors) cerr << e.what() << '\n';
             }
         }
     }
@@ -306,28 +296,30 @@ void run_interactive_query_mode(const vector<string>& initInfiles,
  *
  *****************************************************************************/
 database
-read_database(const string& filename, unsigned numGPUs, const database_query_options& opt)
+read_database(const string& filename,
+              const database_storage_options& dbopt,
+              const sketching_options& skopt)
 {
     database db;
 
-    if(opt.maxLoadFactor > 0.4 && opt.maxLoadFactor < 0.99) {
-        db.max_load_factor(opt.maxLoadFactor);
+    if(dbopt.maxLoadFactor > 0.4 && dbopt.maxLoadFactor < 0.99) {
+        db.max_load_factor(dbopt.maxLoadFactor);
         cerr << "Using custom hash table load factor of "
-             << opt.maxLoadFactor << endl;
+             << dbopt.maxLoadFactor << '\n';
     }
 
     try {
-        db.read(filename, numGPUs);
+        db.read(filename, dbopt.numGPUs);
     }
     catch(const file_access_error& e) {
         cerr << "FAIL" << endl;
         throw;
     }
 
-    if(opt.removeOverpopulatedFeatures) {
+    if(dbopt.removeOverpopulatedFeatures) {
         auto old = db.feature_count();
 
-        auto maxlpf = opt.maxLocationsPerFeature - 1;
+        auto maxlpf = dbopt.maxLocationsPerFeature - 1;
         if(maxlpf < 0 || maxlpf >= database::max_supported_locations_per_feature())
             maxlpf = database::max_supported_locations_per_feature() - 1;
 
@@ -338,23 +330,32 @@ read_database(const string& filename, unsigned numGPUs, const database_query_opt
 
             auto rem = db.remove_features_with_more_locations_than(maxlpf);
 
-            cerr << rem << " of " << old << " removed." << endl;
+            cerr << rem << " of " << old << " removed.\n";
         }
         //in case new max is less than the database setting
-        db.max_locations_per_feature(opt.maxLocationsPerFeature);
+        db.max_locations_per_feature(dbopt.maxLocationsPerFeature);
     }
-    else if(opt.maxLocationsPerFeature > 1) {
-        db.max_locations_per_feature(opt.maxLocationsPerFeature);
-        cerr << "max locations per feature set to "
-             << opt.maxLocationsPerFeature << endl;
+    else if(dbopt.maxLocationsPerFeature > 1) {
+        db.max_locations_per_feature(dbopt.maxLocationsPerFeature);
+        cerr << "Max locations per feature set to "
+             << dbopt.maxLocationsPerFeature << '\n';
     }
 
     //use a different sketching scheme for querying?
-    if((opt.sketchlen > 0) || (opt.winlen > 0) || (opt.winstride > 0)) {
+    if((skopt.sketchlen > 0) || (skopt.winlen > 0) || (skopt.winstride > 0)) {
         auto s = db.query_sketcher();
-        if(opt.sketchlen > 0) s.sketch_size(opt.sketchlen);
-        if(opt.winstride > 0) s.window_size(opt.winlen);
-        if(opt.winlen    > 0) s.window_stride(opt.winstride);
+        if(skopt.sketchlen > 0) s.sketch_size(skopt.sketchlen);
+        if(skopt.winlen > 0)    s.window_size(skopt.winlen);
+        // if no custom window stride requested => set to w-k+1
+        auto winstride = skopt.winstride;
+        if(winstride < 0) winstride = s.window_size() - s.kmer_size() + 1;
+        s.window_stride(winstride);
+
+        cerr << "custom query sketching settings:"
+             << " -winlen "    << s.window_size()
+             << " -winstride " << s.window_stride()
+             << " -sketchlen " << s.sketch_size() << '\n';
+
         db.query_sketcher(std::move(s));
     }
 
@@ -373,30 +374,17 @@ read_database(const string& filename, unsigned numGPUs, const database_query_opt
  *           for classification performance evaluation
  *
  *****************************************************************************/
-void main_mode_query(const args_parser& args)
+void main_mode_query(const cmdline_args& args)
 {
-    auto infiles = sequence_filenames(args);
-    auto opt = get_query_options(args,infiles);
+    auto opt = get_query_options(args);
 
-    if(opt.process.pairing == pairing_mode::files) {
-        std::sort(infiles.begin(), infiles.end());
-    }
+    auto db = read_database(opt.dbfile, opt.dbconfig, opt.sketching);
 
-    auto dbname = database_name(args);
-    if(dbname.empty()) throw file_access_error{"No database name given"};
-
-    auto db = read_database(dbname, opt.process.numGPUs, get_database_query_options(args));
-
-    if(opt.output.showDBproperties) {
-        print_static_properties(db);
-        print_content_properties(db);
-    }
-
-    if(!infiles.empty()) {
-        cerr << "Classifying query sequences." << endl;
+    if(!opt.infiles.empty()) {
+        cerr << "Classifying query sequences.\n";
 
         adapt_options_to_database(opt.classify, db);
-        process_input_files(infiles, db, opt);
+        process_input_files(db, opt);
     }
     else {
         cout << "No input files provided.\n"
@@ -409,7 +397,7 @@ void main_mode_query(const args_parser& args)
             " - Enter an empty line or press Ctrl-D to quit MetaCache.\n"
             << endl;
 
-        run_interactive_query_mode(infiles, dbname, db, opt);
+        run_interactive_query_mode(db, opt);
     }
 }
 

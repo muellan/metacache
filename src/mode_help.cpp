@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@
 #include <iostream>
 #include <vector>
 
-#include "args_handling.h"
+#include "options.h"
 #include "filesys_utility.h"
 
 
@@ -32,87 +32,85 @@ namespace mc {
 
 
 //-------------------------------------------------------------------
-void show_available_help_topics()
+void main_mode_help(const cmdline_args& args)
 {
-    auto files = files_in_directory("docs");
+    if(args.size() < 3 || args[1] != "help" || args[2] == "help") {
 
-    if(files.empty()) {
-        std::cerr << "Documentation files are missing!\n"
-                  << "These should be in a folder called 'docs'.\n"
-                  << "Please download a new copy of MetaCache!"
-                  << std::endl;
-        return;
-    }
-
-    std::cout << "Available topics are:\n";
-    for(const auto& name : files) {
-
-        auto i = name.find(".txt");
-        if(i != std::string::npos) {
-            auto topic = name.substr(5,i-5);
-            auto spc = std::string(10 - topic.size(), ' ');
-
-            std::ifstream is{name};
-            auto descr = std::string("");
-            if(is.good()) {
-                //forward to descr
-                while(is.good() && descr.find("DESCRIPTION") == std::string::npos) {
-                    getline(is, descr);
-                }
-                getline(is, descr);
-                getline(is, descr);
-            }
-
-            std::cout << "    " << topic << spc << descr << '\n';
+        if(args.size() > 1 && args[1] != "help") {
+            std::cerr << "ERROR: Invalid command line arguments!\n\n";
         }
+        else {
+            std::cout <<
+                "MetaCache  Copyright (C) 2016-2020  André Müller & Robin Kobus\n"
+                "This program comes with ABSOLUTELY NO WARRANTY.\n"
+                "This is free software, and you are welcome to redistribute it\n"
+                "under certain conditions. See the file 'LICENSE' for details.\n\n";
+        }
+
+        std::cout <<
+            "USAGE:\n"
+            "\n"
+            "    metacache <MODE> [OPTION...]\n"
+            "\n"
+            "    Available modes:\n"
+            "\n"
+            "    help        shows documentation \n"
+            "    query       classify read sequences using pre-built database\n"
+            "    merge       merge classification results of independent queries\n"
+            "    build       build new database from reference sequences (usually genomes)\n"
+            "    modify      add reference sequences and/or taxonomy to existing database\n"
+            "    info        show database and reference sequence properties\n"
+            "\n"
+            "\n"
+            "EXAMPLES:\n"
+            "\n"
+            "    Query single FASTA file 'myreads.fna' against pre-built database 'refseq':\n"
+            "        metacache query refseq myreads.fna -out results.txt\n"
+            "    same with output to the console:\n"
+            "        metacache query refseq myreads.fna\n"
+            "\n"
+            "    Query all sequence files in folder 'test' againgst database 'refseq':\n"
+            "        metacache query refseq test -out results.txt\n"
+            "\n"
+            "    Query paired-end reads in separate files:\n"
+            "        metacache query refseq reads1.fa reads2.fa -pairfiles -out results.txt\n"
+            "\n"
+            "    Query paired-end reads in one file (a1,a2,b1,b2,...):\n"
+            "        metacache query refseq paired_reads.fa -pairseq -out results.txt\n"
+            "    \n"
+            "    View documentation for query mode:\n"
+            "        metacache help query\n"
+            "\n"
+            "    View documentation on how to build databases:\n"
+            "        metacache help build\n";
     }
-    std::cout.flush();
-}
-
-
-//-------------------------------------------------------------------
-void show_help_for_topic(const std::string& topic)
-{
-    std::string filename = "docs/" + topic + ".txt";
-
-    std::ifstream is {filename};
-
-    if(is.good()) {
-        std::string line;
-        do {
-            getline(is, line);
-            std::cout << line << '\n';
-        } while(is.good());
-
-        std::cout.flush();
+    else if(args[2] == "build") {
+        std::cout << build_mode_docs() << '\n';
+    }
+    else if(args[2] == "modify") {
+        std::cout << modify_mode_docs() << '\n';
+    }
+    else if(args[2] == "query") {
+        std::cout << query_mode_docs() << '\n';
+    }
+    else if(args[2] == "merge") {
+        std::cout << merge_mode_docs() << '\n';
+    }
+    else if(args[2] == "info") {
+        std::cout << info_mode_docs() << '\n';
     }
     else {
-        std::cerr << "Documentation for topic '" << topic << "' not available.\n";
-        show_available_help_topics();
+        std::cerr
+            << "You need to specify a mode for which to show help :\n"
+            << "    " << args[0] << " help <mode>\n\n"
+            << "Unknown mode '" << args[2] << "'\n\n"
+            << "Available modes are:\n"
+            << "    build\n"
+            << "    modify\n"
+            << "    query\n"
+            << "    merge\n"
+            << "    info\n";
     }
-}
-
-
-//-------------------------------------------------------------------
-void main_mode_help(const args_parser& args)
-{
-    if(args.non_prefixed_count() < 1) {
-        show_help_for_topic("quick");
-    }
-    else if(args.non_prefixed_count() == 1 ) {
-       if(args.non_prefixed(0) == "help") {
-           std::cerr << "You need to specify a help topic:\n"
-                     << "    ./metacache help <topic>\n";
-
-           show_available_help_topics();
-       } else {
-           show_help_for_topic("quick");
-       }
-    }
-    else {
-        show_help_for_topic(args.non_prefixed(1));
-    }
-
 }
 
 

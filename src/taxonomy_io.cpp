@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -198,12 +198,14 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
         }
 
         const auto fsize = file_size(mappingFile);
-        auto nextStatStep = fsize / 1000;
-        auto nextStat = nextStatStep;
+
         bool showProgress = showInfo && fsize > 100000000;
-        if(showProgress) {
-            show_progress_indicator(cout, 0);
-        }
+        //assembly_summary files have up to 550K lines
+        //update progress indicator every 128K lines
+        size_t step = 0;
+        size_t statStep = 1UL << 17;
+        if(showProgress) show_progress_indicator(cout, 0);
+
 
         //read first line(s) and determine the columns which hold
         //sequence ids (keys) and taxon ids
@@ -269,12 +271,9 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
 
                 map.insert({key, taxonId});
 
-                if(showProgress) {
+                if(showProgress && !(++step % statStep)) {
                     auto pos = is.tellg();
-                    if(pos >= nextStat) {
-                        show_progress_indicator(cout, pos / float(fsize));
-                        nextStat = pos + nextStatStep;
-                    }
+                    show_progress_indicator(cout, pos / float(fsize));
                 }
             }
             if(showProgress) clear_current_line(cout);

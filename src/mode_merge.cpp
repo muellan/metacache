@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -24,11 +24,10 @@
 #include <string>
 #include <sstream>
 
+#include "options.h"
 #include "cmdline_utility.h"
 #include "filesys_utility.h"
-#include "args_handling.h"
 #include "config.h"
-#include "query_options.h"
 #include "taxonomy_io.h"
 #include "classification.h"
 #include "io_error.h"
@@ -43,57 +42,6 @@ using std::cerr;
 using std::endl;
 using std::string;
 using std::vector;
-
-
-/*************************************************************************//**
- *
- * @brief merge parameters
- *
- *****************************************************************************/
-struct merge_options
-{
-    taxonomy_options taxonomy;
-
-    info_level infoLevel = info_level::moderate;
-
-	query_options query;
-};
-
-
-
-/*************************************************************************//**
- *
- * @brief command line args -> merge options
- *
- *****************************************************************************/
-merge_options
-get_merge_options(const args_parser& args)
-{
-    merge_options opt;
-
-    if(args.contains("silent")) {
-        opt.infoLevel = info_level::silent;
-    } else if(args.contains("verbose")) {
-        opt.infoLevel = info_level::verbose;
-    }
-
-    opt.taxonomy = get_taxonomy_options(args);
-
-    opt.query = get_query_options(args, {});
-
-    //TODO: get hitsmin from file
-    if(opt.query.classify.hitsMin == 0)
-        opt.query.classify.hitsMin = 5;
-    if(opt.query.classify.lowestRank < taxon_rank::Species)
-        opt.query.classify.lowestRank = taxon_rank::Species;
-    if(opt.query.output.lowestRank < taxon_rank::Species)
-        opt.query.output.lowestRank = taxon_rank::Species;
-    //TODO? multi threading
-    if(opt.query.process.numThreads > 1)
-        opt.query.process.numThreads = 1;
-
-    return opt;
-}
 
 
 
@@ -246,7 +194,7 @@ void read_results(const results_source& res,
                 taxon_id taxid;
                 ifs >> taxid;
                 if(ifs.fail()) {
-                    cerr << "Query " << queryId+1 << ": Could not read taxid." << endl;
+                    cerr << "Query " << queryId+1 << ": Could not read taxid.\n";
                     ifs.clear();
                 }
 
@@ -258,7 +206,7 @@ void read_results(const results_source& res,
                 if(tax) {
                     queryCandidates[queryId].insert(match_candidate{tax, hits}, db, rules);
                 } else {
-                    cerr << "Query " << queryId+1 << ": taxid not found. Skipping hit." << endl;
+                    cerr << "Query " << queryId+1 << ": taxid not found. Skipping hit.\n";
                 }
                 nextChar = ifs.get();
             }
@@ -291,10 +239,10 @@ void merge_result_files(const vector<string>& infiles,
         rules.maxCandidates = opt.classify.maxNumCandidatesPerQuery;
     //else default to 2
 
-    const auto& comment = opt.output.format.comment;
+    const auto& comment = opt.output.format.tokens.comment;
 
-    cerr << " max canddidates: " << rules.maxCandidates << endl;
-    cerr << " number of files: " << infiles.size() << endl;
+    cerr << " max canddidates: " << rules.maxCandidates << '\n';
+    cerr << " number of files: " << infiles.size() << '\n';
 
     results.perReadOut << comment << "Merging " << infiles.size() << " files:\n";
     for(const auto& filename : infiles) {
@@ -390,23 +338,20 @@ void process_result_files(const vector<string>& infiles,
                          const database& db,
                          const query_options& opt)
 {
-    if(infiles.empty()) {
-        cerr << "No input filenames provided!" << endl;
-        return;
-    }
-    else {
-        bool noneReadable = std::none_of(infiles.begin(), infiles.end(),
-                           [](const auto& f) { return file_readable(f); });
-        if(noneReadable) {
-            throw std::runtime_error{
-                        "None of the query sequence files could be opened"};
-        }
+    if(infiles.empty()) return;
+
+    bool noneReadable = std::none_of(infiles.begin(), infiles.end(),
+                       [](const auto& f) { return file_readable(f); });
+
+    if(noneReadable) {
+        throw std::runtime_error{
+            "None of the query sequence files could be opened"};
     }
 
     //process all input files at once
     process_result_files(infiles, db, opt,
-                         opt.output.queryMappingsFile,
-                         opt.output.abundanceFile);
+                         opt.queryMappingsFile,
+                         opt.output.analysis.abundanceFile);
 }
 
 
@@ -416,17 +361,9 @@ void process_result_files(const vector<string>& infiles,
  * @brief merge classification result files
  *
  *****************************************************************************/
-void main_mode_merge(const args_parser& args)
+void main_mode_merge(const cmdline_args& args)
 {
-    const auto nargs = args.non_prefixed_count();
-    if(nargs < 2) {
-        cerr << "No result filenames provided. Abort." << endl;
-    	return;
-    }
-    auto infiles = result_filenames(args);
-    std::sort(infiles.begin(), infiles.end());
-
-    merge_options opt = get_merge_options(args);
+    auto opt = get_merge_options(args);
 
     database db;
 
@@ -438,25 +375,22 @@ void main_mode_merge(const args_parser& args)
                                      opt.infoLevel) );
 
         if(opt.infoLevel != info_level::silent) {
-            cout << "Taxonomy applied to database." << endl;
+            cerr << "Applied taxonomy to database.\n";
         }
-    }
-    else {
-        cout << "No taxonomy specified. Unable to perform merge." << endl;
-        return;
     }
 
     //TODO parallelize?
     // ranks cache would need to be updated at species level before
     // running the result processing concurrently
 
-    if(infiles.size() >= 2) {
-        cerr << "Merging result files." << endl;
+    if(opt.infiles.size() >= 2) {
+        cerr << "Merging result files.\n";
 
-        process_result_files(infiles, db, opt.query);
+        process_result_files(opt.infiles, db, opt.query);
     }
     else {
-        cout << "Please provide at least two files to be merged!" << endl;
+        throw std::invalid_argument{
+            "At least two files are needed for merging!"};
     }
 }
 

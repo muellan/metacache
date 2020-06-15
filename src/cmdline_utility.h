@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,9 +23,24 @@
 #define MC_CMDLINE_TOOLS_H_
 
 #include <iosfwd>
+#include <vector>
+#include <string>
 
 
 namespace mc {
+
+
+using cmdline_args = std::vector<std::string>;
+
+
+
+/*************************************************************************//**
+ *
+ * @brief make args C-array into vector of strings
+ *
+ *****************************************************************************/
+cmdline_args make_args_list(char** first, char** last);
+
 
 
 /*************************************************************************//**

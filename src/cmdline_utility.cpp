@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,6 +28,23 @@ namespace mc {
 
 
 //-------------------------------------------------------------------
+cmdline_args make_args_list(char** first, char** last)
+{
+    cmdline_args args;
+    if(last < first) return args;
+
+    args.reserve(last-first);
+
+    for(; first != last; ++first) {
+        args.push_back(*first);
+    }
+
+    return args;
+}
+
+
+
+//-------------------------------------------------------------------
 void show_progress_indicator(std::ostream& os, float done, int totalLength)
 {
     if(done < 0.f) done = 0.f;
@@ -39,6 +56,7 @@ void show_progress_indicator(std::ostream& os, float done, int totalLength)
     for(int j = 0; j < m; ++j) os << ' ';
     os << "] " << int(100 * done) << "%" << std::flush;
 }
+
 
 
 //-------------------------------------------------------------------
