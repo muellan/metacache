@@ -35,8 +35,9 @@
 namespace mc {
 
 
-template<class value_type>
+template<class Value>
 struct span {
+    using value_type = Value;
 
     value_type * begin() const noexcept { return begin_; }
 

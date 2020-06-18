@@ -16,18 +16,20 @@ namespace mc {
  *         determine segment offsets and store them in global memory
  *
  *****************************************************************************/
-template<class id_type, class result_type>
+template<class Id, class Result>
 __global__
 void compact_kernel(
     uint32_t numQueries,
     const int * resultPrefixScan,
     uint32_t maxResultsPerQuery,
-    const result_type * results_in,
-    result_type * results_out,
-    const id_type * segmentIds,
+    const Result * results_in,
+    Result * results_out,
+    const Id * segmentIds,
     int * segmentOffsets
 )
 {
+    using id_type = Id;
+
     for(int bid = blockIdx.x; bid < numQueries; bid += gridDim.x) {
         const int begin = (bid > 0) ? resultPrefixScan[bid-1] : 0;
         const int end   = resultPrefixScan[bid];
@@ -69,15 +71,17 @@ void compact_kernel(
  * @brief  determine segment offsets and store them in global memory
  *
  *****************************************************************************/
-template<class id_type>
+template<class Id>
 __global__
 void segment_kernel(
     uint32_t numQueries,
     const int * resultPrefixScan,
-    const id_type * segmentIds,
+    const Id * segmentIds,
     int * segmentOffsets
 )
 {
+    using id_type = Id;
+
     for(int tid = threadIdx.x + blockIdx.x * blockDim.x; tid < numQueries; tid += blockDim.x * gridDim.x) {
         const id_type segmentId = segmentIds[tid];
         const id_type nextId    = (tid+1 < numQueries) ? segmentIds[tid+1] :  id_type(~0);;
@@ -317,12 +321,12 @@ int process_matches(
 
 template<
     int MAX_CANDIDATES,
-    class result_type>
+    class Result>
 __global__
 void generate_top_candidates(
     uint32_t numSegments,
     const int * segmentOffsets,
-    const result_type * locations,
+    const Result * locations,
     const window_id * maxWindowsInRange,
     const ranked_lineage * lineages,
     taxon_rank mergeBelow,
@@ -455,7 +459,6 @@ void generate_top_candidates(
             //     printf("bid: %d top: %d tgt: %d hits: %d tax: %llu\n", bid, tid, topShared[tid].tgt, topShared[tid].hits, topShared[tid].tax);
         }
     }
-
 }
 
 

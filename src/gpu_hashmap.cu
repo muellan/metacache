@@ -625,9 +625,11 @@ private:
 
 public:
     //---------------------------------------------------------------
-    template<class len_t>
-    void deserialize(std::istream& is, len_t nkeys, len_t nlocations)
+    template<class LenT>
+    void deserialize(std::istream& is, LenT nkeys, LenT nlocations)
     {
+        using len_t = LenT;
+
         len_t batchSize = 0;
         read_binary(is, batchSize);
 

@@ -242,8 +242,8 @@ public:
             locs_.resize(size);
         }
 
-        template<class iterator>
-        auto insert(iterator begin, iterator end) {
+        template<class Iterator>
+        auto insert(Iterator begin, Iterator end) {
             return locs_.insert(locs_.end(), begin, end);
         }
 
