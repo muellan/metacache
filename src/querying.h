@@ -85,11 +85,7 @@ void query_host(
     Buffer& resultsBuffer, BufferUpdate& update)
 {
     for(auto& seq : batch) {
-        targetMatches.clear();
-
-        db.accumulate_matches(seq.seq1, targetMatches);
-        db.accumulate_matches(seq.seq2, targetMatches);
-        targetMatches.sort();
+        db.query_host(seq.seq1, seq.seq2, targetMatches);
 
         update(resultsBuffer, seq, targetMatches.locations());
     }

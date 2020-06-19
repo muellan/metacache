@@ -569,12 +569,10 @@ public:
 
     //---------------------------------------------------------------
     void
-    accumulate_matches(const sequence& query,
-                       matches_sorter& res) const
+    query_host(const sequence& query1, const sequence& query2,
+               matches_sorter& res) const
     {
-        using std::begin;
-        using std::end;
-        features_.accumulate_matches(querySketcher_, begin(query), end(query), res);
+        features_.query_host(querySketcher_, query1, query2, res);
     }
 
 

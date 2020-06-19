@@ -398,6 +398,30 @@ public:
                 }
             });
     }
+    //---------------------------------------------------------------
+    void
+    accumulate_matches(const sketcher& querySketcher,
+                       const sequence& query,
+                       matches_sorter& res) const
+    {
+        using std::begin;
+        using std::end;
+        accumulate_matches(querySketcher, begin(query), end(query), res);
+    }
+    //---------------------------------------------------------------
+    void
+    query_host(const sketcher& querySketcher,
+               const sequence& query1, const sequence& query2,
+               matches_sorter& res) const
+    {
+        res.clear();
+
+        accumulate_matches(querySketcher, query1, res);
+        accumulate_matches(querySketcher, query2, res);
+
+        res.sort();
+    }
+
 
 
     //---------------------------------------------------------------
