@@ -60,6 +60,12 @@ class gpu_hashmap
         unsigned currentSeqBatch_;
     };
 
+    //---------------------------------------------------------------
+    static constexpr std::size_t
+    bucket_size_bits() noexcept {
+        return 8;
+    }
+
 public:
     //---------------------------------------------------------------
     using key_type         = Key;
@@ -71,6 +77,12 @@ public:
     using sketcher         = mc::sketcher;
 
     using ranked_lineage = taxonomy::ranked_lineage;
+
+    //---------------------------------------------------------------
+    static constexpr std::size_t
+    max_bucket_size() noexcept {
+        return (std::size_t(1) << bucket_size_bits()) - 1;
+    }
 
 public:
     //---------------------------------------------------------------
@@ -93,12 +105,6 @@ public:
     void pop_status(gpu_id gpuId);
 
     //---------------------------------------------------------------
-    static constexpr std::size_t
-    max_bucket_size() noexcept {
-        return std::numeric_limits<bucket_size_type>::max();
-    }
-
-    //---------------------------------------------------------------
     size_type bucket_count() const noexcept;
     //-----------------------------------------------------
     size_type key_count() noexcept;
@@ -109,6 +115,26 @@ public:
     //-----------------------------------------------------
     bool empty() noexcept {
         return key_count() < 1;
+    }
+
+    //---------------------------------------------------------------
+    static bucket_size_type
+    max_supported_locations_per_feature() noexcept {
+        return (max_bucket_size() - 1);
+    }
+    //-----------------------------------------------------
+    void max_locations_per_feature(bucket_size_type n)
+    {
+        if(n < 1) n = 1;
+        if(n >= max_supported_locations_per_feature()) {
+            n = max_supported_locations_per_feature();
+        }
+        maxLocsPerFeature_ = n;
+    }
+    //-----------------------------------------------------
+    bucket_size_type
+    max_locations_per_feature() const noexcept {
+        return maxLocsPerFeature_;
     }
 
     //---------------------------------------------------------------
@@ -127,7 +153,7 @@ public:
     /****************************************************************
      * @brief allocate gpu hash table for database building
      */
-    gpu_id initialize_build_hash_table(gpu_id numGPUs, std::uint64_t maxLocsPerFeature);
+    gpu_id initialize_build_hash_table(gpu_id numGPUs);
 
     /****************************************************************
      * @brief split sequence into batches and insert into build hash table
@@ -159,7 +185,6 @@ public:
         query_batch<value_type>& batch,
         gpu_id hostId,
         const sketcher& querySketcher,
-        bucket_size_type maxLocationPerFeature,
         bool copyAllHits,
         taxon_rank lowestRank) const;
 
@@ -200,6 +225,7 @@ private:
     //---------------------------------------------------------------
     gpu_id numGPUs_;
     float maxLoadFactor_;
+    std::uint64_t maxLocsPerFeature_;
     std::atomic_bool valid_;
 
     std::vector<insert_buffer> insertBuffers_;

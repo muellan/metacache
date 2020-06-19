@@ -49,7 +49,9 @@ class gpu_hashmap<Key,ValueT>::build_hash_table {
         // warpcore::defaults::empty_key<key_type>(),       //=0
         key_type(-2),
         warpcore::defaults::tombstone_key<key_type>(),      //=-1
-        warpcore::storage::multi_value::BucketListStore<value_type,40,8,8>
+        warpcore::storage::multi_value::BucketListStore<
+            value_type,40,bucket_size_bits(),bucket_size_bits()
+        >
     >;
 
     using size_type  = typename hash_table_t::index_type;
@@ -756,6 +758,7 @@ template<class Key, class ValueT>
 gpu_hashmap<Key,ValueT>::gpu_hashmap() :
     numGPUs_(0),
     maxLoadFactor_(default_max_load_factor()),
+    maxLocsPerFeature_(max_supported_locations_per_feature()),
     valid_(true)
 {
     int deviceCount = 0;
@@ -774,6 +777,7 @@ template<class Key, class ValueT>
 gpu_hashmap<Key,ValueT>::gpu_hashmap(gpu_hashmap&& other) :
     numGPUs_{other.numGPUs_},
     maxLoadFactor_{other.maxLoadFactor_},
+    maxLocsPerFeature_{other.maxLocsPerFeature_},
     valid_{other.valid_.exchange(false)},
     buildHashTables_{std::move(other.buildHashTables_)},
     queryHashTables_{std::move(other.queryHashTables_)}
@@ -898,9 +902,7 @@ gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-gpu_id gpu_hashmap<Key,ValueT>::initialize_build_hash_table(
-    gpu_id numGPUs,
-    std::uint64_t maxLocsPerFeature)
+gpu_id gpu_hashmap<Key,ValueT>::initialize_build_hash_table(gpu_id numGPUs)
 {
     if(numGPUs < numGPUs_)
         numGPUs_ = numGPUs;
@@ -928,7 +930,7 @@ gpu_id gpu_hashmap<Key,ValueT>::initialize_build_hash_table(
         std::cerr << "gpu " << gpuId
                   << " allocate hashtable for " << keyCapacity << " keys"
                                        " and " << valueCapacity << " values\n";
-        buildHashTables_.emplace_back(keyCapacity, valueCapacity, maxLocsPerFeature);
+        buildHashTables_.emplace_back(keyCapacity, valueCapacity, maxLocsPerFeature_);
 
         cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
         std::cerr << "gpu " << gpuId << " freeMemory: " << (freeMemory >> 20) << " MB\n";
@@ -1044,7 +1046,6 @@ void gpu_hashmap<Key,ValueT>::query_async(
     query_batch<value_type>& batch,
     gpu_id hostId,
     const sketcher& querySketcher,
-    bucket_size_type maxLocationPerFeature,
     bool copyAllHits,
     taxon_rank lowestRank) const
 {
@@ -1061,14 +1062,14 @@ void gpu_hashmap<Key,ValueT>::query_async(
                 batch.host_data(hostId).num_queries(),
                 batch.gpu_data(gpuId),
                 querySketcher,
-                maxLocationPerFeature);
+                maxLocsPerFeature_);
         }
         else {
             queryHashTables_[gpuId].query_sketches_async(
                 batch.host_data(hostId).num_queries(),
                 batch.gpu_data(gpuId),
                 querySketcher,
-                maxLocationPerFeature);
+                maxLocsPerFeature_);
         }
         batch.mark_query_finished();
 

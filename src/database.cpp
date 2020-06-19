@@ -151,7 +151,9 @@ void database::read_single(const std::string& filename, gpu_id gpuId, scope what
         read_binary(is, querySketcher_);
 
         //target insertion parameters
-        read_binary(is, maxLocsPerFeature_);
+        uint64_t maxLocsPerFeature;
+        read_binary(is, maxLocsPerFeature);
+        max_locations_per_feature(maxLocsPerFeature);
 
         //taxon metadata
         read_binary(is, taxa_);
@@ -268,7 +270,7 @@ void database::write(const std::string& filename, gpu_id gpuId) const
     write_binary(os, querySketcher_);
 
     //target insertion parameters
-    write_binary(os, maxLocsPerFeature_);
+    write_binary(os, uint64_t(max_locations_per_feature()));
 
     //taxon & target metadata
     write_binary(os, taxa_);
@@ -278,23 +280,6 @@ void database::write(const std::string& filename, gpu_id gpuId) const
     write_binary(os, featureStoreGPU_, gpuId);
 
     std::cerr << "done." << std::endl;
-}
-
-
-
-// ----------------------------------------------------------------------------
-void database::max_locations_per_feature(bucket_size_type n)
-{
-    if(n < 1) n = 1;
-    if(n >= max_supported_locations_per_feature()) {
-        n = max_supported_locations_per_feature();
-    }
-    else if(n < maxLocsPerFeature_) {
-        for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
-            if(i->size() > n) features_.shrink(i, n);
-        }
-    }
-    maxLocsPerFeature_ = n;
 }
 
 

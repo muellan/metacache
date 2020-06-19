@@ -295,7 +295,6 @@ public:
     database(sketcher targetSketcher, sketcher querySketcher) :
         targetSketcher_{std::move(targetSketcher)},
         querySketcher_{std::move(querySketcher)},
-        maxLocsPerFeature_(max_supported_locations_per_feature()),
         features_{},
         featureStoreGPU_{},
         targets_{},
@@ -311,7 +310,6 @@ public:
     database(database&& other) :
         targetSketcher_{std::move(other.targetSketcher_)},
         querySketcher_{std::move(other.querySketcher_)},
-        maxLocsPerFeature_(other.maxLocsPerFeature_),
         targetCount_{other.targetCount_.load()},
         features_{std::move(other.features_)},
         targets_{std::move(other.targets_)},
@@ -357,17 +355,18 @@ public:
 
 
     //---------------------------------------------------------------
-    void max_locations_per_feature(bucket_size_type);
-
+    void max_locations_per_feature(bucket_size_type n) {
+        return featureStoreGPU_.max_locations_per_feature(n);
+    }
     //-----------------------------------------------------
     bucket_size_type
     max_locations_per_feature() const noexcept {
-        return maxLocsPerFeature_;
+        return featureStoreGPU_.max_locations_per_feature();
     }
     //-----------------------------------------------------
     static bucket_size_type
     max_supported_locations_per_feature() noexcept {
-        return (feature_store::max_bucket_size() - 1);
+        return feature_store_gpu::max_supported_locations_per_feature();
     }
 
     //-----------------------------------------------------
@@ -395,7 +394,7 @@ public:
 
     //---------------------------------------------------------------
     void initialize_gpu_hash_table(gpu_id numGPUs) {
-        featureStoreGPU_.initialize_build_hash_table(numGPUs, maxLocsPerFeature_);
+        featureStoreGPU_.initialize_build_hash_table(numGPUs);
     }
 
 
@@ -717,7 +716,6 @@ public:
             queryBatch,
             hostId,
             query_sketcher(),
-            max_locations_per_feature(),
             copyAllHits,
             lowestRank);
     }
@@ -918,7 +916,6 @@ private:
     //---------------------------------------------------------------
     sketcher targetSketcher_;
     sketcher querySketcher_;
-    std::uint64_t maxLocsPerFeature_;
     std::atomic<std::uint64_t> targetCount_;
     feature_store features_;
     mutable feature_store_gpu featureStoreGPU_;
