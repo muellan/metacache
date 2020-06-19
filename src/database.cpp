@@ -48,7 +48,8 @@ bool database::add_target(const sequence& seq, taxon_name sid,
     const auto taxid = taxon_id_of_target(targetCount);
 
     //sketch sequence -> insert features
-    source.windows = add_all_window_sketches(seq, targetCount);
+    source.windows = features_.add_all_window_sketches(seq, targetCount,
+                                                       targetSketcher_);
 
     //insert sequence metadata as a new taxon
     if(parentTaxid < 1) parentTaxid = 0;
@@ -136,7 +137,9 @@ void database::read(const std::string& filename, scope what)
     read_binary(is, querySketcher_);
 
     //target insertion parameters
-    read_binary(is, maxLocsPerFeature_);
+    uint64_t maxLocsPerFeature = 0;
+    read_binary(is, maxLocsPerFeature);
+    max_locations_per_feature(maxLocsPerFeature);
 
     //taxon metadata
     read_binary(is, taxa_);
@@ -198,7 +201,7 @@ void database::write(const std::string& filename) const
     write_binary(os, querySketcher_);
 
     //target insertion parameters
-    write_binary(os, maxLocsPerFeature_);
+    write_binary(os, max_locations_per_feature());
 
     //taxon & target metadata
     write_binary(os, taxa_);
@@ -208,88 +211,6 @@ void database::write(const std::string& filename) const
     write_binary(os, features_);
 }
 
-
-
-// ----------------------------------------------------------------------------
-void database::max_locations_per_feature(bucket_size_type n)
-{
-    if(n < 1) n = 1;
-    if(n >= max_supported_locations_per_feature()) {
-        n = max_supported_locations_per_feature();
-    }
-    else if(n < maxLocsPerFeature_) {
-        for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
-            if(i->size() > n) features_.shrink(i, n);
-        }
-    }
-    maxLocsPerFeature_ = n;
-}
-
-
-
-// ----------------------------------------------------------------------------
-database::feature_count_type
-database::remove_features_with_more_locations_than(bucket_size_type n)
-{
-    //note that features are not really removed, because the hashmap
-    //does not support erasing keys; instead all values belonging to
-    //the key are cleared and the key is kept without values
-    feature_count_type rem = 0;
-    for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
-        if(i->size() > n) {
-            features_.clear(i);
-            ++rem;
-        }
-    }
-    return rem;
-}
-
-
-
-// ----------------------------------------------------------------------------
-database::feature_count_type
-database::remove_ambiguous_features(taxon_rank r, bucket_size_type maxambig)
-{
-    feature_count_type rem = 0;
-
-    if(taxa_.empty()) {
-        throw std::runtime_error{"no taxonomy available!"};
-    }
-
-    if(maxambig == 0) maxambig = 1;
-
-    if(r == taxon_rank::Sequence) {
-        for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
-            if(!i->empty()) {
-                std::set<target_id> targets;
-                for(auto loc : *i) {
-                    targets.insert(loc.tgt);
-                    if(targets.size() > maxambig) {
-                        features_.clear(i);
-                        ++rem;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    else {
-        for(auto i = features_.begin(), e = features_.end(); i != e; ++i) {
-            if(!i->empty()) {
-                std::set<const taxon*> taxa;
-                for(auto loc : *i) {
-                    taxa.insert(targetLineages_[loc.tgt][int(r)]);
-                    if(taxa.size() > maxambig) {
-                        features_.clear(i);
-                        ++rem;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    return rem;
-}
 
 
 

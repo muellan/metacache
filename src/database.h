@@ -46,11 +46,9 @@
 #include "io_options.h"
 #include "stat_combined.h"
 #include "taxonomy.h"
-#include "hash_multimap.h"
-#include "dna_encoding.h"
 #include "typename.h"
+#include "host_hashmap.h"
 
-#include "batch_processing.h"
 
 namespace mc {
 
@@ -164,8 +162,6 @@ public:
     //avoid padding bits
     #pragma pack(pop)
 
-    using match_locations = std::vector<location>;
-
 
     //-----------------------------------------------------
     using sketch  = typename sketcher::sketch_type;  //range of features
@@ -175,94 +171,22 @@ public:
 private:
     //use negative numbers for sequence level taxon ids
     static constexpr taxon_id
-    taxon_id_of_target(target_id id) noexcept { return -taxon_id(id)-1; }
+    taxon_id_of_target(target_id id) noexcept {
+        return ranked_lineages_of_targets::taxon_id_of_target(id);
+    }
 
 
     //-----------------------------------------------------
     /// @brief "heart of the database": maps features to target locations
-    using feature_store = hash_multimap<feature,location, //key, value
-                              feature_hash,               //key hasher
-                              std::equal_to<feature>,     //key comparator
-                              chunk_allocator<location>,  //value allocator
-                              std::allocator<feature>,    //bucket+key allocator
-                              bucket_size_type>;          //location list size
-
-
-    //-----------------------------------------------------
-    /// @brief needed for batched, asynchonous insertion into feature_store
-    struct window_sketch
-    {
-        window_sketch() = default;
-
-        window_sketch(target_id tgt, window_id win, sketch sk) :
-            tgt{tgt}, win{win}, sk{std::move(sk)} {};
-
-        target_id tgt;
-        window_id win;
-        sketch sk;
-    };
-
-    using sketch_batch = std::vector<window_sketch>;
+    using feature_store = host_hashmap<location>;
 
 
 public:
     //---------------------------------------------------------------
-    using feature_count_type = typename feature_store::size_type;
+    using feature_count_type = typename feature_store::feature_count_type;
 
-
-    //---------------------------------------------------------------
-    /** @brief used for query result storage/accumulation
-     */
-    class matches_sorter {
-        friend class database;
-
-    public:
-        void sort() {
-            merge_sort(locs_, offsets_, temp_);
-        }
-
-        void clear() {
-            locs_.clear();
-            offsets_.clear();
-            offsets_.resize(1, 0);
-        }
-
-        bool empty() const noexcept { return locs_.empty(); }
-        auto size()  const noexcept { return locs_.size(); }
-
-        auto begin() const noexcept { return locs_.begin(); }
-        auto end()   const noexcept { return locs_.end(); }
-
-        const match_locations&
-        locations() const noexcept { return locs_; }
-
-    private:
-        static void
-        merge_sort(match_locations& inout,
-                   std::vector<size_t>& offsets,
-                   match_locations& temp)
-        {
-            if(offsets.size() < 3) return;
-            temp.resize(inout.size());
-
-            int numChunks = offsets.size()-1;
-            for(int s = 1; s < numChunks; s *= 2) {
-                for(int i = 0; i < numChunks; i += 2*s) {
-                    auto begin = offsets[i];
-                    auto mid = i + s <= numChunks ? offsets[i + s] : offsets[numChunks];
-                    auto end = i + 2*s <= numChunks ? offsets[i + 2*s] : offsets[numChunks];
-                    std::merge(inout.begin()+begin, inout.begin()+mid,
-                               inout.begin()+mid, inout.begin()+end,
-                               temp.begin()+begin);
-                }
-                std::swap(inout, temp);
-            }
-        }
-
-        match_locations locs_; // match locations from hashmap
-        std::vector<std::size_t> offsets_;  // bucket sizes for merge sort
-        match_locations temp_; // temp buffer for merge sort
-    };
+    using matches_sorter     = typename feature_store::matches_sorter;
+    using match_locations    = typename feature_store::match_locations;
 
 
     //---------------------------------------------------------------
@@ -275,38 +199,28 @@ public:
     database(sketcher targetSketcher, sketcher querySketcher) :
         targetSketcher_{std::move(targetSketcher)},
         querySketcher_{std::move(querySketcher)},
-        maxLocsPerFeature_(max_supported_locations_per_feature()),
         features_{},
         targets_{},
         taxa_{},
         ranksCache_{taxa_, taxon_rank::Sequence},
         targetLineages_{taxa_},
-        name2tax_{},
-        inserter_{}
-    {
-        features_.max_load_factor(default_max_load_factor());
-    }
+        name2tax_{}
+    {}
 
     database(const database&) = delete;
     database(database&& other) :
         targetSketcher_{std::move(other.targetSketcher_)},
         querySketcher_{std::move(other.querySketcher_)},
-        maxLocsPerFeature_(other.maxLocsPerFeature_),
         features_{std::move(other.features_)},
         targets_{std::move(other.targets_)},
         taxa_{std::move(other.taxa_)},
         ranksCache_{std::move(other.ranksCache_)},
         targetLineages_{std::move(other.targetLineages_)},
-        name2tax_{std::move(other.name2tax_)},
-        inserter_{std::move(other.inserter_)}
+        name2tax_{std::move(other.name2tax_)}
     {}
 
     database& operator = (const database&) = delete;
     database& operator = (database&&)      = default;
-
-    ~database() {
-        wait_until_add_target_complete();
-    }
 
 
     //---------------------------------------------------------------
@@ -341,22 +255,26 @@ public:
 
 
     //---------------------------------------------------------------
-    void max_locations_per_feature(bucket_size_type);
+    void max_locations_per_feature(bucket_size_type n) {
+        return features_.max_locations_per_feature(n);
 
+    }
     //-----------------------------------------------------
     bucket_size_type
     max_locations_per_feature() const noexcept {
-        return maxLocsPerFeature_;
+        return features_.max_locations_per_feature();
     }
     //-----------------------------------------------------
     static bucket_size_type
     max_supported_locations_per_feature() noexcept {
-        return (feature_store::max_bucket_size() - 1);
+        return (feature_store::max_supported_locations_per_feature());
     }
 
     //-----------------------------------------------------
     feature_count_type
-    remove_features_with_more_locations_than(bucket_size_type);
+    remove_features_with_more_locations_than(bucket_size_type n) {
+        return features_.remove_features_with_more_locations_than(n);
+    }
 
 
     //---------------------------------------------------------------
@@ -368,7 +286,13 @@ public:
      * @return number of features (hash table buckets) that were removed
      */
     feature_count_type
-    remove_ambiguous_features(taxon_rank, bucket_size_type maxambig);
+    remove_ambiguous_features(taxon_rank r, bucket_size_type maxambig) {
+        if(taxa_.empty()) {
+            throw std::runtime_error{"no taxonomy available!"};
+        }
+
+        return features_.remove_ambiguous_features(r, maxambig, targetLineages_);
+    }
 
 
     //---------------------------------------------------------------
@@ -376,6 +300,15 @@ public:
                     taxon_id parentTaxid = 0,
                     file_source source = file_source{});
 
+    //---------------------------------------------------------------
+    void wait_until_add_target_complete() {
+        features_.wait_until_add_target_complete();
+    }
+
+    //---------------------------------------------------------------
+    bool add_target_failed() {
+        return features_.add_target_failed();
+    }
 
 
     //---------------------------------------------------------------
@@ -635,33 +568,13 @@ public:
 
 
     //---------------------------------------------------------------
-    template<class InputIterator>
-    void
-    accumulate_matches(InputIterator queryBegin, InputIterator queryEnd,
-                       matches_sorter& res) const
-    {
-        querySketcher_.for_each_sketch(queryBegin, queryEnd,
-            [this, &res] (const auto& sk) {
-                 res.offsets_.reserve(res.offsets_.size() + sk.size());
-
-                for(auto f : sk) {
-                    auto locs = features_.find(f);
-                    if(locs != features_.end() && locs->size() > 0) {
-                        res.locs_.insert(res.locs_.end(), locs->begin(), locs->end());
-                        res.offsets_.emplace_back(res.locs_.size());
-                    }
-                }
-            });
-    }
-
-    //---------------------------------------------------------------
     void
     accumulate_matches(const sequence& query,
                        matches_sorter& res) const
     {
         using std::begin;
         using std::end;
-        accumulate_matches(begin(query), end(query), res);
+        features_.accumulate_matches(querySketcher_, begin(query), end(query), res);
     }
 
 
@@ -672,10 +585,6 @@ public:
     //-----------------------------------------------------
     float max_load_factor() const noexcept {
         return features_.max_load_factor();
-    }
-    //-----------------------------------------------------
-    static constexpr float default_max_load_factor() noexcept {
-        return 0.8f;
     }
 
     /**
@@ -713,201 +622,32 @@ public:
     //---------------------------------------------------------------
     statistics_accumulator
     location_list_size_statistics() const {
-        auto priSize = statistics_accumulator{};
-
-        for(const auto& bucket : features_) {
-            if(!bucket.empty()) {
-                priSize += bucket.size();
-            }
-        }
-
-        return priSize;
+        return features_.location_list_size_statistics();
     }
 
 
     //---------------------------------------------------------------
     void print_feature_map(std::ostream& os) const {
-        for(const auto& bucket : features_) {
-            if(!bucket.empty()) {
-                os << std::int_least64_t(bucket.key()) << " -> ";
-                for(location p : bucket) {
-                    os << '(' << std::int_least64_t(p.tgt)
-                       << ',' << std::int_least64_t(p.win) << ')';
-                }
-                os << '\n';
-            }
-        }
+        features_.print_feature_map(os);
     }
 
 
     //---------------------------------------------------------------
     void print_feature_counts(std::ostream& os) const {
-        for(const auto& bucket : features_) {
-            if(!bucket.empty()) {
-                os << std::int_least64_t(bucket.key()) << " -> "
-                   << std::int_least64_t(bucket.size()) << '\n';
-            }
-        }
+        features_.print_feature_counts(os);
     }
-
-
-    //---------------------------------------------------------------
-    void wait_until_add_target_complete() {
-        // destroy inserter
-        inserter_ = nullptr;
-    }
-
-
-    //---------------------------------------------------------------
-    bool add_target_failed() {
-        return (inserter_) && (!inserter_->valid());
-    }
-
-
-private:
-    //---------------------------------------------------------------
-    window_id add_all_window_sketches(const sequence& seq, target_id tgt) {
-        if(!inserter_) make_sketch_inserter();
-
-        window_id win = 0;
-        targetSketcher_.for_each_sketch(seq,
-            [&, this] (auto&& sk) {
-                if(inserter_->valid()) {
-                    //insert sketch into batch
-                    auto& sketch = inserter_->next_item();
-                    sketch.tgt = tgt;
-                    sketch.win = win;
-                    sketch.sk = std::move(sk);
-                }
-                ++win;
-            });
-        return win;
-    }
-
-
-    //---------------------------------------------------------------
-    void add_sketch_batch(const sketch_batch& batch) {
-        for(const auto& windowSketch : batch) {
-            //insert features from sketch into database
-            for(const auto& f : windowSketch.sk) {
-                auto it = features_.insert(
-                    f, location{windowSketch.win, windowSketch.tgt});
-                if(it->size() > maxLocsPerFeature_) {
-                    features_.shrink(it, maxLocsPerFeature_);
-                }
-            }
-        }
-    }
-
-
-    //---------------------------------------------------------------
-    void make_sketch_inserter() {
-        batch_processing_options execOpt;
-        execOpt.batch_size(1000);
-        execOpt.queue_size(100);
-        execOpt.concurrency(1);
-
-        inserter_ = std::make_unique<batch_executor<window_sketch>>( execOpt,
-            [&,this](int, const auto& batch) {
-                this->add_sketch_batch(batch);
-            });
-    }
-
-
-
-    /*************************************************************************//**
-    *
-    * @brief concurrency-safe ranked lineage cache
-    *
-    *****************************************************************************/
-    class ranked_lineages_of_targets
-    {
-    public:
-        //---------------------------------------------------------------
-        using ranked_lineage = taxonomy::ranked_lineage;
-        using taxon_rank     = taxonomy::rank;
-
-    public:
-        //---------------------------------------------------------------
-        explicit
-        ranked_lineages_of_targets(const taxonomy& taxa)
-        :
-            taxa_(taxa),
-            lins_{},
-            outdated_(true)
-        {}
-
-        //---------------------------------------------------------------
-        ranked_lineages_of_targets(const ranked_lineages_of_targets&) = delete;
-
-        ranked_lineages_of_targets(ranked_lineages_of_targets&& src):
-            taxa_(src.taxa_),
-            lins_{std::move(src.lins_)},
-            outdated_(src.outdated_)
-        {}
-
-        ranked_lineages_of_targets& operator = (const ranked_lineages_of_targets&) = delete;
-        ranked_lineages_of_targets& operator = (ranked_lineages_of_targets&&) = delete;
-
-
-        //---------------------------------------------------------------
-        void mark_outdated() {
-            outdated_ = true;
-        }
-
-        //---------------------------------------------------------------
-        void update(target_id numTargets = 0) {
-            if(!outdated_) return;
-
-            if(numTargets == 0) numTargets = lins_.size();
-            lins_.clear();
-            for(size_t tgt = 0; tgt < numTargets; ++tgt) {
-                lins_.emplace_back(taxa_.ranks(taxon_id_of_target(tgt)));
-            }
-            outdated_ = false;
-        }
-
-        //-----------------------------------------------------
-        void clear() {
-            lins_.clear();
-            outdated_ = true;
-        }
-
-        //---------------------------------------------------------------
-        const ranked_lineage&
-        operator [] (target_id tgt) const {
-            assert(outdated_ == false);
-            return lins_[tgt];
-        }
-
-        //---------------------------------------------------------------
-        const taxon*
-        ranked_lca(target_id a, target_id b, taxon_rank lowest) const {
-            assert(outdated_ == false);
-            return taxa_.ranked_lca(lins_[a], lins_[b], lowest);
-        }
-
-    private:
-        //---------------------------------------------------------------
-        const taxonomy& taxa_;
-        std::vector<ranked_lineage> lins_;
-        bool outdated_;
-    };
 
 
 private:
     //---------------------------------------------------------------
     sketcher targetSketcher_;
     sketcher querySketcher_;
-    std::uint64_t maxLocsPerFeature_;
     feature_store features_;
     std::vector<const taxon*> targets_;
     taxonomy taxa_;
     mutable ranked_lineages_cache ranksCache_;
     mutable ranked_lineages_of_targets targetLineages_;
     std::map<taxon_name,const taxon*> name2tax_;
-
-    std::unique_ptr<batch_executor<window_sketch>> inserter_;
 };
 
 
