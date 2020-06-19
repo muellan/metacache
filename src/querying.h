@@ -67,6 +67,36 @@ struct sequence_query
 
 
 
+/*************************************************************************//**
+ *
+ * @brief process batch of results from gpu database query
+ *
+ * @tparam Buffer        batch buffer object
+ *
+ * @tparam BufferUpdate  takes database matches of one query and a buffer;
+ *                       must be thread-safe (only const operations on DB!)
+ *
+ *****************************************************************************/
+template<class Buffer, class BufferUpdate>
+void query_host(
+    const database& db,
+    const std::vector<sequence_query>& batch,
+    database::matches_sorter& targetMatches,
+    Buffer& resultsBuffer, BufferUpdate& update)
+{
+    for(auto& seq : batch) {
+        targetMatches.clear();
+
+        db.accumulate_matches(seq.seq1, targetMatches);
+        db.accumulate_matches(seq.seq2, targetMatches);
+        targetMatches.sort();
+
+        update(resultsBuffer, seq, targetMatches.locations());
+    }
+}
+
+
+
  /*************************************************************************//**
  *
  * @brief queries database with batches of reads from ONE sequence source (pair)
@@ -109,22 +139,15 @@ query_id query_batched(
     execOpt.queue_size(opt.numThreads > 1 ? opt.numThreads + 4 : 0);
     execOpt.on_error(handleErrors);
 
+    std::vector<database::matches_sorter> targetMatches(opt.numThreads - (opt.numThreads > 1));
+
     batch_executor<sequence_query> executor {
         execOpt,
         // classifies a batch of input queries
-        [&](int, std::vector<sequence_query>& batch) {
+        [&](int id, std::vector<sequence_query>& batch) {
             auto resultsBuffer = getBuffer();
-            database::matches_sorter targetMatches;
 
-            for(auto& seq : batch) {
-                targetMatches.clear();
-
-                db.accumulate_matches(seq.seq1, targetMatches);
-                db.accumulate_matches(seq.seq2, targetMatches);
-                targetMatches.sort();
-
-                update(resultsBuffer, seq, targetMatches.locations());
-            }
+           query_host(db, batch, targetMatches[id], resultsBuffer, update);
 
             std::lock_guard<std::mutex> lock(finalizeMtx);
             finalize(std::move(resultsBuffer));
