@@ -142,6 +142,16 @@ public:
         return 0.95;
     }
     //-----------------------------------------------------
+    void max_load_factor(float lf) {
+        if(lf > 1.0f) lf = 1.0f;
+        if(lf < 0.1f) lf = 0.1f;
+
+        using std::abs;
+        if(abs(maxLoadFactor_ - lf) > 0.00001f) {
+            maxLoadFactor_ = lf;
+        }
+    }
+    //-----------------------------------------------------
     float max_load_factor() const noexcept {
         return maxLoadFactor_;
     }

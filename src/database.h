@@ -371,7 +371,10 @@ public:
 
     //-----------------------------------------------------
     feature_count_type
-    remove_features_with_more_locations_than(bucket_size_type);
+    remove_features_with_more_locations_than(bucket_size_type) {
+        std::cerr << "remove_features_with_more_locations_than not available in GPU version\n";
+        return 0;
+    };
 
 
     //---------------------------------------------------------------
@@ -383,7 +386,10 @@ public:
      * @return number of features (hash table buckets) that were removed
      */
     feature_count_type
-    remove_ambiguous_features(taxon_rank, bucket_size_type maxambig);
+    remove_ambiguous_features(taxon_rank, bucket_size_type) {
+        std::cerr << "remove_ambiguous_features not available in GPU version\n";
+        return 0;
+    }
 
 
     //---------------------------------------------------------------
@@ -723,11 +729,11 @@ public:
 
     //---------------------------------------------------------------
     void max_load_factor(float lf) {
-        features_.max_load_factor(lf);
+        featureStoreGPU_.max_load_factor(lf);
     }
     //-----------------------------------------------------
     float max_load_factor() const noexcept {
-        return features_.max_load_factor();
+        return featureStoreGPU_.max_load_factor();
     }
     //-----------------------------------------------------
     static constexpr float default_max_load_factor() noexcept {
@@ -801,28 +807,14 @@ public:
 
 
     //---------------------------------------------------------------
-    void print_feature_map(std::ostream& os) const {
-        for(const auto& bucket : features_) {
-            if(!bucket.empty()) {
-                os << std::int_least64_t(bucket.key()) << " -> ";
-                for(location p : bucket) {
-                    os << '(' << std::int_least64_t(p.tgt)
-                       << ',' << std::int_least64_t(p.win) << ')';
-                }
-                os << '\n';
-            }
-        }
+    void print_feature_map(std::ostream&) const {
+        std::cerr << "print_feature_map not available in GPU version\n";
     }
 
 
     //---------------------------------------------------------------
-    void print_feature_counts(std::ostream& os) const {
-        for(const auto& bucket : features_) {
-            if(!bucket.empty()) {
-                os << std::int_least64_t(bucket.key()) << " -> "
-                   << std::int_least64_t(bucket.size()) << '\n';
-            }
-        }
+    void print_feature_counts(std::ostream&) const {
+        std::cerr << "print_feature_counts not available in GPU version\n";
     }
 
 
