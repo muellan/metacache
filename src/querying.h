@@ -33,8 +33,6 @@
 #include "batch_processing.h"
 #include "query_batch.cuh"
 
-#include "../dep/queue/concurrentqueue.h"
-
 
 namespace mc {
 

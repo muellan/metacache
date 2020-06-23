@@ -31,7 +31,6 @@
 #include "database.h"
 #include "stat_confusion.h"
 #include "taxonomy.h"
-#include "querying.h"
 #include "options.h"
 
 #include "printing.h"
