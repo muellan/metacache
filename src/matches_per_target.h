@@ -29,7 +29,7 @@
 #include <algorithm> // move, sort, lower_bound
 #include <iterator>  // make_move_iterator
 
-#include "candidates.h"
+#include "candidate_generation.h"
 
 
 namespace mc {

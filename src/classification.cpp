@@ -30,7 +30,7 @@
 #include <iterator>
 
 #include "alignment.h"
-#include "candidates.h"
+#include "candidate_generation.h"
 #include "cmdline_utility.h"
 #include "options.h"
 #include "dna_encoding.h"

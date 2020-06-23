@@ -7,7 +7,7 @@
 #include "cuda_runtime.h"
 
 #include "config.h"
-#include "candidate_generation.h"
+#include "candidate_structs.h"
 #include "hash_dna.h"
 #include "taxonomy.h"
 

@@ -24,7 +24,7 @@
 #include <utility>
 
 #include "database.h"
-#include "candidates.h"
+#include "candidate_generation.h"
 #include "classification.h"
 #include "classification_statistics.h"
 #include "matches_per_target.h"

@@ -2,7 +2,7 @@
 #define MC_GPU_RESULT_PROCESSING_H_
 
 #include "config.h"
-#include "candidate_generation.h"
+#include "candidate_structs.h"
 #include "dna_encoding.h"
 
 #include "../dep/cudahelpers/cuda_helpers.cuh"
@@ -398,12 +398,6 @@ void generate_top_candidates(
                 matches[i] = matches[numProcessed + i];
             }
         }
-
-
-        // for_all_contiguous_window_ranges(
-        //     begin, end, maxWindowsInRange[bid], [&] (match_candidate& cand) {
-        //         insert_into_tophits(cand, top, lineages, mergeBelow);
-        // });
 
         // int tophitsCount = 0;
         // for(int i = 0; i < maxCandidatesPerQuery; ++i) {
