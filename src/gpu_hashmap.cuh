@@ -154,7 +154,7 @@ public:
 
     //---------------------------------------------------------------
     size_type
-    remove_ambiguous_features(taxon_rank, bucket_size_type) {
+    remove_ambiguous_features(taxon_rank, bucket_size_type, const ranked_lineages_of_targets&) {
         std::cerr << "remove_ambiguous_features not available in GPU version\n";
         return 0;
     }

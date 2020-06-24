@@ -177,7 +177,9 @@ public:
 private:
     //use negative numbers for sequence level taxon ids
     static constexpr taxon_id
-    taxon_id_of_target(target_id id) noexcept { return -taxon_id(id)-1; }
+    taxon_id_of_target(target_id id) noexcept {
+        return ranked_lineages_of_targets::taxon_id_of_target(id);
+    }
 
 
     //-----------------------------------------------------
@@ -291,7 +293,7 @@ public:
             throw std::runtime_error{"no taxonomy available!"};
         }
 
-        return featureStore_.remove_ambiguous_features(r, maxambig);
+        return featureStore_.remove_ambiguous_features(r, maxambig, targetLineages_);
     }
 
 
@@ -673,92 +675,6 @@ public:
     void print_feature_counts(std::ostream& os) const {
         featureStore_.print_feature_counts(os);
     }
-
-
-private:
-    /*************************************************************************//**
-    *
-    * @brief concurrency-safe ranked lineage cache
-    *
-    *****************************************************************************/
-    class ranked_lineages_of_targets
-    {
-    public:
-        //---------------------------------------------------------------
-        using ranked_lineage = taxonomy::ranked_lineage;
-        using taxon_rank     = taxonomy::rank;
-
-    public:
-        //---------------------------------------------------------------
-        explicit
-        ranked_lineages_of_targets(const taxonomy& taxa)
-        :
-            taxa_(taxa),
-            lins_{},
-            outdated_(true)
-        {}
-
-        //---------------------------------------------------------------
-        ranked_lineages_of_targets(const ranked_lineages_of_targets&) = delete;
-
-        ranked_lineages_of_targets(ranked_lineages_of_targets&& src):
-            taxa_(src.taxa_),
-            lins_{std::move(src.lins_)},
-            outdated_(src.outdated_)
-        {}
-
-        ranked_lineages_of_targets& operator = (const ranked_lineages_of_targets&) = delete;
-        ranked_lineages_of_targets& operator = (ranked_lineages_of_targets&&) = delete;
-
-
-        //---------------------------------------------------------------
-        void mark_outdated() {
-            outdated_ = true;
-        }
-
-        //---------------------------------------------------------------
-        void update(target_id numTargets = 0) {
-            if(!outdated_) return;
-
-            if(numTargets == 0) numTargets = lins_.size();
-            lins_.clear();
-            for(size_t tgt = 0; tgt < numTargets; ++tgt) {
-                lins_.emplace_back(taxa_.ranks(taxon_id_of_target(tgt)));
-            }
-            outdated_ = false;
-        }
-
-        //-----------------------------------------------------
-        void clear() {
-            lins_.clear();
-            outdated_ = true;
-        }
-
-        //---------------------------------------------------------------
-        const ranked_lineage&
-        operator [] (target_id tgt) const {
-            assert(outdated_ == false);
-            return lins_[tgt];
-        }
-
-        //---------------------------------------------------------------
-        const taxon*
-        ranked_lca(target_id a, target_id b, taxon_rank lowest) const {
-            assert(outdated_ == false);
-            return taxa_.ranked_lca(lins_[a], lins_[b], lowest);
-        }
-
-        //---------------------------------------------------------------
-        const std::vector<ranked_lineage>& lineages() const {
-            return lins_;
-        }
-
-    private:
-        //---------------------------------------------------------------
-        const taxonomy& taxa_;
-        std::vector<ranked_lineage> lins_;
-        bool outdated_;
-    };
 
 
 private:
