@@ -98,7 +98,7 @@ public:
     }
 
     //---------------------------------------------------------------
-    bool valid() const noexcept;
+    bool valid() const noexcept { return valid_; };
 
     //---------------------------------------------------------------
     void pop_status();
@@ -109,13 +109,20 @@ public:
     //-----------------------------------------------------
     size_type key_count() noexcept;
     //-----------------------------------------------------
-    size_type tombstone_count() noexcept { /*TODO*/ return 0;}
+    size_type dead_feature_count() noexcept { /*TODO count tombstones */ return 0;}
     //-----------------------------------------------------
     size_type value_count() noexcept;
     //-----------------------------------------------------
     bool empty() noexcept {
         return key_count() < 1;
     }
+
+    //---------------------------------------------------------------
+    void clear() {};
+    void clear_without_deallocation() {
+        // not neccssary for gpu version
+        clear();
+    };
 
     //---------------------------------------------------------------
     static bucket_size_type
@@ -136,6 +143,22 @@ public:
     max_locations_per_feature() const noexcept {
         return maxLocsPerFeature_;
     }
+
+    //-----------------------------------------------------
+    size_type
+    remove_features_with_more_locations_than(bucket_size_type) {
+        std::cerr << "remove_features_with_more_locations_than not available in GPU version\n";
+        return 0;
+    };
+
+
+    //---------------------------------------------------------------
+    size_type
+    remove_ambiguous_features(taxon_rank, bucket_size_type) {
+        std::cerr << "remove_ambiguous_features not available in GPU version\n";
+        return 0;
+    }
+
 
     //---------------------------------------------------------------
     static constexpr float default_max_load_factor() noexcept {
@@ -160,10 +183,20 @@ public:
     statistics_accumulator_gpu<policy::Host>
     location_list_size_statistics();
 
+    //---------------------------------------------------------------
+    void print_feature_map(std::ostream&) const {
+        std::cerr << "print_feature_map not available in GPU version\n";
+    }
+
+    //---------------------------------------------------------------
+    void print_feature_counts(std::ostream&) const {
+        std::cerr << "print_feature_counts not available in GPU version\n";
+    }
+
     /****************************************************************
      * @brief allocate gpu hash table for database building
      */
-    gpu_id initialize_build_hash_table(gpu_id numGPUs);
+    gpu_id initialize_build_hash_tables(gpu_id numGPUs);
 
     /****************************************************************
      * @brief split sequence into batches and insert into build hash table
@@ -188,7 +221,6 @@ public:
 
     //-----------------------------------------------------
     void wait_until_add_target_complete(gpu_id gpuId, const sketcher& targetSketcher);
-    void wait_until_add_target_complete(const sketcher& targetSketcher);
 
     //---------------------------------------------------------------
     void query_async(

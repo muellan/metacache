@@ -182,107 +182,11 @@ private:
 
     //-----------------------------------------------------
     /// @brief "heart of the database": maps features to target locations
-    using feature_store = hash_multimap<feature,location, //key, value
-                              feature_hash,               //key hasher
-                              std::equal_to<feature>,     //key comparator
-                              chunk_allocator<location>,  //value allocator
-                              std::allocator<feature>,    //bucket+key allocator
-                              bucket_size_type>;          //location list size
-
-    //-----------------------------------------------------
-    /// @brief "heart of the database": maps features to target locations
     using feature_store_gpu = gpu_hashmap<feature, location>; //key, value
-
-
-    //-----------------------------------------------------
-    /// @brief needed for batched, asynchonous insertion into feature_store
-    struct window_sketch
-    {
-        window_sketch() = default;
-
-        window_sketch(target_id tgt, window_id win, sketch sk) :
-            tgt{tgt}, win{win}, sk{std::move(sk)} {};
-
-        target_id tgt;
-        window_id win;
-        sketch sk;
-    };
-
-    using sketch_batch = std::vector<window_sketch>;
-
 
 public:
     //---------------------------------------------------------------
-    using feature_count_type = typename feature_store::size_type;
-
-
-    //---------------------------------------------------------------
-    /** @brief used for query result storage/accumulation
-     */
-    class matches_sorter {
-        friend class database;
-
-    public:
-        matches_sorter() :
-            locs_(),
-            offsets_(1, 0)
-        {}
-
-        void sort() {
-            merge_sort(locs_, offsets_, temp_);
-        }
-
-        void clear() {
-            locs_.clear();
-            offsets_.clear();
-            offsets_.resize(1, 0);
-        }
-
-        void resize(size_t size) {
-            locs_.resize(size);
-        }
-
-        template<class Iterator>
-        auto insert(Iterator begin, Iterator end) {
-            return locs_.insert(locs_.end(), begin, end);
-        }
-
-        bool empty() const noexcept { return locs_.empty(); }
-        auto size()  const noexcept { return locs_.size(); }
-
-        auto begin() const noexcept { return locs_.begin(); }
-        auto end()   const noexcept { return locs_.end(); }
-
-        const match_locations&
-        locations() const noexcept { return locs_; }
-
-    private:
-        static void
-        merge_sort(match_locations& inout,
-                   std::vector<size_t>& offsets,
-                   match_locations& temp)
-        {
-            if(offsets.size() < 3) return;
-            temp.resize(inout.size());
-
-            int numChunks = offsets.size()-1;
-            for(int s = 1; s < numChunks; s *= 2) {
-                for(int i = 0; i < numChunks; i += 2*s) {
-                    auto begin = offsets[i];
-                    auto mid = i + s <= numChunks ? offsets[i + s] : offsets[numChunks];
-                    auto end = i + 2*s <= numChunks ? offsets[i + 2*s] : offsets[numChunks];
-                    std::merge(inout.begin()+begin, inout.begin()+mid,
-                               inout.begin()+mid, inout.begin()+end,
-                               temp.begin()+begin);
-                }
-                std::swap(inout, temp);
-            }
-        }
-
-        match_locations locs_; // match locations from hashmap
-        std::vector<std::size_t> offsets_;  // bucket sizes for merge sort
-        match_locations temp_; // temp buffer for merge sort
-    };
+    using feature_count_type = typename feature_store_gpu::size_type;
 
 
     //---------------------------------------------------------------
@@ -295,23 +199,21 @@ public:
     database(sketcher targetSketcher, sketcher querySketcher) :
         targetSketcher_{std::move(targetSketcher)},
         querySketcher_{std::move(querySketcher)},
-        features_{},
+        targetCount_{0},
         featureStoreGPU_{},
         targets_{},
         taxa_{},
         ranksCache_{taxa_, taxon_rank::Sequence},
         targetLineages_{taxa_},
         name2tax_{}
-    {
-        features_.max_load_factor(default_max_load_factor());
-    }
+    {}
 
     database(const database&) = delete;
     database(database&& other) :
         targetSketcher_{std::move(other.targetSketcher_)},
         querySketcher_{std::move(other.querySketcher_)},
         targetCount_{other.targetCount_.load()},
-        features_{std::move(other.features_)},
+        featureStoreGPU_{std::move(other.featureStoreGPU_)},
         targets_{std::move(other.targets_)},
         taxa_{std::move(other.taxa_)},
         ranksCache_{std::move(other.ranksCache_)},
@@ -371,10 +273,9 @@ public:
 
     //-----------------------------------------------------
     feature_count_type
-    remove_features_with_more_locations_than(bucket_size_type) {
-        std::cerr << "remove_features_with_more_locations_than not available in GPU version\n";
-        return 0;
-    };
+    remove_features_with_more_locations_than(bucket_size_type n) {
+        return featureStoreGPU_.remove_features_with_more_locations_than(n);
+    }
 
 
     //---------------------------------------------------------------
@@ -386,9 +287,12 @@ public:
      * @return number of features (hash table buckets) that were removed
      */
     feature_count_type
-    remove_ambiguous_features(taxon_rank, bucket_size_type) {
-        std::cerr << "remove_ambiguous_features not available in GPU version\n";
-        return 0;
+    remove_ambiguous_features(taxon_rank r, bucket_size_type n) {
+        if(taxa_.empty()) {
+            throw std::runtime_error{"no taxonomy available!"};
+        }
+
+        return featureStoreGPU_.remove_ambiguous_features(r, n);
     }
 
 
@@ -399,8 +303,8 @@ public:
 
 
     //---------------------------------------------------------------
-    void initialize_gpu_hash_table(gpu_id numGPUs) {
-        featureStoreGPU_.initialize_build_hash_table(numGPUs);
+    void initialize_hash_table(gpu_id numGPUs) {
+        featureStoreGPU_.initialize_build_hash_tables(numGPUs);
     }
 
 
@@ -440,7 +344,7 @@ public:
 
     //-----------------------------------------------------
     bool empty() const noexcept {
-        return features_.empty();
+        return featureStoreGPU_.empty();
     }
 
 
@@ -681,37 +585,6 @@ public:
 
 
     //---------------------------------------------------------------
-    template<class InputIterator>
-    void
-    accumulate_matches(InputIterator queryBegin, InputIterator queryEnd,
-                       matches_sorter& res) const
-    {
-        querySketcher_.for_each_sketch(queryBegin, queryEnd,
-            [this, &res] (const auto& sk) {
-                 res.offsets_.reserve(res.offsets_.size() + sk.size());
-
-                for(auto f : sk) {
-                    auto locs = features_.find(f);
-                    if(locs != features_.end() && locs->size() > 0) {
-                        res.locs_.insert(res.locs_.end(), locs->begin(), locs->end());
-                        res.offsets_.emplace_back(res.locs_.size());
-                    }
-                }
-            });
-    }
-
-    //---------------------------------------------------------------
-    void
-    accumulate_matches(const sequence& query,
-                       matches_sorter& res) const
-    {
-        using std::begin;
-        using std::end;
-        accumulate_matches(begin(query), end(query), res);
-    }
-
-
-    //---------------------------------------------------------------
     void
     query_gpu_async(query_batch<location>& queryBatch,
                     gpu_id hostId,
@@ -734,10 +607,6 @@ public:
     //-----------------------------------------------------
     float max_load_factor() const noexcept {
         return featureStoreGPU_.max_load_factor();
-    }
-    //-----------------------------------------------------
-    static constexpr float default_max_load_factor() noexcept {
-        return 0.8f;
     }
 
 
@@ -781,7 +650,7 @@ public:
     }
     //---------------------------------------------------------------
     std::uint64_t dead_feature_count() const noexcept {
-        return featureStoreGPU_.tombstone_count();
+        return featureStoreGPU_.dead_feature_count();
     }
     //---------------------------------------------------------------
     std::uint64_t location_count() const noexcept {
@@ -797,14 +666,14 @@ public:
 
 
     //---------------------------------------------------------------
-    void print_feature_map(std::ostream&) const {
-        std::cerr << "print_feature_map not available in GPU version\n";
+    void print_feature_map(std::ostream& os) const {
+        featureStoreGPU_.print_feature_map(os);
     }
 
 
     //---------------------------------------------------------------
-    void print_feature_counts(std::ostream&) const {
-        std::cerr << "print_feature_counts not available in GPU version\n";
+    void print_feature_counts(std::ostream& os) const {
+        featureStoreGPU_.print_feature_counts(os);
     }
 
 
@@ -899,7 +768,6 @@ private:
     sketcher targetSketcher_;
     sketcher querySketcher_;
     std::atomic<std::uint64_t> targetCount_;
-    feature_store features_;
     mutable feature_store_gpu featureStoreGPU_;
     std::vector<const taxon*> targets_;
     taxonomy taxa_;

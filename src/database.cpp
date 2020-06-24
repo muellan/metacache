@@ -171,7 +171,6 @@ void database::read_single(const std::string& filename, gpu_id gpuId, scope what
         }
 
         //sequence id lookup
-        name2tax_.clear();
         for(const auto& t : taxa_) {
             if(t.rank() == taxon_rank::Sequence) {
                 name2tax_.insert({t.name(), &t});
@@ -299,10 +298,11 @@ void database::write(const std::string& filename) const
 
 // ----------------------------------------------------------------------------
 void database::clear() {
+    targets_.clear();
     ranksCache_.clear();
     targetLineages_.clear();
     name2tax_.clear();
-    features_.clear();
+    featureStoreGPU_.clear();
 }
 
 
@@ -311,10 +311,11 @@ void database::clear() {
  * @brief very dangerous! clears feature map without memory deallocation
  */
 void database::clear_without_deallocation() {
+    targets_.clear();
     ranksCache_.clear();
     targetLineages_.clear();
     name2tax_.clear();
-    features_.clear_without_deallocation();
+    featureStoreGPU_.clear_without_deallocation();
 }
 
 

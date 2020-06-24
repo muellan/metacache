@@ -447,7 +447,7 @@ void prepare_database(database& db, const build_options& opt)
         }
     }
 
-    db.initialize_gpu_hash_table(opt.dbconfig.numGPUs);
+    db.initialize_hash_table(opt.dbconfig.numGPUs);
 }
 
 

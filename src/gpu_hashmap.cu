@@ -787,12 +787,6 @@ gpu_hashmap<Key,ValueT>::gpu_hashmap(gpu_hashmap&& other) :
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-bool gpu_hashmap<Key,ValueT>::valid() const noexcept {
-    return valid_;
-}
-
-//---------------------------------------------------------------
-template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::pop_status(gpu_id gpuId) {
     if(gpuId < buildHashTables_.size()) {
         cudaSetDevice(gpuId); CUERR
@@ -889,7 +883,7 @@ gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
                                        << " +/- " << accumulator.stddev()
                                        << " <> " << accumulator.skewness() << '\n'
             << "features             " << std::uint64_t(accumulator.size()) << '\n'
-            << "dead features        " << tombstone_count() << '\n'
+            << "dead features        " << dead_feature_count() << '\n'
             << "locations            " << std::uint64_t(accumulator.sum()) << '\n';
 
         totalAccumulator += accumulator;
@@ -902,7 +896,7 @@ gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-gpu_id gpu_hashmap<Key,ValueT>::initialize_build_hash_table(gpu_id numGPUs)
+gpu_id gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(gpu_id numGPUs)
 {
     if(numGPUs < numGPUs_)
         numGPUs_ = numGPUs;
@@ -1014,21 +1008,6 @@ void gpu_hashmap<Key,ValueT>::wait_until_add_target_complete(
     gpu_id gpuId, const sketcher& targetSketcher)
 {
     if(gpuId < numGPUs_) {
-        cudaSetDevice(gpuId); CUERR
-
-        if(insertBuffers_[gpuId].current_seq_batch().num_targets()) {
-            insert(gpuId, insertBuffers_[gpuId].current_seq_batch(), targetSketcher);
-        }
-
-        buildHashTables_[gpuId].wait_until_insert_finished();
-    }
-}
-//-----------------------------------------------------
-template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::wait_until_add_target_complete(
-    const sketcher& targetSketcher)
-{
-    for(gpu_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
         cudaSetDevice(gpuId); CUERR
 
         if(insertBuffers_[gpuId].current_seq_batch().num_targets()) {
