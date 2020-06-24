@@ -226,11 +226,11 @@ void database::read(const std::string& filename, gpu_id numGPUs, scope what)
     }
     else {
         gpu_id gpuId = 0;
-        read_single(filename+'_'+std::to_string(gpuId), gpuId, what);
+        read_single(filename+std::to_string(gpuId), gpuId, what);
 
         if(what != scope::metadata_only) {
             for(gpu_id gpuId = 1; gpuId < numGPUs; ++gpuId) {
-                read_single(filename+'_'+std::to_string(gpuId), gpuId, scope::hashtable_only);
+                read_single(filename+std::to_string(gpuId), gpuId, scope::hashtable_only);
             }
         }
 
@@ -241,7 +241,7 @@ void database::read(const std::string& filename, gpu_id numGPUs, scope what)
 
 
 //-------------------------------------------------------------------
-void database::write(const std::string& filename, gpu_id gpuId) const
+void database::write_single(const std::string& filename, gpu_id gpuId) const
 {
     std::cerr << "Writing database from GPU " << gpuId << " to file '" << filename << "' ... ";
 
@@ -282,6 +282,19 @@ void database::write(const std::string& filename, gpu_id gpuId) const
     std::cerr << "done." << std::endl;
 }
 
+
+//-------------------------------------------------------------------
+void database::write(const std::string& filename) const
+{
+    if(featureStoreGPU_.num_gpus() == 1) {
+        gpu_id gpuId = 0;
+        write_single(filename, gpuId);
+    }
+    else {
+        for(gpu_id gpuId = 0; gpuId < featureStoreGPU_.num_gpus(); ++gpuId)
+            write_single(filename+std::to_string(gpuId), gpuId);
+    }
+}
 
 
 // ----------------------------------------------------------------------------

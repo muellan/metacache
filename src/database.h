@@ -762,23 +762,13 @@ private:
     /****************************************************************
      * @brief   write database to binary file
      ****************************************************************/
-    void write(const std::string& filename, gpu_id gpuId) const;
+    void write_single(const std::string& filename, gpu_id gpuId) const;
 
 public:
     /****************************************************************
      * @brief   write all database parts to binary files
      ****************************************************************/
-    void write(const std::string& filename) const
-    {
-        if(featureStoreGPU_.num_gpus() == 1) {
-            gpu_id gpuId = 0;
-            write(filename, gpuId);
-        }
-        else {
-            for(gpu_id gpuId = 0; gpuId < featureStoreGPU_.num_gpus(); ++gpuId)
-                write(filename+'_'+std::to_string(gpuId), gpuId);
-        }
-    }
+    void write(const std::string& filename) const;
 
 
     //---------------------------------------------------------------
