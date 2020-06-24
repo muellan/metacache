@@ -35,6 +35,7 @@ HEADERS = \
           src/hash_dna.h \
           src/hash_int.h \
           src/hash_multimap.h \
+          src/host_hashmap.h \
           src/io_error.h \
           src/io_options.h \
           src/io_serialize.h \

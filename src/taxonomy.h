@@ -920,6 +920,11 @@ public:
         return taxa_.ranked_lca(lins_[a], lins_[b], lowest);
     }
 
+    //---------------------------------------------------------------
+    const std::vector<ranked_lineage>& lineages() const {
+        return lins_;
+    }
+
 private:
     //---------------------------------------------------------------
     const taxonomy& taxa_;
