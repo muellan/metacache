@@ -188,7 +188,6 @@ public:
     //---------------------------------------------------------------
     using feature_count_type = typename feature_store::size_type;
 
-
     //---------------------------------------------------------------
     explicit
     database(sketcher targetSketcher = sketcher{}) :
@@ -287,12 +286,12 @@ public:
      * @return number of features (hash table buckets) that were removed
      */
     feature_count_type
-    remove_ambiguous_features(taxon_rank r, bucket_size_type n) {
+    remove_ambiguous_features(taxon_rank r, bucket_size_type maxambig) {
         if(taxa_.empty()) {
             throw std::runtime_error{"no taxonomy available!"};
         }
 
-        return featureStore_.remove_ambiguous_features(r, n);
+        return featureStore_.remove_ambiguous_features(r, maxambig);
     }
 
 
@@ -659,8 +658,7 @@ public:
 
 
     //---------------------------------------------------------------
-    statistics_accumulator_gpu<policy::Host>
-    location_list_size_statistics() const {
+    auto location_list_size_statistics() const {
         return featureStore_.location_list_size_statistics();
     }
 
