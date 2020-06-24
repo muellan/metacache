@@ -44,17 +44,12 @@
 #include "config.h"
 #include "io_error.h"
 #include "io_options.h"
-#include "stat_combined.cuh"
 #include "taxonomy.h"
-#include "hash_multimap.h"
-#include "gpu_hashmap.cuh"
-#include "dna_encoding.h"
 #include "typename.h"
+#include "gpu_hashmap.cuh"
 #include "query_batch.cuh"
 
 #include "../dep/cudahelpers/cuda_helpers.cuh"
-
-#include "batch_processing.h"
 
 namespace mc {
 
