@@ -48,8 +48,8 @@ bool database::add_target(const sequence& seq, taxon_name sid,
     const auto taxid = taxon_id_of_target(targetCount);
 
     //sketch sequence -> insert features
-    source.windows = features_.add_all_window_sketches(seq, targetCount,
-                                                       targetSketcher_);
+    source.windows = featureStore_.add_target(seq, targetCount,
+                                          targetSketcher_);
 
     //insert sequence metadata as a new taxon
     if(parentTaxid < 1) parentTaxid = 0;
@@ -168,7 +168,7 @@ void database::read(const std::string& filename, scope what)
     if(what == scope::metadata_only) return;
 
     //hash table
-    read_binary(is, features_);
+    read_binary(is, featureStore_);
 }
 
 
@@ -208,7 +208,7 @@ void database::write(const std::string& filename) const
     write_binary(os, target_id(targets_.size()));
 
     //hash table
-    write_binary(os, features_);
+    write_binary(os, featureStore_);
 }
 
 
@@ -219,7 +219,7 @@ void database::clear() {
     ranksCache_.clear();
     targetLineages_.clear();
     name2tax_.clear();
-    features_.clear();
+    featureStore_.clear();
 }
 
 
@@ -231,7 +231,7 @@ void database::clear_without_deallocation() {
     ranksCache_.clear();
     targetLineages_.clear();
     name2tax_.clear();
-    features_.clear_without_deallocation();
+    featureStore_.clear_without_deallocation();
 }
 
 

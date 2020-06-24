@@ -155,7 +155,7 @@ public:
     }
 
 
-    //-----------------------------------------------------
+    //---------------------------------------------------------------
     bool empty() const noexcept {
         return hashTable_.empty();
     }
@@ -175,7 +175,10 @@ public:
     std::uint64_t non_empty_bucket_count() const noexcept {
         return hashTable_.non_empty_bucket_count();
     }
-
+    //---------------------------------------------------------------
+    std::uint64_t dead_feature_count() const noexcept {
+        return hashTable_.key_count() - hashTable_.non_empty_bucket_count();
+    }
 
     //---------------------------------------------------------------
     void clear() {
@@ -324,14 +327,17 @@ public:
 
 
     //---------------------------------------------------------------
-    bool add_target_failed() {
-        return (inserter_) && (!inserter_->valid());
+    bool valid() {
+        return !(inserter_) || ((inserter_) && (inserter_->valid()));
     }
 
 
     //---------------------------------------------------------------
-    window_id add_all_window_sketches(const sequence& seq, target_id tgt,
-                                      const sketcher& targetSketcher)
+    /**
+     * @brief adds sketches to database for all windows in sequence
+     */
+    window_id add_target(const sequence& seq, target_id tgt,
+                         const sketcher& targetSketcher)
     {
         if(!inserter_) make_sketch_inserter();
 

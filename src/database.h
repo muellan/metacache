@@ -44,7 +44,6 @@
 #include "config.h"
 #include "io_error.h"
 #include "io_options.h"
-#include "stat_combined.h"
 #include "taxonomy.h"
 #include "typename.h"
 #include "host_hashmap.h"
@@ -199,7 +198,7 @@ public:
     database(sketcher targetSketcher, sketcher querySketcher) :
         targetSketcher_{std::move(targetSketcher)},
         querySketcher_{std::move(querySketcher)},
-        features_{},
+        featureStore_{},
         targets_{},
         taxa_{},
         ranksCache_{taxa_, taxon_rank::Sequence},
@@ -211,7 +210,7 @@ public:
     database(database&& other) :
         targetSketcher_{std::move(other.targetSketcher_)},
         querySketcher_{std::move(other.querySketcher_)},
-        features_{std::move(other.features_)},
+        featureStore_{std::move(other.featureStore_)},
         targets_{std::move(other.targets_)},
         taxa_{std::move(other.taxa_)},
         ranksCache_{std::move(other.ranksCache_)},
@@ -256,24 +255,23 @@ public:
 
     //---------------------------------------------------------------
     void max_locations_per_feature(bucket_size_type n) {
-        return features_.max_locations_per_feature(n);
-
+        return featureStore_.max_locations_per_feature(n);
     }
     //-----------------------------------------------------
     bucket_size_type
     max_locations_per_feature() const noexcept {
-        return features_.max_locations_per_feature();
+        return featureStore_.max_locations_per_feature();
     }
     //-----------------------------------------------------
     static bucket_size_type
     max_supported_locations_per_feature() noexcept {
-        return (feature_store::max_supported_locations_per_feature());
+        return feature_store::max_supported_locations_per_feature();
     }
 
     //-----------------------------------------------------
     feature_count_type
     remove_features_with_more_locations_than(bucket_size_type n) {
-        return features_.remove_features_with_more_locations_than(n);
+        return featureStore_.remove_features_with_more_locations_than(n);
     }
 
 
@@ -291,7 +289,7 @@ public:
             throw std::runtime_error{"no taxonomy available!"};
         }
 
-        return features_.remove_ambiguous_features(r, maxambig, targetLineages_);
+        return featureStore_.remove_ambiguous_features(r, maxambig, targetLineages_);
     }
 
 
@@ -302,12 +300,12 @@ public:
 
     //---------------------------------------------------------------
     void wait_until_add_target_complete() {
-        features_.wait_until_add_target_complete();
+        featureStore_.wait_until_add_target_complete();
     }
 
     //---------------------------------------------------------------
     bool add_target_failed() {
-        return features_.add_target_failed();
+        return !featureStore_.valid();
     }
 
 
@@ -327,7 +325,7 @@ public:
 
     //-----------------------------------------------------
     bool empty() const noexcept {
-        return features_.empty();
+        return featureStore_.empty();
     }
 
 
@@ -572,17 +570,17 @@ public:
     query_host(const sequence& query1, const sequence& query2,
                matches_sorter& res) const
     {
-        features_.query_host(querySketcher_, query1, query2, res);
+        featureStore_.query_host(querySketcher_, query1, query2, res);
     }
 
 
     //---------------------------------------------------------------
     void max_load_factor(float lf) {
-        features_.max_load_factor(lf);
+        featureStore_.max_load_factor(lf);
     }
     //-----------------------------------------------------
     float max_load_factor() const noexcept {
-        return features_.max_load_factor();
+        return featureStore_.max_load_factor();
     }
 
     /**
@@ -601,38 +599,37 @@ public:
 
     //---------------------------------------------------------------
     std::uint64_t bucket_count() const noexcept {
-        return features_.bucket_count();
+        return featureStore_.bucket_count();
     }
     //---------------------------------------------------------------
     std::uint64_t feature_count() const noexcept {
-        return features_.key_count();
+        return featureStore_.key_count();
     }
     //---------------------------------------------------------------
     std::uint64_t dead_feature_count() const noexcept {
-        return features_.key_count() - features_.non_empty_bucket_count();
+        return featureStore_.dead_feature_count();
     }
     //---------------------------------------------------------------
     std::uint64_t location_count() const noexcept {
-        return features_.value_count();
+        return featureStore_.value_count();
     }
 
 
     //---------------------------------------------------------------
-    statistics_accumulator
-    location_list_size_statistics() const {
-        return features_.location_list_size_statistics();
+    auto location_list_size_statistics() const {
+        return featureStore_.location_list_size_statistics();
     }
 
 
     //---------------------------------------------------------------
     void print_feature_map(std::ostream& os) const {
-        features_.print_feature_map(os);
+        featureStore_.print_feature_map(os);
     }
 
 
     //---------------------------------------------------------------
     void print_feature_counts(std::ostream& os) const {
-        features_.print_feature_counts(os);
+        featureStore_.print_feature_counts(os);
     }
 
 
@@ -640,7 +637,7 @@ private:
     //---------------------------------------------------------------
     sketcher targetSketcher_;
     sketcher querySketcher_;
-    feature_store features_;
+    feature_store featureStore_;
     std::vector<const taxon*> targets_;
     taxonomy taxa_;
     mutable ranked_lineages_cache ranksCache_;
