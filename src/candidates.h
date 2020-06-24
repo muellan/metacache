@@ -33,6 +33,24 @@
 namespace mc {
 
 
+template<class Value>
+struct span {
+    using value_type = Value;
+
+    value_type * begin() const noexcept { return begin_; }
+
+    value_type * end() const noexcept { return end_; }
+
+    size_t size() const noexcept { return end_ - begin_; }
+
+    bool empty() const noexcept { return begin_ == end_; }
+
+    value_type * begin_ = nullptr;
+    value_type * end_   = nullptr;
+};
+
+
+
 /*************************************************************************//**
  *
  * @brief inclusive index range: [beg,end]
@@ -121,21 +139,17 @@ struct candidate_generation_rules
  *                    and returns a bool indicating, if loop should be continued
  *
  *****************************************************************************/
-template<class Locations, class Consumer>
+template<class InputIterator, class Consumer>
 void for_all_contiguous_window_ranges(
-    const Locations& matches,
+    InputIterator fst,
+    InputIterator end,
     window_id numWindows,
     Consumer&& consume)
 {
     using hit_count = match_candidate::count_type;
 
-    using std::begin;
-    using std::end;
-
-    auto fst = begin(matches);
-
     //list empty?
-    if(fst == end(matches)) return;
+    if(fst == end) return;
 
     //first entry in list
     hit_count hits = 1;
@@ -148,7 +162,7 @@ void for_all_contiguous_window_ranges(
     ++lst;
 
     //rest of list: check hits per query sequence
-    while(lst != end(matches)) {
+    while(lst != end) {
         //look for neighboring windows with the highest total hit count
         //as long as we are in the same target and the windows are in a
         //contiguous range
@@ -187,6 +201,21 @@ void for_all_contiguous_window_ranges(
 }
 
 
+//-------------------------------------------------------------------
+template<class Locations, class Consumer>
+void for_all_contiguous_window_ranges(
+    const Locations& matches,
+    window_id numWindows,
+    Consumer&& consume)
+{
+    using std::begin;
+    using std::end;
+
+    for_all_contiguous_window_ranges(
+        begin(matches), end(matches), numWindows,
+        std::forward<Consumer>(consume));
+}
+
 
 
 /*************************************************************************//**
@@ -209,6 +238,13 @@ public:
     /****************************************************************
      */
     best_distinct_matches_in_contiguous_window_ranges() = default;
+
+    /****************************************************************
+     * @brief copy candidates from span
+     */
+    best_distinct_matches_in_contiguous_window_ranges(const span<match_candidate>& cand) {
+        top_.assign(cand.begin(), cand.end());
+    }
 
     /****************************************************************
      * @pre matches must be sorted by taxon (first) and window (second)
@@ -258,7 +294,7 @@ public:
                            return a.hits > b.hits;
                        };
 
-        if(cand.tax->rank() == taxon_rank::Sequence) {
+        if(rules.mergeBelow == taxon_rank::Sequence) {
             auto i = std::upper_bound(top_.begin(), top_.end(), cand, greater);
 
             if(i != top_.end() || top_.size() < rules.maxCandidates) {
@@ -283,7 +319,7 @@ public:
                 }
             }
             //taxon not in list yet
-            else  {
+            else {
                 auto j = std::upper_bound(top_.begin(), top_.end(), cand, greater);
 
                 if(j != top_.end() || top_.size() < rules.maxCandidates) {
@@ -293,8 +329,8 @@ public:
                         top_.resize(rules.maxCandidates);
                 }
             }
-
         }
+
         return true;
     };
 

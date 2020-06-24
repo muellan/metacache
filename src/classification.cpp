@@ -146,6 +146,10 @@ struct classification
         candidates{std::move(cand)}, best{nullptr}, groundTruth{nullptr}
     {}
 
+    classification(const span<match_candidate>& cand):
+        candidates{cand}, best{nullptr}, groundTruth{nullptr}
+    {}
+
     classification_candidates candidates;
     const taxon* best;
     const taxon* groundTruth;
@@ -227,12 +231,31 @@ classify(const database& db, const classification_options& opt,
  *****************************************************************************/
 template<class Locations>
 classification
-classify(const database& db,
-         const classification_options& opt,
-         const sequence_query& query,
-         const Locations& allhits)
+make_classification(const database& db,
+                    const classification_options& opt,
+                    const sequence_query& query,
+                    const Locations& allhits)
 {
     classification cls { make_classification_candidates(db, opt, query, allhits) };
+
+    cls.best = classify(db, opt, cls.candidates);
+
+    return cls;
+}
+
+
+
+/*************************************************************************//**
+ *
+ * @brief classify using top candidates
+ *
+ *****************************************************************************/
+classification
+make_classification(const database& db,
+                    const classification_options& opt,
+                    const span<match_candidate>& candidates)
+{
+    classification cls { candidates };
 
     cls.best = classify(db, opt, cls.candidates);
 
@@ -737,12 +760,16 @@ void map_queries_to_targets_default(
     const auto makeBatchBuffer = [] { return mappings_buffer(); };
 
     //updates buffer with the database answer of a single query
-    const auto processQuery = [&](mappings_buffer& buf,
-        const sequence_query& query, const auto& allhits)
+    const auto processQuery = [&](
+        mappings_buffer& buf,
+        const sequence_query& query,
+        const auto& allhits,
+        const auto& tophits)
     {
         if(query.empty()) return;
 
-        auto cls = classify(db, opt.classify, query, allhits);
+        auto cls = (!tophits.empty()) ? make_classification(db, opt.classify, tophits) :
+                                        make_classification(db, opt.classify, query, allhits);
 
         if(opt.output.analysis.showHitsPerTargetList || opt.classify.covPercentile > 0) {
             //insert all candidates with at least 'hitsMin' hits into
@@ -798,7 +825,7 @@ void map_queries_to_targets_default(
     };
 
     //run (parallel) database queries according to processing options
-    query_database(infiles, db, opt.pairing, opt.performance,
+    query_database(infiles, db, opt,
                    makeBatchBuffer, processQuery, finalizeBatch,
                    appendToOutput);
 

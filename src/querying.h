@@ -31,6 +31,7 @@
 #include "sequence_io.h"
 #include "cmdline_utility.h"
 #include "batch_processing.h"
+#include "candidates.h"
 
 
 namespace mc {
@@ -87,7 +88,9 @@ void query_host(
     for(auto& seq : batch) {
         db.query_host(seq.seq1, seq.seq2, targetMatches);
 
-        update(resultsBuffer, seq, targetMatches.locations());
+        span<match_candidate> tophits{};
+
+        update(resultsBuffer, seq, targetMatches.locations(), tophits);
     }
 }
 
@@ -118,24 +121,28 @@ template<
 >
 query_id query_batched(
     const std::string& filename1, const std::string& filename2,
-    const database& db, const performance_tuning_options& opt,
+    const database& db,
+    const query_options& opt,
     query_id idOffset,
     BufferSource&& getBuffer, BufferUpdate&& update, BufferSink&& finalize,
     ErrorHandler&& handleErrors)
 {
-    if(opt.queryLimit < 1) return idOffset;
-    auto queryLimit = size_t(opt.queryLimit > 0 ? opt.queryLimit : std::numeric_limits<size_t>::max());
+    if(opt.performance.queryLimit < 1) return idOffset;
+    size_t queryLimit = opt.performance.queryLimit > 0 ?
+                        size_t(opt.performance.queryLimit) :
+                        std::numeric_limits<size_t>::max();
 
     std::mutex finalizeMtx;
 
     // get executor that runs classification in batches
     batch_processing_options execOpt;
-    execOpt.concurrency(opt.numThreads - 1);
-    execOpt.batch_size(opt.batchSize);
-    execOpt.queue_size(opt.numThreads > 1 ? opt.numThreads + 4 : 0);
+    execOpt.concurrency(opt.performance.numThreads - 1);
+    execOpt.batch_size(opt.performance.batchSize);
+    execOpt.queue_size(opt.performance.numThreads > 1 ? opt.performance.numThreads + 4 : 0);
     execOpt.on_error(handleErrors);
 
-    std::vector<database::matches_sorter> targetMatches(opt.numThreads - (opt.numThreads > 1));
+    std::vector<database::matches_sorter> targetMatches(opt.performance.numThreads -
+                                                        (opt.performance.numThreads > 1));
 
     batch_executor<sequence_query> executor {
         execOpt,
@@ -201,13 +208,12 @@ template<
 void query_database(
     const std::vector<std::string>& infilenames,
     const database& db,
-    pairing_mode pairing,
-    const performance_tuning_options& opt,
+    const query_options& opt,
     BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
     InfoCallback&& showInfo, ProgressHandler&& showProgress,
     ErrorHandler&& errorHandler)
 {
-    const size_t stride = pairing == pairing_mode::files ? 1 : 0;
+    const size_t stride = opt.pairing == pairing_mode::files ? 1 : 0;
     const std::string nofile;
     query_id queryIdOffset = 0;
 
@@ -220,10 +226,10 @@ void query_database(
         //pair up reads from two consecutive files in the list
         const auto& fname1 = infilenames[i];
 
-        const auto& fname2 = (pairing == pairing_mode::none)
+        const auto& fname2 = (opt.pairing == pairing_mode::none)
                              ? nofile : infilenames[i+stride];
 
-        if(pairing == pairing_mode::files) {
+        if(opt.pairing == pairing_mode::files) {
             showInfo(fname1 + " + " + fname2);
         } else {
             showInfo(fname1);
@@ -260,12 +266,11 @@ template<
 void query_database(
     const std::vector<std::string>& infilenames,
     const database& db,
-    pairing_mode pairing,
-    const performance_tuning_options& opt,
+    const query_options& opt,
     BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
     InfoCallback&& showInfo)
 {
-    query_database(infilenames, db, pairing, opt,
+    query_database(infilenames, db, opt,
        std::forward<BufferSource>(bufsrc),
        std::forward<BufferUpdate>(bufupdate),
        std::forward<BufferSink>(bufsink),
