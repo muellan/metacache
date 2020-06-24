@@ -31,7 +31,7 @@
 #include "sequence_io.h"
 #include "cmdline_utility.h"
 #include "batch_processing.h"
-#include "candidates.h"
+#include "candidate_generation.h"
 
 
 namespace mc {

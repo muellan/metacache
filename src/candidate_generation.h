@@ -20,111 +20,18 @@
  *
  *****************************************************************************/
 
-#ifndef MC_CANDIDATES_H_
-#define MC_CANDIDATES_H_
+#ifndef MC_CANDIDATE_GENERATION_H_
+#define MC_CANDIDATE_GENERATION_H_
 
 
 #include <cstdint>
 #include <limits>
 
 #include "database.h"
+#include "candidate_structs.h"
 
 
 namespace mc {
-
-
-template<class Value>
-struct span {
-    using value_type = Value;
-
-    value_type * begin() const noexcept { return begin_; }
-
-    value_type * end() const noexcept { return end_; }
-
-    size_t size() const noexcept { return end_ - begin_; }
-
-    bool empty() const noexcept { return begin_ == end_; }
-
-    value_type * begin_ = nullptr;
-    value_type * end_   = nullptr;
-};
-
-
-
-/*************************************************************************//**
- *
- * @brief inclusive index range: [beg,end]
- *
- *****************************************************************************/
-struct window_range
-{
-    using window_id = mc::window_id;
-
-    constexpr
-    window_range() noexcept = default;
-
-    constexpr
-    window_range(window_id first, window_id last) noexcept :
-        beg{first}, end{last}
-    {}
-
-    constexpr window_id size()  const noexcept { return end - beg + 1; }
-
-    window_id beg = 0;
-    window_id end = 0;
-};
-
-
-
-/*************************************************************************//**
- *
- * @brief hit count and position in candidate taxon
- *
- *****************************************************************************/
-struct match_candidate
-{
-    using taxon        = mc::taxon;
-    using window_id    = mc::window_id;
-    using window_range = mc::window_range;
-    using count_type   = std::uint_least64_t;
-
-    constexpr
-    match_candidate() noexcept = default;
-
-    match_candidate(const taxon* tax, count_type hits) :
-        tax{tax},
-        tgt{std::numeric_limits<target_id>::max()},
-        hits{hits},
-        pos{}
-    {};
-
-    const taxon* tax = nullptr;
-    target_id    tgt = std::numeric_limits<target_id>::max();
-    count_type   hits = 0;
-    window_range pos;
-};
-
-
-
-/*************************************************************************//**
- *
- * @brief candidate generation parameters
- *
- *****************************************************************************/
-struct candidate_generation_rules
-{
-    constexpr candidate_generation_rules() noexcept = default;
-
-    //maximum length of contiguous window range
-    window_id maxWindowsInRange = 3;
-
-    //maximum number of candidates to be generated
-    std::size_t maxCandidates = std::numeric_limits<std::size_t>::max();
-
-    //list only the best candidate of a taxon on rank
-    taxon_rank mergeBelow = taxon_rank::Sequence;
-};
-
 
 
 /*************************************************************************//**

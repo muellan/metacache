@@ -31,7 +31,7 @@
 #include "taxonomy_io.h"
 #include "classification.h"
 #include "io_error.h"
-#include "candidates.h"
+#include "candidate_generation.h"
 #include "printing.h"
 
 

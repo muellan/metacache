@@ -28,7 +28,7 @@
 #include <typeinfo>
 
 #include "options.h"
-#include "candidates.h"
+#include "candidate_generation.h"
 #include "database.h"
 #include "printing.h"
 #include "typename.h"
