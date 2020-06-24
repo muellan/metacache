@@ -182,11 +182,11 @@ private:
 
     //-----------------------------------------------------
     /// @brief "heart of the database": maps features to target locations
-    using feature_store_gpu = gpu_hashmap<feature, location>; //key, value
+    using feature_store = gpu_hashmap<feature, location>; //key, value
 
 public:
     //---------------------------------------------------------------
-    using feature_count_type = typename feature_store_gpu::size_type;
+    using feature_count_type = typename feature_store::size_type;
 
 
     //---------------------------------------------------------------
@@ -200,7 +200,7 @@ public:
         targetSketcher_{std::move(targetSketcher)},
         querySketcher_{std::move(querySketcher)},
         targetCount_{0},
-        featureStoreGPU_{},
+        featureStore_{},
         targets_{},
         taxa_{},
         ranksCache_{taxa_, taxon_rank::Sequence},
@@ -213,7 +213,7 @@ public:
         targetSketcher_{std::move(other.targetSketcher_)},
         querySketcher_{std::move(other.querySketcher_)},
         targetCount_{other.targetCount_.load()},
-        featureStoreGPU_{std::move(other.featureStoreGPU_)},
+        featureStore_{std::move(other.featureStore_)},
         targets_{std::move(other.targets_)},
         taxa_{std::move(other.taxa_)},
         ranksCache_{std::move(other.ranksCache_)},
@@ -258,23 +258,23 @@ public:
 
     //---------------------------------------------------------------
     void max_locations_per_feature(bucket_size_type n) {
-        return featureStoreGPU_.max_locations_per_feature(n);
+        return featureStore_.max_locations_per_feature(n);
     }
     //-----------------------------------------------------
     bucket_size_type
     max_locations_per_feature() const noexcept {
-        return featureStoreGPU_.max_locations_per_feature();
+        return featureStore_.max_locations_per_feature();
     }
     //-----------------------------------------------------
     static bucket_size_type
     max_supported_locations_per_feature() noexcept {
-        return feature_store_gpu::max_supported_locations_per_feature();
+        return feature_store::max_supported_locations_per_feature();
     }
 
     //-----------------------------------------------------
     feature_count_type
     remove_features_with_more_locations_than(bucket_size_type n) {
-        return featureStoreGPU_.remove_features_with_more_locations_than(n);
+        return featureStore_.remove_features_with_more_locations_than(n);
     }
 
 
@@ -292,19 +292,19 @@ public:
             throw std::runtime_error{"no taxonomy available!"};
         }
 
-        return featureStoreGPU_.remove_ambiguous_features(r, n);
+        return featureStore_.remove_ambiguous_features(r, n);
     }
 
 
     //---------------------------------------------------------------
     gpu_id num_gpus() const noexcept {
-        return featureStoreGPU_.num_gpus();
+        return featureStore_.num_gpus();
     }
 
 
     //---------------------------------------------------------------
     void initialize_hash_table(gpu_id numGPUs) {
-        featureStoreGPU_.initialize_build_hash_tables(numGPUs);
+        featureStore_.initialize_build_hash_tables(numGPUs);
     }
 
 
@@ -318,13 +318,13 @@ public:
 
     //---------------------------------------------------------------
     void wait_until_add_target_complete(gpu_id gpuId) {
-        featureStoreGPU_.wait_until_add_target_complete(gpuId, targetSketcher_);
+        featureStore_.wait_until_add_target_complete(gpuId, targetSketcher_);
     }
 
 
     //---------------------------------------------------------------
     bool add_target_failed() {
-        return !featureStoreGPU_.valid();
+        return !featureStore_.valid();
     }
 
 
@@ -344,7 +344,7 @@ public:
 
     //-----------------------------------------------------
     bool empty() const noexcept {
-        return featureStoreGPU_.empty();
+        return featureStore_.empty();
     }
 
 
@@ -591,7 +591,7 @@ public:
                     bool copyAllHits,
                     taxon_rank lowestRank) const
     {
-        featureStoreGPU_.query_async(
+        featureStore_.query_async(
             queryBatch,
             hostId,
             query_sketcher(),
@@ -602,11 +602,11 @@ public:
 
     //---------------------------------------------------------------
     void max_load_factor(float lf) {
-        featureStoreGPU_.max_load_factor(lf);
+        featureStore_.max_load_factor(lf);
     }
     //-----------------------------------------------------
     float max_load_factor() const noexcept {
-        return featureStoreGPU_.max_load_factor();
+        return featureStore_.max_load_factor();
     }
 
 
@@ -642,38 +642,38 @@ public:
 
     //---------------------------------------------------------------
     std::uint64_t bucket_count() const noexcept {
-        return featureStoreGPU_.bucket_count();
+        return featureStore_.bucket_count();
     }
     //---------------------------------------------------------------
     std::uint64_t feature_count() const noexcept {
-        return featureStoreGPU_.key_count();
+        return featureStore_.key_count();
     }
     //---------------------------------------------------------------
     std::uint64_t dead_feature_count() const noexcept {
-        return featureStoreGPU_.dead_feature_count();
+        return featureStore_.dead_feature_count();
     }
     //---------------------------------------------------------------
     std::uint64_t location_count() const noexcept {
-        return featureStoreGPU_.value_count();
+        return featureStore_.value_count();
     }
 
 
     //---------------------------------------------------------------
     statistics_accumulator_gpu<policy::Host>
     location_list_size_statistics() const {
-        return featureStoreGPU_.location_list_size_statistics();
+        return featureStore_.location_list_size_statistics();
     }
 
 
     //---------------------------------------------------------------
     void print_feature_map(std::ostream& os) const {
-        featureStoreGPU_.print_feature_map(os);
+        featureStore_.print_feature_map(os);
     }
 
 
     //---------------------------------------------------------------
     void print_feature_counts(std::ostream& os) const {
-        featureStoreGPU_.print_feature_counts(os);
+        featureStore_.print_feature_counts(os);
     }
 
 
@@ -768,7 +768,7 @@ private:
     sketcher targetSketcher_;
     sketcher querySketcher_;
     std::atomic<std::uint64_t> targetCount_;
-    mutable feature_store_gpu featureStoreGPU_;
+    mutable feature_store featureStore_;
     std::vector<const taxon*> targets_;
     taxonomy taxa_;
     mutable ranked_lineages_cache ranksCache_;

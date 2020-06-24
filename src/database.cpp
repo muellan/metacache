@@ -58,7 +58,7 @@ bool database::add_target(gpu_id dbPart,
     const auto taxid = taxon_id_of_target(targetId);
 
     // sketch sequence -> insert features
-    source.windows = featureStoreGPU_.add_target(dbPart, seq, targetId, targetSketcher_);
+    source.windows = featureStore_.add_target(dbPart, seq, targetId, targetSketcher_);
 
     if(parentTaxid < 1) parentTaxid = 0;
     const taxon* newtax = nullptr;
@@ -203,9 +203,9 @@ void database::read_single(const std::string& filename, gpu_id gpuId, scope what
 
     if(what != scope::metadata_only) {
         //hash table
-        read_binary(is, featureStoreGPU_, gpuId);
+        read_binary(is, featureStore_, gpuId);
 
-        featureStoreGPU_.copy_target_lineages_to_gpu(targetLineages_.lineages(), gpuId);
+        featureStore_.copy_target_lineages_to_gpu(targetLineages_.lineages(), gpuId);
     }
 
     std::cerr << "done." << std::endl;
@@ -233,7 +233,7 @@ void database::read(const std::string& filename, gpu_id numGPUs, scope what)
             }
         }
 
-        featureStoreGPU_.enable_all_peer_access(numGPUs);
+        featureStore_.enable_all_peer_access(numGPUs);
     }
 }
 
@@ -276,7 +276,7 @@ void database::write_single(const std::string& filename, gpu_id gpuId) const
     write_binary(os, target_id(targetCount_));
 
     //hash table
-    write_binary(os, featureStoreGPU_, gpuId);
+    write_binary(os, featureStore_, gpuId);
 
     std::cerr << "done." << std::endl;
 }
@@ -285,12 +285,12 @@ void database::write_single(const std::string& filename, gpu_id gpuId) const
 //-------------------------------------------------------------------
 void database::write(const std::string& filename) const
 {
-    if(featureStoreGPU_.num_gpus() == 1) {
+    if(featureStore_.num_gpus() == 1) {
         gpu_id gpuId = 0;
         write_single(filename, gpuId);
     }
     else {
-        for(gpu_id gpuId = 0; gpuId < featureStoreGPU_.num_gpus(); ++gpuId)
+        for(gpu_id gpuId = 0; gpuId < featureStore_.num_gpus(); ++gpuId)
             write_single(filename+std::to_string(gpuId), gpuId);
     }
 }
@@ -302,7 +302,7 @@ void database::clear() {
     ranksCache_.clear();
     targetLineages_.clear();
     name2tax_.clear();
-    featureStoreGPU_.clear();
+    featureStore_.clear();
 }
 
 
@@ -315,7 +315,7 @@ void database::clear_without_deallocation() {
     ranksCache_.clear();
     targetLineages_.clear();
     name2tax_.clear();
-    featureStoreGPU_.clear_without_deallocation();
+    featureStore_.clear_without_deallocation();
 }
 
 
