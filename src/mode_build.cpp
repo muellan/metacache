@@ -315,10 +315,10 @@ void add_targets_to_database(database& db,
 
     // make executor that runs database insertion (concurrently) in batches
     // IMPORTANT: do not use more than one worker thread!
-    batch_processing_options execOpt;
+    batch_processing_options<input_sequence> execOpt;
     execOpt.batch_size(8);
-    execOpt.queue_size(4);
-    execOpt.concurrency(1);
+    execOpt.queue_size(8);
+    execOpt.concurrency(1, 1);
 
     execOpt.abort_if([&] { return db.add_target_failed(); });
 

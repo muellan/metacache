@@ -694,6 +694,8 @@ private:
  *****************************************************************************/
 using match_locations = database::match_locations;
 using location        = database::location;
+using feature         = database::feature;
+
 
 
 

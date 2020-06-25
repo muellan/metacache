@@ -70,7 +70,7 @@ struct sequence_query
 
 /*************************************************************************//**
  *
- * @brief process batch of results from gpu database query
+ * @brief process batch of results from database query
  *
  * @tparam Buffer        batch buffer object
  *
@@ -134,15 +134,15 @@ query_id query_batched(
 
     std::mutex finalizeMtx;
 
-    // get executor that runs classification in batches
-    batch_processing_options execOpt;
-    execOpt.concurrency(opt.performance.numThreads - 1);
-    execOpt.batch_size(opt.performance.batchSize);
-    execOpt.queue_size(opt.performance.numThreads > 1 ? opt.performance.numThreads + 4 : 0);
-    execOpt.on_error(handleErrors);
-
     std::vector<database::matches_sorter> targetMatches(opt.performance.numThreads -
                                                         (opt.performance.numThreads > 1));
+
+    // get executor that runs classification in batches
+    batch_processing_options<sequence_query> execOpt;
+    execOpt.concurrency(1, opt.performance.numThreads - 1);
+    execOpt.batch_size(opt.performance.batchSize);
+    execOpt.queue_size(opt.performance.numThreads > 1 ? opt.performance.numThreads + 8 : 0);
+    execOpt.on_error(handleErrors);
 
     batch_executor<sequence_query> executor {
         execOpt,

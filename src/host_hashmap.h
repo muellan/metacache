@@ -39,7 +39,8 @@ private:
     /// @brief needed for batched, asynchonous insertion into feature_store
     struct window_sketch
     {
-        window_sketch() = default;
+        window_sketch() :
+            tgt{}, win{}, sk{} {};
 
         window_sketch(target_id tgt, window_id win, sketch sk) :
             tgt{tgt}, win{win}, sk{std::move(sk)} {};
@@ -387,10 +388,10 @@ public:
 
     //---------------------------------------------------------------
     void make_sketch_inserter() {
-        batch_processing_options execOpt;
+        batch_processing_options<window_sketch> execOpt;
         execOpt.batch_size(1000);
         execOpt.queue_size(100);
-        execOpt.concurrency(1);
+        execOpt.concurrency(1,1);
 
         inserter_ = std::make_unique<batch_executor<window_sketch>>( execOpt,
             [&,this](int, const auto& batch) {
