@@ -201,7 +201,7 @@ void database::write(const std::string& filename) const
     write_binary(os, querySketcher_);
 
     //target insertion parameters
-    write_binary(os, max_locations_per_feature());
+    write_binary(os, uint64_t(max_locations_per_feature()));
 
     //taxon & target metadata
     write_binary(os, taxa_);
