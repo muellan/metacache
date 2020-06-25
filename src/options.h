@@ -91,6 +91,8 @@ struct sketching_options
  *****************************************************************************/
 struct database_storage_options
 {
+    unsigned numGPUs = 0;
+
     float maxLoadFactor = -1;  // < 0 : use database default
 
     // restrict number of locations per feature
@@ -319,7 +321,7 @@ struct classification_output_formatting
     bool showLineage = false;
     //don't print full lineage for unclassified queries
     bool collapseUnclassifiedLineages = true;
-    
+
     //print all classification info in separate columns
     bool useSeparateCols = false;
 

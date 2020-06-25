@@ -122,7 +122,7 @@ public:
     using match_count_type = std::uint16_t;
 
     //---------------------------------------------------------------
-    enum class scope { everything, metadata_only };
+    enum class scope { everything, metadata_only, hashtable_only };
 
 
     //-----------------------------------------------------
@@ -198,6 +198,7 @@ public:
     database(sketcher targetSketcher, sketcher querySketcher) :
         targetSketcher_{std::move(targetSketcher)},
         querySketcher_{std::move(querySketcher)},
+        targetCount_{0},
         featureStore_{},
         targets_{},
         taxa_{},
@@ -210,6 +211,7 @@ public:
     database(database&& other) :
         targetSketcher_{std::move(other.targetSketcher_)},
         querySketcher_{std::move(other.querySketcher_)},
+        targetCount_{other.targetCount_.load()},
         featureStore_{std::move(other.featureStore_)},
         targets_{std::move(other.targets_)},
         taxa_{std::move(other.taxa_)},
@@ -294,14 +296,30 @@ public:
 
 
     //---------------------------------------------------------------
-    bool add_target(const sequence& seq, taxon_name sid,
-                    taxon_id parentTaxid = 0,
-                    file_source source = file_source{});
+    gpu_id num_gpus() const noexcept {
+        return featureStore_.num_gpus();
+    }
+
 
     //---------------------------------------------------------------
-    void wait_until_add_target_complete() {
-        featureStore_.wait_until_add_target_complete();
+    void initialize_hash_table(gpu_id numGPUs) {
+        featureStore_.initialize_build_hash_tables(numGPUs);
     }
+
+
+    //---------------------------------------------------------------
+    bool add_target(
+        gpu_id dbPart,
+        const sequence& seq, taxon_name sid,
+        taxon_id parentTaxid = 0,
+        file_source source = file_source{});
+
+
+    //---------------------------------------------------------------
+    void wait_until_add_target_complete(gpu_id gpuId) {
+        featureStore_.wait_until_add_target_complete(gpuId, targetSketcher_);
+    }
+
 
     //---------------------------------------------------------------
     bool add_target_failed() {
@@ -312,7 +330,7 @@ public:
     //---------------------------------------------------------------
     std::uint64_t
     target_count() const noexcept {
-        return targets_.size();
+        return targetCount_;
     }
     static constexpr std::uint64_t
     max_target_count() noexcept {
@@ -390,7 +408,7 @@ public:
     //---------------------------------------------------------------
     std::uint64_t
     non_target_taxon_count() const noexcept {
-        return taxa_.size() - targets_.size();
+        return taxa_.size() - targetCount_;
     }
     //-----------------------------------------------------
     taxon_range taxa() const {
@@ -583,17 +601,34 @@ public:
         return featureStore_.max_load_factor();
     }
 
-    /**
+
+private:
+    /****************************************************************
      * @brief   read database from binary file
      * @details Note that the map is not just de-serialized but
      *          rebuilt by inserting individual keys and values
      *          This should make DB files more robust against changes in the
      *          internal mapping structure.
-     */
-    void read(const std::string& filename, scope what = scope::everything);
-    /**
+     ****************************************************************/
+    void read_single(const std::string& filename, gpu_id gpuId, scope what);
+
+public:
+    /****************************************************************
+     * @brief   read all database parts from binary files
+     ****************************************************************/
+    void read(const std::string& filename, gpu_id numGPUs, scope what = scope::everything);
+
+
+private:
+    /****************************************************************
      * @brief   write database to binary file
-     */
+     ****************************************************************/
+    void write_single(const std::string& filename, gpu_id gpuId) const;
+
+public:
+    /****************************************************************
+     * @brief   write all database parts to binary files
+     ****************************************************************/
     void write(const std::string& filename) const;
 
 
@@ -637,12 +672,16 @@ private:
     //---------------------------------------------------------------
     sketcher targetSketcher_;
     sketcher querySketcher_;
+    std::atomic<std::uint64_t> targetCount_;
     feature_store featureStore_;
     std::vector<const taxon*> targets_;
     taxonomy taxa_;
     mutable ranked_lineages_cache ranksCache_;
     mutable ranked_lineages_of_targets targetLineages_;
     std::map<taxon_name,const taxon*> name2tax_;
+
+    std::mutex name2taxMtx;
+    std::mutex taxaMtx;
 };
 
 

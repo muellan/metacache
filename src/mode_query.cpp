@@ -308,15 +308,12 @@ read_database(const string& filename,
              << dbopt.maxLoadFactor << '\n';
     }
 
-    cerr << "Reading database from file '" << filename << "' ... " << flush;
-
     try {
-        db.read(filename);
-        cerr << "done.\n";
+        db.read(filename, dbopt.numGPUs);
     }
     catch(const file_access_error& e) {
-        cerr << "FAIL\n";
-        throw file_access_error{"Could not read database file '" + filename + "'"};
+        cerr << "FAIL" << endl;
+        throw;
     }
 
     if(dbopt.removeOverpopulatedFeatures) {

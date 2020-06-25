@@ -25,7 +25,7 @@ public:
 
     using error_handler   = std::function<void(std::exception&)>;
     using abort_condition = std::function<bool()>;
-    using finalizer       = std::function<void()>;
+    using finalizer       = std::function<void(int)>;
 
     batch_processing_options():
         numWorkers_{0},
@@ -33,7 +33,7 @@ public:
         batchSize_{1},
         handleErrors_{[](std::exception&){}},
         abortRequested_{[]{ return false; }},
-        finalize_{[]{}}
+        finalize_{[](int){}}
     {}
 
     int concurrency()        const noexcept { return numWorkers_; }
@@ -125,7 +125,7 @@ public:
                             std::this_thread::sleep_for(std::chrono::milliseconds{10});
                         }
                     }
-                    param_.finalize_();
+                    param_.finalize_(i);
                 }));
             }
         }
@@ -144,7 +144,7 @@ public:
             }
 
             if(workers_.empty()) {
-                param_.finalize_();
+                param_.finalize_(0);
             }
             else {
                 // signal all workers to finish as soon as no work is left
@@ -210,7 +210,7 @@ private:
             validate();
             if(valid()) consume_(0, currentBatch_);
             validate();
-            if(!valid()) param_.finalize_();
+            if(!valid()) param_.finalize_(0);
         }
     }
 

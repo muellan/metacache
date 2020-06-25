@@ -258,6 +258,7 @@ using input_batch = std::vector<input_sequence>;
  *****************************************************************************/
 void add_targets_to_database(
     database& db,
+    int dbPart,
     const input_batch& batch,
     const std::map<string,taxon_id>& sequ2taxid,
     info_level infoLvl = info_level::moderate)
@@ -287,7 +288,7 @@ void add_targets_to_database(
 
             // try to add to database
             bool added = db.add_target(
-                seq.data, seqId, parentTaxId, seq.fileSource);
+                dbPart, seq.data, seqId, parentTaxId, seq.fileSource);
 
             if(infoLvl == info_level::verbose && !added) {
                 cout << seqId << " not added to database" << endl;
@@ -334,11 +335,11 @@ void add_targets_to_database(database& db,
         }
     });
 
-    execOpt.on_work_done([&] { db.wait_until_add_target_complete(); });
+    execOpt.on_work_done([&] (int id) { db.wait_until_add_target_complete(id); });
 
     batch_executor<input_sequence> executor { execOpt,
-        [&] (int, const auto& batch) {
-            add_targets_to_database(db, batch, sequ2taxid, infoLvl);
+        [&] (int id, const auto& batch) {
+            add_targets_to_database(db, id, batch, sequ2taxid, infoLvl);
         }};
 
     // read sequences in main thread
@@ -529,7 +530,7 @@ void add_to_database(database& db, const build_options& opt)
     post_process_features(db, opt);
 
     if(notSilent) {
-        cout << "Writing database to file '" << opt.dbfile << "' ... " << flush;
+        cout << "Writing database to file ... " << flush;
     }
     try {
         db.write(opt.dbfile);

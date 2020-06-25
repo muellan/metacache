@@ -27,49 +27,61 @@ namespace mc {
 
 
 // ----------------------------------------------------------------------------
-bool database::add_target(const sequence& seq, taxon_name sid,
+bool database::add_target(gpu_id dbPart,
+                          const sequence& seq, taxon_name sid,
                           taxon_id parentTaxid,
                           file_source source)
 {
     using std::begin;
     using std::end;
 
-    //reached hard limit for number of targets
-    if(targets_.size() >= max_target_count()) {
+    // reached hard limit for number of targets
+    if(targetCount_.load() >= max_target_count()) {
+        throw target_limit_exceeded_error{};
+    }
+    const std::uint64_t targetCount = targetCount_++;
+    // reached hard limit for number of targets
+    // in case of multi concurrent increments
+    if(targetCount >= max_target_count()) {
         throw target_limit_exceeded_error{};
     }
 
     if(seq.empty()) return false;
 
-    //don't allow non-unique sequence ids
-    if(name2tax_.find(sid) != name2tax_.end()) return false;
-
-    const auto targetCount = target_id(targets_.size());
-    const auto taxid = taxon_id_of_target(targetCount);
-
-    //sketch sequence -> insert features
-    source.windows = featureStore_.add_target(seq, targetCount,
-                                          targetSketcher_);
-
-    //insert sequence metadata as a new taxon
-    if(parentTaxid < 1) parentTaxid = 0;
-    auto nit = taxa_.emplace(
-        taxid, parentTaxid, sid,
-        taxon_rank::Sequence, std::move(source));
-
-    //should never happen
-    if(nit == taxa_.end()) {
-        throw std::runtime_error{"target taxon could not be created"};
+    // don't allow non-unique sequence ids
+    {
+        std::lock_guard<std::mutex> lock(name2taxMtx);
+        if(name2tax_.find(sid) != name2tax_.end()) return false;
     }
 
-    //allows lookup via sequence id (e.g. NCBI accession number)
-    const taxon* newtax = &(*nit);
-    name2tax_.insert({std::move(sid), newtax});
+    const auto targetId = target_id(targetCount);
+    const auto taxid = taxon_id_of_target(targetId);
 
-    //target id -> taxon lookup table
-    targets_.push_back(newtax);
+    // sketch sequence -> insert features
+    source.windows = featureStore_.add_target(dbPart, seq, targetId, targetSketcher_);
 
-    targetLineages_.mark_outdated();
+    if(parentTaxid < 1) parentTaxid = 0;
+    const taxon* newtax = nullptr;
+    // insert sequence metadata as a new taxon
+    {
+        std::lock_guard<std::mutex> lock(taxaMtx);
+        auto nit = taxa_.emplace(
+            taxid, parentTaxid, sid,
+            taxon_rank::Sequence, std::move(source));
+
+        // should never happen
+        if(nit == taxa_.end()) {
+            throw std::runtime_error{"target taxon could not be created"};
+        }
+
+        newtax = &(*nit);
+    }
+
+    // allows lookup via sequence id (e.g. NCBI accession number)
+    {
+        std::lock_guard<std::mutex> lock(name2taxMtx);
+        name2tax_.insert({std::move(sid), newtax});
+    }
 
     return true;
 }
@@ -77,13 +89,14 @@ bool database::add_target(const sequence& seq, taxon_name sid,
 
 
 // ----------------------------------------------------------------------------
-void database::read(const std::string& filename, scope what)
-
+void database::read_single(const std::string& filename, gpu_id gpuId, scope what)
 {
+    std::cerr << "Reading database from file '" << filename << "' ... ";
+
     std::ifstream is{filename, std::ios::in | std::ios::binary};
 
     if(!is.good()) {
-        throw file_access_error{"can't open file " + filename};
+        throw file_access_error{"Could not read database file '" + filename + "'"};
     }
 
     //database version info
@@ -130,52 +143,86 @@ void database::read(const std::string& filename, scope what)
         }
     }
 
-    clear();
+    if(what != scope::hashtable_only) {
+        clear();
 
-    //sketching parameters
-    read_binary(is, targetSketcher_);
-    read_binary(is, querySketcher_);
+        //sketching parameters
+        read_binary(is, targetSketcher_);
+        read_binary(is, querySketcher_);
 
-    //target insertion parameters
-    uint64_t maxLocsPerFeature = 0;
-    read_binary(is, maxLocsPerFeature);
-    max_locations_per_feature(maxLocsPerFeature);
+        //target insertion parameters
+        uint64_t maxLocsPerFeature = 0;
+        read_binary(is, maxLocsPerFeature);
+        max_locations_per_feature(maxLocsPerFeature);
 
-    //taxon metadata
-    read_binary(is, taxa_);
+        //taxon metadata
+        read_binary(is, taxa_);
 
-    target_id targetCount = 0;
-    read_binary(is, targetCount);
-    if(targetCount < 1) return;
+        target_id targetCount = 0;
+        read_binary(is, targetCount);
+        if(targetCount < 1) return;
 
-    //update target id -> target taxon lookup table
-    targets_.reserve(targetCount);
-    for(decltype(targetCount) i = 0 ; i < targetCount; ++i) {
-        targets_.push_back(taxa_[taxon_id_of_target(i)]);
-    }
+        targetCount_ = targetCount;
 
-    //sequence id lookup
-    name2tax_.clear();
-    for(const auto& t : taxa_) {
-        if(t.rank() == taxon_rank::Sequence) {
-            name2tax_.insert({t.name(), &t});
+        //update target id -> target taxon lookup table
+        targets_.reserve(targetCount);
+        for(decltype(targetCount) i = 0 ; i < targetCount; ++i) {
+            targets_.push_back(taxa_[taxon_id_of_target(i)]);
         }
+
+        //sequence id lookup
+        for(const auto& t : taxa_) {
+            if(t.rank() == taxon_rank::Sequence) {
+                name2tax_.insert({t.name(), &t});
+            }
+        }
+
+        mark_cached_lineages_outdated();
+        update_cached_lineages(taxon_rank::Sequence);
+    }
+    else {
+        //skip metadata
+
+        //sketching parameters
+        sketcher skecherDummy;
+        read_binary(is, skecherDummy);
+        read_binary(is, skecherDummy);
+
+        //target insertion parameters
+        uint64_t dummy;
+        read_binary(is, dummy);
+
+        //taxon metadata
+        taxonomy dummyTaxa;
+        read_binary(is, dummyTaxa);
+
+        target_id targetCount = 0;
+        read_binary(is, targetCount);
+        if(targetCount < 1) return;
     }
 
-    mark_cached_lineages_outdated();
-    update_cached_lineages(taxon_rank::Sequence);
+    if(what != scope::metadata_only) {
+        //hash table
+        read_binary(is, featureStore_, gpuId);
+    }
 
-    if(what == scope::metadata_only) return;
+    std::cerr << "done." << std::endl;
+}
 
-    //hash table
-    read_binary(is, featureStore_);
+
+//-------------------------------------------------------------------
+void database::read(const std::string& filename, gpu_id numGPUs, scope what)
+{
+    read_single(filename, numGPUs, what);
 }
 
 
 
-// ----------------------------------------------------------------------------
-void database::write(const std::string& filename) const
+//-------------------------------------------------------------------
+void database::write_single(const std::string& filename, gpu_id gpuId) const
 {
+    std::cerr << "Writing database part to file '" << filename << "' ... ";
+
     using std::uint64_t;
     using std::uint8_t;
 
@@ -205,17 +252,26 @@ void database::write(const std::string& filename) const
 
     //taxon & target metadata
     write_binary(os, taxa_);
-    write_binary(os, target_id(targets_.size()));
+    write_binary(os, target_id(targetCount_));
 
     //hash table
-    write_binary(os, featureStore_);
+    write_binary(os, featureStore_, gpuId);
+
+    std::cerr << "done." << std::endl;
 }
 
 
+//-------------------------------------------------------------------
+void database::write(const std::string& filename) const
+{
+    gpu_id gpuId = 0;
+    write_single(filename, gpuId);
+}
 
 
 // ----------------------------------------------------------------------------
 void database::clear() {
+    targets_.clear();
     ranksCache_.clear();
     targetLineages_.clear();
     name2tax_.clear();
@@ -228,6 +284,7 @@ void database::clear() {
  * @brief very dangerous! clears feature map without memory deallocation
  */
 void database::clear_without_deallocation() {
+    targets_.clear();
     ranksCache_.clear();
     targetLineages_.clear();
     name2tax_.clear();
@@ -252,7 +309,8 @@ make_database(const std::string& filename, database::scope what, info_level info
                   << filename << "' ... " << std::flush;
     }
     try {
-        db.read(filename, what);
+        unsigned numGPUs = 1;
+        db.read(filename, numGPUs, what);
         if(showInfo) std::cerr << "done." << std::endl;
     }
     catch(const file_access_error& e) {

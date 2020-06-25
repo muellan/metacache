@@ -130,8 +130,14 @@ public:
     host_hashmap& operator = (host_hashmap&&)      = default;
 
     ~host_hashmap() {
-        wait_until_add_target_complete();
+        destroy_inserter();
     }
+
+
+    //---------------------------------------------------------------
+    unsigned num_gpus() const noexcept { return 0; }
+    //---------------------------------------------------------------
+    gpu_id initialize_build_hash_tables(gpu_id) { return 0; }
 
 
     //---------------------------------------------------------------
@@ -320,12 +326,18 @@ public:
 
 
     //---------------------------------------------------------------
-    void wait_until_add_target_complete() {
+    void wait_until_add_target_complete(gpu_id, const sketcher&) {
+        destroy_inserter();
+    }
+
+private:
+    //---------------------------------------------------------------
+    void destroy_inserter() {
         // destroy inserter
         inserter_ = nullptr;
     }
 
-
+public:
     //---------------------------------------------------------------
     bool valid() {
         return !(inserter_) || ((inserter_) && (inserter_->valid()));
@@ -336,7 +348,8 @@ public:
     /**
      * @brief adds sketches to database for all windows in sequence
      */
-    window_id add_target(const sequence& seq, target_id tgt,
+    window_id add_target(gpu_id,
+                         const sequence& seq, target_id tgt,
                          const sketcher& targetSketcher)
     {
         if(!inserter_) make_sketch_inserter();
@@ -431,12 +444,12 @@ public:
 
 
     //---------------------------------------------------------------
-    friend void read_binary(std::istream& is, host_hashmap& m) {
+    friend void read_binary(std::istream& is, host_hashmap& m, gpu_id) {
         read_binary(is, m.hashTable_);
     }
 
     //---------------------------------------------------------------
-    friend void write_binary(std::ostream& os, const host_hashmap& m) {
+    friend void write_binary(std::ostream& os, const host_hashmap& m, gpu_id) {
         write_binary(os, m.hashTable_);
     }
 
