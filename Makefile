@@ -2,6 +2,8 @@ REL_ARTIFACT  = metacache
 DBG_ARTIFACT  = metacache_debug
 PRF_ARTIFACT  = metacache_prf
 
+MACROS += -DGPU_MODE
+
 COMPILER      = $(CXX)
 CUDA_COMPILER = nvcc
 DIALECT       = -std=c++14

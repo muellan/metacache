@@ -68,13 +68,14 @@ class gpu_hashmap
 
 public:
     //---------------------------------------------------------------
-    using key_type         = Key;
-    using value_type       = ValueT;
-    using bucket_size_type = loclist_size_t;
-    using size_type        = size_t;
-    using target_id        = mc::target_id;
-    using window_id        = mc::window_id;
-    using sketcher         = mc::sketcher;
+    using key_type           = Key;
+    using value_type         = ValueT;
+    using bucket_size_type   = loclist_size_t;
+    using size_type          = size_t;
+    using feature_count_type = size_type;
+    using target_id          = mc::target_id;
+    using window_id          = mc::window_id;
+    using sketcher           = mc::sketcher;
 
     using ranked_lineage = taxonomy::ranked_lineage;
 
@@ -145,7 +146,7 @@ public:
     }
 
     //-----------------------------------------------------
-    size_type
+    feature_count_type
     remove_features_with_more_locations_than(bucket_size_type) {
         std::cerr << "remove_features_with_more_locations_than not available in GPU version\n";
         return 0;
@@ -153,7 +154,7 @@ public:
 
 
     //---------------------------------------------------------------
-    size_type
+    feature_count_type
     remove_ambiguous_features(taxon_rank, bucket_size_type, const ranked_lineages_of_targets&) {
         std::cerr << "remove_ambiguous_features not available in GPU version\n";
         return 0;

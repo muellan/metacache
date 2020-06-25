@@ -318,7 +318,11 @@ void add_targets_to_database(database& db,
     batch_processing_options<input_sequence> execOpt;
     execOpt.batch_size(8);
     execOpt.queue_size(8);
+#ifndef GPU_MODE
+    execOpt.concurrency(1, 1);
+#else
     execOpt.concurrency(6, db.num_gpus());
+#endif
 
     execOpt.abort_if([&] { return db.add_target_failed(); });
 

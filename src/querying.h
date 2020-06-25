@@ -31,8 +31,11 @@
 #include "sequence_io.h"
 #include "cmdline_utility.h"
 #include "batch_processing.h"
-#include "query_batch.cuh"
+#include "candidate_generation.h"
 
+#ifdef GPU_MODE
+    #include "query_batch.cuh"
+#endif
 
 namespace mc {
 
@@ -70,7 +73,7 @@ struct sequence_query
 
 /*************************************************************************//**
  *
- * @brief process batch of results from gpu database query
+ * @brief process batch of results from database query
  *
  * @tparam Buffer        batch buffer object
  *
@@ -78,62 +81,65 @@ struct sequence_query
  *                       must be thread-safe (only const operations on DB!)
  *
  *****************************************************************************/
-template<class Buffer, class BufferUpdate>
-void query_gpu(
-    const database& db,
-    const classification_options& opt,
-    const std::vector<sequence_query>& sequenceBatch,
-    bool copyAllHits,
-    query_batch<location>& queryBatch,
-    gpu_id hostId,
-    Buffer& batchBuffer, BufferUpdate& update,
-    std::mutex& scheduleMtx)
-{
-    for(const auto& seq : sequenceBatch) {
-        if(!queryBatch.add_paired_read(hostId, seq.seq1, seq.seq2, db.query_sketcher(), opt.insertSizeMax)) {
-            std::cerr << "query batch is too small for a single read!" << std::endl;
-        }
-    }
-
-    // std::cerr << "host id " << hostId << ": " << queryBatch.host_data(hostId).num_queries() << " queries\n";
-
-    if(queryBatch.host_data(hostId).num_queries() > 0)
+#ifndef GPU_MODE
+#else
+    template<class Buffer, class BufferUpdate>
+    void query_gpu(
+        const database& db,
+        const classification_options& opt,
+        const std::vector<sequence_query>& sequenceBatch,
+        bool copyAllHits,
+        query_batch<location>& queryBatch,
+        gpu_id hostId,
+        Buffer& batchBuffer, BufferUpdate& update,
+        std::mutex& scheduleMtx)
     {
+        for(const auto& seq : sequenceBatch) {
+            if(!queryBatch.add_paired_read(hostId, seq.seq1, seq.seq2, db.query_sketcher(), opt.insertSizeMax)) {
+                std::cerr << "query batch is too small for a single read!" << std::endl;
+            }
+        }
+
+        // std::cerr << "host id " << hostId << ": " << queryBatch.host_data(hostId).num_queries() << " queries\n";
+
+        if(queryBatch.host_data(hostId).num_queries() > 0)
         {
-            std::lock_guard<std::mutex> lock(scheduleMtx);
+            {
+                std::lock_guard<std::mutex> lock(scheduleMtx);
 
-            db.query_gpu_async(queryBatch, hostId, copyAllHits, opt.lowestRank);
-        }
-        queryBatch.host_data(hostId).wait_for_results();
+                db.query_gpu_async(queryBatch, hostId, copyAllHits, opt.lowestRank);
+            }
+            queryBatch.host_data(hostId).wait_for_results();
 
-        for(size_t s = 0; s < queryBatch.host_data(hostId).num_segments(); ++s) {
-            span<location> allhits = copyAllHits ? queryBatch.host_data(hostId).allhits(s) : span<location>();
+            for(size_t s = 0; s < queryBatch.host_data(hostId).num_segments(); ++s) {
+                span<location> allhits = copyAllHits ? queryBatch.host_data(hostId).allhits(s) : span<location>();
 
-            // std::cout << s << ". targetMatches:    ";
-            // for(const auto& m : allhits)
-            //     std::cout << m.tgt << ':' << m.win << ' ';
+                // std::cout << s << ". targetMatches:    ";
+                // for(const auto& m : allhits)
+                //     std::cout << m.tgt << ':' << m.win << ' ';
+                // std::cout << '\n';
+
+                span<match_candidate> tophits = queryBatch.host_data(hostId).top_candidates(s);
+
+                // std::cout << s << ". top hits: ";
+                // for(const auto& t : tophits) {
+                //     if(t.hits > 0) {
+                //         if(t.tax)
+                //             std::cout << t.tax->id() << ':' << t.hits << ' ';
+                //         else
+                //             std::cout << "notax:"  << t.hits << ' ';
+                //     }
+                // }
+                // std::cout << '\n';
+
+                update(batchBuffer, sequenceBatch[s], allhits, tophits);
+            }
             // std::cout << '\n';
 
-            span<match_candidate> tophits = queryBatch.host_data(hostId).top_candidates(s);
-
-            // std::cout << s << ". top hits: ";
-            // for(const auto& t : tophits) {
-            //     if(t.hits > 0) {
-            //         if(t.tax)
-            //             std::cout << t.tax->id() << ':' << t.hits << ' ';
-            //         else
-            //             std::cout << "notax:"  << t.hits << ' ';
-            //     }
-            // }
-            // std::cout << '\n';
-
-            update(batchBuffer, sequenceBatch[s], allhits, tophits);
+            queryBatch.host_data(hostId).clear();
         }
-        // std::cout << '\n';
-
-        queryBatch.host_data(hostId).clear();
     }
-}
+#endif
 
 
 
@@ -173,12 +179,15 @@ query_id query_batched(
                         size_t(opt.performance.queryLimit) :
                         std::numeric_limits<size_t>::max();
 
+    std::mutex finalizeMtx;
+
+#ifndef GPU_MODE
+#else
     bool copyAllHits = opt.output.analysis.showAllHits
                     || opt.output.analysis.showHitsPerTargetList
                     || opt.classify.covPercentile > 0;
 
     std::mutex scheduleMtx;
-    std::mutex finalizeMtx;
 
     query_batch<location> queryBatch(
         opt.performance.batchSize,
@@ -189,6 +198,7 @@ query_id query_batched(
         copyAllHits,
         (opt.performance.numThreads - (opt.performance.numThreads > 1)),
         opt.dbconfig.numGPUs);
+#endif
 
     // get executor that runs classification in batches
     batch_processing_options<sequence_query> execOpt;

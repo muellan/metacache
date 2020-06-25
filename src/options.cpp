@@ -355,6 +355,7 @@ database_storage_options_cli(database_storage_options& opt, error_messages& err)
     const database defaultDb;
 
     return (
+#ifdef MODE_GPU
     (   option("-gpus") &
         integer("#", opt.numGPUs)
             .if_missing([&]{ err += "Number missing after '-gpus'!"; })
@@ -362,6 +363,7 @@ database_storage_options_cli(database_storage_options& opt, error_messages& err)
         %("Sets the maximum number of GPUs to use."
           "default: all available GPUs"s)
     ,
+#endif
     (   option("-max-locations-per-feature") &
         integer("#", opt.maxLocationsPerFeature)
             .if_missing([&]{ err += "Number missing after '-max-locations-per-feature'!"; })

@@ -46,10 +46,16 @@
 #include "io_options.h"
 #include "taxonomy.h"
 #include "typename.h"
-#include "gpu_hashmap.cuh"
-#include "query_batch.cuh"
+
+#ifndef GPU_MODE
+    #include "host_hashmap.h"
+#else
+    #include "gpu_hashmap.cuh"
+    #include "query_batch.cuh"
+#endif
 
 #include "../dep/cudahelpers/cuda_helpers.cuh"
+
 
 namespace mc {
 
@@ -142,6 +148,10 @@ public:
     /** @brief internal location representation = (window index, target index)
      *         these are stored in the in-memory database and on disk
      */
+#ifndef GPU_MODE
+    //avoid padding bits
+    #pragma pack(push, 1)
+#endif
     struct location
     {
         window_id win;
@@ -160,9 +170,10 @@ public:
             return (a.win < b.win);
         }
     };
-
-    using match_locations = std::vector<location>;
-
+#ifndef GPU_MODE
+    //avoid padding bits
+    #pragma pack(pop)
+#endif
 
     //-----------------------------------------------------
     using sketch  = typename sketcher::sketch_type;  //range of features
@@ -183,7 +194,10 @@ private:
 
 public:
     //---------------------------------------------------------------
-    using feature_count_type = typename feature_store::size_type;
+    using feature_count_type = typename feature_store::feature_count_type;
+
+    using match_locations = std::vector<location>;
+
 
     //---------------------------------------------------------------
     explicit

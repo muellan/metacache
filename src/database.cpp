@@ -91,7 +91,7 @@ bool database::add_target(gpu_id dbPart,
 // ----------------------------------------------------------------------------
 void database::read_single(const std::string& filename, gpu_id gpuId, scope what)
 {
-    std::cerr << "Reading database from file '" << filename << "' to GPU " << gpuId << " ... ";
+    std::cerr << "Reading database from file '" << filename << "' ... ";
 
     std::ifstream is{filename, std::ios::in | std::ios::binary};
 
@@ -151,7 +151,7 @@ void database::read_single(const std::string& filename, gpu_id gpuId, scope what
         read_binary(is, querySketcher_);
 
         //target insertion parameters
-        uint64_t maxLocsPerFeature;
+        uint64_t maxLocsPerFeature = 0;
         read_binary(is, maxLocsPerFeature);
         max_locations_per_feature(maxLocsPerFeature);
 
@@ -205,7 +205,9 @@ void database::read_single(const std::string& filename, gpu_id gpuId, scope what
         //hash table
         read_binary(is, featureStore_, gpuId);
 
+#ifdef GPU_MODE
         featureStore_.copy_target_lineages_to_gpu(targetLineages_.lineages(), gpuId);
+#endif
     }
 
     std::cerr << "done." << std::endl;
@@ -215,6 +217,9 @@ void database::read_single(const std::string& filename, gpu_id gpuId, scope what
 //-------------------------------------------------------------------
 void database::read(const std::string& filename, gpu_id numGPUs, scope what)
 {
+#ifndef GPU_MODE
+    read_single(filename, numGPUs, what);
+#else
     if(numGPUs > num_gpus()) {
         numGPUs = num_gpus();
     }
@@ -235,6 +240,7 @@ void database::read(const std::string& filename, gpu_id numGPUs, scope what)
 
         featureStore_.enable_all_peer_access(numGPUs);
     }
+#endif
 }
 
 
@@ -242,7 +248,7 @@ void database::read(const std::string& filename, gpu_id numGPUs, scope what)
 //-------------------------------------------------------------------
 void database::write_single(const std::string& filename, gpu_id gpuId) const
 {
-    std::cerr << "Writing database from GPU " << gpuId << " to file '" << filename << "' ... ";
+    std::cerr << "Writing database part to file '" << filename << "' ... ";
 
     using std::uint64_t;
     using std::uint8_t;
@@ -285,6 +291,10 @@ void database::write_single(const std::string& filename, gpu_id gpuId) const
 //-------------------------------------------------------------------
 void database::write(const std::string& filename) const
 {
+#ifndef GPU_MODE
+    gpu_id gpuId = 0;
+    write_single(filename, gpuId);
+#else
     if(featureStore_.num_gpus() == 1) {
         gpu_id gpuId = 0;
         write_single(filename, gpuId);
@@ -293,6 +303,7 @@ void database::write(const std::string& filename) const
         for(gpu_id gpuId = 0; gpuId < featureStore_.num_gpus(); ++gpuId)
             write_single(filename+std::to_string(gpuId), gpuId);
     }
+#endif
 }
 
 
