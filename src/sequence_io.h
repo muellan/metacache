@@ -18,9 +18,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Original FASTA / FASTQ reaser code taken from the Kraken library written by
- * Derrick Wood <dwood@cs.jhu.edu>
- *
  *****************************************************************************/
 
 #ifndef MC_FASTA_READER_H_
@@ -108,20 +105,12 @@ public:
 
     void index_offset(index_type index) { index_ = index; }
 
-    void seek(std::streampos pos) { do_seek(pos); }
-    std::streampos tell()         { return do_tell(); }
-
 
 protected:
     void invalidate() { valid_ = false; }
 
 
 private:
-    // derived readers have to implement these
-    virtual std::streampos do_tell() = 0;
-
-    virtual void do_seek(std::streampos) = 0;
-
     virtual void read_next(header_type*, data_type*, qualities_type*) = 0;
 
     virtual void skip_next() = 0;
@@ -146,16 +135,12 @@ public:
     fasta_reader(const std::string& filename);
 
 private:
-    std::streampos do_tell() override;
-
-    void do_seek(std::streampos) override;
     void read_next(header_type*, data_type*, qualities_type*) override;
     void skip_next() override;
 
 private:
     std::ifstream file_;
-    std::string linebuffer_;
-    std::streampos pos_;
+    std::string buffer_;
 };
 
 
@@ -174,16 +159,11 @@ public:
     fastq_reader(const std::string& filename);
 
 private:
-    std::streampos do_tell() override;
-
-    void do_seek(std::streampos) override;
     void read_next(header_type*, data_type*, qualities_type*) override;
     void skip_next() override;
 
 private:
     std::ifstream file_;
-    std::string linebuffer_;
-    std::streampos pos_;
 };
 
 
@@ -252,9 +232,6 @@ public:
     index_type index() const noexcept;
 
     void index_offset(index_type index);
-
-    void seek(const stream_positions& pos);
-    stream_positions tell();
 
 
 private:

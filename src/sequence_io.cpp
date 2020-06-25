@@ -18,15 +18,13 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Original FASTA / FASTQ reader code taken from Kraken written by
- * Derrick Wood <dwood@cs.jhu.edu>
- *
  *****************************************************************************/
 
 #include <sstream>
 #include <stdexcept>
 #include <limits>
 #include <regex>
+#include <algorithm>
 
 #include "io_error.h"
 #include "sequence_io.h"
@@ -36,7 +34,6 @@
 namespace mc {
 
 using std::string;
-
 
 
 //-------------------------------------------------------------------
@@ -145,63 +142,66 @@ void sequence_reader::skip(index_type skip)
 //-----------------------------------------------------------------------------
 fasta_reader::fasta_reader(const string& filename):
     sequence_reader{},
-    file_{},
-    linebuffer_{},
-    pos_{0}
+    file_{}, buffer_{}
 {
-    if(!filename.empty()) {
-        file_.open(filename);
-
-        if(!file_.good()) {
-            invalidate();
-            throw file_access_error{"can't open file " + filename};
-        }
+    if(filename.empty()) {
+        throw file_access_error{"no filename was give"};
     }
-    else {
-        throw file_access_error{"no filename was given"};
+
+    file_.open(filename);
+
+    if(!file_.good()) {
+        invalidate();
+        throw file_access_error{"can't open file " + filename};
+    }
+
+    if(file_.get() != '>') {
+        invalidate();
+        throw io_format_error{"malformed FASTA file - expected header char > not found"};
     }
 }
-
 
 
 //-------------------------------------------------------------------
 void fasta_reader::read_next(header_type* header, data_type* data, qualities_type*)
 {
-    if(linebuffer_.empty()) {
-        getline(file_, linebuffer_);
-    }
-    pos_ += linebuffer_.size() + 1;
-
-    if(linebuffer_[0] != '>') {
-        throw io_format_error{"malformed fasta file - expected header char > not found"};
-        invalidate();
-        return;
+    if(header) {
+        getline(file_, *header);
+    } else {
+        file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     }
 
-    if(header) *header = linebuffer_.substr(1);
+    if(data) {
+        using traits_t = std::string::traits_type;
 
-    if(data) data->clear();
+        constexpr auto idelim = traits_t::to_int_type('>');
+        constexpr auto eof = traits_t::eof();
 
-    while(file_.good()) {
-        getline(file_, linebuffer_);
-        if(linebuffer_[0] == '>') {
-            break;
+        auto c = idelim;
+        data->erase();
+        buffer_.erase();
+
+        do {
+            std::getline(file_, buffer_);
+            *data += buffer_;
+            c = file_.rdbuf()->sgetc();
+        } while(file_.good() && !traits_t::eq_int_type(c, idelim));
+
+        if(traits_t::eq_int_type(c, eof)) {
+            file_.setstate(std::iostream::ios_base::eofbit);
+        }
+        else if(traits_t::eq_int_type(c, idelim)) {
+            file_.rdbuf()->sbumpc();
         }
         else {
-            if(data) data->append(linebuffer_);
-            pos_ += linebuffer_.size() + 1;
+            file_.setstate(std::iostream::ios_base::failbit);
         }
-    }
 
-    if(data && data->empty()) {
-        throw io_format_error{"malformed fasta file - zero-length sequence"
-                              + (header ? *header : header_type{""})};
-        invalidate();
-        return;
+    } else {
+        file_.ignore(std::numeric_limits<std::streamsize>::max(), '>');
     }
 
     if(!file_.good()) {
-        pos_ = -1;
         invalidate();
     }
 }
@@ -212,46 +212,11 @@ void fasta_reader::read_next(header_type* header, data_type* data, qualities_typ
 //-------------------------------------------------------------------
 void fasta_reader::skip_next()
 {
-    if(linebuffer_.empty()) {
-        file_.ignore(1);
-        pos_ += file_.gcount();
-    } else {
-        pos_ += linebuffer_.size() + 1;
-        linebuffer_.clear();
-    }
     file_.ignore(std::numeric_limits<std::streamsize>::max(), '>');
-    pos_ += file_.gcount();
-
-    if(file_.good()) {
-        file_.unget();
-        pos_ -= 1;
-    } else {
-        pos_ = -1;
-        invalidate();
-    }
-}
-
-
-
-//-------------------------------------------------------------------
-void fasta_reader::do_seek(std::streampos pos)
-{
-    file_.seekg(pos);
-    pos_ = pos;
-    linebuffer_.clear();
 
     if(!file_.good()) {
-        pos_ = -1;
         invalidate();
     }
-}
-
-
-
-//-------------------------------------------------------------------
-std::streampos fasta_reader::do_tell()
-{
-    return pos_;
 }
 
 
@@ -264,87 +229,64 @@ std::streampos fasta_reader::do_tell()
 //-----------------------------------------------------------------------------
 fastq_reader::fastq_reader(const string& filename):
     sequence_reader{},
-    file_{}, linebuffer_{}, pos_{0}
+    file_{}
 {
-    if(!filename.empty()) {
-        file_.open(filename);
-
-        if(!file_.good()) {
-            invalidate();
-            throw file_access_error{"can't open file " + filename};
-        }
-    }
-    else {
+    if(filename.empty()) {
         throw file_access_error{"no filename was given"};
     }
-}
 
+    file_.open(filename);
+
+    if(!file_.good()) {
+        invalidate();
+        throw file_access_error{"can't open file " + filename};
+    }
+
+    if(file_.get() != '@') {
+        invalidate();
+        throw io_format_error{"malformed FASTQ file - expected header char > not found"};
+    }
+}
 
 
 //-------------------------------------------------------------------
 void fastq_reader::read_next(header_type* header, data_type* data,
                              qualities_type* qualities)
 {
-    // 1st line (data header)
-    getline(file_, linebuffer_);
-
-    if(linebuffer_.empty()) {
-        pos_ = -1;
-        invalidate();
-        if(header) header->clear();
-        if(data) data->clear();
-        if(qualities) qualities->clear();
-        return;
-    }
-
-    pos_ += linebuffer_.size() + 1;
-
-    if(linebuffer_[0] != '@') {
-        if(linebuffer_[0] != '\r') {
-            throw io_format_error{"malformed fastq file - sequence header: "  + linebuffer_};
-        }
-        invalidate();
-        return;
-    }
+    using traits_t = std::string::traits_type;
 
     if(header) {
-        *header = linebuffer_.substr(1);
+        getline(file_, *header);
+    } else {
+        file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     }
 
     // 2nd line (sequence data)
     if(data) {
         getline(file_, *data);
-        pos_ += data->size() + 1;
     } else {
         file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        pos_ += file_.gcount();
     }
 
     // 3rd (qualities header) + 4th line (qualities)
     if(qualities) {
-        getline(file_, linebuffer_);
-        pos_ += linebuffer_.size() + 1;
-
-        if(linebuffer_.empty() || linebuffer_[0] != '+') {
-            if(linebuffer_[0] != '\r') {
-                throw io_format_error{"malformed fastq file - quality header: "  + linebuffer_};
-            }
+        // qualities header
+        file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        if(file_.good() && traits_t::eq_int_type(file_.rdbuf()->sgetc(), traits_t::to_int_type('+'))) {
+            throw io_format_error{"malformed FASTQ - quality header"};
             invalidate();
             return;
         }
-
+        // skip '+'
+        file_.rdbuf()->sbumpc();
+        // read actual qualitites
         getline(file_, *qualities);
-        pos_ += qualities->size() + 1;
-    }
-    else {
+    } else {
         file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        pos_ += file_.gcount();
-        file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        pos_ += file_.gcount();
     }
+    file_.ignore(std::numeric_limits<std::streamsize>::max(), '@');
 
     if(!file_.good()) {
-        pos_ = -1;
         invalidate();
     }
 }
@@ -355,28 +297,6 @@ void fastq_reader::read_next(header_type* header, data_type* data,
 void fastq_reader::skip_next()
 {
     read_next(nullptr, nullptr, nullptr);
-}
-
-
-
-//-------------------------------------------------------------------
-void fastq_reader::do_seek(std::streampos pos)
-{
-    file_.seekg(pos);
-    pos_ = pos;
-
-    if(!file_.good()) {
-        pos_ = -1;
-        invalidate();
-    }
-}
-
-
-
-//-------------------------------------------------------------------
-std::streampos fastq_reader::do_tell()
-{
-    return pos_;
 }
 
 
@@ -588,28 +508,6 @@ void sequence_pair_reader::index_offset(index_type index)
 
 
 
-//-------------------------------------------------------------------
-void sequence_pair_reader::seek(const stream_positions& pos)
-{
-    if(!reader1_) return;
-
-    reader1_->seek(pos.first);
-    if(reader2_) reader2_->seek(pos.second);
-}
-
-
-
-//-------------------------------------------------------------------
-sequence_pair_reader::stream_positions
-sequence_pair_reader::tell()
-{
-    return stream_positions{
-            reader1_ ? reader1_->tell() : std::streampos{},
-            reader2_ ? reader2_->tell() : std::streampos{} };
-}
-
-
-
 
 
 
@@ -739,7 +637,7 @@ extract_accession_string(const string& text, sequence_id_type idtype)
 
     switch(idtype) {
         case sequence_id_type::acc:
-            [[fallthrough]]
+        /* [[fallthrough]] */
         case sequence_id_type::acc_ver:
             return extract_ncbi_accession_number(text, idtype);
         case sequence_id_type::gi:
