@@ -126,7 +126,7 @@ public:
     explicit
     single_function_unique_min_hasher(hasher hash = hasher{}):
         hash_(std::move(hash)), k_(16), sketchSize_(16),
-        windowSize_(128), windowStride_(128-k_+1)
+        windowSize_(127), windowStride_(127-k_+1)
     {}
 
 

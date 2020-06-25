@@ -46,7 +46,15 @@
 #include "io_options.h"
 #include "taxonomy.h"
 #include "typename.h"
-#include "host_hashmap.h"
+
+#ifndef GPU_MODE
+    #include "host_hashmap.h"
+#else
+    #include "gpu_hashmap.cuh"
+    #include "query_batch.cuh"
+#endif
+
+#include "../dep/cudahelpers/cuda_helpers.cuh"
 
 
 namespace mc {
@@ -135,17 +143,21 @@ public:
 
     const taxon* taxon_of_target(target_id id) const {return targets_[id]; }
 
+public:
     //-----------------------------------------------------
     /** @brief internal location representation = (window index, target index)
      *         these are stored in the in-memory database and on disk
      */
-    #pragma pack(push, 1)
+#ifndef GPU_MODE
     //avoid padding bits
+    #pragma pack(push, 1)
+#endif
     struct location
     {
         window_id win;
         target_id tgt;
 
+        HOSTDEVICEQUALIFIER
         friend bool
         operator == (const location& a, const location& b) noexcept {
             return (a.tgt == b.tgt) && (a.win == b.win);
@@ -158,9 +170,10 @@ public:
             return (a.win < b.win);
         }
     };
+#ifndef GPU_MODE
     //avoid padding bits
     #pragma pack(pop)
-
+#endif
 
     //-----------------------------------------------------
     using sketch  = typename sketcher::sketch_type;  //range of features
@@ -177,15 +190,22 @@ private:
 
     //-----------------------------------------------------
     /// @brief "heart of the database": maps features to target locations
+#ifndef GPU_MODE
     using feature_store = host_hashmap<location>;
-
+#else
+    using feature_store = gpu_hashmap<feature, location>; //key, value
+#endif
 
 public:
     //---------------------------------------------------------------
     using feature_count_type = typename feature_store::feature_count_type;
 
+#ifndef GPU_MODE
     using matches_sorter     = typename feature_store::matches_sorter;
     using match_locations    = typename feature_store::match_locations;
+#else
+    using match_locations    = std::vector<location>;
+#endif
 
 
     //---------------------------------------------------------------
@@ -584,12 +604,28 @@ public:
 
 
     //---------------------------------------------------------------
+#ifndef GPU_MODE
     void
     query_host(const sequence& query1, const sequence& query2,
                matches_sorter& res) const
     {
         featureStore_.query_host(querySketcher_, query1, query2, res);
     }
+#else
+    void
+    query_gpu_async(query_batch<location>& queryBatch,
+                    gpu_id hostId,
+                    bool copyAllHits,
+                    taxon_rank lowestRank) const
+    {
+        featureStore_.query_async(
+            queryBatch,
+            hostId,
+            query_sketcher(),
+            copyAllHits,
+            lowestRank);
+    }
+#endif
 
 
     //---------------------------------------------------------------
@@ -673,7 +709,7 @@ private:
     sketcher targetSketcher_;
     sketcher querySketcher_;
     std::atomic<std::uint64_t> targetCount_;
-    feature_store featureStore_;
+    mutable feature_store featureStore_;
     std::vector<const taxon*> targets_;
     taxonomy taxa_;
     mutable ranked_lineages_cache ranksCache_;

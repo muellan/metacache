@@ -78,7 +78,7 @@ struct sketching_options
     int sketchlen = 16;
 
     // number of characters in one window
-    int winlen = 128;
+    int winlen = 127;
 
     // difference between two successive window start positions
     int winstride = -1;  // < 0 : automatic: winstride = (winlen - (kmerlen-1))
@@ -91,7 +91,12 @@ struct sketching_options
  *****************************************************************************/
 struct database_storage_options
 {
+#ifndef GPU_MODE
     unsigned numGPUs = 0;
+#else
+    // use all available gpus
+    unsigned numGPUs = std::numeric_limits<unsigned>::max();
+#endif
 
     float maxLoadFactor = -1;  // < 0 : use database default
 

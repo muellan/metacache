@@ -40,7 +40,7 @@ namespace mc {
 /********************************************************************
  * @brief limits max. k (= number of letters) per k-mer
  */
-#ifdef MC_KMER_TYPE
+#if !defined GPU_MODE && defined MC_KMER_TYPE
     using kmer_type = MC_KMER_TYPE ;
 #else
     using kmer_type = std::uint32_t;
@@ -50,17 +50,21 @@ namespace mc {
 /********************************************************************
  * @brief limits number of targets (reference sequences) per database
  */
-#ifdef MC_TARGET_ID_TYPE
+#if !defined GPU_MODE && defined MC_TARGET_ID_TYPE
     using target_id = MC_TARGET_ID_TYPE ;
 #else
-    using target_id = std::uint16_t;
+    #ifdef GPU_MODE
+        using target_id = std::uint32_t;
+    #else
+        using target_id = std::uint16_t;
+    #endif
 #endif
 
 
 /********************************************************************
  * @brief limits max. number of windows per target (reference sequence)
  */
-#ifdef MC_WINDOW_ID_TYPE
+#if !defined GPU_MODE && MC_WINDOW_ID_TYPE
     using window_id = MC_WINDOW_ID_TYPE ;
 #else
     using window_id = std::uint32_t;
@@ -85,12 +89,22 @@ using query_id = std::uint_least64_t;
 
 
 /**************************************************************************
+ * @brief define sequence batch sizes
+ */
+//TODO tune sizes
+#define MAX_TARGETS_PER_BATCH 100
+#define MAX_LENGTH_PER_BATCH 10000000
+
+
+/**************************************************************************
  * @brief controls how nucleotide sequences are transformed into 'features'
  *        (called "h_1" in the paper)
  */
 using sketching_hash = same_size_hash<kmer_type>;
 
 using sketcher = single_function_unique_min_hasher<kmer_type,sketching_hash>;
+
+using sketch_size_type = typename sketcher::sketch_type::size_type;
 
 
 /**************************************************************************

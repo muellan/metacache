@@ -33,6 +33,9 @@
 #include "batch_processing.h"
 #include "candidate_generation.h"
 
+#ifdef GPU_MODE
+    #include "query_batch.cuh"
+#endif
 
 namespace mc {
 
@@ -78,21 +81,80 @@ struct sequence_query
  *                       must be thread-safe (only const operations on DB!)
  *
  *****************************************************************************/
-template<class Buffer, class BufferUpdate>
-void query_host(
-    const database& db,
-    const std::vector<sequence_query>& batch,
-    database::matches_sorter& targetMatches,
-    Buffer& resultsBuffer, BufferUpdate& update)
-{
-    for(auto& seq : batch) {
-        db.query_host(seq.seq1, seq.seq2, targetMatches);
+#ifndef GPU_MODE
+    template<class Buffer, class BufferUpdate>
+    void query_host(
+        const database& db,
+        const std::vector<sequence_query>& batch,
+        database::matches_sorter& targetMatches,
+        Buffer& resultsBuffer, BufferUpdate& update)
+    {
+        for(auto& seq : batch) {
+            db.query_host(seq.seq1, seq.seq2, targetMatches);
 
-        span<match_candidate> tophits{};
+            span<match_candidate> tophits{};
 
-        update(resultsBuffer, seq, targetMatches.locations(), tophits);
+            update(resultsBuffer, seq, targetMatches.locations(), tophits);
+        }
     }
-}
+#else
+    template<class Buffer, class BufferUpdate>
+    void query_gpu(
+        const database& db,
+        const classification_options& opt,
+        const std::vector<sequence_query>& sequenceBatch,
+        bool copyAllHits,
+        query_batch<location>& queryBatch,
+        gpu_id hostId,
+        Buffer& batchBuffer, BufferUpdate& update,
+        std::mutex& scheduleMtx)
+    {
+        for(const auto& seq : sequenceBatch) {
+            if(!queryBatch.add_paired_read(hostId, seq.seq1, seq.seq2, db.query_sketcher(), opt.insertSizeMax)) {
+                std::cerr << "query batch is too small for a single read!" << std::endl;
+            }
+        }
+
+        // std::cerr << "host id " << hostId << ": " << queryBatch.host_data(hostId).num_queries() << " queries\n";
+
+        if(queryBatch.host_data(hostId).num_queries() > 0)
+        {
+            {
+                std::lock_guard<std::mutex> lock(scheduleMtx);
+
+                db.query_gpu_async(queryBatch, hostId, copyAllHits, opt.lowestRank);
+            }
+            queryBatch.host_data(hostId).wait_for_results();
+
+            for(size_t s = 0; s < queryBatch.host_data(hostId).num_segments(); ++s) {
+                span<location> allhits = copyAllHits ? queryBatch.host_data(hostId).allhits(s) : span<location>();
+
+                // std::cout << s << ". targetMatches:    ";
+                // for(const auto& m : allhits)
+                //     std::cout << m.tgt << ':' << m.win << ' ';
+                // std::cout << '\n';
+
+                span<match_candidate> tophits = queryBatch.host_data(hostId).top_candidates(s);
+
+                // std::cout << s << ". top hits: ";
+                // for(const auto& t : tophits) {
+                //     if(t.hits > 0) {
+                //         if(t.tax)
+                //             std::cout << t.tax->id() << ':' << t.hits << ' ';
+                //         else
+                //             std::cout << "notax:"  << t.hits << ' ';
+                //     }
+                // }
+                // std::cout << '\n';
+
+                update(batchBuffer, sequenceBatch[s], allhits, tophits);
+            }
+            // std::cout << '\n';
+
+            queryBatch.host_data(hostId).clear();
+        }
+    }
+#endif
 
 
 
@@ -134,8 +196,26 @@ query_id query_batched(
 
     std::mutex finalizeMtx;
 
+#ifndef GPU_MODE
     std::vector<database::matches_sorter> targetMatches(opt.performance.numThreads -
                                                         (opt.performance.numThreads > 1));
+#else
+    bool copyAllHits = opt.output.analysis.showAllHits
+                    || opt.output.analysis.showHitsPerTargetList
+                    || opt.classify.covPercentile > 0;
+
+    std::mutex scheduleMtx;
+
+    query_batch<location> queryBatch(
+        opt.performance.batchSize,
+        opt.performance.batchSize*db.query_sketcher().window_size(),
+        db.query_sketcher().sketch_size(),
+        db.query_sketcher().sketch_size()*db.max_locations_per_feature(),
+        opt.classify.maxNumCandidatesPerQuery,
+        copyAllHits,
+        (opt.performance.numThreads - (opt.performance.numThreads > 1)),
+        opt.dbconfig.numGPUs);
+#endif
 
     // get executor that runs classification in batches
     batch_processing_options<sequence_query> execOpt;
@@ -143,6 +223,22 @@ query_id query_batched(
     execOpt.batch_size(opt.performance.batchSize);
     execOpt.queue_size(opt.performance.numThreads > 1 ? opt.performance.numThreads + 8 : 0);
     execOpt.on_error(handleErrors);
+    execOpt.work_item_measure([&] (const auto& query) {
+        using std::begin;
+        using std::end;
+        using std::distance;
+
+        const numk_t kmerSize = db.query_sketcher().kmer_size();
+        const size_t windowStride = db.query_sketcher().window_stride();
+
+        const size_t seqLength1 = distance(begin(query.seq1), end(query.seq1));
+        const size_t seqLength2 = distance(begin(query.seq2), end(query.seq2));
+
+        const window_id numWindows1 = (seqLength1-kmerSize + windowStride) / windowStride;
+        const window_id numWindows2 = (seqLength2-kmerSize + windowStride) / windowStride;
+
+        return std::max(window_id(1), numWindows1 + numWindows2);
+    });
 
     batch_executor<sequence_query> executor {
         execOpt,
@@ -150,7 +246,12 @@ query_id query_batched(
         [&](int id, std::vector<sequence_query>& batch) {
             auto resultsBuffer = getBuffer();
 
-           query_host(db, batch, targetMatches[id], resultsBuffer, update);
+#ifndef GPU_MODE
+            query_host(db, batch, targetMatches[id], resultsBuffer, update);
+#else
+            // query batch to gpu and wait for results
+            query_gpu(db, opt.classify, batch, copyAllHits, queryBatch, id, resultsBuffer, update, scheduleMtx);
+#endif
 
             std::lock_guard<std::mutex> lock(finalizeMtx);
             finalize(std::move(resultsBuffer));

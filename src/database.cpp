@@ -204,6 +204,10 @@ void database::read_single(const std::string& filename, gpu_id gpuId, scope what
     if(what != scope::metadata_only) {
         //hash table
         read_binary(is, featureStore_, gpuId);
+
+#ifdef GPU_MODE
+        featureStore_.copy_target_lineages_to_gpu(targetLineages_.lineages(), gpuId);
+#endif
     }
 
     std::cerr << "done." << std::endl;
@@ -213,7 +217,30 @@ void database::read_single(const std::string& filename, gpu_id gpuId, scope what
 //-------------------------------------------------------------------
 void database::read(const std::string& filename, gpu_id numGPUs, scope what)
 {
+#ifndef GPU_MODE
     read_single(filename, numGPUs, what);
+#else
+    if(numGPUs > num_gpus()) {
+        numGPUs = num_gpus();
+    }
+
+    if(numGPUs == 1) {
+        gpu_id gpuId = 0;
+        read_single(filename, gpuId, what);
+    }
+    else {
+        gpu_id gpuId = 0;
+        read_single(filename+std::to_string(gpuId), gpuId, what);
+
+        if(what != scope::metadata_only) {
+            for(gpu_id gpuId = 1; gpuId < numGPUs; ++gpuId) {
+                read_single(filename+std::to_string(gpuId), gpuId, scope::hashtable_only);
+            }
+        }
+
+        featureStore_.enable_all_peer_access(numGPUs);
+    }
+#endif
 }
 
 
@@ -264,8 +291,19 @@ void database::write_single(const std::string& filename, gpu_id gpuId) const
 //-------------------------------------------------------------------
 void database::write(const std::string& filename) const
 {
+#ifndef GPU_MODE
     gpu_id gpuId = 0;
     write_single(filename, gpuId);
+#else
+    if(featureStore_.num_gpus() == 1) {
+        gpu_id gpuId = 0;
+        write_single(filename, gpuId);
+    }
+    else {
+        for(gpu_id gpuId = 0; gpuId < featureStore_.num_gpus(); ++gpuId)
+            write_single(filename+std::to_string(gpuId), gpuId);
+    }
+#endif
 }
 
 

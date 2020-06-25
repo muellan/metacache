@@ -1,3 +1,16 @@
 # [submodule "dep/queue"]
 # 	path = dep/queue
 # 	url = https://github.com/cameron314/readerwriterqueue
+[submodule "cudahelpers"]
+	path = dep/cudahelpers
+	url = https://github.com/gravitino/cudahelpers
+[submodule "cub"]
+	path = dep/cub
+	url = https://github.com/NVlabs/cub.git
+# TODO warpcore submodules: cudahelpers & cub
+[submodule "dep/bb_segsort"]
+	path = dep/bb_segsort
+	url = https://github.com/Funatiq/bb_segsort
+[submodule "dep/warpcore"]
+	path = dep/warpcore
+	url = git@gitlab.rlp.net:pararch/warpcore.git
