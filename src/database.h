@@ -190,13 +190,22 @@ private:
 
     //-----------------------------------------------------
     /// @brief "heart of the database": maps features to target locations
+#ifndef GPU_MODE
+    using feature_store = host_hashmap<location>;
+#else
     using feature_store = gpu_hashmap<feature, location>; //key, value
+#endif
 
 public:
     //---------------------------------------------------------------
     using feature_count_type = typename feature_store::feature_count_type;
 
-    using match_locations = std::vector<location>;
+#ifndef GPU_MODE
+    using matches_sorter     = typename feature_store::matches_sorter;
+    using match_locations    = typename feature_store::match_locations;
+#else
+    using match_locations    = std::vector<location>;
+#endif
 
 
     //---------------------------------------------------------------
@@ -595,6 +604,14 @@ public:
 
 
     //---------------------------------------------------------------
+#ifndef GPU_MODE
+    void
+    query_host(const sequence& query1, const sequence& query2,
+               matches_sorter& res) const
+    {
+        featureStore_.query_host(querySketcher_, query1, query2, res);
+    }
+#else
     void
     query_gpu_async(query_batch<location>& queryBatch,
                     gpu_id hostId,
@@ -608,6 +625,7 @@ public:
             copyAllHits,
             lowestRank);
     }
+#endif
 
 
     //---------------------------------------------------------------

@@ -51,6 +51,7 @@ HEADERS = \
           src/hash_dna.h \
           src/hash_int.h \
           src/hash_multimap.h \
+          src/host_hashmap.h \
           src/io_error.h \
           src/io_options.h \
           src/io_serialize.h \
@@ -63,10 +64,10 @@ HEADERS = \
           src/sequence_batch.cuh \
           src/sequence_io.h \
           src/sequence_view.h \
-          src/stat_confusion.h \
-          src/stat_moments.h \
           src/stat_combined.cuh \
           src/stat_combined.h \
+          src/stat_confusion.h \
+          src/stat_moments.h \
           src/string_utils.h \
           src/taxonomy.h \
           src/taxonomy_io.h \

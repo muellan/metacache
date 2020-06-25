@@ -82,6 +82,21 @@ struct sequence_query
  *
  *****************************************************************************/
 #ifndef GPU_MODE
+    template<class Buffer, class BufferUpdate>
+    void query_host(
+        const database& db,
+        const std::vector<sequence_query>& batch,
+        database::matches_sorter& targetMatches,
+        Buffer& resultsBuffer, BufferUpdate& update)
+    {
+        for(auto& seq : batch) {
+            db.query_host(seq.seq1, seq.seq2, targetMatches);
+
+            span<match_candidate> tophits{};
+
+            update(resultsBuffer, seq, targetMatches.locations(), tophits);
+        }
+    }
 #else
     template<class Buffer, class BufferUpdate>
     void query_gpu(
@@ -182,6 +197,8 @@ query_id query_batched(
     std::mutex finalizeMtx;
 
 #ifndef GPU_MODE
+    std::vector<database::matches_sorter> targetMatches(opt.performance.numThreads -
+                                                        (opt.performance.numThreads > 1));
 #else
     bool copyAllHits = opt.output.analysis.showAllHits
                     || opt.output.analysis.showHitsPerTargetList
@@ -229,8 +246,12 @@ query_id query_batched(
         [&](int id, std::vector<sequence_query>& batch) {
             auto resultsBuffer = getBuffer();
 
+#ifndef GPU_MODE
+            query_host(db, batch, targetMatches[id], resultsBuffer, update);
+#else
             // query batch to gpu and wait for results
             query_gpu(db, opt.classify, batch, copyAllHits, queryBatch, id, resultsBuffer, update, scheduleMtx);
+#endif
 
             std::lock_guard<std::mutex> lock(finalizeMtx);
             finalize(std::move(resultsBuffer));

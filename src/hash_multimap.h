@@ -719,6 +719,14 @@ public:
             numValues_ -= (old - it->size());
         }
     }
+    //-----------------------------------------------------
+    void
+    shrink_all(bucket_size_type n)
+    {
+        for(auto i = buckets_.begin(), e = buckets_.end(); i != e; ++i) {
+            shrink(i, n);
+        }
+    }
 
 
     /****************************************************************
@@ -1056,7 +1064,7 @@ private:
             sizeBuffer.reserve(batchSize);
             std::vector<value_type> valBuffer;
             valBuffer.reserve(batchSize*avgValueCount);
-            
+
             for(const auto& bucket : buckets_) {
                 if(!bucket.empty()) {
                     keyBuffer.emplace_back(bucket.key());
