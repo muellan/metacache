@@ -1,8 +1,10 @@
-REL_ARTIFACT  = metacache
-DBG_ARTIFACT  = metacache_debug
-PRF_ARTIFACT  = metacache_prf
+REL_ARTIFACT      = metacache
+DBG_ARTIFACT      = metacache_debug
+PRF_ARTIFACT      = metacache_prf
 
-MACROS += -DGPU_MODE
+REL_CUDA_ARTIFACT = metacache_gpu
+DBG_CUDA_ARTIFACT = metacache_gpu_debug
+PRF_CUDA_ARTIFACT = metacache_gpu_prf
 
 COMPILER      = $(CXX)
 CUDA_COMPILER = nvcc
@@ -136,6 +138,15 @@ debug: $(DBG_DIR) $(DBG_ARTIFACT)
 
 profile: $(PRF_DIR) $(PRF_ARTIFACT)
 
+gpu_release: MACROS += -DGPU_MODE
+gpu_release: $(REL_DIR) $(REL_CUDA_ARTIFACT)
+
+gpu_debug: MACROS += -DGPU_MODE
+gpu_debug: $(DBG_DIR) $(DBG_CUDA_ARTIFACT)
+
+gpu_profile: MACROS += -DGPU_MODE
+gpu_profile: $(PRF_DIR) $(PRF_CUDA_ARTIFACT)
+
 all: release debug profile test
 
 clean :
@@ -153,8 +164,11 @@ clean :
 $(REL_DIR):
 	mkdir $(REL_DIR)
 
-$(REL_ARTIFACT): $(REL_OBJS) $(REL_CUDA_OBJS)
-	$(CUDA_COMPILER) -o $(REL_ARTIFACT) $(REL_OBJS) $(REL_CUDA_OBJS) $(REL_CUDA_LDFLAGS)
+$(REL_ARTIFACT): $(REL_OBJS)
+	$(CUDA_COMPILER) -o $(REL_ARTIFACT) $(REL_OBJS) $(REL_CUDA_LDFLAGS)
+
+$(REL_CUDA_ARTIFACT): $(REL_OBJS) $(REL_CUDA_OBJS)
+	$(CUDA_COMPILER) -o $(REL_CUDA_ARTIFACT) $(REL_OBJS) $(REL_CUDA_OBJS) $(REL_CUDA_LDFLAGS)
 
 $(REL_DIR)/main.o : src/main.cpp src/modes.h
 	$(REL_COMPILE)
@@ -217,8 +231,11 @@ $(REL_DIR)/query_batch.o : src/query_batch.cu $(HEADERS)
 $(DBG_DIR):
 	mkdir $(DBG_DIR)
 
-$(DBG_ARTIFACT): $(DBG_OBJS) $(DBG_CUDA_OBJS)
-	$(CUDA_COMPILER) -o $(DBG_ARTIFACT) $(DBG_OBJS) $(DBG_CUDA_OBJS) $(DBG_CUDA_LDFLAGS)
+$(DBG_ARTIFACT): $(DBG_OBJS)
+	$(CUDA_COMPILER) -o $(DBG_ARTIFACT) $(DBG_OBJS) $(DBG_CUDA_LDFLAGS)
+
+$(DBG_CUDA_ARTIFACT): $(DBG_OBJS) $(DBG_CUDA_OBJS)
+	$(CUDA_COMPILER) -o $(DBG_CUDA_ARTIFACT) $(DBG_OBJS) $(DBG_CUDA_OBJS) $(DBG_CUDA_LDFLAGS)
 
 $(DBG_DIR)/main.o : src/main.cpp src/modes.h
 	$(DBG_COMPILE)
@@ -281,8 +298,11 @@ $(DBG_DIR)/query_batch.o : src/query_batch.cu $(HEADERS)
 $(PRF_DIR):
 	mkdir $(PRF_DIR)
 
-$(PRF_ARTIFACT): $(PRF_OBJS) $(PRF_CUDA_OBJS)
-	$(CUDA_COMPILER) -o $(PRF_ARTIFACT) $(PRF_OBJS) $(PRF_CUDA_OBJS) $(PRF_CUDA_LDFLAGS)
+$(PRF_ARTIFACT): $(PRF_OBJS)
+	$(CUDA_COMPILER) -o $(PRF_ARTIFACT) $(PRF_OBJS) $(PRF_CUDA_LDFLAGS)
+
+$(PRF_CUDA_ARTIFACT): $(PRF_OBJS) $(PRF_CUDA_OBJS)
+	$(CUDA_COMPILER) -o $(PRF_CUDA_ARTIFACT) $(PRF_OBJS) $(PRF_CUDA_OBJS) $(PRF_CUDA_LDFLAGS)
 
 $(PRF_DIR)/main.o : src/main.cpp src/modes.h
 	$(PRF_COMPILE)
