@@ -4,7 +4,7 @@
 #include "config.h"
 #include "dna_encoding.h"
 
-#include "../dep/cudahelpers/cuda_helpers.cuh"
+#include "../dep/hpc_helpers/include/cuda_helpers.cuh"
 #include "../dep/bb_segsort/src/bb_exch_keys.cuh"
 
 namespace mc {

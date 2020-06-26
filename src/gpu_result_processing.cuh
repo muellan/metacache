@@ -5,7 +5,7 @@
 #include "candidate_structs.h"
 #include "dna_encoding.h"
 
-#include "../dep/cudahelpers/cuda_helpers.cuh"
+#include "../dep/hpc_helpers/include/cuda_helpers.cuh"
 
 namespace mc {
 
