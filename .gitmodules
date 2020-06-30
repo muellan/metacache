@@ -1,9 +1,6 @@
 # [submodule "dep/queue"]
 # 	path = dep/queue
 # 	url = https://github.com/cameron314/readerwriterqueue
-[submodule "cub"]
-	path = dep/cub
-	url = https://github.com/NVlabs/cub.git
 [submodule "dep/bb_segsort"]
 	path = dep/bb_segsort
 	url = https://github.com/Funatiq/bb_segsort
