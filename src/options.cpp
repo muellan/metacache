@@ -355,7 +355,7 @@ database_storage_options_cli(database_storage_options& opt, error_messages& err)
     const database defaultDb;
 
     return (
-#ifdef MODE_GPU
+#ifdef GPU_MODE
     (   option("-gpus") &
         integer("#", opt.numGPUs)
             .if_missing([&]{ err += "Number missing after '-gpus'!"; })
