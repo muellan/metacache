@@ -143,7 +143,9 @@ uint32_t reduce_locations(
 
     const auto myPointer = begin + tid;
 
-    const location myLocation = myPointer < end ? *myPointer : location{~0, ~0};
+    const uint64_t myLocationLoad = myPointer < end ?
+        *reinterpret_cast<const uint64_t*>(myPointer) : uint64_t(~0);
+    const location myLocation = {uint32_t(myLocationLoad), uint32_t(myLocationLoad >> 32)} ;
     hit_count hits = 1;
 
     // sum hits of same location run
