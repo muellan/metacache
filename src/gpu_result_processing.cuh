@@ -133,7 +133,10 @@ struct match {
  *****************************************************************************/
 template<class Iterator>
 __device__
-int reduce_locations(Iterator begin, Iterator end, match * matches, int numLocations) {
+uint32_t reduce_locations(
+    const Iterator begin, const Iterator end,
+    match * matches, const uint32_t matchesBeginOffset, const uint32_t numLocations)
+{
     using hit_count = match_candidate::count_type;
 
     const int tid = threadIdx.x;
@@ -164,8 +167,9 @@ int reduce_locations(Iterator begin, Iterator end, match * matches, int numLocat
     if(tid == 0) {
         // predicate is false because myLocation == otherLocation
         // check if first location is the same as previous last location
-        if(numLocations > 0 && myLocation == matches[numLocations-1].loc) {
-            matches[numLocations-1].hits += hits;
+        uint32_t pos = (matchesBeginOffset+numLocations-1) % 96;
+        if(numLocations > 0 && myLocation == matches[pos].loc) {
+            matches[pos].hits += hits;
         }
         else {
             // different location -> thread has to write
@@ -179,7 +183,7 @@ int reduce_locations(Iterator begin, Iterator end, match * matches, int numLocat
     const uint32_t mask = __ballot_sync(0xFFFFFFFF, predicate);
     const uint32_t count = __popc(mask);
     const uint32_t numPre = __popc(mask & ((1 << tid) -1));
-    const uint32_t locPos = numLocations + numPre;
+    const uint32_t locPos = (matchesBeginOffset + numLocations + numPre) % 96;
 
     // store location and hits sum
     if(predicate) {
@@ -202,7 +206,7 @@ int reduce_locations(Iterator begin, Iterator end, match * matches, int numLocat
 __device__
 bool insert_into_tophits(
     match_candidate& cand, match_candidate (&top)[MAX_CANDIDATES],
-    const ranked_lineage * lineages, taxon_rank mergeBelow)
+    const ranked_lineage * lineages, const taxon_rank mergeBelow)
 {
     if(mergeBelow > taxon_rank::Sequence)
         cand.tax = lowest_ranked_ancestor(lineages, cand.tgt, mergeBelow);
@@ -260,26 +264,27 @@ bool insert_into_tophits(
  *****************************************************************************/
  template<int MAX_CANDIDATES>
  __device__
-int process_matches(
-    match * matches, int numLocations, window_id maxWin,
+uint32_t process_matches(
+    const match * matches, const uint32_t matchesBeginOffset, const uint32_t numLocations,
+    const window_id maxWin,
     match_candidate (&top)[MAX_CANDIDATES],
-    const ranked_lineage * lineages, taxon_rank mergeBelow)
+    const ranked_lineage * lineages, const taxon_rank mergeBelow)
 {
     using hit_count = match_candidate::count_type;
 
     const int tid = threadIdx.x;
-    const int numProcessed = min(32, numLocations);
+    const uint32_t numProcessed = min(32, numLocations);
 
     match_candidate candidate;
     if(tid < numProcessed) {
-        match m = matches[tid];
+        match m = matches[(matchesBeginOffset+tid) % 96];
         candidate.tgt = m.loc.tgt;
         candidate.hits = m.hits;
         candidate.pos.beg = m.loc.win;
         candidate.pos.end = m.loc.win;
 
         for(int i = 1; i < maxWin && (tid+i < numLocations); ++i) {
-            match m = matches[tid+i];
+            match m = matches[(matchesBeginOffset+tid+i) % 96];
             // check if m in same range
             if(candidate.tgt == m.loc.tgt && (candidate.pos.beg+maxWin > m.loc.win)) {
                 candidate.hits += m.hits;
@@ -332,15 +337,15 @@ template<
     class Result>
 __global__
 void generate_top_candidates(
-    uint32_t numSegments,
+    const uint32_t numSegments,
     const int * segmentOffsets,
     const Result * locations,
     const window_id * maxWindowsInRange,
     const ranked_lineage * lineages,
-    taxon_rank mergeBelow,
-    uint32_t maxCandidatesPerQuery,
+    const taxon_rank mergeBelow,
+    const uint32_t maxCandidatesPerQuery,
     match_candidate * topCandidates,
-    bool updateTopCandidates)
+    const bool updateTopCandidates)
 {
     using hit_count = match_candidate::count_type;
 
@@ -380,13 +385,14 @@ void generate_top_candidates(
             // topShared[tid].pos = {0, 0};
         }
 
-        int numLocations = 0;
+        uint32_t matchesBeginOffset = 0;
+        uint32_t numLocations = 0;
         const window_id maxWin = maxWindowsInRange[bid];
         // if(tid == 0) printf("bid: %d maxWin: %d\n", bid, maxWin);
 
         while(begin < end || numLocations > 0) {
             for(; (begin < end) && (numLocations <= 32+maxWin-1); begin += 32) {
-                numLocations = reduce_locations(begin, end, matches, numLocations);
+                numLocations = reduce_locations(begin, end, matches, matchesBeginOffset, numLocations);
 
                 // for(int i = tid; i < numLocations; i += 32) {
                 //     printf("bid %d tid: %d tgt: %d win: %d hits: %d\n",
@@ -395,18 +401,16 @@ void generate_top_candidates(
             }
 
             // process matches
-            const int numProcessed = process_matches<MAX_CANDIDATES>(
-                matches, (begin < end) ? numLocations-1 : numLocations, maxWin,
-                top, lineages, mergeBelow);
+            const uint32_t numProcessed = process_matches<MAX_CANDIDATES>(
+                matches, matchesBeginOffset, (begin < end) ? numLocations-1 : numLocations,
+                maxWin, top, lineages, mergeBelow);
 
             // if(tid == 0)
                 // printf("#locs: %d #processed: %d\n", numLocations, numProcessed);
 
             // remove processed matches from shared memory
             numLocations -= numProcessed;
-            for(int i = tid; i < numLocations; i += 32) {
-                matches[i] = matches[numProcessed + i];
-            }
+            matchesBeginOffset += numProcessed;
         }
 
         // int tophitsCount = 0;
