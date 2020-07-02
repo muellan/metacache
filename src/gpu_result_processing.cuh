@@ -131,11 +131,11 @@ struct match {
  * @brief  calculate length of runs of identical locations to create matches
  *
  *****************************************************************************/
-template<class Iterator>
+template<class Iterator, class Matches>
 __device__
 uint32_t reduce_locations(
     const Iterator begin, const Iterator end,
-    match * matches, const uint32_t matchesBeginOffset, const uint32_t numLocations)
+    Matches& matches, const uint32_t matchesBeginOffset, const uint32_t numLocations)
 {
     using hit_count = match_candidate::count_type;
 
@@ -143,25 +143,22 @@ uint32_t reduce_locations(
 
     const auto myPointer = begin + tid;
 
-    const uint64_t myLocationLoad = myPointer < end ?
+    const uint64_t myLocation = myPointer < end ?
         *reinterpret_cast<const uint64_t*>(myPointer) : uint64_t(~0);
-    const location myLocation = {uint32_t(myLocationLoad), uint32_t(myLocationLoad >> 32)} ;
     hit_count hits = 1;
 
     // sum hits of same location run
     for(int i = 1; i < 32; i *= 2) {
-        location otherLocation;
-        otherLocation.win = __shfl_down_sync(0xFFFFFFFF, myLocation.win, i);
-        otherLocation.tgt = __shfl_down_sync(0xFFFFFFFF, myLocation.tgt, i);
+        uint64_t otherLocation;
+        otherLocation = __shfl_down_sync(0xFFFFFFFF, myLocation, i);
         hit_count otherHits = __shfl_down_sync(0xFFFFFFFF, hits, i);
         if(tid < (32-i) && myLocation == otherLocation)
             hits += otherHits;
     }
     // find last thread of same location run
-    location otherLocation;
+    uint64_t otherLocation;
     // tid == 0: otherLocation = myLocation
-    otherLocation.win = __shfl_up_sync(0xFFFFFFFF, myLocation.win, 1);
-    otherLocation.tgt = __shfl_up_sync(0xFFFFFFFF, myLocation.tgt, 1);
+    otherLocation = __shfl_up_sync(0xFFFFFFFF, myLocation, 1);
 
     // find threads which have to write
     bool predicate = !(myLocation == otherLocation);
@@ -170,8 +167,9 @@ uint32_t reduce_locations(
         // predicate is false because myLocation == otherLocation
         // check if first location is the same as previous last location
         uint32_t pos = (matchesBeginOffset+numLocations-1) % 96;
-        if(numLocations > 0 && myLocation == matches[pos].loc) {
-            matches[pos].hits += hits;
+        location otherLocation = matches.locs[pos];
+        if(numLocations > 0 && myLocation == ((uint64_t(otherLocation.tgt) << 32) + otherLocation.win)) {
+            matches.hits[pos] += hits;
         }
         else {
             // different location -> thread has to write
@@ -179,7 +177,7 @@ uint32_t reduce_locations(
         }
     }
 
-    predicate = predicate && (myLocation.tgt != target_id{~0});
+    predicate = predicate && (myLocation != uint64_t{~0});
 
     // find write positions
     const uint32_t mask = __ballot_sync(0xFFFFFFFF, predicate);
@@ -189,7 +187,8 @@ uint32_t reduce_locations(
 
     // store location and hits sum
     if(predicate) {
-        matches[locPos] = {myLocation, hits};
+        matches.locs[locPos] = {uint32_t(myLocation), uint32_t(myLocation >> 32)};
+        matches.hits[locPos] = {hits};
 
         // printf("tid: %d tgt: %d win: %d hits: %d\n",
             // tid, myLocation.tgt, myLocation.win, hits);
@@ -267,10 +266,10 @@ bool insert_into_tophits(
  *         that are at most 'maxWin' long;
  *
  *****************************************************************************/
- template<int MAX_CANDIDATES>
+ template<int MAX_CANDIDATES, class Matches>
  __device__
 uint32_t process_matches(
-    const match * matches, const uint32_t matchesBeginOffset, const uint32_t numLocations,
+    const Matches& matches, const uint32_t matchesBeginOffset, const uint32_t numLocations,
     const window_id maxWin,
     match_candidate (&top)[MAX_CANDIDATES],
     const ranked_lineage * lineages, const taxon_rank mergeBelow)
@@ -282,18 +281,20 @@ uint32_t process_matches(
 
     match_candidate candidate;
     if(tid < numProcessed) {
-        match m = matches[(matchesBeginOffset+tid) % 96];
-        candidate.tgt = m.loc.tgt;
-        candidate.hits = m.hits;
-        candidate.pos.beg = m.loc.win;
-        candidate.pos.end = m.loc.win;
+        location loc = matches.locs[(matchesBeginOffset+tid) % 96];
+        uint32_t hits = matches.hits[(matchesBeginOffset+tid) % 96];
+        candidate.tgt = loc.tgt;
+        candidate.hits = hits;
+        candidate.pos.beg = loc.win;
+        candidate.pos.end = loc.win;
 
         for(int i = 1; i < maxWin && (tid+i < numLocations); ++i) {
-            match m = matches[(matchesBeginOffset+tid+i) % 96];
+            location loc = matches.locs[(matchesBeginOffset+tid+i) % 96];
+            uint32_t hits = matches.hits[(matchesBeginOffset+tid+i) % 96];
             // check if m in same range
-            if(candidate.tgt == m.loc.tgt && (candidate.pos.beg+maxWin > m.loc.win)) {
-                candidate.hits += m.hits;
-                candidate.pos.end = m.loc.win;
+            if(candidate.tgt == loc.tgt && (candidate.pos.beg+maxWin > loc.win)) {
+                candidate.hits += hits;
+                candidate.pos.end = loc.win;
             }
             else {
                 break;
@@ -355,7 +356,10 @@ void generate_top_candidates(
     using hit_count = match_candidate::count_type;
 
     //TODO reduce size
-    __shared__ match matches[96];
+    __shared__ struct {
+        location locs[96];
+        uint32_t hits[96];
+    } matches;
     __shared__ match_candidate topShared[MAX_CANDIDATES];
 
     for(int bid = blockIdx.x;
