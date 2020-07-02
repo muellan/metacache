@@ -201,7 +201,7 @@ int reduce_locations(Iterator begin, Iterator end, match * matches, int numLocat
  template<int MAX_CANDIDATES>
 __device__
 bool insert_into_tophits(
-    match_candidate& cand, match_candidate * top,
+    match_candidate& cand, match_candidate (&top)[MAX_CANDIDATES],
     const ranked_lineage * lineages, taxon_rank mergeBelow)
 {
     if(mergeBelow > taxon_rank::Sequence)
@@ -214,30 +214,38 @@ bool insert_into_tophits(
     int insertPos = MAX_CANDIDATES;
     int taxPos = MAX_CANDIDATES-1;
     // find insert position of cand
+    #pragma unroll
     for(int i = 0; i < MAX_CANDIDATES; ++i) {
-        if(cand.hits > top[i].hits) {
+        if(cand.hits > top[i].hits && i < insertPos) {
             insertPos = i;
-            break;
         }
     }
     // above sequence level, taxa can occur more than once
     if(mergeBelow != taxon_rank::Sequence) {
         // find same taxon
+        #pragma unroll
         for(int i = 0; i < MAX_CANDIDATES; ++i) {
-            if(cand.tax == top[i].tax) {
+            if(cand.tax == top[i].tax && i < taxPos) {
                 taxPos = i;
-                break;
             }
         }
     }
     // insert except if the same taxon with more hits already exists
     if(taxPos >= insertPos) {
         // move smaller candidates backwards until taxPos
-        for(int i = taxPos; i > insertPos; --i) {
-            top[i] = top[i-1];
+        #pragma unroll
+        for(int y = MAX_CANDIDATES-1; y > 0; y--){
+            if(y <= taxPos && y > insertPos){
+                top[y] = top[y-1];
+            }
         }
         // insert cand
-        top[insertPos] = cand;
+        #pragma unroll
+        for(int y = 0 ; y < MAX_CANDIDATES; y++){
+            if(y == insertPos){
+                top[y] = cand;
+            }
+        }
     }
 
     return true;
@@ -254,7 +262,7 @@ bool insert_into_tophits(
  __device__
 int process_matches(
     match * matches, int numLocations, window_id maxWin,
-    match_candidate * top,
+    match_candidate (&top)[MAX_CANDIDATES],
     const ranked_lineage * lineages, taxon_rank mergeBelow)
 {
     using hit_count = match_candidate::count_type;
@@ -353,6 +361,8 @@ void generate_top_candidates(
         const auto end = locations + segmentOffsets[bid+1];
 
         match_candidate top[MAX_CANDIDATES];
+
+        #pragma unroll
         for(int i = 0; i < MAX_CANDIDATES; ++i) {
             top[i].hits = 0;
         }
@@ -400,7 +410,8 @@ void generate_top_candidates(
         }
 
         // int tophitsCount = 0;
-        // for(int i = 0; i < maxCandidatesPerQuery; ++i) {
+        // #pragma unroll
+        // for(int i = 0; i < MAX_CANDIDATES; ++i) {
         //     if(top[i].hits > 0)
         //         ++tophitsCount;
         // }
@@ -410,11 +421,9 @@ void generate_top_candidates(
         int tophitsUsed = 0;
         int tophitsTotal = 0;
 
-        hit_count hits = top[0].hits;
+        match_candidate candidate = top[0];
 
-        while(__ballot_sync(0xFFFFFFFF, hits > 0) && tophitsTotal < maxCandidatesPerQuery) {
-            const match_candidate& candidate = top[tophitsUsed];
-
+        while(__ballot_sync(0xFFFFFFFF, candidate.hits > 0) && tophitsTotal < maxCandidatesPerQuery) {
             // add thread id to make hit count unique
             hit_count maxHits = (candidate.hits << 5) + 32-1 - tid;
 
@@ -440,11 +449,21 @@ void generate_top_candidates(
                     topShared[tophitsTotal] = candidate;
                 }
                 ++tophitsUsed;
+
+                if(tophitsUsed < MAX_CANDIDATES) {
+                    #pragma unroll
+                    for(int y = 0; y < MAX_CANDIDATES; y++){
+                        if(y == tophitsUsed){
+                            candidate = top[y];
+                        }
+                    }
+                }
+                else {
+                    candidate.hits = 0;
+                }
             }
             if(__ballot_sync(0xFFFFFFFF, insert))
                 ++tophitsTotal;
-
-            hits = top[tophitsUsed].hits;
         }
 
         if(tid < maxCandidatesPerQuery) {
