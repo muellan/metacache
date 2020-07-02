@@ -208,6 +208,9 @@ bool insert_into_tophits(
     match_candidate& cand, match_candidate (&top)[MAX_CANDIDATES],
     const ranked_lineage * lineages, const taxon_rank mergeBelow)
 {
+    // early exit
+    if(top[MAX_CANDIDATES-1].hits >= cand.hits) return true;
+
     if(mergeBelow > taxon_rank::Sequence)
         cand.tax = lowest_ranked_ancestor(lineages, cand.tgt, mergeBelow);
     else

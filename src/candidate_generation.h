@@ -190,6 +190,9 @@ public:
                 const database& db,
                 const candidate_generation_rules& rules = candidate_generation_rules{})
     {
+        // early exit
+        if(top_.size() == rules.maxCandidates && top_.back().hits >= cand.hits) return true;
+
         if(rules.mergeBelow > taxon_rank::Sequence)
             cand.tax = db.lowest_ranked_ancestor(cand.tgt, rules.mergeBelow);
         else
