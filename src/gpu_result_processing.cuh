@@ -228,16 +228,15 @@ bool insert_into_tophits(
             insertPos = i;
         }
     }
-    // above sequence level, taxa can occur more than once
-    if(mergeBelow != taxon_rank::Sequence) {
-        // find same taxon
-        #pragma unroll
-        for(int i = 0; i < MAX_CANDIDATES; ++i) {
-            if(cand.tax == top[i].tax && i < taxPos) {
-                taxPos = i;
-            }
+    // taxa can occur more than once, but only one candidate per taxon allowed
+    // find candidate with same taxon
+    #pragma unroll
+    for(int i = 0; i < MAX_CANDIDATES; ++i) {
+        if(cand.tax == top[i].tax && i < taxPos) {
+            taxPos = i;
         }
     }
+
     // insert except if the same taxon with more hits already exists
     if(taxPos >= insertPos) {
         // move smaller candidates backwards until taxPos
@@ -306,27 +305,7 @@ uint32_t process_matches(
         // top[0] = candidate;
     }
 
-
-    const target_id myTarget = (tid < numProcessed) ? candidate.tgt : std::numeric_limits<target_id>::max();
-    // add thread id to make hit count unique
-    hit_count maxHits = (candidate.hits << 5) + 32-1 - tid;
-
-    // segmented max reduction to find candidate with max hits for each target
-    for(int i = 1; i < 32; i *= 2) {
-        target_id otherTarget = __shfl_up_sync(0xFFFFFFFF, myTarget, i);
-        hit_count otherHits = __shfl_up_sync(0xFFFFFFFF, maxHits, i);
-        if(myTarget == otherTarget && maxHits < otherHits)
-            maxHits = otherHits;
-
-        // propagate max hits
-        otherTarget = __shfl_down_sync(0xFFFFFFFF, myTarget, i);
-        otherHits = __shfl_down_sync(0xFFFFFFFF, maxHits, i);
-        if(myTarget == otherTarget && maxHits < otherHits)
-            maxHits = otherHits;
-    }
-    const bool predicate = (tid < numProcessed) && (32-1 - tid == (maxHits & ((1 << 5) - 1)));
-
-    if(predicate) {
+    if(tid < numProcessed) {
         // printf("max -- tid: %d tgt: %d beg: %d end: %d hits: %d tid bits: %d\n",
             //    tid, candidate.tgt, candidate.pos.beg, candidate.pos.end, candidate.hits, (maxHits & ((1 << 5) - 1)));
 
