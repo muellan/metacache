@@ -284,6 +284,8 @@ public:
 
         cudaEvent_t queryFinishedEvent_;
         cudaEvent_t sketchesCopiedEvent_;
+        cudaEvent_t queryIdsCopiedEvent_;
+        cudaEvent_t queryIdsFinishedEvent_;
         cudaEvent_t offsetsReadyEvent_;
         cudaEvent_t offsetsCopiedEvent_;
         cudaEvent_t allhitsReadyEvent_;
@@ -394,6 +396,7 @@ private:
     cudaStream_t h2dCopyStream_;
 
     cudaEvent_t queriesCopiedEvent_;
+    cudaEvent_t queryIdsCopiedEvent_;
     cudaEvent_t maxWinCopiedEvent_;
 
     gpu_id numGPUs_;

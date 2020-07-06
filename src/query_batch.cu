@@ -186,6 +186,8 @@ query_batch<Location>::query_gpu_data::query_gpu_data(
     CUERR
     cudaEventCreate(&queryFinishedEvent_);
     cudaEventCreate(&sketchesCopiedEvent_);
+    cudaEventCreate(&queryIdsCopiedEvent_);
+    cudaEventCreate(&queryIdsFinishedEvent_);
     cudaEventCreate(&offsetsReadyEvent_);
     cudaEventCreate(&offsetsCopiedEvent_);
     cudaEventCreate(&allhitsReadyEvent_);
@@ -230,6 +232,10 @@ query_batch<Location>::query_gpu_data::query_gpu_data(query_gpu_data&& other)
     other.queryFinishedEvent_ = 0;
     sketchesCopiedEvent_ = other.sketchesCopiedEvent_;
     other.sketchesCopiedEvent_ = 0;
+    queryIdsCopiedEvent_ = other.queryIdsCopiedEvent_;
+    other.queryIdsCopiedEvent_ = 0;
+    queryIdsFinishedEvent_ = other.queryIdsFinishedEvent_;
+    other.queryIdsFinishedEvent_ = 0;
     offsetsReadyEvent_ = other.offsetsReadyEvent_;
     other.offsetsReadyEvent_ = 0;
     offsetsCopiedEvent_ = other.offsetsCopiedEvent_;
@@ -264,6 +270,8 @@ query_batch<Location>::query_gpu_data::~query_gpu_data()
     CUERR
     if(queryFinishedEvent_)  cudaEventDestroy(queryFinishedEvent_);
     if(sketchesCopiedEvent_) cudaEventDestroy(sketchesCopiedEvent_);
+    if(queryIdsCopiedEvent_)  cudaEventDestroy(queryIdsCopiedEvent_);
+    if(queryIdsFinishedEvent_) cudaEventDestroy(queryIdsFinishedEvent_);
     if(offsetsReadyEvent_)  cudaEventDestroy(offsetsReadyEvent_);
     if(offsetsCopiedEvent_) cudaEventDestroy(offsetsCopiedEvent_);
     if(allhitsReadyEvent_)   cudaEventDestroy(allhitsReadyEvent_);
@@ -299,6 +307,7 @@ query_batch<Location>::query_batch(
     cudaStreamCreate(&h2dCopyStream_);
 
     cudaEventCreate(&queriesCopiedEvent_);
+    cudaEventCreate(&queryIdsCopiedEvent_);
     cudaEventCreate(&maxWinCopiedEvent_);
     CUERR
 
@@ -333,6 +342,7 @@ query_batch<Location>::~query_batch()
     cudaStreamDestroy(h2dCopyStream_);
     CUERR
     cudaEventDestroy(queriesCopiedEvent_);
+    cudaEventDestroy(queryIdsCopiedEvent_);
     cudaEventDestroy(maxWinCopiedEvent_);
     CUERR
 }
@@ -349,9 +359,6 @@ void query_batch<Location>::copy_queries_to_device_async(gpu_id hostId)
 
     cudaStreamWaitEvent(h2dCopyStream_, gpuData_[gpuId].queryFinishedEvent_, 0);
 
-    cudaMemcpyAsync(gpuData_[gpuId].queryIds_, hostData_[hostId].query_ids(),
-                    hostData_[hostId].num_queries()*sizeof(index_type),
-                    cudaMemcpyHostToDevice, h2dCopyStream_);
     cudaMemcpyAsync(gpuData_[gpuId].sequenceOffsets_, hostData_[hostId].sequence_offsets(),
                     (hostData_[hostId].num_queries()+1)*sizeof(size_type),
                     cudaMemcpyHostToDevice, h2dCopyStream_);
@@ -361,8 +368,25 @@ void query_batch<Location>::copy_queries_to_device_async(gpu_id hostId)
 
     cudaEventRecord(queriesCopiedEvent_, h2dCopyStream_);
 
+    cudaStreamWaitEvent(gpuData_[gpuId].workStream_, queriesCopiedEvent_, 0);
+    cudaStreamWaitEvent(gpuData_[gpuId].workStream_, gpuData_[gpuId].sketchesCopiedEvent_, 0);
+
     // cudaEventSynchronize(queriesCopiedEvent_);
     // CUERR
+
+
+    cudaStreamWaitEvent(h2dCopyStream_, gpuData_[gpuId].queryIdsCopiedEvent_, 0);
+    cudaStreamWaitEvent(h2dCopyStream_, gpuData_[gpuId].queryIdsFinishedEvent_, 0);
+
+    cudaMemcpyAsync(gpuData_[gpuId].queryIds_, hostData_[hostId].query_ids(),
+                    hostData_[hostId].num_queries()*sizeof(index_type),
+                    cudaMemcpyHostToDevice, h2dCopyStream_);
+
+    cudaEventRecord(queryIdsCopiedEvent_, h2dCopyStream_);
+
+    // cudaEventSynchronize(queryIdsCopiedEvent_);
+    // CUERR
+
 
     cudaStreamWaitEvent(h2dCopyStream_, gpuData_[gpuId].tophitsCopiedEvent_, 0);
 
@@ -374,9 +398,6 @@ void query_batch<Location>::copy_queries_to_device_async(gpu_id hostId)
 
     // cudaEventSynchronize(maxWinCopiedEvent_);
     // CUERR
-
-    cudaStreamWaitEvent(gpuData_[gpuId].workStream_, queriesCopiedEvent_, 0);
-    cudaStreamWaitEvent(gpuData_[gpuId].workStream_, gpuData_[gpuId].sketchesCopiedEvent_, 0);
 }
 
 
@@ -393,10 +414,7 @@ void query_batch<Location>::copy_queries_to_next_device_async(gpu_id hostId, gpu
     cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, gpuData_[gpuId+1].queryFinishedEvent_, 0);
     cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, gpuData_[gpuId+1].sketchesCopiedEvent_, 0);
 
-    cudaMemcpyPeerAsync(gpuData_[gpuId+1].queryIds_, gpuId+1,
-                        gpuData_[gpuId].queryIds_, gpuId,
-                        hostData_[hostId].num_queries()*sizeof(index_type),
-                        gpuData_[gpuId].copyStream_);
+
     cudaMemcpyPeerAsync(gpuData_[gpuId+1].sketches_, gpuId+1,
                         gpuData_[gpuId].sketches_, gpuId,
                         hostData_[hostId].num_queries()*maxSketchSize_*sizeof(feature_type),
@@ -411,6 +429,27 @@ void query_batch<Location>::copy_queries_to_next_device_async(gpu_id hostId, gpu
 
     cudaStreamWaitEvent(gpuData_[gpuId+1].copyStream_, gpuData_[gpuId].sketchesCopiedEvent_, 0);
     cudaStreamWaitEvent(gpuData_[gpuId+1].workStream_, gpuData_[gpuId].sketchesCopiedEvent_, 0);
+
+
+    cudaSetDevice(gpuId);
+
+    if(gpuId == 0)
+        cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, queryIdsCopiedEvent_, 0);
+    else
+        cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, gpuData_[gpuId-1].queryIdsCopiedEvent_, 0);
+
+    cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, gpuData_[gpuId+1].queryIdsCopiedEvent_, 0);
+    cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, gpuData_[gpuId+1].queryIdsFinishedEvent_, 0);
+
+    cudaMemcpyPeerAsync(gpuData_[gpuId+1].queryIds_, gpuId+1,
+                        gpuData_[gpuId].queryIds_, gpuId,
+                        hostData_[hostId].num_queries()*sizeof(index_type),
+                        gpuData_[gpuId].copyStream_);
+
+    cudaEventRecord(gpuData_[gpuId].queryIdsCopiedEvent_, gpuData_[gpuId].copyStream_);
+
+    // cudaEventSynchronize(gpuData_[gpuId].queryIdsCopiedEvent_);
+    // CUERR
 }
 
 
@@ -438,6 +477,11 @@ void query_batch<Location>::compact_results_async(gpu_id hostId, gpu_id gpuId)
 {
     cudaSetDevice(gpuId);
 
+    if(gpuId == 0)
+        cudaStreamWaitEvent(gpuData_[gpuId].workStream_, queryIdsCopiedEvent_, 0);
+    else
+        cudaStreamWaitEvent(gpuData_[gpuId].workStream_, gpuData_[gpuId-1].queryIdsCopiedEvent_, 0);
+
     size_t tempStorageBytes = maxQueries_*maxResultsPerQuery_*sizeof(location_type);
     void * d_tempStorage = (void*)(gpuData_[gpuId].queryResultsTmp_);
 
@@ -464,7 +508,10 @@ void query_batch<Location>::compact_results_async(gpu_id hostId, gpu_id gpuId)
         gpuData_[gpuId].queryResultsTmp_,
         gpuData_[gpuId].queryIds_,
         gpuData_[gpuId].resultOffsets_);
-    // cudaStreamSynchronize(gpuData_[gpuId].workStream_);
+
+    cudaEventRecord(gpuData_[gpuId].queryIdsFinishedEvent_, gpuData_[gpuId].workStream_);
+
+    // cudaEventSynchronize(gpuData_[gpuId].queryIdsFinishedEvent_);
     // CUERR
 }
 
