@@ -426,9 +426,8 @@ void query_batch<Location>::wait_for_queries_copied()
 
 //---------------------------------------------------------------
 template<class Location>
-void query_batch<Location>::mark_query_finished()
+void query_batch<Location>::mark_query_finished(gpu_id gpuId)
 {
-    gpu_id gpuId = 0;
     cudaEventRecord(gpuData_[gpuId].queryFinishedEvent_, gpuData_[gpuId].workStream_);
 }
 
@@ -535,6 +534,8 @@ void query_batch<Location>::generate_and_copy_top_candidates_async(
     if(gpuId+1 < numGPUs_) {
         // copy maxWindowsInRange to next device
         cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, event, 0);
+        cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, gpuData_[gpuId+1].tophitsCopiedEvent_, 0);
+
         cudaMemcpyPeerAsync(gpuData_[gpuId+1].maxWindowsInRange_, gpuId+1,
             gpuData_[gpuId].maxWindowsInRange_, gpuId,
             hostData_[hostId].num_segments()*sizeof(window_id),

@@ -347,7 +347,7 @@ public:
     void wait_for_queries_copied();
     //---------------------------------------------------------------
     /** @brief record event after sketch creation on device 0 */
-    void mark_query_finished();
+    void mark_query_finished(gpu_id gpuId);
     //---------------------------------------------------------------
     /** @brief make work stream wait for allhits copy (before starting new query) */
     void wait_for_allhits_copied(gpu_id gpuId);
