@@ -110,7 +110,9 @@ public:
                 [&] (InputIterator first, InputIterator last) {
                     auto length = distance(first, last);
                     if(length >= kmerSize) {
-                        queryIds_[numQueries_] = numSegments_;
+                        // mark intermediate window in query
+                        queryIds_[numQueries_] = std::numeric_limits<index_type>::max();
+                        // copy characters and pad for vectorized access
                         std::copy(first, last, sequences_ + sequenceOffsets_[numQueries_]);
                         auto lengthPadded = (length + 3) / 4 * 4;
                         std::fill(sequences_ + sequenceOffsets_[numQueries_] + length,
@@ -129,7 +131,9 @@ public:
                 [&] (InputIterator first, InputIterator last) {
                     auto length = distance(first, last);
                     if(length >= kmerSize) {
-                        queryIds_[numQueries_] = numSegments_;
+                        // mark intermediate window in query
+                        queryIds_[numQueries_] = std::numeric_limits<index_type>::max();
+                        // copy characters and pad for vectorized access
                         std::copy(first, last, sequences_ + sequenceOffsets_[numQueries_]);
                         auto lengthPadded = (length + 3) / 4 * 4;
                         std::fill(sequences_ + sequenceOffsets_[numQueries_] + length,
@@ -142,6 +146,9 @@ public:
                     }
                 }
             );
+
+            // mark last window in query with segment id
+            queryIds_[numQueries_-1] = numSegments_;
 
             maxWindowsInRange_[numSegments_] = window_id( 2 +
                 (std::max(seqLength1 + seqLength2, insertSizeMax) / windowStride ));

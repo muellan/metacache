@@ -45,22 +45,19 @@ void compact_kernel(
         // determine end offset for segment of this query
         if(threadIdx.x == 0) {
             const id_type segmentId = segmentIds[bid];
-            const id_type nextId    = (bid+1 < numQueries) ? segmentIds[bid+1] : id_type(~0);
 
             // last query of segment sets end offset
-            if(segmentId != nextId)
+            if(segmentId != std::numeric_limits<id_type>::max())
                 segmentOffsets[segmentId+1] = end;
         }
     }
 
     // for(int tid = threadIdx.x + blockIdx.x * blockDim.x; tid < numQueries; tid += blockDim.x * gridDim.x) {
     //     const id_type segmentId = segmentIds[tid];
-    //     const id_type nextId    = (tid+1 < numQueries) ? segmentIds[tid+1] :  id_type(~0);;
-
     //     const int end = resultPrefixScan[tid];
 
     //     // last query of segment sets end offset
-    //     if(segmentId != nextId)
+    //     if(segmentId != std::numeric_limits<id_type>::max())
     //         segmentOffsets[segmentId+1] = end;
     // }
 }
@@ -84,17 +81,17 @@ void segment_kernel(
 
     for(int tid = threadIdx.x + blockIdx.x * blockDim.x; tid < numQueries; tid += blockDim.x * gridDim.x) {
         const id_type segmentId = segmentIds[tid];
-        const id_type nextId    = (tid+1 < numQueries) ? segmentIds[tid+1] :  id_type(~0);;
 
         const int end = resultPrefixScan[tid];
 
         // last query of segment sets end offset
-        if(segmentId != nextId)
+        if(segmentId != std::numeric_limits<id_type>::max())
             segmentOffsets[segmentId+1] = end;
     }
 }
 
 
+//-----------------------------------------------------------------------------
 __device__
 const taxon*
 lowest_ranked_ancestor(const ranked_lineage * targetLineages,
@@ -109,6 +106,7 @@ lowest_ranked_ancestor(const ranked_lineage * targetLineages,
     return nullptr;
 }
 
+//-----------------------------------------------------------------------------
 __device__
 const taxon*
 taxon_of_target(const ranked_lineage * targetLineages, target_id tgt)
