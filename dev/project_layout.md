@@ -13,36 +13,44 @@ Mode Starting
 main.cpp                     main entry point; selects modes
 
 modes.h                      declares mode starting functions
-mode_query.cpp               start classification 
-mode_build.cpp               database building 
-mode_info.cpp                database property queries
-mode_annotate.cpp            annotates read files with ground truth
+mode_build.cpp               database building
 mode_help.cpp                shows help files from /docs
+mode_info.cpp                database property queries
+mode_merge.cpp               merge query results from different databases
+mode_query.cpp               start classification
 ```
 
 Classification ("query" mode)
 ---------------------------------------------------------------------
 ```
-query_options.h              all query/classification settings 
-query_options.cpp            command line args -> query settings
-
 classification.h             classification starting function
-classification.cpp           query database and classify reads based on matches 
-candidates.h                 determine top hits in contiguous windows
+classification.cpp           query database and classify reads
+candidates_generation.h      determine top hits in contiguous windows
+candidates_structs.h         data structures used for candidate generation
+gpu_result_processing.cuh    compact and sort query results, generate candidates on GPU
+query_batch.cuh/cu           gpu data handling for query
 matches_per_target.h         target->matches map construction
 
 querying.h                   multi-threaded, batched database query functions;
                              also paired-end read handling
+
 
 printing.h/cpp               classification and analysis output functions
 ```
 
 Database Operations / Sketching
 ---------------------------------------------------------------------
-```                          
-sketch_database.h            feature->location map + taxonomy + auxiliary data
-hash_multimap.h              hashmap used by sketch_database
+```
+database.h/cpp               wrapper for hashmap + sketchers + taxonomy + auxiliary data
+
+host_hashmap.h               specialized interface to hash_multimap
+hash_multimap.h              multi-value hashmap
 chunk_allocator.h            default allocator used by hash_multimap
+
+gpu_hashmap.cuh/cu           specialized interface to GPU hashmap
+gpu_hashmap_operations.cuh   query and insert kernels for GPU hashmap
+dep/warpcore                 submodule containing GPU hashmap
+sequence_batch.cuh/cu        gpu data handling for insert
 
 taxonomy.h                   taxonomic tree
 taxonomy_io.h/cpp            NCBI taxonomic files -> taxonomic tree
@@ -51,8 +59,6 @@ bitmanip.h                   bit-level manipulation functions
 dna_encoding.h               ASCII DNA strings -> 2-bit encoded kmers
 hash_dna.h                   sketcher classes
 hash_int.h                   integer hash functions
-hash_family.h                family of hash functions; not used by default
-                             (could probably be removed in the near future)
 
 sequence_io.h/cpp            reference sequence readers for FASTA/FASTQ files
 sequence_view.h              non-owning string view class
@@ -69,22 +75,23 @@ stat_confusion.h             thread-safe (binary) confusion statistics
 stat_moments.h               accumulators for statistical moments
                              (mean, variance, skewness) and extrema (min/max)
 stat_combined.h              combined statistical accumulators
+stat_combined.cuh/cu         combined statistical accumulators (GPU version)
 ```
 
 Utilities
 ---------------------------------------------------------------------
 ```
-args_handling.h/cpp          command line args parsing needed for all modes
-args_parser.h                simple, ad-hoc command line arguments parser
+options.h                    default settings for all modes
+options.cpp                  command line args parsing for all modes
 
 filesys_utility.h/cpp
 cmdline_utility.h/cpp
 
-io_serialize.h               fundamental datatype (de-)serialization functions
-io_options.h                 I/O related option types
 io_error.h                   I/O exception definitions
+io_options.h                 I/O related option types
+io_serialize.h               fundamental datatype (de-)serialization functions
 
-parallel_task_queue.h        thread pool
+batch_processing.h           concurrent batch processing
 
 timer.h                      simple std::chrono based timer class
 string_utils.h               string processing utilities (trim)
