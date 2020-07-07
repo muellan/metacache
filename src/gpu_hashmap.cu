@@ -478,9 +478,15 @@ public:
         return lineages_;
     }
 
-    //---------------------------------------------------------------
+    /*************************************************************************//**
+    *
+    * @brief   query all windows in batch using one warp per window
+    *
+    * @details saves sketches to gpu memory in case of multi-gpu query
+    *
+    *****************************************************************************/
     void query_sequences_async(
-        uint32_t numQueries,
+        uint32_t numWindows,
         const typename query_batch<location_type>::query_gpu_data& gpuData,
         const sketcher& querySketcher,
         bucket_size_type maxLocationPerFeature) const
@@ -490,10 +496,10 @@ public:
         constexpr int threadsPerBlock = 32*warpsPerBlock;
         constexpr int itemsPerThread = 4;
 
-        const int numBlocks = (numQueries+warpsPerBlock-1) / warpsPerBlock;
+        const int numBlocks = (numWindows+warpsPerBlock-1) / warpsPerBlock;
         gpu_hahstable_query<threadsPerBlock,itemsPerThread><<<numBlocks,threadsPerBlock,0,gpuData.workStream_>>>(
             hashTable_,
-            numQueries,
+            numWindows,
             gpuData.sequenceOffsets_,
             gpuData.sequences_,
             gpuData.sketches_,
@@ -508,9 +514,13 @@ public:
         );
     }
 
-    //---------------------------------------------------------------
+    /*************************************************************************//**
+    *
+    * @brief   query sketches of all windows in batch using one warp per window
+    *
+    *****************************************************************************/
     void query_sketches_async(
-        uint32_t numQueries,
+        uint32_t numWindows,
         const typename query_batch<location_type>::query_gpu_data& gpuData,
         const sketcher& querySketcher,
         bucket_size_type maxLocationPerFeature) const
@@ -520,10 +530,10 @@ public:
         constexpr int threadsPerBlock = 32*warpsPerBlock;
         constexpr int itemsPerThread = 4;
 
-        const int numBlocks = (numQueries+warpsPerBlock-1) / warpsPerBlock;
+        const int numBlocks = (numWindows+warpsPerBlock-1) / warpsPerBlock;
         gpu_hahstable_query<threadsPerBlock,itemsPerThread><<<numBlocks,threadsPerBlock,0,gpuData.workStream_>>>(
             hashTable_,
-            numQueries,
+            numWindows,
             gpuData.sketches_,
             querySketcher.kmer_size(),
             querySketcher.sketch_size(),
@@ -1038,14 +1048,14 @@ void gpu_hashmap<Key,ValueT>::query_async(
             batch.copy_queries_to_device_async(hostId);
 
             queryHashTables_[gpuId].query_sequences_async(
-                batch.host_data(hostId).num_queries(),
+                batch.host_data(hostId).num_windows(),
                 batch.gpu_data(gpuId),
                 querySketcher,
                 maxLocsPerFeature_);
         }
         else {
             queryHashTables_[gpuId].query_sketches_async(
-                batch.host_data(hostId).num_queries(),
+                batch.host_data(hostId).num_windows(),
                 batch.gpu_data(gpuId),
                 querySketcher,
                 maxLocsPerFeature_);

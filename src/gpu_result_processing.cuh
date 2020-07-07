@@ -12,16 +12,16 @@ namespace mc {
 
 /*************************************************************************//**
  *
- * @brief  remove memory gaps between results of different queries;
+ * @brief  remove memory gaps between results of different windows;
  *         determine segment offsets and store them in global memory
  *
  *****************************************************************************/
 template<class Id, class Result>
 __global__
-void compact_kernel(
-    uint32_t numQueries,
-    const int * resultPrefixScan,
-    uint32_t maxResultsPerQuery,
+void compact_results(
+    uint32_t numWindows,
+    const int * resultOffsets,
+    uint32_t maxResultsPerWindow,
     const Result * results_in,
     Result * results_out,
     const Id * segmentIds,
@@ -30,23 +30,24 @@ void compact_kernel(
 {
     using id_type = Id;
 
-    for(int bid = blockIdx.x; bid < numQueries; bid += gridDim.x) {
-        const int begin = (bid > 0) ? resultPrefixScan[bid-1] : 0;
-        const int end   = resultPrefixScan[bid];
+    for(int bid = blockIdx.x; bid < numWindows; bid += gridDim.x) {
+        const int begin = (bid > 0) ? resultOffsets[bid-1] : 0;
+        const int end   = resultOffsets[bid];
         const int numResults = end - begin;
 
-        const ulonglong2 * inPtr = reinterpret_cast<const ulonglong2 *>(results_in + bid*maxResultsPerQuery);
+        const ulonglong2 * inPtr = reinterpret_cast<const ulonglong2 *>(results_in + bid*maxResultsPerWindow);
         ulonglong2 * outPtr = reinterpret_cast<ulonglong2 *>(results_out + begin);
 
         for(int tid = threadIdx.x; tid < numResults/2; tid += blockDim.x) {
             outPtr[tid] = inPtr[tid];
         }
 
-        // determine end offset for segment of this query
+        // determine end offset for this query
         if(threadIdx.x == 0) {
             const id_type segmentId = segmentIds[bid];
 
-            // last query of segment sets end offset
+            // intermediate windows are ignored (marked max)
+            // last window of segment sets end offset
             if(segmentId != std::numeric_limits<id_type>::max())
                 segmentOffsets[segmentId+1] = end;
         }
@@ -54,40 +55,13 @@ void compact_kernel(
 
     // for(int tid = threadIdx.x + blockIdx.x * blockDim.x; tid < numQueries; tid += blockDim.x * gridDim.x) {
     //     const id_type segmentId = segmentIds[tid];
-    //     const int end = resultPrefixScan[tid];
+    //     const int end = resultOffsets[tid];
 
+    //     // intermediate windows are ignored (marked max)
     //     // last query of segment sets end offset
     //     if(segmentId != std::numeric_limits<id_type>::max())
     //         segmentOffsets[segmentId+1] = end;
     // }
-}
-
-
-/*************************************************************************//**
- *
- * @brief  determine segment offsets and store them in global memory
- *
- *****************************************************************************/
-template<class Id>
-__global__
-void segment_kernel(
-    uint32_t numQueries,
-    const int * resultPrefixScan,
-    const Id * segmentIds,
-    int * segmentOffsets
-)
-{
-    using id_type = Id;
-
-    for(int tid = threadIdx.x + blockIdx.x * blockDim.x; tid < numQueries; tid += blockDim.x * gridDim.x) {
-        const id_type segmentId = segmentIds[tid];
-
-        const int end = resultPrefixScan[tid];
-
-        // last query of segment sets end offset
-        if(segmentId != std::numeric_limits<id_type>::max())
-            segmentOffsets[segmentId+1] = end;
-    }
 }
 
 

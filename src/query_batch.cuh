@@ -42,7 +42,7 @@ public:
     public:
         query_host_data(index_type maxQueries,
                         size_type maxSequenceLength,
-                        size_type maxResultsPerQuery,
+                        size_type maxResultsPerWindow,
                         size_type maxCandidatesPerQuery,
                         bool copyAllHits);
         query_host_data(const query_host_data&) = delete;
@@ -65,9 +65,9 @@ public:
             InputIterator first2, InputIterator last2,
             const sketcher& querySketcher,
             size_t insertSizeMax,
-            index_type maxQueries,
+            index_type maxWindows,
             uint32_t maxSequenceLength,
-            size_type maxResultsPerQuery
+            size_type maxResultsPerWindow
         ) {
             using std::distance;
 
@@ -81,29 +81,29 @@ public:
             // no kmers in sequence
             if(seqLength1 < kmerSize && seqLength2 < kmerSize) {
                 // batch full, nothing processed
-                if(numQueries_ + 1 > maxQueries) return false;
+                if(numWindows_ + 1 > maxWindows) return false;
 
                 // insert empty query
-                queryIds_[numQueries_] = numSegments_;
-                sequenceOffsets_[numQueries_+1] = sequenceOffsets_[numQueries_];
+                queryIds_[numWindows_] = numQueries_;
+                sequenceOffsets_[numWindows_+1] = sequenceOffsets_[numWindows_];
 
+                ++numWindows_;
                 ++numQueries_;
-                ++numSegments_;
                 return true;
             }
 
-            const window_id numWindows1 = (seqLength1-kmerSize + windowStride) / windowStride;
-            const window_id numWindows2 = (seqLength2-kmerSize + windowStride) / windowStride;
+            const window_id windowsInSeq1 = (seqLength1-kmerSize + windowStride) / windowStride;
+            const window_id windowsInSeq2 = (seqLength2-kmerSize + windowStride) / windowStride;
 
             // batch full, nothing processed
-            if(numQueries_ + numWindows1 + numWindows2 > maxQueries) return false;
+            if(numWindows_ + windowsInSeq1 + windowsInSeq2 > maxWindows) return false;
 
-            const auto availableSize = maxSequenceLength - sequenceOffsets_[numQueries_];
+            const auto availableSize = maxSequenceLength - sequenceOffsets_[numWindows_];
             const auto windowSizePadded = (windowSize + 3) / 4 * 4;
             // batch full, nothing processed
-            if((numWindows1 + numWindows2)*windowSizePadded > availableSize) return false;
+            if((windowsInSeq1 + windowsInSeq2)*windowSizePadded > availableSize) return false;
 
-            index_type queriesPerSegment = 0;
+            index_type windowsInQuery = 0;
 
             // insert first sequence into batch as separate windows
             for_each_window(first1, last1, windowSize, windowStride,
@@ -111,17 +111,17 @@ public:
                     auto length = distance(first, last);
                     if(length >= kmerSize) {
                         // mark intermediate window in query
-                        queryIds_[numQueries_] = std::numeric_limits<index_type>::max();
+                        queryIds_[numWindows_] = std::numeric_limits<index_type>::max();
                         // copy characters and pad for vectorized access
-                        std::copy(first, last, sequences_ + sequenceOffsets_[numQueries_]);
+                        std::copy(first, last, sequences_ + sequenceOffsets_[numWindows_]);
                         auto lengthPadded = (length + 3) / 4 * 4;
-                        std::fill(sequences_ + sequenceOffsets_[numQueries_] + length,
-                                sequences_ + sequenceOffsets_[numQueries_] + lengthPadded,
+                        std::fill(sequences_ + sequenceOffsets_[numWindows_] + length,
+                                sequences_ + sequenceOffsets_[numWindows_] + lengthPadded,
                                 'N');
-                        sequenceOffsets_[numQueries_+1] = sequenceOffsets_[numQueries_] + lengthPadded;
+                        sequenceOffsets_[numWindows_+1] = sequenceOffsets_[numWindows_] + lengthPadded;
 
-                        ++numQueries_;
-                        ++queriesPerSegment;
+                        ++numWindows_;
+                        ++windowsInQuery;
                     }
                 }
             );
@@ -132,30 +132,30 @@ public:
                     auto length = distance(first, last);
                     if(length >= kmerSize) {
                         // mark intermediate window in query
-                        queryIds_[numQueries_] = std::numeric_limits<index_type>::max();
+                        queryIds_[numWindows_] = std::numeric_limits<index_type>::max();
                         // copy characters and pad for vectorized access
-                        std::copy(first, last, sequences_ + sequenceOffsets_[numQueries_]);
+                        std::copy(first, last, sequences_ + sequenceOffsets_[numWindows_]);
                         auto lengthPadded = (length + 3) / 4 * 4;
-                        std::fill(sequences_ + sequenceOffsets_[numQueries_] + length,
-                                sequences_ + sequenceOffsets_[numQueries_] + lengthPadded,
+                        std::fill(sequences_ + sequenceOffsets_[numWindows_] + length,
+                                sequences_ + sequenceOffsets_[numWindows_] + lengthPadded,
                                 'N');
-                        sequenceOffsets_[numQueries_+1] = sequenceOffsets_[numQueries_] + lengthPadded;
+                        sequenceOffsets_[numWindows_+1] = sequenceOffsets_[numWindows_] + lengthPadded;
 
-                        ++numQueries_;
-                        ++queriesPerSegment;
+                        ++numWindows_;
+                        ++windowsInQuery;
                     }
                 }
             );
 
-            // mark last window in query with segment id
-            queryIds_[numQueries_-1] = numSegments_;
+            // mark last window in query with query id
+            queryIds_[numWindows_-1] = numQueries_;
 
-            maxWindowsInRange_[numSegments_] = window_id( 2 +
+            maxWindowsInRange_[numQueries_] = window_id( 2 +
                 (std::max(seqLength1 + seqLength2, insertSizeMax) / windowStride ));
 
-            ++numSegments_;
+            ++numQueries_;
 
-            size_type segmentSize = queriesPerSegment*maxResultsPerQuery;
+            size_type segmentSize = windowsInQuery*maxResultsPerWindow;
             if(largestSegmentSize_ < segmentSize) largestSegmentSize_ = segmentSize;
 
             return true;
@@ -167,9 +167,9 @@ public:
             Sequence seq1, Sequence seq2,
             const sketcher& querySketcher,
             size_t insertSizeMax,
-            index_type maxQueries,
+            index_type maxWindows,
             uint32_t maxSequenceLength,
-            size_type maxResultsPerQuery
+            size_type maxResultsPerWindow
         ) {
             using std::begin;
             using std::end;
@@ -179,14 +179,14 @@ public:
                 begin(seq2), end(seq2),
                 querySketcher,
                 insertSizeMax,
-                maxQueries,
+                maxWindows,
                 maxSequenceLength,
-                maxResultsPerQuery);
+                maxResultsPerWindow);
         }
 
         //---------------------------------------------------------------
         span<location_type> allhits(index_type id) const noexcept {
-            if(id < num_segments()) {
+            if(id < num_queries()) {
                 location_type * begin = query_results()+result_offsets()[id];
                 location_type * end = query_results()+result_offsets()[id+1];
 
@@ -201,7 +201,7 @@ public:
         }
         //---------------------------------------------------------------
         span<match_candidate> top_candidates(index_type id) const noexcept {
-            if(id < num_segments())
+            if(id < num_queries())
                 return span<match_candidate>{
                     top_candidates()+id*maxCandidatesPerQuery_,
                     top_candidates()+(id+1)*maxCandidatesPerQuery_
@@ -211,8 +211,8 @@ public:
         }
 
         //---------------------------------------------------------------
-        index_type num_segments() const noexcept { return numSegments_; }
         index_type num_queries() const noexcept { return numQueries_; }
+        index_type num_windows() const noexcept { return numWindows_; }
         size_type  largest_segment_size() const noexcept { return largestSegmentSize_; }
 
         index_type * query_ids() const noexcept { return queryIds_; };
@@ -231,14 +231,14 @@ public:
 
         //---------------------------------------------------------------
         void clear() noexcept {
-            numSegments_ = 0;
             numQueries_ = 0;
+            numWindows_ = 0;
             largestSegmentSize_ = 0;
         }
 
     private:
-        index_type numSegments_;
         index_type numQueries_;
+        index_type numWindows_;
         size_type largestSegmentSize_;
 
         size_type  maxCandidatesPerQuery_;
@@ -262,7 +262,7 @@ public:
         query_gpu_data(index_type maxQueries,
                        size_type maxSequenceLength,
                        size_type maxSketchSize,
-                       size_type maxResultsPerQuery,
+                       size_type maxResultsPerWindow,
                        size_type maxCandidatesPerQuery,
                        bool multiGPU,
                        gpu_id gpuId);
@@ -307,7 +307,7 @@ public:
     query_batch(index_type maxQueries,
                 size_type maxEncodeLength,
                 size_type maxSketchSize,
-                size_type maxResultsPerQuery,
+                size_type maxResultsPerWindow,
                 size_type maxCandidatesPerQuery,
                 bool copyAllHits,
                 gpu_id numHostThreads,
@@ -342,9 +342,9 @@ public:
     {
         return hostData_[hostId].add_paired_read(
             std::forward<Args>(args)...,
-            maxQueries_,
+            maxWindows_,
             maxSequenceLength_,
-            maxResultsPerQuery_);
+            maxResultsPerWindow_);
     }
 
     //---------------------------------------------------------------
@@ -389,10 +389,10 @@ public:
 
     //---------------------------------------------------------------
 private:
-    index_type maxQueries_;
+    index_type maxWindows_;
     size_type  maxSequenceLength_;
     size_type  maxSketchSize_;
-    size_type  maxResultsPerQuery_;
+    size_type  maxResultsPerWindow_;
     size_type  maxCandidatesPerQuery_;
 
     std::vector<query_host_data> hostData_;

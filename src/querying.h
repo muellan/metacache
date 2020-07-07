@@ -115,9 +115,9 @@ struct sequence_query
             }
         }
 
-        // std::cerr << "host id " << hostId << ": " << queryBatch.host_data(hostId).num_queries() << " queries\n";
+        // std::cerr << "host id " << hostId << ": " << queryBatch.host_data(hostId).num_windows() << " windows\n";
 
-        if(queryBatch.host_data(hostId).num_queries() > 0)
+        if(queryBatch.host_data(hostId).num_windows() > 0)
         {
             {
                 std::lock_guard<std::mutex> lock(scheduleMtx);
@@ -126,7 +126,7 @@ struct sequence_query
             }
             queryBatch.host_data(hostId).wait_for_results();
 
-            for(size_t s = 0; s < queryBatch.host_data(hostId).num_segments(); ++s) {
+            for(size_t s = 0; s < queryBatch.host_data(hostId).num_queries(); ++s) {
                 span<location> allhits = copyAllHits ? queryBatch.host_data(hostId).allhits(s) : span<location>();
 
                 // std::cout << s << ". targetMatches:    ";
