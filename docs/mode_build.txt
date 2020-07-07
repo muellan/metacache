@@ -50,10 +50,10 @@ SKETCHING (SUBSAMPLING)
                       default: 16
 
     -winlen <w>       number of letters in each sampling window
-                      default: 128
+                      default: 127
 
     -winstride <l>    distance between window starting positions
-                      default: 113 (w-k+1)
+                      default: 112 (w-k+1)
 
 
 ADVANCED OPTIONS
