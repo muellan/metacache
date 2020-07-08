@@ -442,15 +442,9 @@ public:
     query_hash_table(size_t capacity) :
         hashTable_(capacity),
         numKeys_(0), numLocations_(0),
-        locations_(nullptr)
-    {
-        size_t freeMemory = 0;
-        size_t totalMemory = 0;
-        cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
-        std::cerr << "freeMemory: " << (freeMemory >> 20) << " MB\n";
-
-        // std::cerr << "capacity: " << hashTable_.capacity() << std::endl;
-    }
+        locations_(nullptr),
+        lineages_(nullptr)
+    {}
 
     //---------------------------------------------------------------
     auto pop_status() {
@@ -730,16 +724,6 @@ public:
             CUERR
         }
 
-        size_t totalSize = hashTable_.capacity() * (sizeof(value_type) + sizeof(value_type))
-                         + nlocations*sizeof(location);
-
-        std::cerr << "hashtable total: " << (totalSize >> 20) << " MB\n";
-
-        size_t freeMemory = 0;
-        size_t totalMemory = 0;
-        cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
-        std::cerr << "freeMemory: " << (freeMemory >> 20) << " MB\n";
-
         numKeys_ = nkeys;
         numLocations_ = nlocations;
     }
@@ -921,7 +905,7 @@ gpu_id gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(gpu_id numGPUs)
         size_t freeMemory = 0;
         size_t totalMemory = 0;
         cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
-        std::cerr << "gpu " << gpuId << " freeMemory: " << (freeMemory >> 20) << " MB\n";
+        std::cerr << "gpu " << gpuId << " freeMemory: " << helpers::B2GB(freeMemory) << " GB\n";
 
         // keep 4 GB of memory free aside from hash table
         const size_t tableMemory = freeMemory - (1ULL << 32);
@@ -937,7 +921,7 @@ gpu_id gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(gpu_id numGPUs)
         buildHashTables_.emplace_back(keyCapacity, valueCapacity, maxLocsPerFeature_);
 
         cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
-        std::cerr << "gpu " << gpuId << " freeMemory: " << (freeMemory >> 20) << " MB\n";
+        std::cerr << "gpu " << gpuId << " freeMemory: " << helpers::B2GB(freeMemory) << " GB\n";
 
         // allocate host buffers
         insertBuffers_.emplace_back();
@@ -1088,15 +1072,34 @@ void gpu_hashmap<Key,ValueT>::deserialize(std::istream& is, gpu_id gpuId)
     len_t nvalues = 0;
     read_binary(is, nvalues);
 
-    std::cerr << "nkeys: " << nkeys << " nvalues: " << nvalues << std::endl;
+    std::cerr << "\n\t#features: " << nkeys << " #locations: " << nvalues << "\n";
 
     if(nkeys > 0) {
         cudaSetDevice(gpuId); CUERR
+        std::cerr << "\tloading database to gpu " << gpuId << "\n";
+
+        size_t freeMemory = 0;
+        size_t totalMemory = 0;
+        cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
+        std::cerr << "\tfreeMemory: " << helpers::B2GB(freeMemory) << " GB\n";
 
         //initialize hash table
         queryHashTables_.emplace_back(nkeys/maxLoadFactor_);
 
+        std::cerr << "\tfeatures capacity: " << queryHashTables_.back().bucket_count() << "\n";
+
+        size_t indexSize = queryHashTables_.back().bucket_count() * (sizeof(value_type) + sizeof(value_type));
+        std::cerr << "\tindex size: " << helpers::B2GB(indexSize) << " GB\n";
+
+        // load hash table
         queryHashTables_.back().deserialize(is, nkeys, nvalues);
+
+        size_t valuesSize = nvalues*sizeof(location);
+        std::cerr << "\tlocations size: " << helpers::B2GB(valuesSize) << " GB\n";
+        std::cerr << "\ttotal size: " << helpers::B2GB(indexSize + valuesSize) << " GB\n";
+
+        cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
+        std::cerr << "\tfreeMemory: " << helpers::B2GB(freeMemory) << " GB\n";
     }
 }
 
