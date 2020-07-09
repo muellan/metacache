@@ -66,6 +66,7 @@ public:
         hashTable_{key_capacity, value_capacity,
             warpcore::defaults::seed<key_type>(),   // seed
             1.051, 1, max_bucket_size(),            // grow factor, min & max bucket size
+            // 1.075, 3, 26,            // grow factor, min & max bucket size
             maxLocsPerFeature},                     // max values per key
         batchSize_{default_batch_size()},
         seqBatches_{},
@@ -136,11 +137,10 @@ public:
         cudaStreamWaitEvent(insertStream_, seqBatchHost.event(), 0); CUERR
 
         // max 32*4 features => max window size is 128
-        constexpr int warpsPerBlock = 1;
+        constexpr int warpsPerBlock = 2;
         constexpr int threadsPerBlock = 32*warpsPerBlock;
         constexpr int itemsPerThread = 4;
 
-        //TODO increase grid in x and y dim
         const dim3 numBlocks{1024, seqBatches_[currentSeqBatch_].num_targets()};
         insert_features<threadsPerBlock,itemsPerThread>
             <<<numBlocks,threadsPerBlock,0,insertStream_>>>(
@@ -879,6 +879,7 @@ gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
             << "features             " << std::uint64_t(accumulator.size()) << '\n'
             << "dead features        " << dead_feature_count() << '\n'
             << "locations            " << std::uint64_t(accumulator.sum()) << '\n';
+            // << "load                 " << buildHashTables_[gpuId].load_factor() << '\n';
 
         totalAccumulator += accumulator;
     }

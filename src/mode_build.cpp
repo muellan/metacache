@@ -321,7 +321,7 @@ void add_targets_to_database(database& db,
 #ifndef GPU_MODE
     execOpt.concurrency(1, 1);
 #else
-    execOpt.concurrency(6, db.num_gpus());
+    execOpt.concurrency(8, db.num_gpus());
 #endif
 
     execOpt.abort_if([&] { return db.add_target_failed(); });

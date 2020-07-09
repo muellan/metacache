@@ -27,6 +27,7 @@ uint32_t unique_sketch(
 
     uint32_t uniqueFeatureCounter = 0;
 
+    #pragma unroll
     for(int i=0; i<ITEMS_PER_THREAD; ++i)
     {
         // load candidate and successor
@@ -387,6 +388,7 @@ void warp_kmerize(
     ambig <<= charsPerThread*lane;
 
     // combine threads of same subwarp
+    #pragma unroll
     for(int stride = 1; stride < subWarpSize; stride *= 2) {
         seq   |= __shfl_xor_sync(0xFFFFFFFF, seq, stride);
         ambig |= __shfl_xor_sync(0xFFFFFFFF, ambig, stride);
@@ -414,6 +416,7 @@ void warp_kmerize(
     const uint32_t ambigMask = uint32_t(~0) << (32 - kmerSize);
 
     // each thread extracts one feature
+    #pragma unroll
     for(int i = 0; i < 4; ++i) {
         const uint8_t seqSlot  = (2*i + warpLane / charsPerSubWarp);
         const uint8_t seqSrc   = seqSlot * 4;
@@ -448,7 +451,6 @@ void warp_kmerize(
  * @details each block processes one window of at most 128 characters
  *
  */
-// BLOCK_THREADS has to be 32
 template<
     int BLOCK_THREADS = 32,
     int ITEMS_PER_THREAD = 4,
@@ -481,7 +483,9 @@ void insert_features(
     } tempStorage;
 
     for(index_type tgt = blockIdx.y; tgt < numTargets; tgt += gridDim.y) {
-        const size_type sequenceLength = sequenceOffsets[tgt+1] - sequenceOffsets[tgt];
+        const size_type sequenceBegin = sequenceOffsets[tgt];
+        const size_type sequenceEnd   = sequenceOffsets[tgt+1];
+        const size_type sequenceLength = sequenceEnd - sequenceBegin;
         const window_id lastWindowSize = sequenceLength % windowStride;
         const window_id numWindows = sequenceLength / windowStride + (lastWindowSize >= kmerSize);
 
@@ -490,8 +494,8 @@ void insert_features(
         //each block processes one window
         for(window_id win = blockIdx.x * warpsPerBlock + warpId; win < numWindows; win += warpsPerBlock * gridDim.x)
         {
-            const size_type offsetBegin = sequenceOffsets[tgt] + win*windowStride;
-            const size_type offsetEnd = min(sequenceOffsets[tgt+1], offsetBegin + windowSize);
+            const size_type offsetBegin = sequenceBegin + win*windowStride;
+            const size_type offsetEnd = min(sequenceEnd, offsetBegin + windowSize);
             const size_type thisWindowSize = offsetEnd - offsetBegin;
             const char * windowBegin = sequence + offsetBegin;
 
