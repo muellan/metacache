@@ -81,11 +81,14 @@ void insert_into_hashtable(
     const auto group =
         cg::tiled_partition<Hashtable::cg_size()>(cg::this_thread_block());
 
-    for(uint32_t i = (threadIdx.x % WARPSIZE); i < sketchCounter*Hashtable::cg_size(); i += WARPSIZE) {
-        const uint8_t gid = i / Hashtable::cg_size();
+    const int warpLane = threadIdx.x % WARPSIZE;
+    const int groupId = warpLane / Hashtable::cg_size();
+    constexpr int groupsPerWarp = WARPSIZE / Hashtable::cg_size();
 
+    for(int i = groupId; i < sketchCounter; i += groupsPerWarp)
+    {
         const auto status = hashtable.insert(
-            sketch[gid], location{winOffset, targetId}, group);
+            sketch[i], location{winOffset, targetId}, group);
 
         // if(group.thread_rank() == 0 && status.has_any()) {
         //     printf("status %d\n", status.has_any());
@@ -112,12 +115,16 @@ void query_hashtable(
     const auto group =
         cg::tiled_partition<Hashtable::cg_size()>(cg::this_thread_block());
 
-    for(uint32_t i = (threadIdx.x % WARPSIZE); i < sketchCounter*Hashtable::cg_size(); i += WARPSIZE) {
-        const uint8_t gid = i / Hashtable::cg_size();
+    const int warpLane = threadIdx.x % WARPSIZE;
+    const int groupId = warpLane / Hashtable::cg_size();
+    constexpr int groupsPerWarp = WARPSIZE / Hashtable::cg_size();
+
+    for(int i = groupId; i < sketchCounter; i += groupsPerWarp)
+    {
         typename Hashtable::value_type valuesOffset = 0;
         //if key not found valuesOffset stays 0
         const auto status = hashtable.retrieve(
-            sketch[gid], valuesOffset, group);
+            sketch[i], valuesOffset, group);
 
         if(group.thread_rank() == 0) {
             // if(status.has_any()) {
@@ -125,7 +132,7 @@ void query_hashtable(
                 // printf("status %d\n", status.has_key_not_found());
             // }
 
-            sketch[gid] = valuesOffset;
+            sketch[i] = valuesOffset;
         }
     }
 }
@@ -490,7 +497,9 @@ void insert_features(
         const int warpId = threadIdx.x / WARPSIZE;
 
         //each block processes one window
-        for(window_id win = blockIdx.x * warpsPerBlock + warpId; win < numWindows; win += warpsPerBlock * gridDim.x)
+        for(window_id win = blockIdx.x * warpsPerBlock + warpId;
+            win < numWindows;
+            win += warpsPerBlock * gridDim.x)
         {
             const size_type offsetBegin = sequenceBegin + win*windowStride;
             const size_type offsetEnd = min(sequenceEnd, offsetBegin + windowSize);
@@ -510,7 +519,8 @@ void insert_features(
             const target_id targetId = targetIds[tgt];
             const window_id winOffset = winOffsets[tgt]+win ;
 
-            insert_into_hashtable(hashtable, sketch[warpId], sketchCounter, targetId, winOffset);
+            insert_into_hashtable(
+                hashtable, sketch[warpId], sketchCounter, targetId, winOffset);
 
             __syncwarp();
         }
