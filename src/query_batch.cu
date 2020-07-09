@@ -611,6 +611,9 @@ void query_batch<Location>::generate_and_copy_top_candidates_async(
         // cudaStreamSynchronize(gpuData_[gpuId].workStream_);
         // CUERR
     }
+    else {
+        std::cerr << "At most 2 candidates per query allowed!\n";
+    }
 
     cudaEventRecord(gpuData_[gpuId].tophitsReadyEvent_, gpuData_[gpuId].workStream_);
     cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, gpuData_[gpuId].tophitsReadyEvent_, 0);

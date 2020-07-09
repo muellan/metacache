@@ -136,24 +136,31 @@ public:
 
         cudaStreamWaitEvent(insertStream_, seqBatchHost.event(), 0); CUERR
 
-        // max 32*4 features => max window size is 128
-        constexpr int warpsPerBlock = 2;
-        constexpr int threadsPerBlock = 32*warpsPerBlock;
-        constexpr int itemsPerThread = 4;
+        constexpr int maxSketchSize = 16;
 
-        const dim3 numBlocks{1024, seqBatches_[currentSeqBatch_].num_targets()};
-        insert_features<threadsPerBlock,itemsPerThread>
-            <<<numBlocks,threadsPerBlock,0,insertStream_>>>(
-            hashTable_,
-            seqBatches_[currentSeqBatch_].num_targets(),
-            seqBatches_[currentSeqBatch_].target_ids(),
-            seqBatches_[currentSeqBatch_].window_offsets(),
-            seqBatches_[currentSeqBatch_].sequence(),
-            seqBatches_[currentSeqBatch_].sequence_offsets(),
-            targetSketcher.kmer_size(),
-            targetSketcher.sketch_size(),
-            targetSketcher.window_size(),
-            targetSketcher.window_stride());
+        // max 32*4 characters per warp, so max window size is 128
+        if(targetSketcher.window_size() <= 128 && targetSketcher.sketch_size() <= maxSketchSize) {
+            constexpr int warpsPerBlock = 2;
+            constexpr int threadsPerBlock = 32*warpsPerBlock;
+
+            const dim3 numBlocks{1024, seqBatches_[currentSeqBatch_].num_targets()};
+            insert_features<threadsPerBlock,maxSketchSize>
+                <<<numBlocks,threadsPerBlock,0,insertStream_>>>(
+                hashTable_,
+                seqBatches_[currentSeqBatch_].num_targets(),
+                seqBatches_[currentSeqBatch_].target_ids(),
+                seqBatches_[currentSeqBatch_].window_offsets(),
+                seqBatches_[currentSeqBatch_].sequence(),
+                seqBatches_[currentSeqBatch_].sequence_offsets(),
+                targetSketcher.kmer_size(),
+                targetSketcher.sketch_size(),
+                targetSketcher.window_size(),
+                targetSketcher.window_stride());
+        }
+        else {
+            std::cerr << "Max window size is 128!\n";
+            std::cerr << "Max sketch size is " << maxSketchSize << "\n";
+        }
 
         cudaEventRecord(seqBatches_[currentSeqBatch_].event(), insertStream_); CUERR
 
@@ -485,27 +492,35 @@ public:
         const sketcher& querySketcher,
         bucket_size_type maxLocationPerFeature) const
     {
-        // max 32*4 features => max window size is 128
-        constexpr int warpsPerBlock = 2;
-        constexpr int threadsPerBlock = 32*warpsPerBlock;
-        constexpr int itemsPerThread = 4;
+        constexpr int maxSketchSize = 16;
 
-        const int numBlocks = (numWindows+warpsPerBlock-1) / warpsPerBlock;
-        gpu_hahstable_query<threadsPerBlock,itemsPerThread><<<numBlocks,threadsPerBlock,0,gpuData.workStream_>>>(
-            hashTable_,
-            numWindows,
-            gpuData.sequenceOffsets_,
-            gpuData.sequences_,
-            gpuData.sketches_,
-            querySketcher.kmer_size(),
-            querySketcher.sketch_size(),
-            querySketcher.window_size(),
-            querySketcher.window_stride(),
-            locations_,
-            maxLocationPerFeature,
-            gpuData.queryResults_,
-            gpuData.resultCounts_
-        );
+        // max 32*4 characters per warp, so max window size is 128
+        if(querySketcher.window_size() <= 128 && querySketcher.sketch_size() <= maxSketchSize) {
+            constexpr int warpsPerBlock = 2;
+            constexpr int threadsPerBlock = 32*warpsPerBlock;
+
+            const int numBlocks = (numWindows+warpsPerBlock-1) / warpsPerBlock;
+            gpu_hahstable_query<threadsPerBlock,maxSketchSize>
+                <<<numBlocks,threadsPerBlock,0,gpuData.workStream_>>>(
+                hashTable_,
+                numWindows,
+                gpuData.sequenceOffsets_,
+                gpuData.sequences_,
+                gpuData.sketches_,
+                querySketcher.kmer_size(),
+                querySketcher.sketch_size(),
+                querySketcher.window_size(),
+                querySketcher.window_stride(),
+                locations_,
+                maxLocationPerFeature,
+                gpuData.queryResults_,
+                gpuData.resultCounts_
+            );
+        }
+        else {
+            std::cerr << "Max window size is 128!\n";
+            std::cerr << "Max sketch size is " << maxSketchSize << "\n";
+        }
     }
 
     /*************************************************************************//**
@@ -519,25 +534,33 @@ public:
         const sketcher& querySketcher,
         bucket_size_type maxLocationPerFeature) const
     {
-        // max 32*4 features => max window size is 128
-        constexpr int warpsPerBlock = 2;
-        constexpr int threadsPerBlock = 32*warpsPerBlock;
-        constexpr int itemsPerThread = 4;
+        constexpr int maxSketchSize = 16;
 
-        const int numBlocks = (numWindows+warpsPerBlock-1) / warpsPerBlock;
-        gpu_hahstable_query<threadsPerBlock,itemsPerThread><<<numBlocks,threadsPerBlock,0,gpuData.workStream_>>>(
-            hashTable_,
-            numWindows,
-            gpuData.sketches_,
-            querySketcher.kmer_size(),
-            querySketcher.sketch_size(),
-            querySketcher.window_size(),
-            querySketcher.window_stride(),
-            locations_,
-            maxLocationPerFeature,
-            gpuData.queryResults_,
-            gpuData.resultCounts_
-        );
+        // max 32*4 characters per warp, so max window size is 128
+        if(querySketcher.window_size() <= 128 && querySketcher.sketch_size() <= maxSketchSize) {
+            constexpr int warpsPerBlock = 2;
+            constexpr int threadsPerBlock = 32*warpsPerBlock;
+
+            const int numBlocks = (numWindows+warpsPerBlock-1) / warpsPerBlock;
+            gpu_hahstable_query<threadsPerBlock,maxSketchSize>
+                <<<numBlocks,threadsPerBlock,0,gpuData.workStream_>>>(
+                hashTable_,
+                numWindows,
+                gpuData.sketches_,
+                querySketcher.kmer_size(),
+                querySketcher.sketch_size(),
+                querySketcher.window_size(),
+                querySketcher.window_stride(),
+                locations_,
+                maxLocationPerFeature,
+                gpuData.queryResults_,
+                gpuData.resultCounts_
+            );
+        }
+        else {
+            std::cerr << "Max window size is 128!\n";
+            std::cerr << "Max sketch size is " << maxSketchSize << "\n";
+        }
     }
 
 private:
