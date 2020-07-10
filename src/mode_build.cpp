@@ -410,13 +410,13 @@ void prepare_database(database& db, const build_options& opt)
     if(dbconf.maxLocationsPerFeature > 0) {
         db.max_locations_per_feature(dbconf.maxLocationsPerFeature);
         cerr << "Max locations per feature set to "
-             << dbconf.maxLocationsPerFeature << '\n';
+             << int(db.max_locations_per_feature()) << '\n';
     }
 
     if(dbconf.maxLoadFactor > 0.4 && dbconf.maxLoadFactor < 0.99) {
         db.max_load_factor(dbconf.maxLoadFactor);
         cerr << "Using custom hash table load factor of "
-             << dbconf.maxLoadFactor << '\n';
+             << db.max_load_factor() << '\n';
     }
 
     if(!opt.taxonomy.path.empty()) {

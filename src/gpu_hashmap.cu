@@ -61,13 +61,13 @@ public:
     build_hash_table(
         size_type key_capacity,
         size_type value_capacity,
-        std::uint64_t maxLocsPerFeature
+        std::uint64_t maxLocationsPerFeature
     ) :
         hashTable_{key_capacity, value_capacity,
             warpcore::defaults::seed<key_type>(),   // seed
             1.051, 1, max_bucket_size(),            // grow factor, min & max bucket size
-            // 1.075, 3, 26,            // grow factor, min & max bucket size
-            maxLocsPerFeature},                     // max values per key
+            // 1.075, 3, 26,                           // grow factor, min & max bucket size
+            maxLocationsPerFeature},                // max values per key
         batchSize_{default_batch_size()},
         seqBatches_{},
         currentSeqBatch_{0}
@@ -490,7 +490,7 @@ public:
         uint32_t numWindows,
         const typename query_batch<location_type>::query_gpu_data& gpuData,
         const sketcher& querySketcher,
-        bucket_size_type maxLocationPerFeature) const
+        bucket_size_type maxLocationsPerFeature) const
     {
         constexpr int maxSketchSize = 16;
 
@@ -512,7 +512,7 @@ public:
                 querySketcher.window_size(),
                 querySketcher.window_stride(),
                 locations_,
-                maxLocationPerFeature,
+                maxLocationsPerFeature,
                 gpuData.queryResults_,
                 gpuData.resultCounts_
             );
@@ -532,7 +532,7 @@ public:
         uint32_t numWindows,
         const typename query_batch<location_type>::query_gpu_data& gpuData,
         const sketcher& querySketcher,
-        bucket_size_type maxLocationPerFeature) const
+        bucket_size_type maxLocationsPerFeature) const
     {
         constexpr int maxSketchSize = 16;
 
@@ -552,7 +552,7 @@ public:
                 querySketcher.window_size(),
                 querySketcher.window_stride(),
                 locations_,
-                maxLocationPerFeature,
+                maxLocationsPerFeature,
                 gpuData.queryResults_,
                 gpuData.resultCounts_
             );
@@ -775,7 +775,7 @@ template<class Key, class ValueT>
 gpu_hashmap<Key,ValueT>::gpu_hashmap() :
     numGPUs_(0),
     maxLoadFactor_(default_max_load_factor()),
-    maxLocsPerFeature_(max_supported_locations_per_feature()),
+    maxLocationsPerFeature_(max_supported_locations_per_feature()),
     valid_(true)
 {
     int deviceCount = 0;
@@ -794,7 +794,7 @@ template<class Key, class ValueT>
 gpu_hashmap<Key,ValueT>::gpu_hashmap(gpu_hashmap&& other) :
     numGPUs_{other.numGPUs_},
     maxLoadFactor_{other.maxLoadFactor_},
-    maxLocsPerFeature_{other.maxLocsPerFeature_},
+    maxLocationsPerFeature_{other.maxLocationsPerFeature_},
     valid_{other.valid_.exchange(false)},
     buildHashTables_{std::move(other.buildHashTables_)},
     queryHashTables_{std::move(other.queryHashTables_)}
@@ -942,7 +942,7 @@ gpu_id gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(gpu_id numGPUs)
         std::cerr << "gpu " << gpuId
                   << " allocate hashtable for " << keyCapacity << " keys"
                                        " and " << valueCapacity << " values\n";
-        buildHashTables_.emplace_back(keyCapacity, valueCapacity, maxLocsPerFeature_);
+        buildHashTables_.emplace_back(keyCapacity, valueCapacity, maxLocationsPerFeature_);
 
         cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
         std::cerr << "gpu " << gpuId << " freeMemory: " << helpers::B2GB(freeMemory) << " GB\n";
@@ -1059,14 +1059,14 @@ void gpu_hashmap<Key,ValueT>::query_async(
                 batch.host_data(hostId).num_windows(),
                 batch.gpu_data(gpuId),
                 querySketcher,
-                maxLocsPerFeature_);
+                maxLocationsPerFeature_);
         }
         else {
             queryHashTables_[gpuId].query_sketches_async(
                 batch.host_data(hostId).num_windows(),
                 batch.gpu_data(gpuId),
                 querySketcher,
-                maxLocsPerFeature_);
+                maxLocationsPerFeature_);
         }
         batch.mark_query_finished(gpuId);
 

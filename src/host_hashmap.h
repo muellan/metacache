@@ -253,15 +253,15 @@ public:
         if(n >= max_supported_locations_per_feature()) {
             n = max_supported_locations_per_feature();
         }
-        else if(n < maxLocsPerFeature_) {
+        else if(n < maxLocationsPerFeature_) {
             hashTable_.shrink_all(n);
         }
-        maxLocsPerFeature_ = n;
+        maxLocationsPerFeature_ = n;
     }
     //-----------------------------------------------------
     bucket_size_type
     max_locations_per_feature() const noexcept {
-        return maxLocsPerFeature_;
+        return maxLocationsPerFeature_;
     }
 
 
@@ -378,8 +378,8 @@ public:
             for(const auto& f : windowSketch.sk) {
                 auto it = hashTable_.insert(
                     f, location{windowSketch.win, windowSketch.tgt});
-                if(it->size() > maxLocsPerFeature_) {
-                    hashTable_.shrink(it, maxLocsPerFeature_);
+                if(it->size() > maxLocationsPerFeature_) {
+                    hashTable_.shrink(it, maxLocationsPerFeature_);
                 }
             }
         }
@@ -457,7 +457,7 @@ public:
 
 private:
     hash_table hashTable_;
-    std::uint64_t maxLocsPerFeature_;
+    std::uint64_t maxLocationsPerFeature_;
 
     std::unique_ptr<batch_executor<window_sketch>> inserter_;
 };

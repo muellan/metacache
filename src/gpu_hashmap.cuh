@@ -137,12 +137,12 @@ public:
         if(n >= max_supported_locations_per_feature()) {
             n = max_supported_locations_per_feature();
         }
-        maxLocsPerFeature_ = n;
+        maxLocationsPerFeature_ = n;
     }
     //-----------------------------------------------------
     bucket_size_type
     max_locations_per_feature() const noexcept {
-        return maxLocsPerFeature_;
+        return maxLocationsPerFeature_;
     }
 
     //-----------------------------------------------------
@@ -268,7 +268,7 @@ private:
     //---------------------------------------------------------------
     gpu_id numGPUs_;
     float maxLoadFactor_;
-    std::uint64_t maxLocsPerFeature_;
+    std::uint64_t maxLocationsPerFeature_;
     std::atomic_bool valid_;
 
     std::vector<insert_buffer> insertBuffers_;

@@ -151,9 +151,9 @@ void database::read_single(const std::string& filename, gpu_id gpuId, scope what
         read_binary(is, querySketcher_);
 
         //target insertion parameters
-        uint64_t maxLocsPerFeature = 0;
-        read_binary(is, maxLocsPerFeature);
-        max_locations_per_feature(maxLocsPerFeature);
+        uint64_t maxLocationsPerFeature = 0;
+        read_binary(is, maxLocationsPerFeature);
+        max_locations_per_feature(maxLocationsPerFeature);
 
         //taxon metadata
         read_binary(is, taxa_);
