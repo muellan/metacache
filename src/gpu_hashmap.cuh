@@ -148,7 +148,7 @@ public:
     //-----------------------------------------------------
     feature_count_type
     remove_features_with_more_locations_than(bucket_size_type) {
-        std::cerr << "remove_features_with_more_locations_than not available in GPU version\n";
+        std::cerr << "-remove-overpopulated-features is not supported in GPU version\n";
         return 0;
     };
 
@@ -156,7 +156,7 @@ public:
     //---------------------------------------------------------------
     feature_count_type
     remove_ambiguous_features(taxon_rank, bucket_size_type, const ranked_lineages_of_targets&) {
-        std::cerr << "remove_ambiguous_features not available in GPU version\n";
+        std::cerr << "-remove-ambig-features is not supported in GPU version\n";
         return 0;
     }
 
@@ -186,12 +186,12 @@ public:
 
     //---------------------------------------------------------------
     void print_feature_map(std::ostream&) const {
-        std::cerr << "print_feature_map not available in GPU version\n";
+        std::cerr << "feature map is not available in GPU version\n";
     }
 
     //---------------------------------------------------------------
     void print_feature_counts(std::ostream&) const {
-        std::cerr << "print_feature_counts not available in GPU version\n";
+        std::cerr << "featurecounts are not available in GPU version\n";
     }
 
     /****************************************************************
