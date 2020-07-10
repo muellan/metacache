@@ -1040,8 +1040,7 @@ performance_options_cli(performance_tuning_options& opt, error_messages& err)
         integer("#", opt.queryLimit)
             .if_missing([&]{ err += "Number missing after '-query-limit'!"; })
     )
-        %("Classify at max. <#> queries (reads or read pairs) per input file. "
-          "and \n"
+        %("Classify at max. <#> queries (reads or read pairs) per input file.\n"
           "default: "s + (opt.queryLimit < 1 ? "none"s : to_string(opt.queryLimit))
     )
     );
