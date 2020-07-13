@@ -1,10 +1,5 @@
 #!/bin/bash
 
-# switch for number of threads
-threads="-threads 3"
-# switch for number of gpus
-gpus="-gpus 1"
-
 # ---------------------------------------------------------
 # script expects to run in its own directory
 # ---------------------------------------------------------
@@ -15,8 +10,18 @@ cd $dir
 # ---------------------------------------------------------
 # parse command line arguments
 # ---------------------------------------------------------
+# default: cpu version
+target="release"
+metacache="../metacache"
+threads="-threads 8"
+
 if [ $# -ge 1 ]; then
-  if [ "$1" == "clean" ]; then
+  if [ "$1" == "gpu" ]; then
+    target="gpu_release"
+    metacache="../metacache_gpu"
+    threads="-threads 3"
+    gpus="-gpus 1"
+  elif [ "$1" == "clean" ]; then
     rm *.db
     rm -r data
     rm -r taxonomy
@@ -52,7 +57,7 @@ fi
 # ---------------------------------------------------------
 pushd .
 cd ..
-make -j
+make $target -j
 popd
 
 
@@ -60,7 +65,7 @@ popd
 # make small testing database
 # ---------------------------------------------------------
 if [ ! -e "bacteria1.db" ]; then
-    ../metacache build bacteria1 data/bacteria1.fa -taxonomy taxonomy $gpus
+    $metacache build bacteria1 data/bacteria1.fa -taxonomy taxonomy $gpus
 fi
 
 
@@ -106,7 +111,7 @@ query=data/fmt.fa
 tests=""
 add_formatting_tests $query "-no-summary -no-query-params $threads"
 
-echo -e ${tests} | ../metacache query bacteria1 $gpus | grep "NC_" > results/fmt_fa.out
+echo -e ${tests} | $metacache query bacteria1 $gpus | grep "NC_" > results/fmt_fa.out
 
 DIFF=$( diff <(sort results/fmt_fa.out) <(sort data/fmt.expected) )
 
@@ -121,7 +126,7 @@ query=data/fmt.fa
 tests=""
 add_formatting_tests $query "-no-summary -no-query-params $threads"
 
-echo -e ${tests} | ../metacache query bacteria1 $gpus | grep "NC_" > results/fmt_fq.out
+echo -e ${tests} | $metacache query bacteria1 $gpus | grep "NC_" > results/fmt_fq.out
 
 DIFF=$( diff <(sort results/fmt_fq.out) <(sort data/fmt.expected) )
 
@@ -134,8 +139,8 @@ fi
 # ---------------------------------------------------------
 # classification tests
 # ---------------------------------------------------------
-# common="-no-query-params -mapped-only -precision -ground-truth -tophits -allhits -hits-per-ref -abundances -abundance-per species $threads"
-common="-no-query-params -mapped-only -precision -ground-truth -tophits -allhits $threads -queryids"
+common="-no-query-params -mapped-only -precision -ground-truth -tophits -allhits -hits-per-ref -abundances -abundance-per species $threads"
+# common="-no-query-params -mapped-only -precision -ground-truth -tophits -allhits -queryids $threads"
 
 # fasta -------------------------------
 tests_fa=""
@@ -143,10 +148,13 @@ tests_fa="${tests_fa} data/single.fa ${common}\n"
 tests_fa="${tests_fa} data/pairs.fa -pairseq ${common}\n"
 tests_fa="${tests_fa} data/pair.1.fa data/pair.2.fa -pairfiles ${common}\n"
 
-echo -e ${tests_fa} | ../metacache query bacteria1 $gpus | grep "|\|#" | grep -v "time\|speed\|list\|ignore" | sed "s/\.fa//g" > results/classified_fa.out
-# echo -e ${tests_fa} | ../metacache query bacteria1 $gpus > results/classified_fa.all.out
+echo -e ${tests_fa} | $metacache query bacteria1 $gpus | grep "|\|#" | grep -v "time\|speed\|list\|ignore" | sed "s/\.fa//g" > results/classified_fa.out
 
-DIFF=$( diff <(sort results/classified_fa.out) <(sort data/classified.expected) )
+if [ "$gpus" != "" ]; then
+  DIFF=$( diff <(sort results/classified_fa.out) <(sort data/classified_gpu.expected) )
+else
+  DIFF=$( diff <(sort results/classified_fa.out) <(sort data/classified.expected) )
+fi
 
 if [ "$DIFF" != "" ]; then
     echo "FAILED fasta classification test: Actual output does not match expected output."
@@ -159,9 +167,13 @@ tests_fq="${tests_fq} data/single.fq ${common}\n"
 tests_fq="${tests_fq} data/pairs.fq -pairseq ${common}\n"
 tests_fq="${tests_fq} data/pair.1.fq data/pair.2.fq -pairfiles ${common}\n"
 
-echo -e ${tests_fq} | ../metacache query bacteria1 $gpus | grep "|\|#" | grep -v "time\|speed\|list\|ignore" | sed "s/\.fq//g" > results/classified_fq.out
+echo -e ${tests_fq} | $metacache query bacteria1 $gpus | grep "|\|#" | grep -v "time\|speed\|list\|ignore" | sed "s/\.fq//g" > results/classified_fq.out
 
-DIFF=$( diff <(sort results/classified_fq.out) <(sort data/classified.expected) )
+if [ "$gpus" != "" ]; then
+  DIFF=$( diff <(sort results/classified_fq.out) <(sort data/classified_gpu.expected) )
+else
+  DIFF=$( diff <(sort results/classified_fq.out) <(sort data/classified.expected) )
+fi
 
 if [ "$DIFF" != "" ]; then
     echo "FAILED fastq classification test: Actual output does not match expected output."
