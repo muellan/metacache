@@ -236,9 +236,15 @@ struct taxon_print_style {
  * @brief how to process input queries
  *
  *****************************************************************************/
-struct performance_tuning_options {
+struct performance_tuning_options
+{
+#ifndef GPU_MODE
     int numThreads = std::thread::hardware_concurrency();
     std::size_t batchSize = 4096;
+#else
+    int numThreads = std::min(int(std::thread::hardware_concurrency()), 8);
+    std::size_t batchSize = 8192;
+#endif
     //limits number of reads per sequence source (file)
     std::int_least64_t queryLimit = std::numeric_limits<std::int_least64_t>::max();
 };
