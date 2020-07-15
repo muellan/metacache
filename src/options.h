@@ -92,10 +92,10 @@ struct sketching_options
 struct database_storage_options
 {
 #ifndef GPU_MODE
-    unsigned numGPUs = 0;
+    unsigned numParts = 1;
 #else
     // use all available gpus
-    unsigned numGPUs = std::numeric_limits<unsigned>::max();
+    unsigned numParts = std::numeric_limits<unsigned>::max();
 #endif
 
     float maxLoadFactor = -1;  // < 0 : use database default

@@ -89,7 +89,7 @@ bool database::add_target(gpu_id dbPart,
 
 
 // ----------------------------------------------------------------------------
-void database::read_single(const std::string& filename, gpu_id gpuId, scope what)
+void database::read_single(const std::string& filename, gpu_id partId, scope what)
 {
     std::cerr << "Reading database from file '" << filename << "' ... ";
 
@@ -203,10 +203,10 @@ void database::read_single(const std::string& filename, gpu_id gpuId, scope what
 
     if(what != scope::metadata_only) {
         //hash table
-        read_binary(is, featureStore_, gpuId);
+        read_binary(is, featureStore_, partId);
 
 #ifdef GPU_MODE
-        featureStore_.copy_target_lineages_to_gpu(targetLineages_.lineages(), gpuId);
+        featureStore_.copy_target_lineages_to_gpu(targetLineages_.lineages(), partId);
 #endif
     }
 
@@ -215,30 +215,31 @@ void database::read_single(const std::string& filename, gpu_id gpuId, scope what
 
 
 //-------------------------------------------------------------------
-void database::read(const std::string& filename, gpu_id numGPUs, scope what)
+void database::read(const std::string& filename, gpu_id numParts, scope what)
 {
 #ifndef GPU_MODE
-    read_single(filename, numGPUs, what);
+    gpu_id partId = 0;
+    read_single(filename, partId, what);
 #else
-    if(numGPUs > num_gpus()) {
-        numGPUs = num_gpus();
+    if(numParts > num_parts()) {
+        numParts = num_parts();
     }
 
-    if(numGPUs == 1) {
-        gpu_id gpuId = 0;
-        read_single(filename, gpuId, what);
+    if(numParts == 1) {
+        gpu_id partId = 0;
+        read_single(filename, partId, what);
     }
     else {
-        gpu_id gpuId = 0;
-        read_single(filename+std::to_string(gpuId), gpuId, what);
+        gpu_id partId = 0;
+        read_single(filename+std::to_string(partId), partId, what);
 
         if(what != scope::metadata_only) {
-            for(gpu_id gpuId = 1; gpuId < numGPUs; ++gpuId) {
-                read_single(filename+std::to_string(gpuId), gpuId, scope::hashtable_only);
+            for(gpu_id partId = 1; partId < numParts; ++partId) {
+                read_single(filename+std::to_string(partId), partId, scope::hashtable_only);
             }
         }
 
-        featureStore_.enable_all_peer_access(numGPUs);
+        featureStore_.enable_all_peer_access(numParts);
     }
 #endif
 }
@@ -246,7 +247,7 @@ void database::read(const std::string& filename, gpu_id numGPUs, scope what)
 
 
 //-------------------------------------------------------------------
-void database::write_single(const std::string& filename, gpu_id gpuId) const
+void database::write_single(const std::string& filename, gpu_id partId) const
 {
     std::cerr << "Writing database part to file '" << filename << "' ... ";
 
@@ -282,7 +283,7 @@ void database::write_single(const std::string& filename, gpu_id gpuId) const
     write_binary(os, target_id(targetCount_));
 
     //hash table
-    write_binary(os, featureStore_, gpuId);
+    write_binary(os, featureStore_, partId);
 
     std::cerr << "done." << std::endl;
 }
@@ -292,16 +293,16 @@ void database::write_single(const std::string& filename, gpu_id gpuId) const
 void database::write(const std::string& filename) const
 {
 #ifndef GPU_MODE
-    gpu_id gpuId = 0;
-    write_single(filename, gpuId);
+    gpu_id partId = 0;
+    write_single(filename, partId);
 #else
-    if(featureStore_.num_gpus() == 1) {
-        gpu_id gpuId = 0;
-        write_single(filename, gpuId);
+    if(featureStore_.num_parts() == 1) {
+        gpu_id partId = 0;
+        write_single(filename, partId);
     }
     else {
-        for(gpu_id gpuId = 0; gpuId < featureStore_.num_gpus(); ++gpuId)
-            write_single(filename+std::to_string(gpuId), gpuId);
+        for(gpu_id partId = 0; partId < featureStore_.num_parts(); ++partId)
+            write_single(filename+std::to_string(partId), partId);
     }
 #endif
 }
@@ -347,8 +348,8 @@ make_database(const std::string& filename, database::scope what, info_level info
                   << filename << "' ... " << std::flush;
     }
     try {
-        unsigned numGPUs = 1;
-        db.read(filename, numGPUs, what);
+        unsigned numParts = 1;
+        db.read(filename, numParts, what);
         if(showInfo) std::cerr << "done." << std::endl;
     }
     catch(const file_access_error& e) {

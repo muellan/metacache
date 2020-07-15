@@ -321,7 +321,7 @@ void add_targets_to_database(database& db,
 #ifndef GPU_MODE
     execOpt.concurrency(1, 1);
 #else
-    execOpt.concurrency(8, db.num_gpus());
+    execOpt.concurrency(8, db.num_parts());
 #endif
 
     execOpt.abort_if([&] { return db.add_target_failed(); });
@@ -451,7 +451,7 @@ void prepare_database(database& db, const build_options& opt)
         }
     }
 
-    db.initialize_hash_table(opt.dbconfig.numGPUs);
+    db.initialize_hash_table(opt.dbconfig.numParts);
 }
 
 

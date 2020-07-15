@@ -309,7 +309,7 @@ read_database(const string& filename,
     }
 
     try {
-        db.read(filename, dbopt.numGPUs);
+        db.read(filename, dbopt.numParts);
     }
     catch(const file_access_error& e) {
         cerr << "FAIL" << endl;

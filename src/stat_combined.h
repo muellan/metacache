@@ -81,6 +81,14 @@ public:
 
 
     //---------------------------------------------------------------
+    void
+    merge(const statistics_accumulator& other) {
+        if(other.max_ > max_) max_ = other.max_;
+        moments_.merge(other.moments_);
+    }
+
+
+    //---------------------------------------------------------------
     size_type size() const noexcept {
         return moments_.size();
     }

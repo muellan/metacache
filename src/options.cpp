@@ -357,7 +357,7 @@ database_storage_options_cli(database_storage_options& opt, error_messages& err)
     return (
 #ifdef GPU_MODE
     (   option("-gpus") &
-        integer("#", opt.numGPUs)
+        integer("#", opt.numParts)
             .if_missing([&]{ err += "Number missing after '-gpus'!"; })
     )
         %("Sets the maximum number of GPUs to use."

@@ -115,30 +115,48 @@ public:
     //---------------------------------------------------------------
     explicit
     host_hashmap() :
-        hashTable_{},
-        inserter_{}
-    {
-        hashTable_.max_load_factor(default_max_load_factor());
-    }
+        numParts_{0},
+        maxLoadFactor_(default_max_load_factor()),
+        maxLocationsPerFeature_{max_supported_locations_per_feature()},
+        valid_(true),
+        hashTables_{},
+        inserters_{}
+    {}
 
     host_hashmap(const host_hashmap&) = delete;
     host_hashmap(host_hashmap&& other) :
-        hashTable_{std::move(other.hashTable_)},
-        inserter_{std::move(other.inserter_)}
+        numParts_{other.numParts_},
+        maxLoadFactor_{other.maxLoadFactor_},
+        maxLocationsPerFeature_{other.maxLocationsPerFeature_},
+        valid_{other.valid_.exchange(false)},
+        hashTables_{std::move(other.hashTables_)},
+        inserters_{std::move(other.inserters_)}
     {}
 
     host_hashmap& operator = (const host_hashmap&) = delete;
     host_hashmap& operator = (host_hashmap&&)      = default;
 
     ~host_hashmap() {
-        destroy_inserter();
+        for(size_t i = 0; i < inserters_.size(); ++i)
+            destroy_inserter(i);
     }
 
 
     //---------------------------------------------------------------
-    unsigned num_gpus() const noexcept { return 0; }
+    unsigned num_parts() const noexcept { return numParts_; }
+
+
     //---------------------------------------------------------------
-    gpu_id initialize_build_hash_tables(gpu_id) { return 0; }
+    gpu_id initialize_build_hash_tables(gpu_id numParts) {
+        numParts_ = numParts;
+        hashTables_.resize(numParts_);
+        inserters_.resize(numParts_);
+
+        for(auto& hashTable : hashTables_)
+            hashTable.max_load_factor(maxLoadFactor_);
+
+        return numParts_;
+    }
 
 
     //---------------------------------------------------------------
@@ -150,11 +168,17 @@ public:
 
     //---------------------------------------------------------------
     void max_load_factor(float lf) {
-        hashTable_.max_load_factor(lf);
+        if(lf > 1.0f) lf = 1.0f;
+        if(lf < 0.1f) lf = 0.1f;
+
+        using std::abs;
+        if(abs(maxLoadFactor_ - lf) > 0.00001f) {
+            maxLoadFactor_ = lf;
+        }
     }
     //-----------------------------------------------------
     float max_load_factor() const noexcept {
-        return hashTable_.max_load_factor();
+        return maxLoadFactor_;
     }
     //-----------------------------------------------------
     static constexpr float default_max_load_factor() noexcept {
@@ -164,67 +188,108 @@ public:
 
     //---------------------------------------------------------------
     bool empty() const noexcept {
-        return hashTable_.empty();
+        return key_count() < 1;
     }
     //---------------------------------------------------------------
     std::uint64_t key_count() const noexcept {
-        return hashTable_.key_count();
+        std::uint64_t count = 0;
+        for(const auto& hashTable : hashTables_)
+            count += hashTable.key_count();
+        return count;
     }
     //---------------------------------------------------------------
     std::uint64_t value_count() const noexcept {
-        return hashTable_.value_count();
+        std::uint64_t count = 0;
+        for(const auto& hashTable : hashTables_)
+            count += hashTable.value_count();
+        return count;
     }
     //---------------------------------------------------------------
     std::uint64_t bucket_count() const noexcept {
-        return hashTable_.bucket_count();
+        std::uint64_t count = 0;
+        for(const auto& hashTable : hashTables_)
+            count += hashTable.bucket_count();
+        return count;
     }
     //---------------------------------------------------------------
     std::uint64_t non_empty_bucket_count() const noexcept {
-        return hashTable_.non_empty_bucket_count();
+        std::uint64_t count = 0;
+        for(const auto& hashTable : hashTables_)
+            count += hashTable.non_empty_bucket_count();
+        return count;
     }
     //---------------------------------------------------------------
     std::uint64_t dead_feature_count() const noexcept {
-        return hashTable_.key_count() - hashTable_.non_empty_bucket_count();
+        return key_count() - non_empty_bucket_count();
     }
 
     //---------------------------------------------------------------
     void clear() {
-        hashTable_.clear();
+        for(auto& hashTable : hashTables_)
+            hashTable.clear();
     }
     //---------------------------------------------------------------
     /**
      * @brief very dangerous! clears hash table without memory deallocation
      */
     void clear_without_deallocation() {
-        hashTable_.clear_without_deallocation();
+        for(auto& hashTable : hashTables_)
+            hashTable.clear_without_deallocation();
     }
 
 
     //---------------------------------------------------------------
     statistics_accumulator
     location_list_size_statistics() const {
-        auto priSize = statistics_accumulator{};
+        auto totalAccumulator = statistics_accumulator{};
 
-        for(const auto& bucket : hashTable_) {
-            if(!bucket.empty()) {
-                priSize += bucket.size();
+        for(gpu_id part = 0; part < numParts_; ++part) {
+            auto accumulator = statistics_accumulator{};
+
+            for(const auto& bucket : hashTables_[part]) {
+                if(!bucket.empty()) {
+                    accumulator += bucket.size();
+                }
             }
+
+            if(numParts_ > 1) {
+                std::cout
+                    << "------------------------------------------------\n"
+                    << "database part " << part << ":\n"
+                    << "buckets              " << hashTables_[part].bucket_count() << '\n'
+                    << "bucket size          " << "max: " << accumulator.max()
+                                               << " mean: " << accumulator.mean()
+                                               << " +/- " << accumulator.stddev()
+                                               << " <> " << accumulator.skewness() << '\n'
+                    << "features             " << std::uint64_t(accumulator.size()) << '\n'
+                    << "dead features        " << hashTables_[part].key_count() -
+                                                  hashTables_[part].non_empty_bucket_count() << '\n'
+                    << "locations            " << std::uint64_t(accumulator.sum()) << '\n';
+                    // << "load                 " << hashTables_[part].load_factor() << '\n';
+            }
+
+            totalAccumulator.merge(accumulator);
         }
 
-        return priSize;
+        return totalAccumulator;
     }
 
 
     //---------------------------------------------------------------
     void print_feature_map(std::ostream& os) const {
-        for(const auto& bucket : hashTable_) {
-            if(!bucket.empty()) {
-                os << std::int_least64_t(bucket.key()) << " -> ";
-                for(location p : bucket) {
-                    os << '(' << std::int_least64_t(p.tgt)
-                       << ',' << std::int_least64_t(p.win) << ')';
+        for(gpu_id part = 0; part < numParts_; ++part) {
+            if(numParts_ > 1)
+                os << "database part " << part << ":\n";
+
+            for(const auto& bucket : hashTables_[part]) {
+                if(!bucket.empty()) {
+                    os << std::int_least64_t(bucket.key()) << " -> ";
+                    for(location p : bucket) {
+                        os << '(' << std::int_least64_t(p.tgt)
+                        << ',' << std::int_least64_t(p.win) << ')';
+                    }
+                    os << '\n';
                 }
-                os << '\n';
             }
         }
     }
@@ -232,10 +297,15 @@ public:
 
     //---------------------------------------------------------------
     void print_feature_counts(std::ostream& os) const {
-        for(const auto& bucket : hashTable_) {
-            if(!bucket.empty()) {
-                os << std::int_least64_t(bucket.key()) << " -> "
-                   << std::int_least64_t(bucket.size()) << '\n';
+        for(gpu_id part = 0; part < numParts_; ++part) {
+            if(numParts_ > 1)
+                os << "database part " << part << ":\n";
+
+            for(const auto& bucket : hashTables_[part]) {
+                if(!bucket.empty()) {
+                    os << std::int_least64_t(bucket.key()) << " -> "
+                    << std::int_least64_t(bucket.size()) << '\n';
+                }
             }
         }
     }
@@ -254,7 +324,8 @@ public:
             n = max_supported_locations_per_feature();
         }
         else if(n < maxLocationsPerFeature_) {
-            hashTable_.shrink_all(n);
+            for(auto& hashTable : hashTables_)
+                hashTable.shrink_all(n);
         }
         maxLocationsPerFeature_ = n;
     }
@@ -266,19 +337,25 @@ public:
 
 
     // ----------------------------------------------------------------------------
+    /**
+     * @details note that features are not really removed, because the hashmap
+     *          does not support erasing keys; instead all values belonging to
+     *          the key are cleared and the key is kept without values
+     */
     feature_count_type
     remove_features_with_more_locations_than(bucket_size_type n)
     {
-        //note that features are not really removed, because the hashmap
-        //does not support erasing keys; instead all values belonging to
-        //the key are cleared and the key is kept without values
         feature_count_type rem = 0;
-        for(auto i = hashTable_.begin(), e = hashTable_.end(); i != e; ++i) {
-            if(i->size() > n) {
-                hashTable_.clear(i);
-                ++rem;
+
+        for(auto& hashTable : hashTables_) {
+            for(auto i = hashTable.begin(), e = hashTable.end(); i != e; ++i) {
+                if(i->size() > n) {
+                    hashTable.clear(i);
+                    ++rem;
+                }
             }
         }
+
         return rem;
     }
 
@@ -292,56 +369,59 @@ public:
 
         if(maxambig == 0) maxambig = 1;
 
-        if(r == taxon_rank::Sequence) {
-            for(auto i = hashTable_.begin(), e = hashTable_.end(); i != e; ++i) {
-                if(!i->empty()) {
-                    std::set<target_id> targets;
-                    for(auto loc : *i) {
-                        targets.insert(loc.tgt);
-                        if(targets.size() > maxambig) {
-                            hashTable_.clear(i);
-                            ++rem;
-                            break;
+        for(auto& hashTable : hashTables_) {
+            if(r == taxon_rank::Sequence) {
+                for(auto i = hashTable.begin(), e = hashTable.end(); i != e; ++i) {
+                    if(!i->empty()) {
+                        std::set<target_id> targets;
+                        for(auto loc : *i) {
+                            targets.insert(loc.tgt);
+                            if(targets.size() > maxambig) {
+                                hashTable.clear(i);
+                                ++rem;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            else {
+                for(auto i = hashTable.begin(), e = hashTable.end(); i != e; ++i) {
+                    if(!i->empty()) {
+                        std::set<const taxon*> taxa;
+                        for(auto loc : *i) {
+                            taxa.insert(targetLineages[loc.tgt][int(r)]);
+                            if(taxa.size() > maxambig) {
+                                hashTable.clear(i);
+                                ++rem;
+                                break;
+                            }
                         }
                     }
                 }
             }
         }
-        else {
-            for(auto i = hashTable_.begin(), e = hashTable_.end(); i != e; ++i) {
-                if(!i->empty()) {
-                    std::set<const taxon*> taxa;
-                    for(auto loc : *i) {
-                        taxa.insert(targetLineages[loc.tgt][int(r)]);
-                        if(taxa.size() > maxambig) {
-                            hashTable_.clear(i);
-                            ++rem;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+
         return rem;
     }
 
 
     //---------------------------------------------------------------
-    void wait_until_add_target_complete(gpu_id, const sketcher&) {
-        destroy_inserter();
+    void wait_until_add_target_complete(gpu_id part, const sketcher&) {
+        destroy_inserter(part);
     }
 
 private:
     //---------------------------------------------------------------
-    void destroy_inserter() {
+    void destroy_inserter(gpu_id part) {
         // destroy inserter
-        inserter_ = nullptr;
+        inserters_[part] = nullptr;
     }
 
 public:
     //---------------------------------------------------------------
-    bool valid() {
-        return !(inserter_) || ((inserter_) && (inserter_->valid()));
+    bool valid() const noexcept {
+        return valid_;
     }
 
 
@@ -349,37 +429,41 @@ public:
     /**
      * @brief adds sketches to database for all windows in sequence
      */
-    window_id add_target(gpu_id,
+    window_id add_target(gpu_id part,
                          const sequence& seq, target_id tgt,
                          const sketcher& targetSketcher)
     {
-        if(!inserter_) make_sketch_inserter();
+        if(!inserters_[part]) make_sketch_inserter(part);
 
         window_id win = 0;
         targetSketcher.for_each_sketch(seq,
             [&, this] (auto&& sk) {
-                if(inserter_->valid()) {
+                if(inserters_[part]->valid()) {
                     //insert sketch into batch
-                    auto& sketch = inserter_->next_item();
+                    auto& sketch = inserters_[part]->next_item();
                     sketch.tgt = tgt;
                     sketch.win = win;
                     sketch.sk = std::move(sk);
                 }
+                else {
+                    valid_ = false;
+                }
                 ++win;
             });
+
         return win;
     }
 
 
     //---------------------------------------------------------------
-    void add_sketch_batch(const sketch_batch& batch) {
+    void add_sketch_batch(gpu_id part, const sketch_batch& batch) {
         for(const auto& windowSketch : batch) {
             //insert features from sketch into database
             for(const auto& f : windowSketch.sk) {
-                auto it = hashTable_.insert(
+                auto it = hashTables_[part].insert(
                     f, location{windowSketch.win, windowSketch.tgt});
                 if(it->size() > maxLocationsPerFeature_) {
-                    hashTable_.shrink(it, maxLocationsPerFeature_);
+                    hashTables_[part].shrink(it, maxLocationsPerFeature_);
                 }
             }
         }
@@ -387,15 +471,17 @@ public:
 
 
     //---------------------------------------------------------------
-    void make_sketch_inserter() {
+    void make_sketch_inserter(gpu_id part) {
         batch_processing_options<window_sketch> execOpt;
         execOpt.batch_size(1000);
         execOpt.queue_size(100);
         execOpt.concurrency(1,1);
 
-        inserter_ = std::make_unique<batch_executor<window_sketch>>( execOpt,
-            [&,this](int, const auto& batch) {
-                this->add_sketch_batch(batch);
+        execOpt.abort_if([&, this] { return !(this->valid()); });
+
+        inserters_[part] = std::make_unique<batch_executor<window_sketch>>( execOpt,
+            [&,this,part](int, const auto& batch) {
+                this->add_sketch_batch(part, batch);
             });
     }
 
@@ -403,15 +489,16 @@ public:
     //---------------------------------------------------------------
     template<class InputIterator>
     void
-    accumulate_matches(const sketcher& querySketcher,
+    accumulate_matches(gpu_id part,
+                       const sketcher& querySketcher,
                        InputIterator queryBegin, InputIterator queryEnd,
                        matches_sorter& res) const
     {
         querySketcher.for_each_sketch(queryBegin, queryEnd,
-            [this, &res] (const auto& sk) {
+            [this, &part, &res] (const auto& sk) {
                 for(auto f : sk) {
-                    auto locs = hashTable_.find(f);
-                    if(locs != hashTable_.end() && locs->size() > 0) {
+                    auto locs = hashTables_[part].find(f);
+                    if(locs != hashTables_[part].end() && locs->size() > 0) {
                         res.locs_.insert(res.locs_.end(), locs->begin(), locs->end());
                         res.offsets_.emplace_back(res.locs_.size());
                     }
@@ -420,13 +507,14 @@ public:
     }
     //---------------------------------------------------------------
     void
-    accumulate_matches(const sketcher& querySketcher,
+    accumulate_matches(gpu_id part,
+                       const sketcher& querySketcher,
                        const sequence& query,
                        matches_sorter& res) const
     {
         using std::begin;
         using std::end;
-        accumulate_matches(querySketcher, begin(query), end(query), res);
+        accumulate_matches(part, querySketcher, begin(query), end(query), res);
     }
     //---------------------------------------------------------------
     void
@@ -434,10 +522,12 @@ public:
                const sequence& query1, const sequence& query2,
                matches_sorter& res) const
     {
+        gpu_id part = 0;
+
         res.clear();
 
-        accumulate_matches(querySketcher, query1, res);
-        accumulate_matches(querySketcher, query2, res);
+        accumulate_matches(part, querySketcher, query1, res);
+        accumulate_matches(part, querySketcher, query2, res);
 
         res.sort();
     }
@@ -445,21 +535,26 @@ public:
 
 
     //---------------------------------------------------------------
-    friend void read_binary(std::istream& is, host_hashmap& m, gpu_id) {
-        read_binary(is, m.hashTable_);
+    friend void read_binary(std::istream& is, host_hashmap& m, gpu_id part) {
+        m.hashTables_.emplace_back();
+        read_binary(is, m.hashTables_[part]);
     }
 
     //---------------------------------------------------------------
-    friend void write_binary(std::ostream& os, const host_hashmap& m, gpu_id) {
-        write_binary(os, m.hashTable_);
+    friend void write_binary(std::ostream& os, const host_hashmap& m, gpu_id part) {
+        write_binary(os, m.hashTables_[part]);
     }
 
 
 private:
-    hash_table hashTable_;
+    gpu_id numParts_;
+    float maxLoadFactor_;
     std::uint64_t maxLocationsPerFeature_;
+    std::atomic_bool valid_;
 
-    std::unique_ptr<batch_executor<window_sketch>> inserter_;
+    std::vector<hash_table> hashTables_;
+
+    std::vector<std::unique_ptr<batch_executor<window_sketch>>> inserters_;
 };
 
 

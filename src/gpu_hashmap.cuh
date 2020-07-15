@@ -94,7 +94,7 @@ public:
 
 public:
     //---------------------------------------------------------------
-    unsigned num_gpus() const noexcept {
+    unsigned num_parts() const noexcept {
         return numGPUs_;
     }
 

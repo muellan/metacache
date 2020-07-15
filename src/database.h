@@ -316,14 +316,14 @@ public:
 
 
     //---------------------------------------------------------------
-    gpu_id num_gpus() const noexcept {
-        return featureStore_.num_gpus();
+    gpu_id num_parts() const noexcept {
+        return featureStore_.num_parts();
     }
 
 
     //---------------------------------------------------------------
-    void initialize_hash_table(gpu_id numGPUs) {
-        featureStore_.initialize_build_hash_tables(numGPUs);
+    void initialize_hash_table(gpu_id numParts) {
+        featureStore_.initialize_build_hash_tables(numParts);
     }
 
 
@@ -652,7 +652,7 @@ public:
     /****************************************************************
      * @brief   read all database parts from binary files
      ****************************************************************/
-    void read(const std::string& filename, gpu_id numGPUs, scope what = scope::everything);
+    void read(const std::string& filename, gpu_id numParts, scope what = scope::everything);
 
 
 private:

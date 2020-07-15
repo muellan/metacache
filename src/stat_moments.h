@@ -451,6 +451,11 @@ public:
     pop() {
         --n_;
     }
+    //-----------------------------------------------------
+    void
+    merge(const this_t_& other) {
+        n_ += other.n_;
+    }
 
 
 protected:
@@ -546,6 +551,13 @@ public:
     pop(const argument_type& x) {
         base_t_::pop();
         sum_ -= x;
+    }
+
+    //-----------------------------------------------------
+    void
+    merge(const this_t_& other) {
+        base_t_::merge(other);
+        sum_ += other.sum_;
     }
 
 
@@ -660,6 +672,13 @@ public:
     pop(const argument_type& x) {
         base_t_::pop(x);
         sum2_ -= x*x;
+    }
+
+    //-----------------------------------------------------
+    void
+    merge(const this_t_& other) {
+        base_t_::merge(other);
+        sum2_ += other.sum2_;
     }
 
 
@@ -785,6 +804,13 @@ public:
     push(const argument_type& x) {
         base_t_::push(x);
         sum3_ += x*x*x;
+    }
+
+    //-----------------------------------------------------
+    void
+    merge(const this_t_& other) {
+        base_t_::merge(other);
+        sum3_ += other.sum3_;
     }
 
 
@@ -934,7 +960,12 @@ public:
         x *= x;
         sum4_ += x;
     }
-
+    //-----------------------------------------------------
+    void
+    merge(const this_t_& other) {
+        base_t_::merge(other);
+        sum4_ += other.sum4_;
+    }
 
     //---------------------------------------------------------------
     // RESULTS
