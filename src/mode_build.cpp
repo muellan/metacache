@@ -319,7 +319,7 @@ void add_targets_to_database(database& db,
     execOpt.batch_size(8);
     execOpt.queue_size(8);
 #ifndef GPU_MODE
-    execOpt.concurrency(1, 1);
+    execOpt.concurrency(1, db.num_parts());
 #else
     execOpt.concurrency(8, db.num_parts());
 #endif

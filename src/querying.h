@@ -85,16 +85,17 @@ struct sequence_query
     template<class Buffer, class BufferUpdate>
     void query_host(
         const database& db,
+        const classification_options& opt,
         const std::vector<sequence_query>& batch,
         database::matches_sorter& targetMatches,
         Buffer& resultsBuffer, BufferUpdate& update)
     {
-        for(auto& seq : batch) {
-            db.query_host(seq.seq1, seq.seq2, targetMatches);
+        for(auto& query : batch) {
+            auto rules = make_candidate_generation_rules(db.target_sketcher(), opt, query);
 
-            span<match_candidate> tophits{};
+            auto tophits = db.query_host(query.seq1, query.seq2, rules, targetMatches);
 
-            update(resultsBuffer, seq, targetMatches.locations(), tophits);
+            update(resultsBuffer, query, targetMatches.locations(), tophits);
         }
     }
 #else
@@ -245,7 +246,7 @@ query_id query_batched(
             auto resultsBuffer = getBuffer();
 
 #ifndef GPU_MODE
-            query_host(db, batch, targetMatches[id], resultsBuffer, update);
+            query_host(db, opt.classify, batch, targetMatches[id], resultsBuffer, update);
 #else
             // query batch to gpu and wait for results
             query_gpu(db, opt.classify, batch, copyAllHits, queryBatch, id, resultsBuffer, update, scheduleMtx);

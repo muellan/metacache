@@ -28,6 +28,7 @@
 #include <limits>
 
 #include "config.h"
+#include "options.h"
 #include "taxonomy.h"
 
 namespace mc {
@@ -139,6 +140,31 @@ struct candidate_generation_rules
     //list only the best candidate of a taxon on rank
     taxon_rank mergeBelow = taxon_rank::Sequence;
 };
+
+
+
+/*************************************************************************//**
+ *
+ * @brief make rules for candidate generation
+ *
+ *****************************************************************************/
+template<class Query>
+candidate_generation_rules
+make_candidate_generation_rules(const sketcher& querySketcher,
+                                const classification_options& opt,
+                                const Query& query)
+{
+    candidate_generation_rules rules;
+
+    rules.maxWindowsInRange = window_id( 2 + (
+        std::max(query.seq1.size() + query.seq2.size(), opt.insertSizeMax) /
+        querySketcher.window_stride() ));
+
+    rules.mergeBelow    = opt.lowestRank;
+    rules.maxCandidates = opt.maxNumCandidatesPerQuery;
+
+    return rules;
+}
 
 
 

@@ -6,6 +6,7 @@
 #include "stat_combined.h"
 #include "batch_processing.h"
 #include "taxonomy.h"
+// #include "candidate_generation.h"
 
 
 namespace mc {
@@ -71,7 +72,11 @@ public:
         void clear() {
             locs_.clear();
             offsets_.clear();
-            offsets_.resize(1, 0);
+        }
+
+        void next() {
+            offsets_.clear();
+            offsets_.emplace_back(locs_.size());
         }
 
         bool empty() const noexcept { return locs_.empty(); }
@@ -104,6 +109,10 @@ public:
                 }
                 std::swap(inout, temp);
             }
+            if(numChunks % 2) {
+                std::copy(inout.begin()+offsets.front(), inout.begin()+offsets.back(), temp.begin()+offsets.front());
+                std::swap(inout, temp);
+            }
         }
 
         match_locations locs_; // match locations from hashmap
@@ -115,7 +124,6 @@ public:
     //---------------------------------------------------------------
     explicit
     host_hashmap() :
-        numParts_{0},
         maxLoadFactor_(default_max_load_factor()),
         maxLocationsPerFeature_{max_supported_locations_per_feature()},
         valid_(true),
@@ -125,7 +133,6 @@ public:
 
     host_hashmap(const host_hashmap&) = delete;
     host_hashmap(host_hashmap&& other) :
-        numParts_{other.numParts_},
         maxLoadFactor_{other.maxLoadFactor_},
         maxLocationsPerFeature_{other.maxLocationsPerFeature_},
         valid_{other.valid_.exchange(false)},
@@ -143,19 +150,18 @@ public:
 
 
     //---------------------------------------------------------------
-    unsigned num_parts() const noexcept { return numParts_; }
+    unsigned num_parts() const noexcept { return hashTables_.size(); }
 
 
     //---------------------------------------------------------------
     part_id initialize_build_hash_tables(part_id numParts) {
-        numParts_ = numParts;
-        hashTables_.resize(numParts_);
-        inserters_.resize(numParts_);
+        hashTables_.resize(numParts);
+        inserters_.resize(numParts);
 
         for(auto& hashTable : hashTables_)
             hashTable.max_load_factor(maxLoadFactor_);
 
-        return numParts_;
+        return num_parts();
     }
 
 
@@ -243,7 +249,7 @@ public:
     location_list_size_statistics() const {
         auto totalAccumulator = statistics_accumulator{};
 
-        for(part_id part = 0; part < numParts_; ++part) {
+        for(part_id part = 0; part < num_parts(); ++part) {
             auto accumulator = statistics_accumulator{};
 
             for(const auto& bucket : hashTables_[part]) {
@@ -252,7 +258,7 @@ public:
                 }
             }
 
-            if(numParts_ > 1) {
+            if(num_parts() > 1) {
                 std::cout
                     << "------------------------------------------------\n"
                     << "database part " << part << ":\n"
@@ -277,8 +283,8 @@ public:
 
     //---------------------------------------------------------------
     void print_feature_map(std::ostream& os) const {
-        for(part_id part = 0; part < numParts_; ++part) {
-            if(numParts_ > 1)
+        for(part_id part = 0; part < num_parts(); ++part) {
+            if(num_parts() > 1)
                 os << "database part " << part << ":\n";
 
             for(const auto& bucket : hashTables_[part]) {
@@ -297,8 +303,8 @@ public:
 
     //---------------------------------------------------------------
     void print_feature_counts(std::ostream& os) const {
-        for(part_id part = 0; part < numParts_; ++part) {
-            if(numParts_ > 1)
+        for(part_id part = 0; part < num_parts(); ++part) {
+            if(num_parts() > 1)
                 os << "database part " << part << ":\n";
 
             for(const auto& bucket : hashTables_[part]) {
@@ -336,8 +342,7 @@ public:
     }
 
 
-    // ----------------------------------------------------------------------------
-    /**
+    /**************************************************************************
      * @details note that features are not really removed, because the hashmap
      *          does not support erasing keys; instead all values belonging to
      *          the key are cleared and the key is kept without values
@@ -360,7 +365,7 @@ public:
     }
 
 
-    // ----------------------------------------------------------------------------
+    //-------------------------------------------------------------------------
     feature_count_type
     remove_ambiguous_features(taxon_rank r, bucket_size_type maxambig,
                               const ranked_lineages_of_targets& targetLineages)
@@ -516,20 +521,30 @@ public:
         using std::end;
         accumulate_matches(part, querySketcher, begin(query), end(query), res);
     }
+
     //---------------------------------------------------------------
-    void
-    query_host(const sketcher& querySketcher,
-               const sequence& query1, const sequence& query2,
-               matches_sorter& res) const
+    classification_candidates
+    query_host(const sequence& query1, const sequence& query2,
+               const sketcher& querySketcher,
+               const ranked_lineages_of_targets& lineages,
+               const candidate_generation_rules& rules,
+               matches_sorter& sorter) const
     {
-        part_id part = 0;
+        sorter.clear();
+        classification_candidates candidates;
 
-        res.clear();
+        for(part_id part = 0; part < num_parts(); ++part) {
+            sorter.next();
 
-        accumulate_matches(part, querySketcher, query1, res);
-        accumulate_matches(part, querySketcher, query2, res);
+            accumulate_matches(part, querySketcher, query1, sorter);
+            accumulate_matches(part, querySketcher, query2, sorter);
 
-        res.sort();
+            sorter.sort();
+        }
+
+        candidates.process(lineages, sorter.locations(), rules);
+
+        return candidates;
     }
 
 
@@ -547,7 +562,6 @@ public:
 
 
 private:
-    part_id numParts_;
     float maxLoadFactor_;
     std::uint64_t maxLocationsPerFeature_;
     std::atomic_bool valid_;

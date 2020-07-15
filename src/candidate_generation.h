@@ -27,8 +27,8 @@
 #include <cstdint>
 #include <limits>
 
-#include "database.h"
 #include "candidate_structs.h"
+#include "options.h"
 
 
 namespace mc {
@@ -153,50 +153,37 @@ public:
         top_.assign(cand.begin(), cand.end());
     }
 
+
     /****************************************************************
      * @pre matches must be sorted by taxon (first) and window (second)
      */
     template<class Locations>
-    best_distinct_matches_in_contiguous_window_ranges(
-        const database& db,
+    void process(
+        const ranked_lineages_of_targets& lineages,
         const Locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
-    :
-        top_{}
     {
         for_all_contiguous_window_ranges(matches, rules.maxWindowsInRange,
             [&,this] (match_candidate& cand) {
-                return insert(cand, db, rules);
+                return insert(cand, lineages, rules);
             });
     }
 
-
-    //---------------------------------------------------------------
-    auto begin() const noexcept { return top_.begin(); }
-    auto end()   const noexcept { return top_.end(); }
-
-    bool empty()     const noexcept { return top_.empty(); }
-    size_type size() const noexcept { return top_.size(); }
-
-    const match_candidate&
-    operator [] (size_type i) const noexcept { return top_[i]; }
-
-    iterator erase(const_iterator pos) { return top_.erase(pos); }
 
     /****************************************************************
      * @brief insert candidate and keep list sorted
      */
     bool insert(match_candidate cand,
-                const database& db,
+                const ranked_lineages_of_targets& lineages,
                 const candidate_generation_rules& rules = candidate_generation_rules{})
     {
         // early exit
         if(top_.size() == rules.maxCandidates && top_.back().hits >= cand.hits) return true;
 
         if(rules.mergeBelow > taxon_rank::Sequence)
-            cand.tax = db.lowest_ranked_ancestor(cand.tgt, rules.mergeBelow);
+            cand.tax = lineages.lowest_ranked_ancestor(cand.tgt, rules.mergeBelow);
         else
-            cand.tax = db.taxon_of_target(cand.tgt);
+            cand.tax = lineages.taxon_of_target(cand.tgt);
 
         if(!cand.tax) return true;
 
@@ -245,6 +232,19 @@ public:
     };
 
 
+    //---------------------------------------------------------------
+    auto begin() const noexcept { return top_.begin(); }
+    auto end()   const noexcept { return top_.end(); }
+
+    bool empty()     const noexcept { return top_.empty(); }
+    size_type size() const noexcept { return top_.size(); }
+
+    const match_candidate&
+    operator [] (size_type i) const noexcept { return top_[i]; }
+
+    iterator erase(const_iterator pos) { return top_.erase(pos); }
+
+
 private:
     candidates_list top_;
 };
@@ -273,16 +273,15 @@ public:
     /****************************************************************
      * @pre matches must be sorted by taxon (first) and window (second)
      */
-    distinct_matches_in_contiguous_window_ranges(
-        const database& db,
-        const match_locations& matches,
+    template<class Locations>
+    void process(
+        const ranked_lineages_of_targets& lineages,
+        const Locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
-    :
-        cand_{}
     {
         for_all_contiguous_window_ranges(matches, rules.maxWindowsInRange,
             [&,this] (match_candidate& cand) {
-                return insert(cand, db, rules);
+                return insert(cand, lineages, rules);
             });
     }
 
@@ -291,10 +290,10 @@ public:
      * @brief insert candidate and keep list sorted
      */
     bool insert(match_candidate cand,
-                const database& db,
+                const ranked_lineages_of_targets& lineages,
                 const candidate_generation_rules& = candidate_generation_rules{})
     {
-        cand.tax = db.taxon_of_target(cand.tgt);
+        cand.tax = lineages.taxon_of_target(cand.tgt);
         cand_.push_back(cand);
         return true;
     }
@@ -311,9 +310,11 @@ public:
     const match_candidate&
     operator [] (size_type i) const noexcept { return cand_[i]; }
 
+
 private:
     candidates_list cand_;
 };
+
 
 
 } // namespace mc

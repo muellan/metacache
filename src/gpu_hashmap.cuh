@@ -97,6 +97,10 @@ public:
     unsigned num_parts() const noexcept {
         return numGPUs_;
     }
+    //---------------------------------------------------------------
+    unsigned num_gpus() const noexcept {
+        return numGPUs_;
+    }
 
     //---------------------------------------------------------------
     bool valid() const noexcept { return valid_; };

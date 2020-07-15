@@ -204,7 +204,7 @@ void read_results(const results_source& res,
 
                 const taxon* tax = db.taxon_with_id(taxid);
                 if(tax) {
-                    queryCandidates[queryId].insert(match_candidate{tax, hits}, db, rules);
+                    queryCandidates[queryId].insert(match_candidate{tax, hits}, db.target_lineages(), rules);
                 } else {
                     cerr << "Query " << queryId+1 << ": taxid not found. Skipping hit.\n";
                 }

@@ -46,6 +46,7 @@
 #include "io_options.h"
 #include "taxonomy.h"
 #include "typename.h"
+#include "candidate_generation.h"
 
 #ifndef GPU_MODE
     #include "host_hashmap.h"
@@ -452,6 +453,12 @@ public:
     }
 
     //---------------------------------------------------------------
+    const ranked_lineages_of_targets&
+    target_lineages() const {
+        return targetLineages_;
+    }
+
+    //---------------------------------------------------------------
     void mark_cached_lineages_outdated() {
         ranksCache_.mark_outdated();
         targetLineages_.mark_outdated();
@@ -602,11 +609,12 @@ public:
 
     //---------------------------------------------------------------
 #ifndef GPU_MODE
-    void
+    classification_candidates
     query_host(const sequence& query1, const sequence& query2,
-               matches_sorter& res) const
+               const candidate_generation_rules& rules,
+               matches_sorter& sorter) const
     {
-        featureStore_.query_host(querySketcher_, query1, query2, res);
+        return featureStore_.query_host(query1, query2, querySketcher_, targetLineages_, rules, sorter);
     }
 #else
     void

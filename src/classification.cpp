@@ -159,33 +159,6 @@ struct classification
 
 /*************************************************************************//**
  *
- * @brief generate classification candidates
- *
- *****************************************************************************/
-template<class Locations>
-classification_candidates
-make_classification_candidates(const database& db,
-                               const classification_options& opt,
-                               const sequence_query& query,
-                               const Locations& allhits)
-{
-    candidate_generation_rules rules;
-
-    rules.maxWindowsInRange = window_id( 2 + (
-        std::max(query.seq1.size() + query.seq2.size(), opt.insertSizeMax) /
-        db.target_sketcher().window_stride() ));
-
-    rules.mergeBelow    = opt.lowestRank;
-    rules.maxCandidates = opt.maxNumCandidatesPerQuery;
-
-    return classification_candidates{db, allhits, rules};
-
-}
-
-
-
-/*************************************************************************//**
- *
  * @brief  classify using top matches/candidates
  *
  *****************************************************************************/
@@ -226,17 +199,15 @@ classify(const database& db, const classification_options& opt,
 
 /*************************************************************************//**
  *
- * @brief classify using all database matches
+ * @brief classify using top candidates
  *
  *****************************************************************************/
-template<class Locations>
 classification
 make_classification(const database& db,
                     const classification_options& opt,
-                    const sequence_query& query,
-                    const Locations& allhits)
+                    const classification_candidates& candidates)
 {
-    classification cls { make_classification_candidates(db, opt, query, allhits) };
+    classification cls { candidates };
 
     cls.best = classify(db, opt, cls.candidates);
 
@@ -767,8 +738,7 @@ void map_queries_to_targets_default(
     {
         if(query.empty()) return;
 
-        auto cls = (!tophits.empty()) ? make_classification(db, opt.classify, tophits) :
-                                        make_classification(db, opt.classify, query, allhits);
+        auto cls = make_classification(db, opt.classify, tophits);
 
         if(opt.output.analysis.showHitsPerTargetList || opt.classify.covPercentile > 0) {
             //insert all candidates with at least 'hitsMin' hits into

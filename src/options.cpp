@@ -355,7 +355,15 @@ database_storage_options_cli(database_storage_options& opt, error_messages& err)
     const database defaultDb;
 
     return (
-#ifdef GPU_MODE
+#ifndef GPU_MODE
+    (   option("-parts") &
+        integer("#", opt.numParts)
+            .if_missing([&]{ err += "Number missing after '-parts'!"; })
+    )
+        %("Sets the number of database parts to use."
+          "default: 1"s)
+    ,
+#else
     (   option("-gpus") &
         integer("#", opt.numParts)
             .if_missing([&]{ err += "Number missing after '-gpus'!"; })

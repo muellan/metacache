@@ -211,13 +211,12 @@ void database::read_single(const std::string& filename, part_id partId, scope wh
 //-------------------------------------------------------------------
 void database::read(const std::string& filename, part_id numParts, scope what)
 {
-#ifndef GPU_MODE
-    part_id partId = 0;
-    read_single(filename, partId, what);
-#else
-    if(numParts > num_parts()) {
-        numParts = num_parts();
+#ifdef GPU_MODE
+    if(numParts > featureStore_.num_gpus()) {
+        numParts = featureStore_.num_gpus();
     }
+    featureStore_.enable_all_peer_access(numParts);
+#endif
 
     if(numParts == 1) {
         part_id partId = 0;
@@ -232,10 +231,8 @@ void database::read(const std::string& filename, part_id numParts, scope what)
                 read_single(filename+std::to_string(partId), partId, scope::hashtable_only);
             }
         }
-
-        featureStore_.enable_all_peer_access(numParts);
     }
-#endif
+
 }
 
 
@@ -286,10 +283,6 @@ void database::write_single(const std::string& filename, part_id partId) const
 //-------------------------------------------------------------------
 void database::write(const std::string& filename) const
 {
-#ifndef GPU_MODE
-    part_id partId = 0;
-    write_single(filename, partId);
-#else
     if(featureStore_.num_parts() == 1) {
         part_id partId = 0;
         write_single(filename, partId);
@@ -298,7 +291,6 @@ void database::write(const std::string& filename) const
         for(part_id partId = 0; partId < featureStore_.num_parts(); ++partId)
             write_single(filename+std::to_string(partId), partId);
     }
-#endif
 }
 
 

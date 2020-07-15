@@ -30,6 +30,7 @@
 #include <iterator>  // make_move_iterator
 
 #include "candidate_generation.h"
+#include "database.h"
 
 
 namespace mc {
