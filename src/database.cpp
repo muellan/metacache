@@ -27,7 +27,7 @@ namespace mc {
 
 
 // ----------------------------------------------------------------------------
-bool database::add_target(gpu_id dbPart,
+bool database::add_target(part_id dbPart,
                           const sequence& seq, taxon_name sid,
                           taxon_id parentTaxid,
                           file_source source)
@@ -89,7 +89,7 @@ bool database::add_target(gpu_id dbPart,
 
 
 // ----------------------------------------------------------------------------
-void database::read_single(const std::string& filename, gpu_id partId, scope what)
+void database::read_single(const std::string& filename, part_id partId, scope what)
 {
     std::cerr << "Reading database from file '" << filename << "' ... ";
 
@@ -215,10 +215,10 @@ void database::read_single(const std::string& filename, gpu_id partId, scope wha
 
 
 //-------------------------------------------------------------------
-void database::read(const std::string& filename, gpu_id numParts, scope what)
+void database::read(const std::string& filename, part_id numParts, scope what)
 {
 #ifndef GPU_MODE
-    gpu_id partId = 0;
+    part_id partId = 0;
     read_single(filename, partId, what);
 #else
     if(numParts > num_parts()) {
@@ -226,15 +226,15 @@ void database::read(const std::string& filename, gpu_id numParts, scope what)
     }
 
     if(numParts == 1) {
-        gpu_id partId = 0;
+        part_id partId = 0;
         read_single(filename, partId, what);
     }
     else {
-        gpu_id partId = 0;
+        part_id partId = 0;
         read_single(filename+std::to_string(partId), partId, what);
 
         if(what != scope::metadata_only) {
-            for(gpu_id partId = 1; partId < numParts; ++partId) {
+            for(part_id partId = 1; partId < numParts; ++partId) {
                 read_single(filename+std::to_string(partId), partId, scope::hashtable_only);
             }
         }
@@ -247,7 +247,7 @@ void database::read(const std::string& filename, gpu_id numParts, scope what)
 
 
 //-------------------------------------------------------------------
-void database::write_single(const std::string& filename, gpu_id partId) const
+void database::write_single(const std::string& filename, part_id partId) const
 {
     std::cerr << "Writing database part to file '" << filename << "' ... ";
 
@@ -293,15 +293,15 @@ void database::write_single(const std::string& filename, gpu_id partId) const
 void database::write(const std::string& filename) const
 {
 #ifndef GPU_MODE
-    gpu_id partId = 0;
+    part_id partId = 0;
     write_single(filename, partId);
 #else
     if(featureStore_.num_parts() == 1) {
-        gpu_id partId = 0;
+        part_id partId = 0;
         write_single(filename, partId);
     }
     else {
-        for(gpu_id partId = 0; partId < featureStore_.num_parts(); ++partId)
+        for(part_id partId = 0; partId < featureStore_.num_parts(); ++partId)
             write_single(filename+std::to_string(partId), partId);
     }
 #endif

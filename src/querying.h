@@ -105,7 +105,7 @@ struct sequence_query
         const std::vector<sequence_query>& sequenceBatch,
         bool copyAllHits,
         query_batch<location>& queryBatch,
-        gpu_id hostId,
+        part_id hostId,
         Buffer& batchBuffer, BufferUpdate& update,
         std::mutex& scheduleMtx)
     {

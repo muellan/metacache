@@ -265,7 +265,7 @@ public:
                        size_type maxResultsPerWindow,
                        size_type maxCandidatesPerQuery,
                        bool multiGPU,
-                       gpu_id gpuId);
+                       part_id gpuId);
         query_gpu_data(const query_gpu_data&) = delete;
         query_gpu_data(query_gpu_data&&);
         ~query_gpu_data();
@@ -310,8 +310,8 @@ public:
                 size_type maxResultsPerWindow,
                 size_type maxCandidatesPerQuery,
                 bool copyAllHits,
-                gpu_id numHostThreads,
-                gpu_id numGPUs);
+                part_id numHostThreads,
+                part_id numGPUs);
     //-----------------------------------------------------
     query_batch(const query_batch&) = delete;
     //---------------------------------------------------------------
@@ -319,26 +319,26 @@ public:
     ~query_batch();
 
     //---------------------------------------------------------------
-    gpu_id num_gpus() const noexcept {
+    part_id num_gpus() const noexcept {
         return numGPUs_;
     }
     //---------------------------------------------------------------
-    query_host_data& host_data(gpu_id hostId) noexcept {
+    query_host_data& host_data(part_id hostId) noexcept {
         return hostData_[hostId];
     }
     //---------------------------------------------------------------
-    const query_gpu_data& gpu_data(gpu_id gpuId) const noexcept {
+    const query_gpu_data& gpu_data(part_id gpuId) const noexcept {
         return gpuData_[gpuId];
     }
 
     //---------------------------------------------------------------
-    void sync_work_stream(gpu_id gpu_id);
-    void sync_copy_stream(gpu_id gpu_id);
+    void sync_work_stream(part_id part_id);
+    void sync_copy_stream(part_id part_id);
 
     //---------------------------------------------------------------
     /** @brief add read to host batch */
     template<class... Args>
-    bool add_paired_read(gpu_id hostId, Args&&... args)
+    bool add_paired_read(part_id hostId, Args&&... args)
     {
         return hostData_[hostId].add_paired_read(
             std::forward<Args>(args)...,
@@ -349,22 +349,22 @@ public:
 
     //---------------------------------------------------------------
     /** @brief asynchronously copy queries to device */
-    void copy_queries_to_device_async(gpu_id hostId);
-    void copy_queries_to_next_device_async(gpu_id hostId, gpu_id gpuId);
+    void copy_queries_to_device_async(part_id hostId);
+    void copy_queries_to_next_device_async(part_id hostId, part_id gpuId);
     //-----------------------------------------------------
     /** @brief synchronize event after copy to device 0 */
     void wait_for_queries_copied();
     //---------------------------------------------------------------
     /** @brief record event after sketch creation on device 0 */
-    void mark_query_finished(gpu_id gpuId);
+    void mark_query_finished(part_id gpuId);
     //---------------------------------------------------------------
     /** @brief make work stream wait for allhits copy (before starting new query) */
-    void wait_for_allhits_copied(gpu_id gpuId);
+    void wait_for_allhits_copied(part_id gpuId);
 
 private:
     //---------------------------------------------------------------
     /** @brief asynchronously compact results in work stream */
-    void compact_results_async(gpu_id hostId, gpu_id gpuId);
+    void compact_results_async(part_id hostId, part_id gpuId);
 public:
     //---------------------------------------------------------------
     /**
@@ -372,8 +372,8 @@ public:
      *        and copy allhits to host in copy stream if needed
      */
     void compact_sort_and_copy_allhits_async(
-        gpu_id hostId,
-        gpu_id gpuId,
+        part_id hostId,
+        part_id gpuId,
         bool copyAllHits);
 
     /**
@@ -381,8 +381,8 @@ public:
      *        and copy top candidates in copy stream
      */
     void generate_and_copy_top_candidates_async(
-        gpu_id hostId,
-        gpu_id gpuId,
+        part_id hostId,
+        part_id gpuId,
         const ranked_lineage * lineages,
         taxon_rank lowestRank);
 
@@ -406,7 +406,7 @@ private:
     cudaEvent_t queryIdsCopiedEvent_;
     cudaEvent_t maxWinCopiedEvent_;
 
-    gpu_id numGPUs_;
+    part_id numGPUs_;
 };
 
 

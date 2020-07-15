@@ -147,7 +147,7 @@ public:
 
 
     //---------------------------------------------------------------
-    gpu_id initialize_build_hash_tables(gpu_id numParts) {
+    part_id initialize_build_hash_tables(part_id numParts) {
         numParts_ = numParts;
         hashTables_.resize(numParts_);
         inserters_.resize(numParts_);
@@ -243,7 +243,7 @@ public:
     location_list_size_statistics() const {
         auto totalAccumulator = statistics_accumulator{};
 
-        for(gpu_id part = 0; part < numParts_; ++part) {
+        for(part_id part = 0; part < numParts_; ++part) {
             auto accumulator = statistics_accumulator{};
 
             for(const auto& bucket : hashTables_[part]) {
@@ -277,7 +277,7 @@ public:
 
     //---------------------------------------------------------------
     void print_feature_map(std::ostream& os) const {
-        for(gpu_id part = 0; part < numParts_; ++part) {
+        for(part_id part = 0; part < numParts_; ++part) {
             if(numParts_ > 1)
                 os << "database part " << part << ":\n";
 
@@ -297,7 +297,7 @@ public:
 
     //---------------------------------------------------------------
     void print_feature_counts(std::ostream& os) const {
-        for(gpu_id part = 0; part < numParts_; ++part) {
+        for(part_id part = 0; part < numParts_; ++part) {
             if(numParts_ > 1)
                 os << "database part " << part << ":\n";
 
@@ -407,13 +407,13 @@ public:
 
 
     //---------------------------------------------------------------
-    void wait_until_add_target_complete(gpu_id part, const sketcher&) {
+    void wait_until_add_target_complete(part_id part, const sketcher&) {
         destroy_inserter(part);
     }
 
 private:
     //---------------------------------------------------------------
-    void destroy_inserter(gpu_id part) {
+    void destroy_inserter(part_id part) {
         // destroy inserter
         inserters_[part] = nullptr;
     }
@@ -429,7 +429,7 @@ public:
     /**
      * @brief adds sketches to database for all windows in sequence
      */
-    window_id add_target(gpu_id part,
+    window_id add_target(part_id part,
                          const sequence& seq, target_id tgt,
                          const sketcher& targetSketcher)
     {
@@ -456,7 +456,7 @@ public:
 
 
     //---------------------------------------------------------------
-    void add_sketch_batch(gpu_id part, const sketch_batch& batch) {
+    void add_sketch_batch(part_id part, const sketch_batch& batch) {
         for(const auto& windowSketch : batch) {
             //insert features from sketch into database
             for(const auto& f : windowSketch.sk) {
@@ -471,7 +471,7 @@ public:
 
 
     //---------------------------------------------------------------
-    void make_sketch_inserter(gpu_id part) {
+    void make_sketch_inserter(part_id part) {
         batch_processing_options<window_sketch> execOpt;
         execOpt.batch_size(1000);
         execOpt.queue_size(100);
@@ -489,7 +489,7 @@ public:
     //---------------------------------------------------------------
     template<class InputIterator>
     void
-    accumulate_matches(gpu_id part,
+    accumulate_matches(part_id part,
                        const sketcher& querySketcher,
                        InputIterator queryBegin, InputIterator queryEnd,
                        matches_sorter& res) const
@@ -507,7 +507,7 @@ public:
     }
     //---------------------------------------------------------------
     void
-    accumulate_matches(gpu_id part,
+    accumulate_matches(part_id part,
                        const sketcher& querySketcher,
                        const sequence& query,
                        matches_sorter& res) const
@@ -522,7 +522,7 @@ public:
                const sequence& query1, const sequence& query2,
                matches_sorter& res) const
     {
-        gpu_id part = 0;
+        part_id part = 0;
 
         res.clear();
 
@@ -535,19 +535,19 @@ public:
 
 
     //---------------------------------------------------------------
-    friend void read_binary(std::istream& is, host_hashmap& m, gpu_id part) {
+    friend void read_binary(std::istream& is, host_hashmap& m, part_id part) {
         m.hashTables_.emplace_back();
         read_binary(is, m.hashTables_[part]);
     }
 
     //---------------------------------------------------------------
-    friend void write_binary(std::ostream& os, const host_hashmap& m, gpu_id part) {
+    friend void write_binary(std::ostream& os, const host_hashmap& m, part_id part) {
         write_binary(os, m.hashTables_[part]);
     }
 
 
 private:
-    gpu_id numParts_;
+    part_id numParts_;
     float maxLoadFactor_;
     std::uint64_t maxLocationsPerFeature_;
     std::atomic_bool valid_;

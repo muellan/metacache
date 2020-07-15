@@ -103,7 +103,7 @@ public:
 
     //---------------------------------------------------------------
     void pop_status();
-    void pop_status(gpu_id gpuId);
+    void pop_status(part_id gpuId);
 
     //---------------------------------------------------------------
     size_type bucket_count() const noexcept;
@@ -197,19 +197,19 @@ public:
     /****************************************************************
      * @brief allocate gpu hash table for database building
      */
-    gpu_id initialize_build_hash_tables(gpu_id numGPUs);
+    part_id initialize_build_hash_tables(part_id numGPUs);
 
     /****************************************************************
      * @brief split sequence into batches and insert into build hash table
      */
     window_id add_target(
-        gpu_id gpuId,
+        part_id gpuId,
         const sequence& seq,
         target_id tgt,
         const sketcher& targetSketcher);
     //-----------------------------------------------------
     window_id add_target(
-        gpu_id gpuId,
+        part_id gpuId,
         sequence::const_iterator first,
         sequence::const_iterator last,
         target_id tgt,
@@ -217,16 +217,16 @@ public:
 
     //---------------------------------------------------------------
     void insert(
-        gpu_id gpuId, sequence_batch<policy::Host>& seqBatchHost,
+        part_id gpuId, sequence_batch<policy::Host>& seqBatchHost,
         const sketcher& targetSketcher);
 
     //-----------------------------------------------------
-    void wait_until_add_target_complete(gpu_id gpuId, const sketcher& targetSketcher);
+    void wait_until_add_target_complete(part_id gpuId, const sketcher& targetSketcher);
 
     //---------------------------------------------------------------
     void query_async(
         query_batch<value_type>& batch,
-        gpu_id hostId,
+        part_id hostId,
         const sketcher& querySketcher,
         bool copyAllHits,
         taxon_rank lowestRank) const;
@@ -235,38 +235,38 @@ public:
     /****************************************************************
      * @brief deserialize hashmap from input stream
      */
-     friend void read_binary(std::istream& is, gpu_hashmap& m, gpu_id gpuId) {
+     friend void read_binary(std::istream& is, gpu_hashmap& m, part_id gpuId) {
         m.deserialize(is, gpuId);
     }
 
     /****************************************************************
      * @brief serialize hashmap to output stream
      */
-    friend void write_binary(std::ostream& os, gpu_hashmap& m, gpu_id gpuId) {
+    friend void write_binary(std::ostream& os, gpu_hashmap& m, part_id gpuId) {
         m.serialize(os, gpuId);
     }
 
     //---------------------------------------------------------------
-    void copy_target_lineages_to_gpu(const std::vector<ranked_lineage>& lins, gpu_id gpuId);
+    void copy_target_lineages_to_gpu(const std::vector<ranked_lineage>& lins, part_id gpuId);
 
     //---------------------------------------------------------------
-    void enable_all_peer_access(gpu_id numGPUs);
+    void enable_all_peer_access(part_id numGPUs);
 
 
 private:
     //---------------------------------------------------------------
-    void deserialize(std::istream& is, gpu_id gpuId);
+    void deserialize(std::istream& is, part_id gpuId);
 
     //---------------------------------------------------------------
     /**
      * @brief binary serialization of all non-emtpy buckets
      */
-    void serialize(std::ostream& os, gpu_id gpuId);
+    void serialize(std::ostream& os, part_id gpuId);
 
 
 private:
     //---------------------------------------------------------------
-    gpu_id numGPUs_;
+    part_id numGPUs_;
     float maxLoadFactor_;
     std::uint64_t maxLocationsPerFeature_;
     std::atomic_bool valid_;

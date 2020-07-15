@@ -804,7 +804,7 @@ gpu_hashmap<Key,ValueT>::gpu_hashmap(gpu_hashmap&& other) :
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::pop_status(gpu_id gpuId) {
+void gpu_hashmap<Key,ValueT>::pop_status(part_id gpuId) {
     if(gpuId < buildHashTables_.size()) {
         cudaSetDevice(gpuId); CUERR
         std::cerr
@@ -821,13 +821,13 @@ void gpu_hashmap<Key,ValueT>::pop_status(gpu_id gpuId) {
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::pop_status() {
-    for(gpu_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
+    for(part_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         std::cerr
             << "gpu " << gpuId
             <<  " hashtable status: " << buildHashTables_[gpuId].pop_status() << "\n";
     }
-    for(gpu_id gpuId = 0; gpuId < queryHashTables_.size(); ++gpuId) {
+    for(part_id gpuId = 0; gpuId < queryHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         std::cerr
             << "gpu " << gpuId
@@ -839,11 +839,11 @@ void gpu_hashmap<Key,ValueT>::pop_status() {
 template<class Key, class ValueT>
 size_t gpu_hashmap<Key,ValueT>::bucket_count() const noexcept {
     size_t count = 0;
-    for(gpu_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
+    for(part_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         count += buildHashTables_[gpuId].bucket_count();
     }
-    for(gpu_id gpuId = 0; gpuId < queryHashTables_.size(); ++gpuId) {
+    for(part_id gpuId = 0; gpuId < queryHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         count += queryHashTables_[gpuId].bucket_count();
     }
@@ -854,11 +854,11 @@ size_t gpu_hashmap<Key,ValueT>::bucket_count() const noexcept {
 template<class Key, class ValueT>
 size_t gpu_hashmap<Key,ValueT>::key_count() noexcept {
     size_t count = 0;
-    for(gpu_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
+    for(part_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         count += buildHashTables_[gpuId].key_count();
     }
-    for(gpu_id gpuId = 0; gpuId < queryHashTables_.size(); ++gpuId) {
+    for(part_id gpuId = 0; gpuId < queryHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         count += queryHashTables_[gpuId].key_count();
     }
@@ -869,11 +869,11 @@ size_t gpu_hashmap<Key,ValueT>::key_count() noexcept {
 template<class Key, class ValueT>
 size_t gpu_hashmap<Key,ValueT>::value_count() noexcept {
     size_t count = 0;
-    for(gpu_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
+    for(part_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         count += buildHashTables_[gpuId].location_count();
     }
-    for(gpu_id gpuId = 0; gpuId < queryHashTables_.size(); ++gpuId) {
+    for(part_id gpuId = 0; gpuId < queryHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         count += queryHashTables_[gpuId].location_count();
     }
@@ -886,7 +886,7 @@ statistics_accumulator_gpu<policy::Host>
 gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
     statistics_accumulator_gpu<policy::Host> totalAccumulator = {};
 
-    for(gpu_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
+    for(part_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         auto accumulator = buildHashTables_[gpuId].location_list_size_statistics();
 
@@ -914,7 +914,7 @@ gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-gpu_id gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(gpu_id numGPUs)
+part_id gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numGPUs)
 {
     if(numGPUs < numGPUs_)
         numGPUs_ = numGPUs;
@@ -923,7 +923,7 @@ gpu_id gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(gpu_id numGPUs)
 
     insertBuffers_.reserve(numGPUs_);
 
-    for(gpu_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
+    for(part_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
         cudaSetDevice(gpuId); CUERR
 
         size_t freeMemory = 0;
@@ -958,7 +958,7 @@ gpu_id gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(gpu_id numGPUs)
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 window_id gpu_hashmap<Key,ValueT>::add_target(
-    gpu_id gpuId, const sequence& seq, target_id tgt, const sketcher& targetSketcher)
+    part_id gpuId, const sequence& seq, target_id tgt, const sketcher& targetSketcher)
 {
     using std::begin;
     using std::end;
@@ -968,7 +968,7 @@ window_id gpu_hashmap<Key,ValueT>::add_target(
 //-----------------------------------------------------
 template<class Key, class ValueT>
 window_id gpu_hashmap<Key,ValueT>::add_target(
-    gpu_id gpuId,
+    part_id gpuId,
     sequence::const_iterator first,
     sequence::const_iterator last,
     target_id tgt,
@@ -1006,7 +1006,7 @@ window_id gpu_hashmap<Key,ValueT>::add_target(
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::insert(
-    gpu_id gpuId,
+    part_id gpuId,
     sequence_batch<policy::Host>& seqBatchHost,
     const sketcher& targetSketcher)
 {
@@ -1023,7 +1023,7 @@ void gpu_hashmap<Key,ValueT>::insert(
 //-----------------------------------------------------
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::wait_until_add_target_complete(
-    gpu_id gpuId, const sketcher& targetSketcher)
+    part_id gpuId, const sketcher& targetSketcher)
 {
     if(gpuId < numGPUs_) {
         cudaSetDevice(gpuId); CUERR
@@ -1041,12 +1041,12 @@ void gpu_hashmap<Key,ValueT>::wait_until_add_target_complete(
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::query_async(
     query_batch<value_type>& batch,
-    gpu_id hostId,
+    part_id hostId,
     const sketcher& querySketcher,
     bool copyAllHits,
     taxon_rank lowestRank) const
 {
-    for(gpu_id gpuId = 0; gpuId < batch.num_gpus(); ++gpuId)
+    for(part_id gpuId = 0; gpuId < batch.num_gpus(); ++gpuId)
     {
         cudaSetDevice(gpuId); CUERR
 
@@ -1087,7 +1087,7 @@ void gpu_hashmap<Key,ValueT>::query_async(
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::deserialize(std::istream& is, gpu_id gpuId)
+void gpu_hashmap<Key,ValueT>::deserialize(std::istream& is, part_id gpuId)
 {
     using len_t = std::uint64_t;
 
@@ -1133,7 +1133,7 @@ void gpu_hashmap<Key,ValueT>::deserialize(std::istream& is, gpu_id gpuId)
 * @brief binary serialization of all non-empty buckets
 */
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::serialize(std::ostream& os, gpu_id gpuId)
+void gpu_hashmap<Key,ValueT>::serialize(std::ostream& os, part_id gpuId)
 {
     cudaSetDevice(gpuId); CUERR
     buildHashTables_[gpuId].serialize(os);
@@ -1144,7 +1144,7 @@ void gpu_hashmap<Key,ValueT>::serialize(std::ostream& os, gpu_id gpuId)
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::copy_target_lineages_to_gpu(
     const std::vector<ranked_lineage>& lins,
-    gpu_id gpuId)
+    part_id gpuId)
 {
     cudaSetDevice(gpuId); CUERR
     queryHashTables_[gpuId].copy_target_lineages_to_gpu(lins);
@@ -1153,11 +1153,11 @@ void gpu_hashmap<Key,ValueT>::copy_target_lineages_to_gpu(
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::enable_all_peer_access(gpu_id numGPUs)
+void gpu_hashmap<Key,ValueT>::enable_all_peer_access(part_id numGPUs)
 {
-    for (gpu_id srcId = 0; srcId < numGPUs; ++srcId) {
+    for (part_id srcId = 0; srcId < numGPUs; ++srcId) {
         cudaSetDevice(srcId);
-        for (gpu_id dstId = 0; dstId < numGPUs; ++dstId) {
+        for (part_id dstId = 0; dstId < numGPUs; ++dstId) {
             if (srcId != dstId) {
                  cudaDeviceEnablePeerAccess(dstId, 0);
             }

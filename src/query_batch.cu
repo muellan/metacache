@@ -136,7 +136,7 @@ query_batch<Location>::query_gpu_data::query_gpu_data(
     size_type maxResultsPerWindow,
     size_type maxCandidatesPerQuery,
     bool multiGPU,
-    gpu_id gpuId
+    part_id gpuId
 )
 {
     size_t allocatedGpuMem = 0;
@@ -291,8 +291,8 @@ query_batch<Location>::query_batch(
     size_type maxResultsPerWindow,
     size_type maxCandidatesPerQuery,
     bool copyAllHits,
-    gpu_id numHostThreads,
-    gpu_id numGPUs
+    part_id numHostThreads,
+    part_id numGPUs
 ) :
     maxWindows_{maxQueries},
     maxSequenceLength_{maxSequenceLength},
@@ -313,14 +313,14 @@ query_batch<Location>::query_batch(
 
     cudaSetDevice(numGPUs_-1); CUERR
 
-    for(gpu_id hostId = 0; hostId < numHostThreads; ++hostId) {
+    for(part_id hostId = 0; hostId < numHostThreads; ++hostId) {
         hostData_.emplace_back(maxQueries, maxSequenceLength, maxResultsPerWindow, maxCandidatesPerQuery, copyAllHits);
     }
 
     using location_type_equivalent = uint64_t;
     static_assert(sizeof(location_type) == sizeof(location_type_equivalent), "location_type must be 64 bit");
 
-    for(gpu_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
+    for(part_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
         cudaSetDevice(gpuId); CUERR
 
         gpuData_.emplace_back(maxQueries, maxSequenceLength, maxSketchSize, maxResultsPerWindow, maxCandidatesPerQuery, numGPUs > 1, gpuId);
@@ -350,10 +350,10 @@ query_batch<Location>::~query_batch()
 
 //---------------------------------------------------------------
 template<class Location>
-void query_batch<Location>::copy_queries_to_device_async(gpu_id hostId)
+void query_batch<Location>::copy_queries_to_device_async(part_id hostId)
 {
     // copy from host to device 0
-    gpu_id gpuId = 0;
+    part_id gpuId = 0;
 
     cudaSetDevice(gpuId);
 
@@ -403,7 +403,7 @@ void query_batch<Location>::copy_queries_to_device_async(gpu_id hostId)
 
 //---------------------------------------------------------------
 template<class Location>
-void query_batch<Location>::copy_queries_to_next_device_async(gpu_id hostId, gpu_id gpuId)
+void query_batch<Location>::copy_queries_to_next_device_async(part_id hostId, part_id gpuId)
 {
     // copy from device gpuId to device gpuId+1
     cudaSetDevice(gpuId);
@@ -465,7 +465,7 @@ void query_batch<Location>::wait_for_queries_copied()
 
 //---------------------------------------------------------------
 template<class Location>
-void query_batch<Location>::mark_query_finished(gpu_id gpuId)
+void query_batch<Location>::mark_query_finished(part_id gpuId)
 {
     cudaEventRecord(gpuData_[gpuId].queryFinishedEvent_, gpuData_[gpuId].workStream_);
 }
@@ -473,7 +473,7 @@ void query_batch<Location>::mark_query_finished(gpu_id gpuId)
 
 //---------------------------------------------------------------
 template<class Location>
-void query_batch<Location>::compact_results_async(gpu_id hostId, gpu_id gpuId)
+void query_batch<Location>::compact_results_async(part_id hostId, part_id gpuId)
 {
     cudaSetDevice(gpuId);
 
@@ -519,8 +519,8 @@ void query_batch<Location>::compact_results_async(gpu_id hostId, gpu_id gpuId)
 //---------------------------------------------------------------
 template<class Location>
 void query_batch<Location>::compact_sort_and_copy_allhits_async(
-    gpu_id hostId,
-    gpu_id gpuId,
+    part_id hostId,
+    part_id gpuId,
     bool copyAllHits)
 {
     cudaSetDevice(gpuId);
@@ -568,8 +568,8 @@ void query_batch<Location>::compact_sort_and_copy_allhits_async(
 //---------------------------------------------------------------
 template<class Location>
 void query_batch<Location>::generate_and_copy_top_candidates_async(
-    gpu_id hostId,
-    gpu_id gpuId,
+    part_id hostId,
+    part_id gpuId,
     const ranked_lineage * lineages,
     taxon_rank lowestRank)
 {
@@ -643,7 +643,7 @@ void query_batch<Location>::generate_and_copy_top_candidates_async(
 
 //---------------------------------------------------------------
 template<class Location>
-void query_batch<Location>::wait_for_allhits_copied(gpu_id gpuId)
+void query_batch<Location>::wait_for_allhits_copied(part_id gpuId)
 {
     cudaStreamWaitEvent(gpuData_[gpuId].workStream_, gpuData_[gpuId].allhitsCopiedEvent_, 0);
 }
@@ -651,14 +651,14 @@ void query_batch<Location>::wait_for_allhits_copied(gpu_id gpuId)
 
 //---------------------------------------------------------------
 template<class Location>
-void query_batch<Location>::sync_work_stream(gpu_id gpuId)
+void query_batch<Location>::sync_work_stream(part_id gpuId)
 {
     cudaStreamSynchronize(gpuData_[gpuId].workStream_);
 }
 
 //---------------------------------------------------------------
 template<class Location>
-void query_batch<Location>::sync_copy_stream(gpu_id gpuId)
+void query_batch<Location>::sync_copy_stream(part_id gpuId)
 {
     cudaStreamSynchronize(gpuData_[gpuId].copyStream_);
 }

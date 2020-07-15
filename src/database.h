@@ -316,27 +316,27 @@ public:
 
 
     //---------------------------------------------------------------
-    gpu_id num_parts() const noexcept {
+    part_id num_parts() const noexcept {
         return featureStore_.num_parts();
     }
 
 
     //---------------------------------------------------------------
-    void initialize_hash_table(gpu_id numParts) {
+    void initialize_hash_table(part_id numParts) {
         featureStore_.initialize_build_hash_tables(numParts);
     }
 
 
     //---------------------------------------------------------------
     bool add_target(
-        gpu_id dbPart,
+        part_id dbPart,
         const sequence& seq, taxon_name sid,
         taxon_id parentTaxid = 0,
         file_source source = file_source{});
 
 
     //---------------------------------------------------------------
-    void wait_until_add_target_complete(gpu_id gpuId) {
+    void wait_until_add_target_complete(part_id gpuId) {
         featureStore_.wait_until_add_target_complete(gpuId, targetSketcher_);
     }
 
@@ -614,7 +614,7 @@ public:
 #else
     void
     query_gpu_async(query_batch<location>& queryBatch,
-                    gpu_id hostId,
+                    part_id hostId,
                     bool copyAllHits,
                     taxon_rank lowestRank) const
     {
@@ -646,20 +646,20 @@ private:
      *          This should make DB files more robust against changes in the
      *          internal mapping structure.
      ****************************************************************/
-    void read_single(const std::string& filename, gpu_id gpuId, scope what);
+    void read_single(const std::string& filename, part_id gpuId, scope what);
 
 public:
     /****************************************************************
      * @brief   read all database parts from binary files
      ****************************************************************/
-    void read(const std::string& filename, gpu_id numParts, scope what = scope::everything);
+    void read(const std::string& filename, part_id numParts, scope what = scope::everything);
 
 
 private:
     /****************************************************************
      * @brief   write database to binary file
      ****************************************************************/
-    void write_single(const std::string& filename, gpu_id gpuId) const;
+    void write_single(const std::string& filename, part_id gpuId) const;
 
 public:
     /****************************************************************

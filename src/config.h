@@ -134,7 +134,7 @@ using classification_candidates =
 /**************************************************************************
  * @brief gpu stuff
  */
-using gpu_id = unsigned;
+using part_id = unsigned;
 enum class policy {Host, Device};
 
 
