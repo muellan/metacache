@@ -908,9 +908,34 @@ public:
 
     //---------------------------------------------------------------
     const ranked_lineage&
-    operator [] (target_id tgt) const {
+    ranks(target_id tgt) const {
         assert(outdated_ == false);
         return lins_[tgt];
+    }
+
+    //---------------------------------------------------------------
+    const taxon*
+    taxon_of_target(target_id tgt) const {
+        assert(outdated_ == false);
+        return lins_[tgt][0];
+    }
+
+    //---------------------------------------------------------------
+    const taxon*
+    ancestor(target_id tgt, taxon_rank r) const noexcept {
+        return lins_[tgt][int(r)];
+    }
+
+    //---------------------------------------------------------------
+    const taxon*
+    lowest_ranked_ancestor(target_id tgt, taxon_rank lowest) const {
+        assert(outdated_ == false);
+        const auto& lineage = lins_[tgt];
+        for(int rank = int(lowest); rank < int(taxon_rank::none); ++rank) {
+            if(lineage[rank])
+                return lineage[rank];
+        }
+        return nullptr;
     }
 
     //---------------------------------------------------------------

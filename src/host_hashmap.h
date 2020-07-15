@@ -363,7 +363,7 @@ public:
     // ----------------------------------------------------------------------------
     feature_count_type
     remove_ambiguous_features(taxon_rank r, bucket_size_type maxambig,
-                              ranked_lineages_of_targets& targetLineages)
+                              const ranked_lineages_of_targets& targetLineages)
     {
         feature_count_type rem = 0;
 
@@ -390,7 +390,7 @@ public:
                     if(!i->empty()) {
                         std::set<const taxon*> taxa;
                         for(auto loc : *i) {
-                            taxa.insert(targetLineages[loc.tgt][int(r)]);
+                            taxa.insert(targetLineages.ancestor(loc.tgt, r));
                             if(taxa.size() > maxambig) {
                                 hashTable.clear(i);
                                 ++rem;

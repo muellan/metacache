@@ -164,12 +164,6 @@ void database::read_single(const std::string& filename, part_id partId, scope wh
 
         targetCount_ = targetCount;
 
-        //update target id -> target taxon lookup table
-        targets_.reserve(targetCount);
-        for(decltype(targetCount) i = 0 ; i < targetCount; ++i) {
-            targets_.push_back(taxa_[taxon_id_of_target(i)]);
-        }
-
         //sequence id lookup
         for(const auto& t : taxa_) {
             if(t.rank() == taxon_rank::Sequence) {
@@ -310,7 +304,6 @@ void database::write(const std::string& filename) const
 
 // ----------------------------------------------------------------------------
 void database::clear() {
-    targets_.clear();
     ranksCache_.clear();
     targetLineages_.clear();
     name2tax_.clear();
@@ -323,7 +316,6 @@ void database::clear() {
  * @brief very dangerous! clears feature map without memory deallocation
  */
 void database::clear_without_deallocation() {
-    targets_.clear();
     ranksCache_.clear();
     targetLineages_.clear();
     name2tax_.clear();

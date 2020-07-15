@@ -141,7 +141,6 @@ public:
         {}
     };
 
-    const taxon* taxon_of_target(target_id id) const {return targets_[id]; }
 
 public:
     //-----------------------------------------------------
@@ -220,7 +219,6 @@ public:
         querySketcher_{std::move(querySketcher)},
         targetCount_{0},
         featureStore_{},
-        targets_{},
         taxa_{},
         ranksCache_{taxa_, taxon_rank::Sequence},
         targetLineages_{taxa_},
@@ -233,7 +231,6 @@ public:
         querySketcher_{std::move(other.querySketcher_)},
         targetCount_{other.targetCount_.load()},
         featureStore_{std::move(other.featureStore_)},
-        targets_{std::move(other.targets_)},
         taxa_{std::move(other.taxa_)},
         ranksCache_{std::move(other.ranksCache_)},
         targetLineages_{std::move(other.targetLineages_)},
@@ -467,6 +464,11 @@ public:
     }
 
     //-----------------------------------------------------
+    const taxon* taxon_of_target(target_id id) const {
+        return targetLineages_.taxon_of_target(id);
+    }
+
+    //-----------------------------------------------------
     full_lineage
     lineage(const taxon* tax) const noexcept {
         return tax ? lineage(*tax) : full_lineage();
@@ -486,7 +488,7 @@ public:
     }
     const ranked_lineage&
     ranks(target_id tgt) const noexcept {
-        return targetLineages_[tgt];
+        return targetLineages_.ranks(tgt);
     }
 
     //-----------------------------------------------------
@@ -509,7 +511,7 @@ public:
     }
     const taxon*
     ancestor(target_id tgt, taxon_rank r) const noexcept {
-        return targetLineages_[tgt][int(r)];
+        return targetLineages_.ancestor(tgt, r);
     }
 
     //-----------------------------------------------------
@@ -527,12 +529,7 @@ public:
     }
     const taxon*
     lowest_ranked_ancestor(target_id tgt, taxon_rank lowest) const noexcept {
-        const auto& lineage = targetLineages_[tgt];
-        for(int rank = int(lowest); rank < int(taxon_rank::none); ++rank) {
-            if(lineage[rank])
-                return lineage[rank];
-        }
-        return nullptr;
+        return targetLineages_.lowest_ranked_ancestor(tgt, lowest);
     }
 
     //---------------------------------------------------------------
@@ -710,7 +707,6 @@ private:
     sketcher querySketcher_;
     std::atomic<std::uint64_t> targetCount_;
     mutable feature_store featureStore_;
-    std::vector<const taxon*> targets_;
     taxonomy taxa_;
     mutable ranked_lineages_cache ranksCache_;
     mutable ranked_lineages_of_targets targetLineages_;
