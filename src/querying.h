@@ -90,7 +90,7 @@ struct sequence_query
         database::matches_sorter& targetMatches,
         Buffer& resultsBuffer, BufferUpdate& update)
     {
-        for(auto& query : batch) {
+        for(const auto& query : batch) {
             auto rules = make_candidate_generation_rules(db.target_sketcher(), opt, query);
 
             auto tophits = db.query_host(query.seq1, query.seq2, rules, targetMatches);
@@ -110,8 +110,12 @@ struct sequence_query
         Buffer& batchBuffer, BufferUpdate& update,
         std::mutex& scheduleMtx)
     {
-        for(const auto& seq : sequenceBatch) {
-            if(!queryBatch.add_paired_read(hostId, seq.seq1, seq.seq2, db.query_sketcher(), opt.insertSizeMax)) {
+        for(const auto& query : sequenceBatch) {
+            auto rules = make_candidate_generation_rules(db.target_sketcher(), opt, query);
+
+            if(!queryBatch.add_paired_read(hostId, query.seq1, query.seq2,
+                                           db.query_sketcher(), rules))
+            {
                 std::cerr << "query batch is too small for a single read!" << std::endl;
             }
         }

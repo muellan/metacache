@@ -64,7 +64,7 @@ public:
             InputIterator first1, InputIterator last1,
             InputIterator first2, InputIterator last2,
             const sketcher& querySketcher,
-            size_t insertSizeMax,
+            const candidate_generation_rules& rules,
             index_type maxWindows,
             uint32_t maxSequenceLength,
             size_type maxResultsPerWindow
@@ -150,8 +150,7 @@ public:
             // mark last window in query with query id
             queryIds_[numWindows_-1] = numQueries_;
 
-            maxWindowsInRange_[numQueries_] = window_id( 2 +
-                (std::max(seqLength1 + seqLength2, insertSizeMax) / windowStride ));
+            maxWindowsInRange_[numQueries_] = rules.maxWindowsInRange;
 
             ++numQueries_;
 
@@ -166,7 +165,7 @@ public:
         bool add_paired_read(
             Sequence seq1, Sequence seq2,
             const sketcher& querySketcher,
-            size_t insertSizeMax,
+            const candidate_generation_rules& rules,
             index_type maxWindows,
             uint32_t maxSequenceLength,
             size_type maxResultsPerWindow
@@ -178,7 +177,7 @@ public:
                 begin(seq1), end(seq1),
                 begin(seq2), end(seq2),
                 querySketcher,
-                insertSizeMax,
+                rules,
                 maxWindows,
                 maxSequenceLength,
                 maxResultsPerWindow);

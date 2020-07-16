@@ -388,7 +388,7 @@ void show_matches_per_targets(std::ostream& os,
        << "--- list of hits for each reference sequence ---\n"
        << opt.tokens.comment
        << "window start position within sequence = window_index * window_stride(="
-       << db.query_sketcher().window_stride() << ")\n";
+       << db.target_sketcher().window_stride() << ")\n";
 
     os << opt.tokens.comment << "TABLE_LAYOUT: "
        << " sequence " << opt.tokens.column
