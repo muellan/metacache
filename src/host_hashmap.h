@@ -368,7 +368,7 @@ public:
     //-------------------------------------------------------------------------
     feature_count_type
     remove_ambiguous_features(taxon_rank r, bucket_size_type maxambig,
-                              const ranked_lineages_of_targets& targetLineages)
+                              const taxonomy_cache& taxonomy)
     {
         feature_count_type rem = 0;
 
@@ -395,7 +395,7 @@ public:
                     if(!i->empty()) {
                         std::set<const taxon*> taxa;
                         for(auto loc : *i) {
-                            taxa.insert(targetLineages.ancestor(loc.tgt, r));
+                            taxa.insert(taxonomy.ancestor(loc.tgt, r));
                             if(taxa.size() > maxambig) {
                                 hashTable.clear(i);
                                 ++rem;
@@ -526,7 +526,7 @@ public:
     classification_candidates
     query_host(const sequence& query1, const sequence& query2,
                const sketcher& querySketcher,
-               const ranked_lineages_of_targets& lineages,
+               const taxonomy_cache& taxonomy,
                const candidate_generation_rules& rules,
                matches_sorter& sorter) const
     {
@@ -542,7 +542,7 @@ public:
             sorter.sort();
         }
 
-        candidates.process(lineages, sorter.locations(), rules);
+        candidates.process(taxonomy, sorter.locations(), rules);
 
         return candidates;
     }

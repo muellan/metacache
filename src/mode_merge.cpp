@@ -156,7 +156,7 @@ get_results_file_properties(const string& filename)
  *
  *****************************************************************************/
 void read_results(const results_source& res,
-                  const database& db,
+                  const taxonomy_cache& taxonomy,
                   const candidate_generation_rules& rules,
                   vector<string>& queryHeaders,
                   vector<classification_candidates>& queryCandidates)
@@ -202,9 +202,9 @@ void read_results(const results_source& res,
                 match_candidate::count_type hits;
                 ifs >> hits;
 
-                const taxon* tax = db.taxon_with_id(taxid);
+                const taxon* tax = taxonomy.taxon_with_id(taxid);
                 if(tax) {
-                    queryCandidates[queryId].insert(match_candidate{tax, hits}, db.target_lineages(), rules);
+                    queryCandidates[queryId].insert(match_candidate{tax, hits}, taxonomy, rules);
                 } else {
                     cerr << "Query " << queryId+1 << ": taxid not found. Skipping hit.\n";
                 }
@@ -253,7 +253,7 @@ void merge_result_files(const vector<string>& infiles,
         show_progress_indicator(cerr, infiles.size() > 1 ? i/float(infiles.size()) : -1);
 
         read_results(get_results_file_properties(infiles[i]),
-                     db, rules, queryHeaders, queryCandidates);
+                     db.taxo_cache(), rules, queryHeaders, queryCandidates);
     }
     clear_current_line(cerr);
 
@@ -368,7 +368,7 @@ void main_mode_merge(const cmdline_args& args)
     database db;
 
     if(!opt.taxonomy.path.empty()) {
-        db.reset_taxa_above_sequence_level(
+        db.taxo_cache().reset_taxa_above_sequence_level(
             make_taxonomic_hierarchy(opt.taxonomy.nodesFile,
                                      opt.taxonomy.namesFile,
                                      opt.taxonomy.mergeFile,

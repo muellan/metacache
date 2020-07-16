@@ -150,7 +150,7 @@ struct candidate_generation_rules
  *****************************************************************************/
 template<class Query>
 candidate_generation_rules
-make_candidate_generation_rules(const sketcher& querySketcher,
+make_candidate_generation_rules(const sketcher& targetSketcher,
                                 const classification_options& opt,
                                 const Query& query)
 {
@@ -158,7 +158,7 @@ make_candidate_generation_rules(const sketcher& querySketcher,
 
     rules.maxWindowsInRange = window_id( 2 + (
         std::max(query.seq1.size() + query.seq2.size(), opt.insertSizeMax) /
-        querySketcher.window_stride() ));
+        targetSketcher.window_stride() ));
 
     rules.mergeBelow    = opt.lowestRank;
     rules.maxCandidates = opt.maxNumCandidatesPerQuery;

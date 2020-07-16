@@ -54,7 +54,7 @@ void show_query_parameters(std::ostream&, const query_options&);
  *
  *****************************************************************************/
 void show_taxon(std::ostream&,
-                const database&,
+                const taxonomy_cache& taxonomy,
                 const classification_output_formatting&,
                 const taxon* classified);
 
@@ -75,7 +75,7 @@ void show_taxon_header(std::ostream&,
  *
  *****************************************************************************/
 void show_candidates(std::ostream&,
-                     const database&,
+                     const taxonomy_cache&,
                      const classification_candidates&,
                      taxon_rank lowest = taxon_rank::Sequence);
 
@@ -87,7 +87,7 @@ void show_candidates(std::ostream&,
  *****************************************************************************/
 template<class Locations>
 void show_matches(std::ostream&,
-                  const database&,
+                  const taxonomy_cache& taxonomy,
                   const Locations&,
                   taxon_rank lowest = taxon_rank::Sequence);
 
@@ -98,7 +98,7 @@ void show_matches(std::ostream&,
  *
  *****************************************************************************/
 void show_candidate_ranges(std::ostream&,
-                           const database&,
+                           const sketcher&,
                            const classification_candidates&);
 
 

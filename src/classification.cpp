@@ -112,23 +112,23 @@ make_semi_global_alignment(const sequence_query& query,
  *
  *****************************************************************************/
 const taxon*
-ground_truth(const database& db, const string& header)
+ground_truth(const taxonomy_cache& taxonomy, const string& header)
 {
     //try to extract query id and find the corresponding target in database
     const taxon* tax = nullptr;
-    tax = db.taxon_with_name(extract_accession_string(header, sequence_id_type::acc_ver));
-    if(tax) return db.next_ranked_ancestor(tax);
+    tax = taxonomy.taxon_with_name(extract_accession_string(header, sequence_id_type::acc_ver));
+    if(tax) return taxonomy.next_ranked_ancestor(tax);
 
-    tax = db.taxon_with_similar_name(extract_accession_string(header, sequence_id_type::acc));
-    if(tax) return db.next_ranked_ancestor(tax);
+    tax = taxonomy.taxon_with_similar_name(extract_accession_string(header, sequence_id_type::acc));
+    if(tax) return taxonomy.next_ranked_ancestor(tax);
 
     //try to extract id from header
-    tax = db.taxon_with_id(extract_taxon_id(header));
-    if(tax) return db.next_ranked_ancestor(tax);
+    tax = taxonomy.taxon_with_id(extract_taxon_id(header));
+    if(tax) return taxonomy.next_ranked_ancestor(tax);
 
     //try to find entire header as sequence identifier
-    tax = db.taxon_with_name(header);
-    if(tax) return db.next_ranked_ancestor(tax);
+    tax = taxonomy.taxon_with_name(header);
+    if(tax) return taxonomy.next_ranked_ancestor(tax);
 
     return nullptr;
 }
@@ -163,7 +163,7 @@ struct classification
  *
  *****************************************************************************/
 const taxon*
-classify(const database& db, const classification_options& opt,
+classify(const taxonomy_cache& taxonomy, const classification_options& opt,
          const classification_candidates& cand)
 {
     if(cand.empty() || !cand[0].tax) return nullptr;
@@ -184,7 +184,7 @@ classify(const database& db, const classification_options& opt,
         if(i->hits > threshold) {
             // include candidate in lca
             // lca lives on lineage of first cand, its rank can only increase
-            lca = db.ranked_lca(cand[0].tgt, i->tgt, lca->rank());
+            lca = taxonomy.ranked_lca(cand[0].tgt, i->tgt, lca->rank());
             // exit early if lca rank already too high
             if(!lca || lca->rank() > opt.highestRank)
                 return nullptr;
@@ -203,13 +203,13 @@ classify(const database& db, const classification_options& opt,
  *
  *****************************************************************************/
 classification
-make_classification(const database& db,
+make_classification(const taxonomy_cache& taxonomy,
                     const classification_options& opt,
                     const classification_candidates& candidates)
 {
     classification cls { candidates };
 
-    cls.best = classify(db, opt, cls.candidates);
+    cls.best = classify(taxonomy, opt, cls.candidates);
 
     return cls;
 }
@@ -222,13 +222,13 @@ make_classification(const database& db,
  *
  *****************************************************************************/
 classification
-make_classification(const database& db,
+make_classification(const taxonomy_cache& taxonomy,
                     const classification_options& opt,
                     const span<match_candidate>& candidates)
 {
     classification cls { candidates };
 
-    cls.best = classify(db, opt, cls.candidates);
+    cls.best = classify(taxonomy, opt, cls.candidates);
 
     return cls;
 }
@@ -241,7 +241,7 @@ make_classification(const database& db,
  *
  *****************************************************************************/
 void
-update_classification(const database& db,
+update_classification(const taxonomy_cache& taxonomy,
                       const classification_options& opt,
                       classification& cls,
                       const matches_per_target& tgtMatches)
@@ -252,7 +252,7 @@ update_classification(const database& db,
         else
             ++it;
     }
-    cls.best = classify(db, opt, cls.candidates);
+    cls.best = classify(taxonomy, opt, cls.candidates);
 }
 
 
@@ -262,16 +262,16 @@ update_classification(const database& db,
  * @brief add difference between result and truth to statistics
  *
  *****************************************************************************/
-void update_coverage_statistics(const database& db,
+void update_coverage_statistics(const taxonomy_cache& taxonomy,
                                 const classification& cls,
                                 classification_statistics& stats)
 {
     if(!cls.groundTruth) return;
     //check if taxa are covered in DB
-    for(const taxon* tax : db.ranks(cls.groundTruth)) {
+    for(const taxon* tax : taxonomy.ranks(cls.groundTruth)) {
         if(tax) {
             auto r = tax->rank();
-            if(db.covers(*tax)) {
+            if(taxonomy.covers(*tax)) {
                 if(!cls.best || r < cls.best->rank()) { //unclassified on rank
                     stats.count_coverage_false_neg(r);
                 } else { //classified on rank
@@ -297,18 +297,18 @@ void update_coverage_statistics(const database& db,
  *
  *****************************************************************************/
 void evaluate_classification(
-    const database& db,
+    const taxonomy_cache& taxonomy,
     const classification_evaluation_options& opt,
     const sequence_query& query,
     classification& cls,
     classification_statistics& statistics)
 {
     if(opt.precision || opt.determineGroundTruth) {
-        cls.groundTruth = ground_truth(db, query.header);
+        cls.groundTruth = ground_truth(taxonomy, query.header);
     }
 
     if(opt.precision) {
-        auto lca = db.ranked_lca(cls.best, cls.groundTruth);
+        auto lca = taxonomy.ranked_lca(cls.best, cls.groundTruth);
         auto lowestCorrectRank = lca ? lca->rank() : taxon_rank::none;
 
         statistics.assign_known_correct(
@@ -318,7 +318,7 @@ void evaluate_classification(
 
         // check if taxa of assigned target are covered
         if(opt.taxonCoverage) {
-            update_coverage_statistics(db, cls, statistics);
+            update_coverage_statistics(taxonomy, cls, statistics);
         }
 
     } else {
@@ -333,13 +333,13 @@ void evaluate_classification(
  * @brief estimate read counts per taxon at specific level
  *
  *****************************************************************************/
-void estimate_abundance(const database& db, taxon_count_map& allTaxCounts, const taxon_rank rank) {
+void estimate_abundance(const taxonomy_cache& taxonomy, taxon_count_map& allTaxCounts, const taxon_rank rank) {
     if(rank != taxon_rank::Sequence) {
         //prune taxon below estimation rank
         taxon t{0,0,"",rank-1};
         auto begin = allTaxCounts.lower_bound(&t);
         for(auto taxCount = begin; taxCount != allTaxCounts.end();) {
-            auto lineage = db.ranks(taxCount->first);
+            auto lineage = taxonomy.ranks(taxCount->first);
             const taxon* ancestor = nullptr;
             unsigned index = static_cast<unsigned>(rank);
             while(!ancestor && index < lineage.size())
@@ -366,7 +366,7 @@ void estimate_abundance(const database& db, taxon_count_map& allTaxCounts, const
     //traverse allTaxCounts from leafs to root
     for(auto taxCount = allTaxCounts.rbegin(); taxCount != allTaxCounts.rend(); ++taxCount) {
         //find closest parent
-        auto lineage = db.ranks(taxCount->first);
+        auto lineage = taxonomy.ranks(taxCount->first);
         const taxon* parent = nullptr;
         auto index = static_cast<std::uint8_t>(taxCount->first->rank()+1);
         while(index < lineage.size()) {
@@ -409,7 +409,7 @@ void estimate_abundance(const database& db, taxon_count_map& allTaxCounts, const
  *
  *****************************************************************************/
 void show_alignment(std::ostream& os,
-                    const database& db,
+                    const sketcher& targetSketcher,
                     const classification_output_options& opt,
                     const sequence_query& query,
                     const classification_candidates& tophits)
@@ -427,13 +427,13 @@ void show_alignment(std::ostream& os,
                 auto tgtSequ = reader->next().data;
                 auto subject = make_view_from_window_range(
                                tgtSequ, tophits[0].pos,
-                               db.target_sketcher().window_size(),
-                               db.target_sketcher().window_stride());
+                               targetSketcher.window_size(),
+                               targetSketcher.window_stride());
 
                 auto align = make_semi_global_alignment(query, subject);
 
                 //print alignment to top candidate
-                const auto w = db.target_sketcher().window_stride();
+                const auto w = targetSketcher.window_stride();
                 const auto& comment = opt.format.tokens.comment;
                 os  << '\n'
                     << comment << "  score  " << align.score
@@ -526,26 +526,26 @@ void show_query_mapping(
     os << colsep;
 
     if(opt.evaluate.showGroundTruth) {
-        show_taxon(os, db, opt.format, cls.groundTruth);
+        show_taxon(os, db.taxo_cache(), opt.format, cls.groundTruth);
         os << colsep;
     }
     if(opt.analysis.showAllHits) {
-        show_matches(os, db, allhits, fmt.lowestRank);
+        show_matches(os, db.taxo_cache(), allhits, fmt.lowestRank);
         os << colsep;
     }
     if(opt.analysis.showTopHits) {
-        show_candidates(os, db, cls.candidates, fmt.lowestRank);
+        show_candidates(os, db.taxo_cache(), cls.candidates, fmt.lowestRank);
         os << colsep;
     }
     if(opt.analysis.showLocations) {
-        show_candidate_ranges(os, db, cls.candidates);
+        show_candidate_ranges(os, db.target_sketcher(), cls.candidates);
         os << colsep;
     }
 
-    show_taxon(os, db, fmt, cls.best);
+    show_taxon(os, db.taxo_cache(), fmt, cls.best);
 
     if(opt.analysis.showAlignment && cls.best) {
-        show_alignment(os, db, opt, query, cls.candidates);
+        show_alignment(os, db.target_sketcher(), opt, query, cls.candidates);
     }
 
     os << '\n';
@@ -560,7 +560,7 @@ void show_query_mapping(
  *
  *****************************************************************************/
 void filter_targets_by_coverage(
-    const database& db,
+    const taxonomy_cache& taxonomy,
     matches_per_target& tgtMatches,
     const float percentile)
 {
@@ -574,7 +574,7 @@ void filter_targets_by_coverage(
     //calculate coverage percentages
     for(const auto& mapping : tgtMatches) {
         target_id target = mapping.first;
-        const taxon* tax = db.taxon_of_target(target);
+        const taxon* tax = taxonomy.taxon_of_target(target);
         const window_id targetSize = tax->source().windows;
         std::unordered_set<window_id> hitWindows;
         for(const auto& candidate : mapping.second) {
@@ -649,9 +649,9 @@ void redo_classification_batched(
 
                     for(auto& mapping : mappings) {
                         // classify using only targets left in tgtMatches
-                        update_classification(db, opt.classify, mapping.cls, tgtMatches);
+                        update_classification(db.taxo_cache(), opt.classify, mapping.cls, tgtMatches);
 
-                        evaluate_classification(db, opt.output.evaluate, mapping.query, mapping.cls, results.statistics);
+                        evaluate_classification(db.taxo_cache(), opt.output.evaluate, mapping.query, mapping.cls, results.statistics);
 
                         show_query_mapping(bufout, db, opt.output, mapping.query, mapping.cls, match_locations{});
 
@@ -717,7 +717,7 @@ void map_queries_to_targets_default(
     if(opt.output.evaluate.precision || opt.output.evaluate.determineGroundTruth) {
         //groundtruth may be outside of target lineages
         //cache lineages of *all* taxa
-        db.update_cached_lineages(taxon_rank::none);
+        db.taxo_cache().update_cached_lineages(taxon_rank::none);
     }
 
     //input queries are divided into batches;
@@ -738,7 +738,7 @@ void map_queries_to_targets_default(
     {
         if(query.empty()) return;
 
-        auto cls = make_classification(db, opt.classify, tophits);
+        auto cls = make_classification(db.taxo_cache(), opt.classify, tophits);
 
         if(opt.output.analysis.showHitsPerTargetList || opt.classify.covPercentile > 0) {
             //insert all candidates with at least 'hitsMin' hits into
@@ -760,7 +760,7 @@ void map_queries_to_targets_default(
                 ++buf.taxCounts[cls.best];
             }
 
-            evaluate_classification(db, opt.output.evaluate, query, cls, results.statistics);
+            evaluate_classification(db.taxo_cache(), opt.output.evaluate, query, cls, results.statistics);
 
             show_query_mapping(buf.out, db, opt.output, query, cls, allhits);
         }
@@ -800,7 +800,7 @@ void map_queries_to_targets_default(
 
     //filter all matches by coverage
     if(opt.classify.covPercentile > 0) {
-        filter_targets_by_coverage(db, tgtMatches, opt.classify.covPercentile);
+        filter_targets_by_coverage(db.taxo_cache(), tgtMatches, opt.classify.covPercentile);
 
         redo_classification_batched(queryMappingsQueue, tgtMatches, db, opt, results, allTaxCounts);
     }
@@ -818,7 +818,7 @@ void map_queries_to_targets_default(
     }
 
     if(analysis.showAbundanceEstimatesOnRank != taxonomy::rank::none) {
-        estimate_abundance(db, allTaxCounts, analysis.showAbundanceEstimatesOnRank);
+        estimate_abundance(db.taxo_cache(), allTaxCounts, analysis.showAbundanceEstimatesOnRank);
 
         show_abundance_estimates(results.perTaxonOut,
                                  analysis.showAbundanceEstimatesOnRank,
@@ -869,13 +869,13 @@ void map_candidates_to_targets(const vector<string>& queryHeaders,
         sequence_query query{i+1, std::move(queryHeaders[i]), {}};
 
         classification cls { queryCandidates[i] };
-        cls.best = classify(db, opt.classify, cls.candidates);
+        cls.best = classify(db.taxo_cache(), opt.classify, cls.candidates);
 
         if(opt.make_tax_counts() && cls.best) {
             ++allTaxCounts[cls.best];
         }
 
-        evaluate_classification(db, opt.output.evaluate, query, cls, results.statistics);
+        evaluate_classification(db.taxo_cache(), opt.output.evaluate, query, cls, results.statistics);
 
         show_query_mapping(results.perReadOut, db, opt.output, query, cls, match_locations{});
     }
@@ -887,7 +887,7 @@ void map_candidates_to_targets(const vector<string>& queryHeaders,
     }
 
     if(analysis.showAbundanceEstimatesOnRank != taxonomy::rank::none) {
-        estimate_abundance(db, allTaxCounts, analysis.showAbundanceEstimatesOnRank);
+        estimate_abundance(db.taxo_cache(), allTaxCounts, analysis.showAbundanceEstimatesOnRank);
 
         show_abundance_estimates(results.perTaxonOut,
                                  analysis.showAbundanceEstimatesOnRank,

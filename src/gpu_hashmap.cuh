@@ -159,7 +159,7 @@ public:
 
     //---------------------------------------------------------------
     feature_count_type
-    remove_ambiguous_features(taxon_rank, bucket_size_type, const ranked_lineages_of_targets&) {
+    remove_ambiguous_features(taxon_rank, bucket_size_type, const taxonomy_cache&) {
         std::cerr << "-remove-ambig-features is not supported in GPU version\n";
         return 0;
     }

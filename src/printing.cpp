@@ -232,7 +232,7 @@ void show_blank_lineage(std::ostream& os,
 
 //-------------------------------------------------------------------
 void show_taxon(std::ostream& os,
-                const database& db,
+                const taxonomy_cache& taxonomy,
                 const classification_output_formatting& opt,
                 const taxon* tax)
 {
@@ -257,7 +257,7 @@ void show_taxon(std::ostream& os,
         const auto rmin = opt.lowestRank < tax->rank() ? tax->rank() : opt.lowestRank;
         const auto rmax = opt.showLineage ? opt.highestRank : rmin;
 
-        show_lineage(os, db.ranks(tax), opt.taxonStyle, rmin, rmax, opt.tokens);
+        show_lineage(os, taxonomy.ranks(tax), opt.taxonStyle, rmin, rmax, opt.tokens);
     }
 }
 
@@ -265,7 +265,7 @@ void show_taxon(std::ostream& os,
 
 //-------------------------------------------------------------------
 void show_candidates(std::ostream& os,
-                     const database& db,
+                     const taxonomy_cache& taxonomy,
                      const classification_candidates& cand,
                      taxon_rank lowest)
 {
@@ -281,7 +281,7 @@ void show_candidates(std::ostream& os,
         for(size_t i = 0; i < cand.size() && cand[i].hits > 0; ++i) {
             if(i > 0) os << ',';
             const taxon* tax = (cand[i].tax->rank() < lowest) ?
-                               db.ancestor(cand[i].tax,lowest) :
+                               taxonomy.ancestor(cand[i].tax,lowest) :
                                cand[i].tax;
             if(tax) {
                 os << tax->id();
@@ -298,7 +298,7 @@ void show_candidates(std::ostream& os,
 //-------------------------------------------------------------------
 template<class Locations>
 void show_matches(std::ostream& os,
-                  const database& db,
+                  const taxonomy_cache& taxonomy,
                   const Locations& matches,
                   taxon_rank lowest)
 {
@@ -311,7 +311,7 @@ void show_matches(std::ostream& os,
             if(*cur == *it)
                 ++count;
             else {
-                const taxon* tax = db.taxon_of_target(cur->tgt);
+                const taxon* tax = taxonomy.taxon_of_target(cur->tgt);
                 if(tax) os << tax->name()
                            << '/' << int(cur->win)
                            << ':' << count << ',';
@@ -319,7 +319,7 @@ void show_matches(std::ostream& os,
                 count = 1;
             }
         }
-        const taxon* tax = db.taxon_of_target(cur->tgt);
+        const taxon* tax = taxonomy.taxon_of_target(cur->tgt);
         if(tax) os << tax->name()
                    << '/' << int(cur->win)
                    << ':' << count << ',';
@@ -331,9 +331,9 @@ void show_matches(std::ostream& os,
             if(*cur == *it)
                 ++count;
             else {
-                const taxon* tax = db.ancestor(cur->tgt, lowest);
+                const taxon* tax = taxonomy.ancestor(cur->tgt, lowest);
                 if(!tax) {
-                    tax = db.taxon_of_target(cur->tgt);
+                    tax = taxonomy.taxon_of_target(cur->tgt);
                 }
                 os << tax->name() << ':' << count << ',';
 
@@ -341,9 +341,9 @@ void show_matches(std::ostream& os,
                 count = 1;
             }
         }
-        const taxon* tax = db.ancestor(cur->tgt, lowest);
+        const taxon* tax = taxonomy.ancestor(cur->tgt, lowest);
         if(!tax) {
-            tax = db.taxon_of_target(cur->tgt);
+            tax = taxonomy.taxon_of_target(cur->tgt);
         }
         os << tax->name() << ':' << count << ',';
     }
@@ -351,13 +351,13 @@ void show_matches(std::ostream& os,
 
 template void show_matches<match_locations>(
     std::ostream& os,
-    const database& db,
+    const taxonomy_cache& taxonomy,
     const match_locations& matches,
     taxon_rank lowest);
 
 template void show_matches<span<location>>(
     std::ostream& os,
-    const database& db,
+    const taxonomy_cache& taxonomy,
     const span<location>& matches,
     taxon_rank lowest);
 
@@ -365,14 +365,14 @@ template void show_matches<span<location>>(
 
 //-------------------------------------------------------------------
 void show_candidate_ranges(std::ostream& os,
-                           const database& db,
+                           const sketcher& targetSketcher,
                            const classification_candidates& cand)
 {
-    const auto w = db.target_sketcher().window_stride();
+    const auto w = targetSketcher.window_stride();
 
     for(const auto& c : cand) {
         os << '[' << (w * c.pos.beg)
-           << ',' << (w * c.pos.end + db.target_sketcher().window_size()) << "] ";
+           << ',' << (w * c.pos.end + targetSketcher.window_size()) << "] ";
     }
 }
 
@@ -399,8 +399,8 @@ void show_matches_per_targets(std::ostream& os,
     const auto rmax = opt.showLineage ? opt.highestRank : rmin;
 
     for(const auto& mapping : tgtMatches) {
-        show_lineage(os, db.ranks(mapping.first), opt.taxonStyle, rmin, rmax, opt.tokens);
-        os << opt.tokens.column << db.taxon_of_target(mapping.first)->source().windows
+        show_lineage(os, db.taxo_cache().ranks(mapping.first), opt.taxonStyle, rmin, rmax, opt.tokens);
+        os << opt.tokens.column << db.taxo_cache().taxon_of_target(mapping.first)->source().windows
            << opt.tokens.column;
 
         bool first = true;
@@ -649,14 +649,14 @@ void print_content_properties(const database& db)
     if(db.target_count() > 0) {
 
         std::uint64_t numRankedTargets = 0;
-        for(const auto& t : db.target_taxa()) {
+        for(const auto& t : db.taxo_cache().target_taxa()) {
             if(t.has_parent()) ++numRankedTargets;
         }
 
         std::cout
         << "targets              " << db.target_count() << '\n'
         << "ranked targets       " << numRankedTargets << '\n'
-        << "taxa in tree         " << db.non_target_taxon_count() << '\n';
+        << "taxa in tree         " << db.taxo_cache().non_target_taxon_count() << '\n';
     }
 
     if(db.feature_count() > 0) {

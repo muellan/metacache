@@ -125,7 +125,6 @@ public:
     using full_lineage   = taxonomy::full_lineage;
     using file_source    = taxonomy::file_source;
     using taxon_iterator = taxonomy::const_iterator;
-    using taxon_range    = taxonomy::const_range;
 
     //-----------------------------------------------------
     using match_count_type = std::uint16_t;
@@ -220,10 +219,7 @@ public:
         querySketcher_{std::move(querySketcher)},
         targetCount_{0},
         featureStore_{},
-        taxa_{},
-        ranksCache_{taxa_, taxon_rank::Sequence},
-        targetLineages_{taxa_},
-        name2tax_{}
+        taxonomyCache_{}
     {}
 
     database(const database&) = delete;
@@ -232,10 +228,7 @@ public:
         querySketcher_{std::move(other.querySketcher_)},
         targetCount_{other.targetCount_.load()},
         featureStore_{std::move(other.featureStore_)},
-        taxa_{std::move(other.taxa_)},
-        ranksCache_{std::move(other.ranksCache_)},
-        targetLineages_{std::move(other.targetLineages_)},
-        name2tax_{std::move(other.name2tax_)}
+        taxonomyCache_{std::move(other.taxonomyCache_)}
     {}
 
     database& operator = (const database&) = delete;
@@ -305,11 +298,11 @@ public:
      */
     feature_count_type
     remove_ambiguous_features(taxon_rank r, bucket_size_type maxambig) {
-        if(taxa_.empty()) {
+        if(taxonomyCache_.empty()) {
             throw std::runtime_error{"no taxonomy available!"};
         }
 
-        return featureStore_.remove_ambiguous_features(r, maxambig, targetLineages_);
+        return featureStore_.remove_ambiguous_features(r, maxambig, taxonomyCache_);
     }
 
 
@@ -375,235 +368,14 @@ public:
 
 
     //---------------------------------------------------------------
-    static constexpr taxon_id no_taxon_id() noexcept {
-        return taxonomy::none_id();
-    }
-
-
-    //---------------------------------------------------------------
-    const taxon*
-    taxon_with_id(taxon_id id) const noexcept {
-        return taxa_[id];
+    const taxonomy_cache&
+    taxo_cache() const {
+        return taxonomyCache_;
     }
     //-----------------------------------------------------
-    /**
-     * @brief will only find sequence-level taxon names == sequence id
-     */
-    const taxon*
-    taxon_with_name(const taxon_name& name) const noexcept {
-        if(name.empty()) return nullptr;
-        auto i = name2tax_.find(name);
-        if(i == name2tax_.end()) return nullptr;
-        return i->second;
-    }
-    //-----------------------------------------------------
-    /**
-     * @brief will find sequence-level taxon names with different versions
-     */
-    const taxon*
-    taxon_with_similar_name(const taxon_name& name) const noexcept {
-        if(name.empty()) return nullptr;
-        auto i = name2tax_.upper_bound(name);
-        if(i == name2tax_.end()) return nullptr;
-        const auto s = name.size();
-        if(0 != i->first.compare(0,s,name)) return nullptr;
-        return i->second;
-    }
-
-
-    //---------------------------------------------------------------
-    void reset_taxa_above_sequence_level(taxonomy&& tax) {
-        taxa_.erase_above(taxon_rank::Sequence);
-        for(auto& t : tax) {
-            taxa_.insert_or_replace(std::move(t));
-        }
-        //re-initialize ranks cache
-        mark_cached_lineages_outdated();
-        update_cached_lineages(taxon_rank::Sequence);
-    }
-
-
-    //---------------------------------------------------------------
-    std::uint64_t
-    non_target_taxon_count() const noexcept {
-        return taxa_.size() - targetCount_;
-    }
-    //-----------------------------------------------------
-    taxon_range taxa() const {
-        return taxa_.full_range();
-    }
-    taxon_range non_target_taxa() const {
-        return taxa_.subrange_from(1);
-    }
-    //-----------------------------------------------------
-    taxon_range target_taxa() const {
-        return taxa_.subrange_until(0);
-    }
-
-
-    //---------------------------------------------------------------
-    void reset_parent(const taxon& tax, taxon_id parentId) {
-        taxa_.reset_parent(tax.id(), parentId);
-        mark_cached_lineages_outdated();
-    }
-    //-----------------------------------------------------
-    void reset_parent(const taxon& tax, const taxon& parent) {
-        taxa_.reset_parent(tax.id(), parent.id());
-        mark_cached_lineages_outdated();
-    }
-
-    //---------------------------------------------------------------
-    const ranked_lineages_of_targets&
-    target_lineages() const {
-        return targetLineages_;
-    }
-
-    //---------------------------------------------------------------
-    void mark_cached_lineages_outdated() {
-        ranksCache_.mark_outdated();
-        targetLineages_.mark_outdated();
-    }
-
-    //---------------------------------------------------------------
-    void update_cached_lineages(taxon_rank rank) const {
-        ranksCache_.update(rank);
-        targetLineages_.update(target_count());
-    }
-
-    //-----------------------------------------------------
-    const taxon* taxon_of_target(target_id id) const {
-        return targetLineages_.taxon_of_target(id);
-    }
-
-    //-----------------------------------------------------
-    full_lineage
-    lineage(const taxon* tax) const noexcept {
-        return tax ? lineage(*tax) : full_lineage();
-    }
-    full_lineage
-    lineage(const taxon& tax) const noexcept {
-        return taxa_.lineage(tax);
-    }
-    //-----------------------------------------------------
-    const ranked_lineage&
-    ranks(const taxon* tax) const noexcept {
-        return ranksCache_[tax];
-    }
-    const ranked_lineage&
-    ranks(const taxon& tax) const noexcept {
-        return ranksCache_[tax];
-    }
-    const ranked_lineage&
-    ranks(target_id tgt) const noexcept {
-        return targetLineages_.ranks(tgt);
-    }
-
-    //-----------------------------------------------------
-    const taxon*
-    parent(const taxon* tax) const noexcept {
-        return tax ? parent(*tax) : nullptr;
-    }
-    const taxon*
-    parent(const taxon& tax) const noexcept {
-        return taxa_.parent(tax);
-    }
-    //-----------------------------------------------------
-    const taxon*
-    ancestor(const taxon* tax, taxon_rank r) const noexcept {
-        return tax ? ancestor(*tax,r) : nullptr;
-    }
-    const taxon*
-    ancestor(const taxon& tax, taxon_rank r) const noexcept {
-        return ranksCache_[tax][int(r)];
-    }
-    const taxon*
-    ancestor(target_id tgt, taxon_rank r) const noexcept {
-        return targetLineages_.ancestor(tgt, r);
-    }
-
-    //-----------------------------------------------------
-    const taxon*
-    next_ranked_ancestor(const taxon* tax) const noexcept {
-        return tax ? next_ranked_ancestor(*tax) : nullptr;
-    }
-    const taxon*
-    next_ranked_ancestor(const taxon& tax) const noexcept {
-        if(tax.rank() != taxon_rank::none) return &tax;
-        for(const taxon* a : ranksCache_[tax]) {
-            if(a) return a;
-        }
-        return nullptr;
-    }
-    const taxon*
-    lowest_ranked_ancestor(target_id tgt, taxon_rank lowest) const noexcept {
-        return targetLineages_.lowest_ranked_ancestor(tgt, lowest);
-    }
-
-    //---------------------------------------------------------------
-    const taxon*
-    lca(const taxon* ta, const taxon* tb) const {
-        return (ta && tb) ? lca(*ta,*tb) : nullptr;
-    }
-    const taxon*
-    lca(const taxon& ta, const taxon& tb) const {
-        return taxa_.lca(ta,tb);
-    }
-
-    //---------------------------------------------------------------
-    const taxon*
-    ranked_lca(const taxon* ta, const taxon* tb) const {
-        return (ta && tb) ? ranked_lca(*ta,*tb) : nullptr;
-    }
-    const taxon*
-    ranked_lca(const taxon& ta, const taxon& tb) const {
-        return ranksCache_.ranked_lca(ta,tb);
-    }
-    const taxon*
-    ranked_lca(target_id ta, target_id tb, taxon_rank lowest) const {
-        return targetLineages_.ranked_lca(ta, tb, lowest);
-    }
-
-
-    //---------------------------------------------------------------
-    /**
-     * @return number of times a taxon is covered by any target in the DB
-     */
-    std::uint_least64_t
-    coverage_of_taxon(const taxon* covered) const {
-        return covered ? coverage_of_taxon(*covered) : 0;
-    }
-    //-----------------------------------------------------
-    std::uint_least64_t
-    coverage_of_taxon(const taxon& covered) const {
-        auto coverage = std::uint_least64_t(0);
-
-        for(const auto& tax : taxa_) {
-            if(tax.rank() == taxon_rank::Sequence) {
-                for(const taxon* t : taxa_.lineage(tax)) {
-                    if(t == &covered) ++coverage;
-                }
-            }
-        }
-        return coverage;
-    }
-
-    //-----------------------------------------------------
-    /**
-     * @return true, if taxon is covered by any target in the DB
-     */
-    bool covers(const taxon* covered) const {
-        return covered ? covers(*covered) : false;
-    }
-    //-----------------------------------------------------
-    bool covers(const taxon& covered) const {
-        for(const auto& tax : taxa_) {
-            if(tax.rank() == taxon_rank::Sequence) {
-                for(const taxon* t : taxa_.lineage(tax)) {
-                    if(t == &covered) return true;
-                }
-            }
-        }
-        return false;
+    taxonomy_cache&
+    taxo_cache() {
+        return taxonomyCache_;
     }
 
 
@@ -614,7 +386,7 @@ public:
                const candidate_generation_rules& rules,
                matches_sorter& sorter) const
     {
-        return featureStore_.query_host(query1, query2, querySketcher_, targetLineages_, rules, sorter);
+        return featureStore_.query_host(query1, query2, querySketcher_, taxonomyCache_, rules, sorter);
     }
 #else
     void
@@ -715,10 +487,7 @@ private:
     sketcher querySketcher_;
     std::atomic<std::uint64_t> targetCount_;
     mutable feature_store featureStore_;
-    taxonomy taxa_;
-    mutable ranked_lineages_cache ranksCache_;
-    mutable ranked_lineages_of_targets targetLineages_;
-    std::map<taxon_name,const taxon*> name2tax_;
+    taxonomy_cache taxonomyCache_;
 
     std::mutex name2taxMtx;
     std::mutex taxaMtx;

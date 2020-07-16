@@ -65,7 +65,7 @@ using std::endl;
  *        (like the NCBI's *.accession2version files)
  *
  *****************************************************************************/
-void rank_targets_with_mapping_file(database& db,
+void rank_targets_with_mapping_file(taxonomy_cache& taxonomy,
                                     std::set<const taxon*>& targetTaxa,
                                     const string& mappingFile,
                                     info_level infoLvl)
@@ -104,18 +104,18 @@ void rank_targets_with_mapping_file(database& db,
     while(is >> acc >> accver >> taxid >> gi) {
         //target in database?
         //accession.version is the default
-        const taxon* tax = db.taxon_with_name(accver);
+        const taxon* tax = taxonomy.taxon_with_name(accver);
 
         if(!tax) {
-            tax = db.taxon_with_similar_name(acc);
-            if(!tax) tax = db.taxon_with_name(gi);
+            tax = taxonomy.taxon_with_similar_name(acc);
+            if(!tax) tax = taxonomy.taxon_with_name(gi);
         }
 
         //if in database then set parent
         if(tax) {
             auto i = targetTaxa.find(tax);
             if(i != targetTaxa.end()) {
-                db.reset_parent(*tax, taxid);
+                taxonomy.reset_parent(*tax, taxid);
                 targetTaxa.erase(i);
                 if(targetTaxa.empty()) break;
             }
@@ -138,11 +138,11 @@ void rank_targets_with_mapping_file(database& db,
  *
  *****************************************************************************/
 std::set<const taxon*>
-unranked_targets(const database& db)
+unranked_targets(const taxonomy_cache& taxonomy)
 {
     auto res = std::set<const taxon*>{};
 
-    for(const auto& tax : db.target_taxa()) {
+    for(const auto& tax : taxonomy.target_taxa()) {
         if(!tax.has_parent()) res.insert(&tax);
     }
 
@@ -157,11 +157,11 @@ unranked_targets(const database& db)
  *
  *****************************************************************************/
 std::set<const taxon*>
-all_targets(const database& db)
+all_targets(const taxonomy_cache& taxonomy)
 {
     auto res = std::set<const taxon*>{};
 
-    for(const auto& tax : db.target_taxa()) {
+    for(const auto& tax : taxonomy.target_taxa()) {
         res.insert(&tax);
     }
 
@@ -175,13 +175,13 @@ all_targets(const database& db)
  * @brief try to assign parent taxa to target taxa using mapping files
  *
  *****************************************************************************/
-void try_to_rank_unranked_targets(database& db, const build_options& opt)
+void try_to_rank_unranked_targets(taxonomy_cache& taxonomy, const build_options& opt)
 {
     std::set<const taxon*> unranked;
     if(opt.resetParents)
-        unranked = all_targets(db);
+        unranked = all_targets(taxonomy);
     else
-        unranked = unranked_targets(db);
+        unranked = unranked_targets(taxonomy);
 
     if(!unranked.empty()) {
         if(opt.infoLevel != info_level::silent) {
@@ -190,12 +190,12 @@ void try_to_rank_unranked_targets(database& db, const build_options& opt)
         }
 
         for(const auto& file : opt.taxonomy.mappingPostFiles) {
-            rank_targets_with_mapping_file(db, unranked, file, opt.infoLevel);
+            rank_targets_with_mapping_file(taxonomy, unranked, file, opt.infoLevel);
             if(unranked.empty()) break;
         }
     }
 
-    unranked = unranked_targets(db);
+    unranked = unranked_targets(taxonomy);
     if(opt.infoLevel != info_level::silent) {
         if(unranked.empty()) {
             cout << "All targets are ranked." << endl;
@@ -394,7 +394,7 @@ void add_targets_to_database(database& db,
         if(producer.valid()) producer.get();
     }
 
-    db.mark_cached_lineages_outdated();
+    db.taxo_cache().mark_cached_lineages_outdated();
 }
 
 
@@ -420,7 +420,7 @@ void prepare_database(database& db, const build_options& opt)
     }
 
     if(!opt.taxonomy.path.empty()) {
-        db.reset_taxa_above_sequence_level(
+        db.taxo_cache().reset_taxa_above_sequence_level(
             make_taxonomic_hierarchy(opt.taxonomy.nodesFile,
                                      opt.taxonomy.namesFile,
                                      opt.taxonomy.mergeFile,
@@ -431,7 +431,7 @@ void prepare_database(database& db, const build_options& opt)
         }
     }
 
-    if(db.non_target_taxon_count() < 1 && opt.infoLevel != info_level::silent) {
+    if(db.taxo_cache().non_target_taxon_count() < 1 && opt.infoLevel != info_level::silent) {
         cout << "The datbase doesn't contain a taxonomic hierarchy yet.\n"
              << "You can add one or update later via:\n"
              << "   metacache modify <database> -taxonomy <directory>"
@@ -441,7 +441,7 @@ void prepare_database(database& db, const build_options& opt)
     if(dbconf.removeAmbigFeaturesOnRank != taxon_rank::none &&
        opt.infoLevel != info_level::silent)
     {
-        if(db.non_target_taxon_count() > 1) {
+        if(db.taxo_cache().non_target_taxon_count() > 1) {
             cout << "Ambiguous features on rank "
                  << taxonomy::rank_name(dbconf.removeAmbigFeaturesOnRank)
                  << " will be removed afterwards.\n";
@@ -485,7 +485,7 @@ void post_process_features(database& db, const build_options& opt)
     }
 
     if(dbconf.removeAmbigFeaturesOnRank != taxon_rank::none &&
-        db.non_target_taxon_count() > 1)
+        db.taxo_cache().non_target_taxon_count() > 1)
     {
         if(notSilent) {
             cout << "\nRemoving ambiguous features on rank "
@@ -544,7 +544,7 @@ void add_to_database(database& db, const build_options& opt)
         }
     }
 
-    try_to_rank_unranked_targets(db, opt);
+    try_to_rank_unranked_targets(db.taxo_cache(), opt);
 
     post_process_features(db, opt);
 

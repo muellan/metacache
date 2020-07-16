@@ -119,14 +119,14 @@ void show_feature_counts(const string& dbfile)
  * @brief
  *
  *****************************************************************************/
-void show_target_info(std::ostream& os, const database& db, const taxon& tax)
+void show_target_info(std::ostream& os, const taxon& tax, const ranked_lineage& lineage)
 {
     os  << "Target " << tax.name() << "):\n"
         << "    source:     "
         << tax.source().filename << " / " << tax.source().index
         << "\n    length:     " << tax.source().windows << " windows";
 
-    for(const taxon* t : db.ranks(tax)) {
+    for(const taxon* t : lineage) {
         if(t) {
             auto rn = string(t->rank_name()) + ":";
             rn.resize(12, ' ');
@@ -146,12 +146,13 @@ void show_target_info(std::ostream& os, const database& db, const taxon& tax)
 void show_target_info(const info_options& opt)
 {
     auto db = make_database(opt.dbfile, database::scope::metadata_only);
+    const auto& taxonomy = db.taxo_cache();
 
     if(!opt.targetIds.empty()) {
         for(const auto& tid : opt.targetIds) {
-            const taxon* tax = db.taxon_with_name(tid);
+            const taxon* tax = taxonomy.taxon_with_name(tid);
             if(tax) {
-                show_target_info(cout, db, *tax);
+                show_target_info(cout, *tax, taxonomy.ranks(tax));
             }
             else {
                 cout << "Target (reference sequence) '" << tid
@@ -161,8 +162,15 @@ void show_target_info(const info_options& opt)
     }
     else {
         cout << "Targets (reference sequences) in database:\n";
-        for(const auto& tax : db.target_taxa()) {
-            show_target_info(cout, db, tax);
+        //TODO get targets & lineages from cache
+        for(target_id tgt = 0; tgt < db.target_count(); ++tgt) {
+            const taxon* tax = taxonomy.taxon_of_target(tgt);
+            if(tax) {
+                show_target_info(cout, *tax, taxonomy.ranks(tgt));
+            }
+            else {
+                cout << "Invalid target with id " << tgt << ".\n";
+            }
         }
     }
 }
@@ -189,9 +197,9 @@ void show_lineage_table(const info_options& opt)
     cout << '\n';
 
     //rows
-    for(const auto& tax : db.target_taxa()) {
+    for(const auto& tax : db.taxo_cache().target_taxa()) {
         cout << tax.name();
-        auto ranks = db.ranks(tax);
+        auto ranks = db.taxo_cache().ranks(tax);
         for(auto r = rank::Sequence; r <= rank::Domain; ++r) {
             cout << '\t'
                  << (ranks[int(r)] ? ranks[int(r)]->id() : taxonomy::none_id());
@@ -219,11 +227,12 @@ void show_rank_statistics(const info_options& opt)
     }
 
     auto db = make_database(opt.dbfile, database::scope::metadata_only);
+    const auto& taxonomy = db.taxo_cache();
 
     std::map<const taxon*, std::size_t> stat;
 
-    for(const auto& tax : db.target_taxa()) {
-        const taxon* t = db.ranks(tax)[int(opt.rank)];
+    for(const auto& tax : taxonomy.target_taxa()) {
+        const taxon* t = taxonomy.ancestor(tax, opt.rank);
         if(t) {
             auto it = stat.find(t);
             if(it != stat.end()) {

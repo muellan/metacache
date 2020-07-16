@@ -159,13 +159,13 @@ public:
      */
     template<class Locations>
     void process(
-        const ranked_lineages_of_targets& lineages,
+        const taxonomy_cache& taxonomy,
         const Locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
     {
         for_all_contiguous_window_ranges(matches, rules.maxWindowsInRange,
             [&,this] (match_candidate& cand) {
-                return insert(cand, lineages, rules);
+                return insert(cand, taxonomy, rules);
             });
     }
 
@@ -174,16 +174,16 @@ public:
      * @brief insert candidate and keep list sorted
      */
     bool insert(match_candidate cand,
-                const ranked_lineages_of_targets& lineages,
+                const taxonomy_cache& taxonomy,
                 const candidate_generation_rules& rules = candidate_generation_rules{})
     {
         // early exit
         if(top_.size() == rules.maxCandidates && top_.back().hits >= cand.hits) return true;
 
         if(rules.mergeBelow > taxon_rank::Sequence)
-            cand.tax = lineages.lowest_ranked_ancestor(cand.tgt, rules.mergeBelow);
+            cand.tax = taxonomy.lowest_ranked_ancestor(cand.tgt, rules.mergeBelow);
         else
-            cand.tax = lineages.taxon_of_target(cand.tgt);
+            cand.tax = taxonomy.taxon_of_target(cand.tgt);
 
         if(!cand.tax) return true;
 
@@ -275,13 +275,13 @@ public:
      */
     template<class Locations>
     void process(
-        const ranked_lineages_of_targets& lineages,
+        const taxonomy_cache& taxonomy,
         const Locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
     {
         for_all_contiguous_window_ranges(matches, rules.maxWindowsInRange,
             [&,this] (match_candidate& cand) {
-                return insert(cand, lineages, rules);
+                return insert(cand, taxonomy, rules);
             });
     }
 
@@ -290,10 +290,10 @@ public:
      * @brief insert candidate and keep list sorted
      */
     bool insert(match_candidate cand,
-                const ranked_lineages_of_targets& lineages,
+                const taxonomy_cache& taxonomy,
                 const candidate_generation_rules& = candidate_generation_rules{})
     {
-        cand.tax = lineages.taxon_of_target(cand.tgt);
+        cand.tax = taxonomy.taxon_of_target(cand.tgt);
         cand_.push_back(cand);
         return true;
     }

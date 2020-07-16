@@ -51,7 +51,7 @@ bool database::add_target(part_id dbPart,
     // don't allow non-unique sequence ids
     {
         std::lock_guard<std::mutex> lock(name2taxMtx);
-        if(name2tax_.find(sid) != name2tax_.end()) return false;
+        if(taxonomyCache_.taxon_with_name(sid)) return false;
     }
 
     const auto targetId = target_id(targetCount);
@@ -65,22 +65,15 @@ bool database::add_target(part_id dbPart,
     // insert sequence metadata as a new taxon
     {
         std::lock_guard<std::mutex> lock(taxaMtx);
-        auto nit = taxa_.emplace(
+        newtax = taxonomyCache_.emplace_taxon(
             taxid, parentTaxid, sid,
             taxon_rank::Sequence, std::move(source));
-
-        // should never happen
-        if(nit == taxa_.end()) {
-            throw std::runtime_error{"target taxon could not be created"};
-        }
-
-        newtax = &(*nit);
     }
 
     // allows lookup via sequence id (e.g. NCBI accession number)
     {
         std::lock_guard<std::mutex> lock(name2taxMtx);
-        name2tax_.insert({std::move(sid), newtax});
+        taxonomyCache_.insert_name(std::move(sid), newtax);
     }
 
     return true;
@@ -156,7 +149,7 @@ void database::read_single(const std::string& filename, part_id partId, scope wh
         max_locations_per_feature(maxLocationsPerFeature);
 
         //taxon metadata
-        read_binary(is, taxa_);
+        read_binary(is, taxonomyCache_);
 
         target_id targetCount = 0;
         read_binary(is, targetCount);
@@ -164,15 +157,7 @@ void database::read_single(const std::string& filename, part_id partId, scope wh
 
         targetCount_ = targetCount;
 
-        //sequence id lookup
-        for(const auto& t : taxa_) {
-            if(t.rank() == taxon_rank::Sequence) {
-                name2tax_.insert({t.name(), &t});
-            }
-        }
-
-        mark_cached_lineages_outdated();
-        update_cached_lineages(taxon_rank::Sequence);
+        taxonomyCache_.initialize_caches(targetCount_);
     }
     else {
         //skip metadata
@@ -200,7 +185,7 @@ void database::read_single(const std::string& filename, part_id partId, scope wh
         read_binary(is, featureStore_, partId);
 
 #ifdef GPU_MODE
-        featureStore_.copy_target_lineages_to_gpu(targetLineages_.lineages(), partId);
+        featureStore_.copy_target_lineages_to_gpu(taxonomyCache_.target_lineages(), partId);
 #endif
     }
 
@@ -270,7 +255,7 @@ void database::write_single(const std::string& filename, part_id partId) const
     write_binary(os, uint64_t(max_locations_per_feature()));
 
     //taxon & target metadata
-    write_binary(os, taxa_);
+    write_binary(os, taxonomyCache_);
     write_binary(os, target_id(targetCount_));
 
     //hash table
@@ -296,9 +281,7 @@ void database::write(const std::string& filename) const
 
 // ----------------------------------------------------------------------------
 void database::clear() {
-    ranksCache_.clear();
-    targetLineages_.clear();
-    name2tax_.clear();
+    taxonomyCache_.clear();
     featureStore_.clear();
 }
 
@@ -308,9 +291,7 @@ void database::clear() {
  * @brief very dangerous! clears feature map without memory deallocation
  */
 void database::clear_without_deallocation() {
-    ranksCache_.clear();
-    targetLineages_.clear();
-    name2tax_.clear();
+    taxonomyCache_.clear();
     featureStore_.clear_without_deallocation();
 }
 
