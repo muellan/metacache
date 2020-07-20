@@ -121,10 +121,7 @@ public:
     using taxon          = taxonomy::taxon;
     using taxon_rank     = taxonomy::rank;
     using taxon_name     = taxonomy::taxon_name;
-    using ranked_lineage = taxonomy::ranked_lineage;
-    using full_lineage   = taxonomy::full_lineage;
     using file_source    = taxonomy::file_source;
-    using taxon_iterator = taxonomy::const_iterator;
 
     //-----------------------------------------------------
     using match_count_type = std::uint16_t;
@@ -488,9 +485,6 @@ private:
     std::atomic<std::uint64_t> targetCount_;
     mutable feature_store featureStore_;
     taxonomy_cache taxonomyCache_;
-
-    std::mutex name2taxMtx;
-    std::mutex taxaMtx;
 };
 
 

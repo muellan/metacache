@@ -49,10 +49,7 @@ bool database::add_target(part_id dbPart,
     if(seq.empty()) return false;
 
     // don't allow non-unique sequence ids
-    {
-        std::lock_guard<std::mutex> lock(name2taxMtx);
-        if(taxonomyCache_.taxon_with_name(sid)) return false;
-    }
+    if(taxonomyCache_.contains_name(sid)) return false;
 
     const auto targetId = target_id(targetCount);
     const auto taxid = taxon_id_of_target(targetId);
@@ -63,18 +60,12 @@ bool database::add_target(part_id dbPart,
     if(parentTaxid < 1) parentTaxid = 0;
     const taxon* newtax = nullptr;
     // insert sequence metadata as a new taxon
-    {
-        std::lock_guard<std::mutex> lock(taxaMtx);
-        newtax = taxonomyCache_.emplace_taxon(
-            taxid, parentTaxid, sid,
-            taxon_rank::Sequence, std::move(source));
-    }
+    newtax = taxonomyCache_.emplace_taxon(
+        taxid, parentTaxid, sid,
+        taxon_rank::Sequence, std::move(source));
 
     // allows lookup via sequence id (e.g. NCBI accession number)
-    {
-        std::lock_guard<std::mutex> lock(name2taxMtx);
-        taxonomyCache_.insert_name(std::move(sid), newtax);
-    }
+    taxonomyCache_.insert_name(std::move(sid), newtax);
 
     return true;
 }

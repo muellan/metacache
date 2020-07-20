@@ -958,7 +958,12 @@ public:
     {}
 
     taxonomy_cache(const taxonomy_cache&) = delete;
-    taxonomy_cache(taxonomy_cache&& other) = default;
+    taxonomy_cache(taxonomy_cache&& other) :
+        taxa_{std::move(other.taxa_)},
+        taxonLineages_{std::move(other.taxonLineages_)},
+        targetLineages_{std::move(other.targetLineages_)},
+        name2tax_{std::move(other.name2tax_)}
+    {}
 
 
     //---------------------------------------------------------------
@@ -994,8 +999,7 @@ public:
     taxon_with_id(taxon_id id) const noexcept {
         return taxa_[id];
     }
-    //-----------------------------------------------------
-    /**
+    /******************************************************
      * @brief will only find sequence-level taxon names == sequence id
      */
     const taxon*
@@ -1005,8 +1009,7 @@ public:
         if(i == name2tax_.end()) return nullptr;
         return i->second;
     }
-    //-----------------------------------------------------
-    /**
+    /******************************************************
      * @brief will find sequence-level taxon names with different versions
      */
     const taxon*
@@ -1020,17 +1023,31 @@ public:
     }
 
 
-    //---------------------------------------------------------------
+    /****************************************************************
+     * @brief concurrency-safe taxon name lookup
+     */
+    bool contains_name(const taxon_name& sid) {
+        std::lock_guard<std::mutex> lock(name2taxMtx);
+        return name2tax_.find(sid) != name2tax_.end();
+    }
+    /****************************************************************
+     * @brief concurrency-safe taxon name insert
+     */
     void insert_name(taxon_name sid, const taxon* tax) {
+        std::lock_guard<std::mutex> lock(name2taxMtx);
         name2tax_.insert({std::move(sid), tax});
     }
 
 
-    //---------------------------------------------------------------
+    /****************************************************************
+     * @brief  concurrency-safe taxon emplacement
+     */
     const taxon*
     emplace_taxon(taxon_id taxid, taxon_id parentTaxid, taxon_name sid,
                   taxon_rank rank, file_source source)
     {
+        std::lock_guard<std::mutex> lock(taxaMtx);
+
         auto nit = taxa_.emplace(
             taxid, parentTaxid, std::move(sid),
             rank, std::move(source));
@@ -1042,6 +1059,7 @@ public:
 
         return &(*nit);
     }
+
 
     //---------------------------------------------------------------
     std::uint64_t
@@ -1168,8 +1186,7 @@ public:
     }
 
 
-    //---------------------------------------------------------------
-    /**
+    /****************************************************************
      * @return number of times a taxon is covered by any target in the DB
      */
     std::uint_least64_t
@@ -1191,8 +1208,7 @@ public:
         return coverage;
     }
 
-    //---------------------------------------------------------------
-    /**
+    /****************************************************************
      * @return true, if taxon is covered by any target in the DB
      */
     bool covers(const taxon* covered) const {
@@ -1251,8 +1267,9 @@ public:
         targetLineages_.mark_outdated();
     }
 
-    //---------------------------------------------------------------
-    // target count is 0, the prvious target count will be used
+    /****************************************************************
+     * @details if target count is 0, the prvious target count will be used
+     */
     void update_cached_lineages(taxon_rank rank, std::uint64_t targetCount = 0) const {
         taxonLineages_.update(rank);
         targetLineages_.update(targetCount);
@@ -1276,6 +1293,9 @@ private:
     mutable ranked_lineages_cache taxonLineages_;
     mutable ranked_lineages_of_targets targetLineages_;
     std::map<taxon_name,const taxon*> name2tax_;
+
+    std::mutex name2taxMtx;
+    std::mutex taxaMtx;
 };
 
 
