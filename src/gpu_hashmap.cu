@@ -10,6 +10,8 @@
 #include "../dep/warpcore/include/single_value_hash_table.cuh"
 #include "../dep/warpcore/include/bucket_list_hash_table.cuh"
 
+#include "../dep/bb_segsort/src/bb_segsort_keys.cuh"
+
 namespace mc {
 
 
@@ -61,7 +63,7 @@ public:
     build_hash_table(
         size_type key_capacity,
         size_type value_capacity,
-        std::uint64_t maxLocationsPerFeature
+        bucket_size_type maxLocationsPerFeature
     ) :
         hashTable_{key_capacity, value_capacity,
             warpcore::defaults::seed<key_type>(),   // seed
@@ -226,11 +228,17 @@ public:
 
 
 private:
-    class retrieval_buffer {
+    class retrieval_buffer
+    {
+        using value_type_equivalent = uint64_t;
+
+        static_assert(sizeof(value_type) == sizeof(value_type_equivalent), "location_type must be 64 bit");
+
     public:
         retrieval_buffer(size_type batchSize) :
             valuesAlloc_{0},
             d_values_{nullptr},
+            d_valuesTmp_{nullptr},
             h_values_{nullptr}
         {
             cudaMallocHost(&valuesCountPtr_, sizeof(size_type)); CUERR
@@ -241,6 +249,9 @@ private:
             cudaMalloc    (&d_sizes_, batchSize*sizeof(bucket_size_type)); CUERR
             cudaMallocHost(&h_sizes_, batchSize*sizeof(bucket_size_type)); CUERR
 
+            cudaMalloc    (&d_binnedSegIds_, batchSize * sizeof(int)); CUERR
+            cudaMalloc    (&d_segBinCounters_, (SEGBIN_NUM+1)*sizeof(int)); CUERR
+
             cudaStreamCreate(&stream_);
         }
 
@@ -250,15 +261,20 @@ private:
             cudaFree    (d_offsets_); CUERR
             cudaFree    (d_sizes_); CUERR
             cudaFreeHost(h_sizes_); CUERR
+
+            cudaFree    (d_binnedSegIds_); CUERR
+            cudaFree    (d_segBinCounters_); CUERR
+
             if(valuesAlloc_) {
-                cudaFree    (d_values_); CUERR
                 cudaFreeHost(h_values_); CUERR
+                cudaFree    (d_values_); CUERR
+                cudaFree    (d_valuesTmp_); CUERR
             }
 
             cudaStreamDestroy(stream_);
         }
 
-        size_type * values_count() const noexcept { return valuesCountPtr_; }
+        size_type& values_count() noexcept { return *valuesCountPtr_; }
         size_type * d_offsets() const noexcept { return d_offsets_; }
         key_type * h_keys() const noexcept { return h_keys_; }
         bucket_size_type * d_sizes() const noexcept { return d_sizes_; }
@@ -268,13 +284,26 @@ private:
         cudaStream_t stream() const noexcept { return stream_; }
 
         void resize() {
-            if(*values_count() > valuesAlloc_) {
-                valuesAlloc_ = *values_count() * 1.1;
-                cudaFreeHost(h_values()); CUERR
-                cudaFree    (d_values()); CUERR
+            if(values_count() > valuesAlloc_) {
+                valuesAlloc_ = values_count() * 1.1;
+                cudaFreeHost(h_values_); CUERR
+                cudaFree    (d_values_); CUERR
+                cudaFree    (d_valuesTmp_); CUERR
                 cudaMallocHost(&h_values_, valuesAlloc_*sizeof(value_type)); CUERR
                 cudaMalloc    (&d_values_, valuesAlloc_*sizeof(value_type)); CUERR
+                cudaMalloc    (&d_valuesTmp_, valuesAlloc_*sizeof(value_type)); CUERR
             }
+        }
+
+        void sort_values(int numSegs, bucket_size_type maxLocationsPerFeature) {
+            bb_segsort_run(
+                reinterpret_cast<value_type_equivalent *>(d_values_),
+                reinterpret_cast<value_type_equivalent *>(d_valuesTmp_),
+                d_offsets_, numSegs, maxLocationsPerFeature,
+                d_binnedSegIds_, d_segBinCounters_,
+                stream_);
+
+            std::swap(d_values_, d_valuesTmp_);
         }
 
     private:
@@ -286,7 +315,11 @@ private:
         bucket_size_type * d_sizes_;
         bucket_size_type * h_sizes_;
         value_type * d_values_;
+        value_type * d_valuesTmp_;
         value_type * h_values_;
+
+        int * d_binnedSegIds_;
+        int * d_segBinCounters_;
 
         cudaStream_t stream_;
     };
@@ -297,12 +330,13 @@ private:
         key_type * d_keys,
         retrieval_buffer& buffer,
         size_type batchSize,
+        bucket_size_type maxLocationsPerFeature,
         std::mutex& mtx
     ) {
         // get valuesCount
         hashTable_.num_values(
             d_keys, batchSize,
-            *(buffer.values_count()),
+            buffer.values_count(),
             buffer.d_offsets()+1,
             buffer.stream());
         cudaStreamSynchronize(buffer.stream()); CUERR
@@ -314,17 +348,19 @@ private:
         hashTable_.retrieve(
             d_keys, batchSize,
             buffer.d_offsets(), buffer.d_offsets()+1,
-            buffer.d_values(), *(buffer.values_count()),
+            buffer.d_values(), buffer.values_count(),
             buffer.stream());
 
         calculate_sizes_kernel<<<SDIV(batchSize, MAXBLOCKSIZE), MAXBLOCKSIZE, 0, buffer.stream()>>>(
             buffer.d_offsets(), buffer.d_sizes(), batchSize);
 
+        buffer.sort_values(batchSize, maxLocationsPerFeature);
+
         cudaMemcpyAsync(buffer.h_keys(), d_keys, batchSize*sizeof(key_type),
             cudaMemcpyDeviceToHost, buffer.stream());
         cudaMemcpyAsync( buffer.h_sizes(),  buffer.d_sizes(), batchSize*sizeof(bucket_size_type),
             cudaMemcpyDeviceToHost, buffer.stream());
-        cudaMemcpyAsync( buffer.h_values(), buffer. d_values(), *buffer.values_count()*sizeof(value_type),
+        cudaMemcpyAsync( buffer.h_values(), buffer.d_values(), buffer.values_count()*sizeof(value_type),
             cudaMemcpyDeviceToHost, buffer.stream());
 
         cudaStreamSynchronize(buffer.stream()); CUERR
@@ -336,12 +372,12 @@ private:
         std::lock_guard<std::mutex> lock(mtx);
         write_binary(os, buffer.h_keys(), batchSize);
         write_binary(os, buffer.h_sizes(), batchSize);
-        write_binary(os, buffer.h_values(), *buffer.values_count());
+        write_binary(os, buffer.h_values(), buffer.values_count());
     }
 
 public:
     //---------------------------------------------------------------
-    void serialize(std::ostream& os)
+    void serialize(std::ostream& os, bucket_size_type maxLocationsPerFeature)
     {
         cudaDeviceSynchronize(); CUERR
 
@@ -373,7 +409,7 @@ public:
             for(len_t b = 0; b < numCycles; b+=2) {
                 retrieve_and_write_binary(os,
                     d_keys + b * batchSize_,
-                    buffer0, batchSize_, mtx);
+                    buffer0, batchSize_, maxLocationsPerFeature, mtx);
             }
         });
         auto retriever1 = std::async(std::launch::async, [&] {
@@ -382,7 +418,7 @@ public:
             for(len_t b = 1; b < numCycles; b+=2) {
                 retrieve_and_write_binary(os,
                     d_keys + b * batchSize_,
-                    buffer1, batchSize_, mtx);
+                    buffer1, batchSize_, maxLocationsPerFeature, mtx);
             }
         });
 
@@ -392,7 +428,7 @@ public:
         if(lastBatchSize) {
             retrieve_and_write_binary(os,
                 d_keys + numCycles * batchSize_,
-                buffer0, lastBatchSize, mtx);
+                buffer0, lastBatchSize, maxLocationsPerFeature, mtx);
         }
 
         cudaFree(d_keys); CUERR
@@ -942,7 +978,7 @@ part_id gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numGPUs)
         std::cerr << "gpu " << gpuId
                   << " allocate hashtable for " << keyCapacity << " keys"
                                        " and " << valueCapacity << " values\n";
-        buildHashTables_.emplace_back(keyCapacity, valueCapacity, maxLocationsPerFeature_);
+        buildHashTables_.emplace_back(keyCapacity, valueCapacity, max_locations_per_feature());
 
         cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
         std::cerr << "gpu " << gpuId << " freeMemory: " << helpers::B2GB(freeMemory) << " GB\n";
@@ -1136,7 +1172,7 @@ template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::serialize(std::ostream& os, part_id gpuId)
 {
     cudaSetDevice(gpuId); CUERR
-    buildHashTables_[gpuId].serialize(os);
+    buildHashTables_[gpuId].serialize(os, max_locations_per_feature());
 }
 
 

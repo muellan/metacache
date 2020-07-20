@@ -23,11 +23,11 @@ public:
         location_type_equivalent *d_keys, location_type_equivalent *d_keysB,
         const int *d_segs,
         int *d_binnedSegIds,
-        int *d_segBinCounters_,
+        int *d_segBinCounters,
         cudaStream_t stream)
     :
         sorter_{d_keys, d_keysB,
-            d_segs, d_binnedSegIds, d_segBinCounters_,
+            d_segs, d_binnedSegIds, d_segBinCounters,
             stream}
     {}
 
@@ -36,7 +36,7 @@ public:
     }
 
 private:
-    bb_segsort_keys<location_type_equivalent> sorter_;
+    bb_segsort_keys<location_type_equivalent, int> sorter_;
 };
 
 
