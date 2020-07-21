@@ -28,7 +28,7 @@ This will compile MetaCache-GPU with support for:
 
 This corresponds to the CPU version compiled with `make MACROS="-DMC_TARGET_ID_TYPE=uint32_t"`
 
-**Note that a database build by the GPU version may not be queried by the CPU version. It is however possible to query databases on the GPU that were build by the corresponding CPU version if it fits in GPU memory.**
+**Note that a database build by the GPU version can be queried by the corresponding CPU version and vice versa. The only restriction is the available (GPU) memory.**
 
 
 ## Differences to CPU version
