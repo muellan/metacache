@@ -871,7 +871,7 @@ gpu_hashmap<Key,ValueT>::gpu_hashmap() :
     cudaGetDeviceCount(&deviceCount); CUERR
     numGPUs_ = deviceCount;
 
-    std::cerr << "found " << numGPUs_ << " CUDA devices\n";
+    // std::cerr << "found " << numGPUs_ << " CUDA devices\n";
 }
 
 //-----------------------------------------------------
