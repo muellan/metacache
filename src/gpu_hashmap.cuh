@@ -234,6 +234,16 @@ public:
     void wait_until_add_target_complete(part_id gpuId, const sketcher& targetSketcher);
 
     //---------------------------------------------------------------
+    template<class Hashtable>
+    void query_hashtables_async(
+        const std::vector<Hashtable>& hashtables,
+        query_batch<value_type>& batch,
+        part_id hostId,
+        const sketcher& querySketcher,
+        bool copyAllHits,
+        taxon_rank lowestRank) const;
+
+    //-----------------------------------------------------
     void query_async(
         query_batch<value_type>& batch,
         part_id hostId,

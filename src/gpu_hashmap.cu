@@ -42,17 +42,17 @@ template<class Key, class ValueT>
 class gpu_hashmap<Key,ValueT>::build_hash_table {
 
     using key_type   = Key;
-    using value_type = ValueT;
+    using location_type = ValueT;
 
     using ranked_lineage = taxonomy::ranked_lineage;
 
     using hash_table_t = warpcore::BucketListHashTable<
-        key_type, value_type,
+        key_type, location_type,
         // warpcore::defaults::empty_key<key_type>(),       //=0
         key_type(-2),
         warpcore::defaults::tombstone_key<key_type>(),      //=-1
         warpcore::storage::multi_value::BucketListStore<
-            value_type,40,bucket_size_bits(),bucket_size_bits()
+            location_type,40,bucket_size_bits(),bucket_size_bits()
         >
     >;
 
@@ -176,6 +176,88 @@ public:
         cudaStreamSynchronize(insertStream_); CUERR
     }
 
+    /*************************************************************************//**
+    *
+    * @brief   query all windows in batch using one warp per window
+    *
+    * @details saves sketches to gpu memory in case of multi-gpu query
+    *
+    *****************************************************************************/
+    void query_sequences_async(
+        uint32_t numWindows,
+        const typename query_batch<location_type>::query_gpu_data& gpuData,
+        const sketcher& querySketcher,
+        bucket_size_type maxLocationsPerFeature) const
+    {
+        constexpr int maxSketchSize = 16;
+
+        // max 32*4 characters per warp, so max window size is 128
+        if(querySketcher.window_size() <= 128 && querySketcher.sketch_size() <= maxSketchSize) {
+            constexpr int warpsPerBlock = 2;
+            constexpr int threadsPerBlock = 32*warpsPerBlock;
+
+            const int numBlocks = (numWindows+warpsPerBlock-1) / warpsPerBlock;
+            gpu_hahstable_query<threadsPerBlock,maxSketchSize>
+                <<<numBlocks,threadsPerBlock,0,gpuData.workStream_>>>(
+                hashTable_,
+                numWindows,
+                gpuData.sequenceOffsets_,
+                gpuData.sequences_,
+                gpuData.sketches_,
+                querySketcher.kmer_size(),
+                querySketcher.sketch_size(),
+                querySketcher.window_size(),
+                querySketcher.window_stride(),
+                maxLocationsPerFeature,
+                gpuData.queryResults_,
+                gpuData.resultCounts_
+            );
+        }
+        else {
+            std::cerr << "Max window size is 128!\n";
+            std::cerr << "Max sketch size is " << maxSketchSize << "\n";
+        }
+    }
+
+    /*************************************************************************//**
+    *
+    * @brief   query sketches of all windows in batch using one warp per window
+    *
+    *****************************************************************************/
+    void query_sketches_async(
+        uint32_t numWindows,
+        const typename query_batch<location_type>::query_gpu_data& gpuData,
+        const sketcher& querySketcher,
+        bucket_size_type maxLocationsPerFeature) const
+    {
+        constexpr int maxSketchSize = 16;
+
+        // max 32*4 characters per warp, so max window size is 128
+        if(querySketcher.window_size() <= 128 && querySketcher.sketch_size() <= maxSketchSize) {
+            constexpr int warpsPerBlock = 2;
+            constexpr int threadsPerBlock = 32*warpsPerBlock;
+
+            const int numBlocks = (numWindows+warpsPerBlock-1) / warpsPerBlock;
+            gpu_hahstable_query<threadsPerBlock,maxSketchSize>
+                <<<numBlocks,threadsPerBlock,0,gpuData.workStream_>>>(
+                hashTable_,
+                numWindows,
+                gpuData.sketches_,
+                querySketcher.kmer_size(),
+                querySketcher.sketch_size(),
+                querySketcher.window_size(),
+                querySketcher.window_stride(),
+                maxLocationsPerFeature,
+                gpuData.queryResults_,
+                gpuData.resultCounts_
+            );
+        }
+        else {
+            std::cerr << "Max window size is 128!\n";
+            std::cerr << "Max sketch size is " << maxSketchSize << "\n";
+        }
+    }
+
     //---------------------------------------------------------------
     statistics_accumulator_gpu<policy::Host>
     location_list_size_statistics()
@@ -238,9 +320,9 @@ private:
     **************************************************************************/
     class retrieval_buffer
     {
-        using value_type_equivalent = uint64_t;
+        using location_type_equivalent = uint64_t;
 
-        static_assert(sizeof(value_type) == sizeof(value_type_equivalent),
+        static_assert(sizeof(location_type) == sizeof(location_type_equivalent),
                       "location_type must be 64 bit");
 
     public:
@@ -299,13 +381,13 @@ private:
         bucket_size_type * h_sizes(bool b) const noexcept {
             return b ? h_sizes1_ : h_sizes0_;
         }
-        value_type * h_values(bool b) const noexcept {
+        location_type * h_values(bool b) const noexcept {
             return b ? h_values1_ : h_values0_;
         }
         size_type& values_count() noexcept { return *valuesCountPtr_; }
         size_type * d_offsets() const noexcept { return d_offsets_; }
         bucket_size_type * d_sizes() const noexcept { return d_sizes_; }
-        value_type * d_values() const noexcept { return d_values_; }
+        location_type * d_values() const noexcept { return d_values_; }
         cudaStream_t stream() const noexcept { return stream_; }
 
         void resize(bool b) {
@@ -313,29 +395,29 @@ private:
                 d_valuesAlloc_ = values_count() * 1.1;
                 cudaFree    (d_values_); CUERR
                 cudaFree    (d_valuesTmp_); CUERR
-                cudaMalloc    (&d_values_, d_valuesAlloc_*sizeof(value_type)); CUERR
-                cudaMalloc    (&d_valuesTmp_, d_valuesAlloc_*sizeof(value_type)); CUERR
+                cudaMalloc    (&d_values_, d_valuesAlloc_*sizeof(location_type)); CUERR
+                cudaMalloc    (&d_valuesTmp_, d_valuesAlloc_*sizeof(location_type)); CUERR
             }
             if(b) {
                 if(values_count() > h_valuesAlloc1_) {
                     h_valuesAlloc1_ = values_count() * 1.1;
                     cudaFreeHost(h_values1_); CUERR
-                    cudaMallocHost(&h_values1_, h_valuesAlloc1_*sizeof(value_type)); CUERR
+                    cudaMallocHost(&h_values1_, h_valuesAlloc1_*sizeof(location_type)); CUERR
                 }
             }
             else {
                 if(values_count() > h_valuesAlloc0_) {
                     h_valuesAlloc0_ = values_count() * 1.1;
                     cudaFreeHost(h_values0_); CUERR
-                    cudaMallocHost(&h_values0_, h_valuesAlloc0_*sizeof(value_type)); CUERR
+                    cudaMallocHost(&h_values0_, h_valuesAlloc0_*sizeof(location_type)); CUERR
                 }
             }
         }
 
         void sort_values(int numSegs, bucket_size_type maxLocationsPerFeature) {
             bb_segsort_run(
-                reinterpret_cast<value_type_equivalent *>(d_values_),
-                reinterpret_cast<value_type_equivalent *>(d_valuesTmp_),
+                reinterpret_cast<location_type_equivalent *>(d_values_),
+                reinterpret_cast<location_type_equivalent *>(d_valuesTmp_),
                 d_offsets_, numSegs, maxLocationsPerFeature,
                 d_binnedSegIds_, d_segBinCounters_,
                 stream_);
@@ -355,10 +437,10 @@ private:
         bucket_size_type * h_sizes0_;
         bucket_size_type * h_sizes1_;
         bucket_size_type * d_sizes_;
-        value_type * h_values0_;
-        value_type * h_values1_;
-        value_type * d_values_;
-        value_type * d_valuesTmp_;
+        location_type * h_values0_;
+        location_type * h_values1_;
+        location_type * d_values_;
+        location_type * d_valuesTmp_;
 
         int * d_binnedSegIds_;
         int * d_segBinCounters_;
@@ -408,7 +490,7 @@ private:
             batchSize*sizeof(bucket_size_type),
             cudaMemcpyDeviceToHost, buffer.stream());
         cudaMemcpyAsync(buffer.h_values(hostId), buffer.d_values(),
-            buffer.values_count()*sizeof(value_type),
+            buffer.values_count()*sizeof(location_type),
             cudaMemcpyDeviceToHost, buffer.stream());
 
         const auto tableStatus = hashTable_.pop_status(buffer.stream());
@@ -1117,7 +1199,9 @@ void gpu_hashmap<Key,ValueT>::wait_until_add_target_complete(
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::query_async(
+template<class Hashtable>
+void gpu_hashmap<Key,ValueT>::query_hashtables_async(
+    const std::vector<Hashtable>& hashtables,
     query_batch<value_type>& batch,
     part_id hostId,
     const sketcher& querySketcher,
@@ -1133,14 +1217,14 @@ void gpu_hashmap<Key,ValueT>::query_async(
         if(gpuId == 0) {
             batch.copy_queries_to_device_async(hostId);
 
-            queryHashTables_[gpuId].query_sequences_async(
+            hashtables[gpuId].query_sequences_async(
                 batch.host_data(hostId).num_windows(),
                 batch.gpu_data(gpuId),
                 querySketcher,
                 maxLocationsPerFeature_);
         }
         else {
-            queryHashTables_[gpuId].query_sketches_async(
+            hashtables[gpuId].query_sketches_async(
                 batch.host_data(hostId).num_windows(),
                 batch.gpu_data(gpuId),
                 querySketcher,
@@ -1159,6 +1243,26 @@ void gpu_hashmap<Key,ValueT>::query_async(
             hostId, gpuId, lineages_[gpuId], lowestRank);
 
         // batch.sync_copy_stream(gpuId); CUERR
+    }
+}
+
+
+//---------------------------------------------------------------
+template<class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::query_async(
+    query_batch<value_type>& batch,
+    part_id hostId,
+    const sketcher& querySketcher,
+    bool copyAllHits,
+    taxon_rank lowestRank) const
+{
+    if(!buildHashTables_.empty()) {
+        query_hashtables_async(
+            buildHashTables_, batch, hostId, querySketcher, copyAllHits, lowestRank);
+    }
+    else if(!queryHashTables_.empty()) {
+        query_hashtables_async(
+            queryHashTables_, batch, hostId, querySketcher, copyAllHits, lowestRank);
     }
 }
 
