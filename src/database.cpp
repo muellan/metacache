@@ -147,8 +147,6 @@ void database::read_single(const std::string& filename, part_id partId, scope wh
         if(targetCount < 1) return;
 
         targetCount_ = targetCount;
-
-        taxonomyCache_.initialize_caches(targetCount_);
     }
     else {
         //skip metadata
@@ -187,6 +185,7 @@ void database::read(const std::string& filename, part_id numParts, scope what)
     if(numParts > featureStore_.num_gpus()) {
         numParts = featureStore_.num_gpus();
     }
+    featureStore_.enable_all_peer_access(numParts);
 #endif
 
     if(numParts == 1) {
@@ -204,12 +203,7 @@ void database::read(const std::string& filename, part_id numParts, scope what)
         }
     }
 
-#ifdef GPU_MODE
-    if(what != scope::metadata_only) {
-        featureStore_.enable_all_peer_access(numParts);
-        featureStore_.copy_target_lineages_to_gpus(taxonomyCache_.target_lineages(), numParts);
-    }
-#endif
+    initialize_taxonomy_caches(numParts);
 }
 
 

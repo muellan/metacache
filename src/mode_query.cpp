@@ -34,6 +34,8 @@
 #include "printing.h"
 #include "config.h"
 
+#include "mode_query.h"
+
 
 namespace mc {
 

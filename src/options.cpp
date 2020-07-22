@@ -512,10 +512,13 @@ build_mode_cli(build_options& opt, error_messages& err)
               "default: "s + (opt.resetParents ? "on" : "off"))
         ,
         database_storage_options_cli(opt.dbconfig, err)
+        ,
+        option("-query").set(opt.queryAfterBuild)
+            %("Run interactive query after building database.\n"
+              "default: "s + (opt.queryAfterBuild ? "on" : "off"))
     ),
     catch_unknown(err)
     );
-
 }
 
 

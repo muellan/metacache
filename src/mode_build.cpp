@@ -43,8 +43,9 @@
 #include "printing.h"
 #include "sequence_io.h"
 #include "taxonomy_io.h"
-
 #include "batch_processing.h"
+
+#include "mode_query.h"
 
 
 namespace mc {
@@ -319,7 +320,7 @@ void add_targets_to_database(database& db,
     execOpt.batch_size(8);
     execOpt.queue_size(8);
 #ifndef GPU_MODE
-    execOpt.concurrency(1, db.num_parts());
+    execOpt.concurrency(db.num_parts(), db.num_parts());
 #else
     execOpt.concurrency(8, db.num_parts());
 #endif
@@ -547,6 +548,16 @@ void add_to_database(database& db, const build_options& opt)
     try_to_rank_unranked_targets(db.taxo_cache(), opt);
 
     post_process_features(db, opt);
+
+
+    if(opt.queryAfterBuild) {
+        query_options queryOpt{};
+        queryOpt.dbfile = opt.dbfile;
+        db.initialize_taxonomy_caches(opt.dbconfig.numParts);
+
+        run_interactive_query_mode(db, queryOpt);
+    }
+
 
     if(notSilent) {
         cout << "Writing database to file ... " << flush;

@@ -314,6 +314,15 @@ public:
         featureStore_.initialize_build_hash_tables(numParts);
     }
 
+    //---------------------------------------------------------------
+    void initialize_taxonomy_caches(part_id numParts) {
+        taxonomyCache_.initialize_caches(targetCount_);
+
+#ifdef GPU_MODE
+        featureStore_.copy_target_lineages_to_gpus(taxonomyCache_.target_lineages(), numParts);
+#endif
+    }
+
 
     //---------------------------------------------------------------
     bool add_target(

@@ -59,6 +59,7 @@ HEADERS = \
           src/io_options.h \
           src/io_serialize.h \
           src/matches_per_target.h \
+          src/mode_query.h \
           src/modes.h \
           src/options.h \
           src/printing.h \
