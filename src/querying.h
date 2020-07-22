@@ -217,7 +217,7 @@ query_id query_batched(
         opt.classify.maxNumCandidatesPerQuery,
         copyAllHits,
         (opt.performance.numThreads - (opt.performance.numThreads > 1)),
-        opt.dbconfig.numParts);
+        db.num_parts());
 #endif
 
     // get executor that runs classification in batches

@@ -94,12 +94,18 @@ public:
 
 public:
     //---------------------------------------------------------------
-    unsigned num_parts() const noexcept {
+    part_id num_parts() const noexcept {
         return numGPUs_;
     }
     //---------------------------------------------------------------
-    unsigned num_gpus() const noexcept {
+    part_id num_gpus() const noexcept {
         return numGPUs_;
+    }
+    //-----------------------------------------------------
+    void num_gpus(part_id numGPUs) noexcept {
+        if(numGPUs_ > numGPUs) {
+            numGPUs_ = numGPUs;
+        }
     }
 
     //---------------------------------------------------------------
@@ -201,7 +207,7 @@ public:
     /****************************************************************
      * @brief allocate gpu hash table for database building
      */
-    part_id initialize_build_hash_tables(part_id numGPUs);
+    void initialize_build_hash_tables(part_id numGPUs);
 
     /****************************************************************
      * @brief split sequence into batches and insert into build hash table
@@ -251,10 +257,10 @@ public:
     }
 
     //---------------------------------------------------------------
-    void copy_target_lineages_to_gpus(const std::vector<ranked_lineage>& lins, part_id numGPUs);
+    void copy_target_lineages_to_gpus(const std::vector<ranked_lineage>& lins);
 
     //---------------------------------------------------------------
-    void enable_all_peer_access(part_id numGPUs);
+    void enable_all_peer_access();
 
 
 private:

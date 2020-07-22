@@ -315,11 +315,11 @@ public:
     }
 
     //---------------------------------------------------------------
-    void initialize_taxonomy_caches(part_id numParts) {
+    void initialize_taxonomy_caches() {
         taxonomyCache_.initialize_caches(targetCount_);
 
 #ifdef GPU_MODE
-        featureStore_.copy_target_lineages_to_gpus(taxonomyCache_.target_lineages(), numParts);
+        featureStore_.copy_target_lineages_to_gpus(taxonomyCache_.target_lineages());
 #endif
     }
 

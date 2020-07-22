@@ -154,14 +154,12 @@ public:
 
 
     //---------------------------------------------------------------
-    part_id initialize_build_hash_tables(part_id numParts) {
+    void initialize_build_hash_tables(part_id numParts) {
         hashTables_.resize(numParts);
         inserters_.resize(numParts);
 
         for(auto& hashTable : hashTables_)
             hashTable.max_load_factor(maxLoadFactor_);
-
-        return num_parts();
     }
 
 

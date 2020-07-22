@@ -182,10 +182,10 @@ void database::read_single(const std::string& filename, part_id partId, scope wh
 void database::read(const std::string& filename, part_id numParts, scope what)
 {
 #ifdef GPU_MODE
-    if(numParts > featureStore_.num_gpus()) {
-        numParts = featureStore_.num_gpus();
-    }
-    featureStore_.enable_all_peer_access(numParts);
+    featureStore_.num_gpus(numParts);
+    numParts = featureStore_.num_gpus();
+
+    featureStore_.enable_all_peer_access();
 #endif
 
     if(numParts == 1) {
@@ -203,7 +203,7 @@ void database::read(const std::string& filename, part_id numParts, scope what)
         }
     }
 
-    initialize_taxonomy_caches(numParts);
+    initialize_taxonomy_caches();
 }
 
 

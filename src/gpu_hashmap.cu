@@ -994,12 +994,12 @@ gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-part_id gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numGPUs)
+void gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numGPUs)
 {
-    if(numGPUs < numGPUs_)
-        numGPUs_ = numGPUs;
+    part_id numGPUsFound = num_gpus();
+    num_gpus(numGPUs);
 
-    std::cerr << "using " << numGPUs_ << " CUDA devices\n";
+    std::cerr << "using " << numGPUs_ << " of " << numGPUsFound << " available CUDA devices\n";
 
     insertBuffers_.reserve(numGPUs_);
 
@@ -1030,8 +1030,6 @@ part_id gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numGPUs)
         // allocate host buffers
         insertBuffers_.emplace_back();
     }
-
-    return numGPUs_;
 }
 
 
@@ -1224,13 +1222,12 @@ void gpu_hashmap<Key,ValueT>::serialize(std::ostream& os, part_id gpuId)
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::copy_target_lineages_to_gpus(
-    const std::vector<ranked_lineage>& lins,
-    part_id numGPUs)
+    const std::vector<ranked_lineage>& lins)
 {
-    lineages_.resize(numGPUs);
+    lineages_.resize(numGPUs_);
     const size_t size = lins.size()*sizeof(ranked_lineage);
 
-    for(part_id gpuId = 0; gpuId < numGPUs; ++gpuId) {
+    for(part_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
         std::cerr << "copy lineages to gpu " << gpuId << "\n";
         cudaSetDevice(gpuId); CUERR
         cudaMalloc(&lineages_[gpuId], size); CUERR
@@ -1241,11 +1238,11 @@ void gpu_hashmap<Key,ValueT>::copy_target_lineages_to_gpus(
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::enable_all_peer_access(part_id numGPUs)
+void gpu_hashmap<Key,ValueT>::enable_all_peer_access()
 {
-    for (part_id srcId = 0; srcId < numGPUs; ++srcId) {
+    for (part_id srcId = 0; srcId < numGPUs_; ++srcId) {
         cudaSetDevice(srcId);
-        for (part_id dstId = 0; dstId < numGPUs; ++dstId) {
+        for (part_id dstId = 0; dstId < numGPUs_; ++dstId) {
             if (srcId != dstId) {
                  cudaDeviceEnablePeerAccess(dstId, 0);
             }

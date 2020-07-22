@@ -553,7 +553,7 @@ void add_to_database(database& db, const build_options& opt)
     if(opt.queryAfterBuild) {
         query_options queryOpt{};
         queryOpt.dbfile = opt.dbfile;
-        db.initialize_taxonomy_caches(opt.dbconfig.numParts);
+        db.initialize_taxonomy_caches();
 
         run_interactive_query_mode(db, queryOpt);
     }
