@@ -459,7 +459,7 @@ public:
         return win;
     }
 
-
+private:
     //---------------------------------------------------------------
     void add_sketch_batch(part_id part, const sketch_batch& batch) {
         for(const auto& windowSketch : batch) {
@@ -492,36 +492,44 @@ public:
 
 
     //---------------------------------------------------------------
-    template<class InputIterator>
-    void
-    accumulate_matches(part_id part,
-                       const sketcher& querySketcher,
-                       InputIterator queryBegin, InputIterator queryEnd,
-                       matches_sorter& res) const
-    {
-        querySketcher.for_each_sketch(queryBegin, queryEnd,
-            [this, &part, &res] (const auto& sk) {
-                for(auto f : sk) {
-                    auto locs = hashTables_[part].find(f);
-                    if(locs != hashTables_[part].end() && locs->size() > 0) {
-                        res.locs_.insert(res.locs_.end(), locs->begin(), locs->end());
-                        res.offsets_.emplace_back(res.locs_.size());
-                    }
-                }
-            });
-    }
-    //---------------------------------------------------------------
-    void
-    accumulate_matches(part_id part,
-                       const sketcher& querySketcher,
-                       const sequence& query,
-                       matches_sorter& res) const
+    sketch
+    sketch_all_windows(const sequence& query1, const sequence& query2,
+                       const sketcher& querySketcher) const
     {
         using std::begin;
         using std::end;
-        accumulate_matches(part, querySketcher, begin(query), end(query), res);
+
+        sketch allWindowSketch;
+
+        querySketcher.for_each_sketch(begin(query1), end(query1),
+            [this, &allWindowSketch] (const auto& sk) {
+                allWindowSketch.insert(allWindowSketch.end(), sk.begin(), sk.end());
+            });
+
+        querySketcher.for_each_sketch(begin(query2), end(query2),
+            [this, &allWindowSketch] (const auto& sk) {
+                allWindowSketch.insert(allWindowSketch.end(), sk.begin(), sk.end());
+            });
+
+        return allWindowSketch;
     }
 
+    //---------------------------------------------------------------
+    void
+    accumulate_matches(part_id part,
+                       const sketch& allWindowSketch,
+                       matches_sorter& res) const
+    {
+        for(auto f : allWindowSketch) {
+            auto locs = hashTables_[part].find(f);
+            if(locs != hashTables_[part].end() && locs->size() > 0) {
+                res.locs_.insert(res.locs_.end(), locs->begin(), locs->end());
+                res.offsets_.emplace_back(res.locs_.size());
+            }
+        }
+    }
+
+public:
     //---------------------------------------------------------------
     classification_candidates
     query_host(const sequence& query1, const sequence& query2,
@@ -530,21 +538,19 @@ public:
                const candidate_generation_rules& rules,
                matches_sorter& sorter) const
     {
+        sketch allWindowSketch = sketch_all_windows(query1, query2, querySketcher);
+
         sorter.clear();
-        classification_candidates candidates;
 
         for(part_id part = 0; part < num_parts(); ++part) {
             sorter.next();
 
-            accumulate_matches(part, querySketcher, query1, sorter);
-            accumulate_matches(part, querySketcher, query2, sorter);
+            accumulate_matches(part, allWindowSketch, sorter);
 
             sorter.sort();
         }
 
-        candidates.process(taxonomy, sorter.locations(), rules);
-
-        return candidates;
+        return classification_candidates{taxonomy, sorter.locations(), rules};
     }
 
 

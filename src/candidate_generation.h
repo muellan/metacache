@@ -158,10 +158,12 @@ public:
      * @pre matches must be sorted by taxon (first) and window (second)
      */
     template<class Locations>
-    void process(
+    best_distinct_matches_in_contiguous_window_ranges(
         const taxonomy_cache& taxonomy,
         const Locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
+    :
+        top_{}
     {
         for_all_contiguous_window_ranges(matches, rules.maxWindowsInRange,
             [&,this] (match_candidate& cand) {
@@ -274,10 +276,12 @@ public:
      * @pre matches must be sorted by taxon (first) and window (second)
      */
     template<class Locations>
-    void process(
+    distinct_matches_in_contiguous_window_ranges(
         const taxonomy_cache& taxonomy,
         const Locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
+    :
+        cand_{}
     {
         for_all_contiguous_window_ranges(matches, rules.maxWindowsInRange,
             [&,this] (match_candidate& cand) {
