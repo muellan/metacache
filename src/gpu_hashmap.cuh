@@ -251,7 +251,7 @@ public:
     }
 
     //---------------------------------------------------------------
-    void copy_target_lineages_to_gpu(const std::vector<ranked_lineage>& lins, part_id gpuId);
+    void copy_target_lineages_to_gpus(const std::vector<ranked_lineage>& lins, part_id numGPUs);
 
     //---------------------------------------------------------------
     void enable_all_peer_access(part_id numGPUs);
@@ -287,6 +287,9 @@ private:
      *        which maps feature -> values pointer
      */
     std::vector<query_hash_table> queryHashTables_;
+
+
+    std::vector<ranked_lineage *> lineages_;
 };
 
 

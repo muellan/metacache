@@ -174,10 +174,6 @@ void database::read_single(const std::string& filename, part_id partId, scope wh
     if(what != scope::metadata_only) {
         //hash table
         read_binary(is, featureStore_, partId);
-
-#ifdef GPU_MODE
-        featureStore_.copy_target_lineages_to_gpu(taxonomyCache_.target_lineages(), partId);
-#endif
     }
 
     std::cerr << "done." << std::endl;
@@ -191,7 +187,6 @@ void database::read(const std::string& filename, part_id numParts, scope what)
     if(numParts > featureStore_.num_gpus()) {
         numParts = featureStore_.num_gpus();
     }
-    featureStore_.enable_all_peer_access(numParts);
 #endif
 
     if(numParts == 1) {
@@ -209,6 +204,12 @@ void database::read(const std::string& filename, part_id numParts, scope what)
         }
     }
 
+#ifdef GPU_MODE
+    if(what != scope::metadata_only) {
+        featureStore_.enable_all_peer_access(numParts);
+        featureStore_.copy_target_lineages_to_gpus(taxonomyCache_.target_lineages(), numParts);
+    }
+#endif
 }
 
 

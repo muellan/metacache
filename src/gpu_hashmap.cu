@@ -538,8 +538,7 @@ public:
     query_hash_table(size_t capacity) :
         hashTable_(capacity),
         numKeys_(0), numLocations_(0),
-        locations_(nullptr),
-        lineages_(nullptr)
+        locations_(nullptr)
     {}
 
     //---------------------------------------------------------------
@@ -562,10 +561,6 @@ public:
     //-----------------------------------------------------
     size_type location_count() const noexcept {
         return numLocations_;
-    }
-    //---------------------------------------------------------------
-    ranked_lineage * lineages() const noexcept {
-        return lineages_;
     }
 
     /*************************************************************************//**
@@ -840,21 +835,12 @@ public:
         numLocations_ = nlocations;
     }
 
-    //---------------------------------------------------------------
-    void copy_target_lineages_to_gpu(const std::vector<ranked_lineage>& lins) {
-        const size_t size = lins.size()*sizeof(ranked_lineage);
-        cudaMalloc(&lineages_, size);
-        cudaMemcpy(lineages_, lins.data(), size, cudaMemcpyHostToDevice);
-    }
-
 private:
     hash_table_t hashTable_;
 
     size_type numKeys_;
     size_type numLocations_;
     location * locations_;
-
-    ranked_lineage * lineages_;
 };
 
 
@@ -876,7 +862,11 @@ gpu_hashmap<Key,ValueT>::gpu_hashmap() :
 
 //-----------------------------------------------------
 template<class Key, class ValueT>
-gpu_hashmap<Key,ValueT>::~gpu_hashmap() = default;
+gpu_hashmap<Key,ValueT>::~gpu_hashmap() {
+    for(auto& lins : lineages_) {
+        if(lins) cudaFree(lins); CUERR
+    }
+}
 
 //-----------------------------------------------------
 template<class Key, class ValueT>
@@ -886,7 +876,8 @@ gpu_hashmap<Key,ValueT>::gpu_hashmap(gpu_hashmap&& other) :
     maxLocationsPerFeature_{other.maxLocationsPerFeature_},
     valid_{other.valid_.exchange(false)},
     buildHashTables_{std::move(other.buildHashTables_)},
-    queryHashTables_{std::move(other.queryHashTables_)}
+    queryHashTables_{std::move(other.queryHashTables_)},
+    lineages_{std::move(other.lineages_)}
 {};
 
 
@@ -1167,7 +1158,7 @@ void gpu_hashmap<Key,ValueT>::query_async(
         batch.compact_sort_and_copy_allhits_async(hostId, gpuId, copyAllHits);
 
         batch.generate_and_copy_top_candidates_async(
-            hostId, gpuId, queryHashTables_[gpuId].lineages(), lowestRank);
+            hostId, gpuId, lineages_[gpuId], lowestRank);
 
         // batch.sync_copy_stream(gpuId); CUERR
     }
@@ -1232,12 +1223,19 @@ void gpu_hashmap<Key,ValueT>::serialize(std::ostream& os, part_id gpuId)
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::copy_target_lineages_to_gpu(
+void gpu_hashmap<Key,ValueT>::copy_target_lineages_to_gpus(
     const std::vector<ranked_lineage>& lins,
-    part_id gpuId)
+    part_id numGPUs)
 {
-    cudaSetDevice(gpuId); CUERR
-    queryHashTables_[gpuId].copy_target_lineages_to_gpu(lins);
+    lineages_.resize(numGPUs);
+    const size_t size = lins.size()*sizeof(ranked_lineage);
+
+    for(part_id gpuId = 0; gpuId < numGPUs; ++gpuId) {
+        std::cerr << "copy lineages to gpu " << gpuId << "\n";
+        cudaSetDevice(gpuId); CUERR
+        cudaMalloc(&lineages_[gpuId], size); CUERR
+        cudaMemcpy(lineages_[gpuId], lins.data(), size, cudaMemcpyHostToDevice); CUERR
+    }
 }
 
 
