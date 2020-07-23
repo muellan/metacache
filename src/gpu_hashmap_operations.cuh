@@ -620,7 +620,7 @@ uint32_t query_bucket_hashtable(
     for(int i = groupId; i < sketchSize; i += groupsPerWarp)
     {
         uint64_t numValues = 0;
-        //if key not found numValues stays 0
+        // if key not found numValues stays 0
         const auto status = hashtable.num_values(
             sketch[i], numValues, group);
 
@@ -630,26 +630,26 @@ uint32_t query_bucket_hashtable(
                 // printf("status %d\n", status.has_key_not_found());
             // }
 
-            sizes[i+1] = numValues;
+            sizes[i] = numValues;
         }
     }
-    if(warpLane == 0) sizes[0] = 0;
 
     __syncwarp();
 
     // prefix sum to get output offsets
-    uint32_t numValues = warpLane <= sketchSize ? sizes[warpLane] : 0;
-    for(int i = 1; i <= MAX_SKETCH_SIZE; i *= 2) {
+    uint32_t numValues = (warpLane < sketchSize) ? sizes[warpLane] : 0;
+    for(int i = 1; i < MAX_SKETCH_SIZE; i *= 2) {
         const uint32_t other = __shfl_up_sync(0xFFFFFFFF, numValues, i);
-        if(warpLane > i)
+        if(warpLane >= i)
             numValues += other;
     }
-    sizes[warpLane] = numValues;
+    if(warpLane < MAX_SKETCH_SIZE)
+        sizes[warpLane] = numValues;
 
     for(int i = groupId; i < sketchSize; i += groupsPerWarp)
     {
-        const uint32_t offset = sizes[i];
-        const uint32_t size  = sizes[i+1] - offset;
+        const uint32_t offset = (i != 0) ? sizes[i-1] : 0;
+        const uint32_t size  = sizes[i] - offset;
 
         // only retrieve non empty buckets
         if(size) {
@@ -660,7 +660,7 @@ uint32_t query_bucket_hashtable(
     }
 
     // add padding for aligned processing
-    const uint32_t totalLocations = sizes[MAX_SKETCH_SIZE];
+    const uint32_t totalLocations = sizes[sketchSize-1];
     const uint32_t padding = totalLocations % 2;
     if(padding && (warpLane == 0)) {
         out[totalLocations] = location{~0, ~0};
@@ -885,7 +885,7 @@ void gpu_hahstable_query(
     constexpr int warpsPerBlock = BLOCK_THREADS / WARPSIZE;
 
     __shared__ feature sketch[warpsPerBlock][MAX_SKETCH_SIZE];
-    __shared__ uint32_t sizes[warpsPerBlock][MAX_SKETCH_SIZE+1];
+    __shared__ uint32_t sizes[warpsPerBlock][MAX_SKETCH_SIZE];
 
     const int warpId = threadIdx.x / WARPSIZE;
     const int warpLane = threadIdx.x % WARPSIZE;
