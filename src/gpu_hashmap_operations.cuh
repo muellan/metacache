@@ -12,6 +12,285 @@ namespace mc {
 
 /**************************************************************************//**
  *
+ * @brief extract kmers from sequence
+ *
+ * @details each thread processes 4 characters and extracts up to 4 kmers
+ *
+ * @param sequenceBegin pointer to sequence begin
+ * @param sequenceLength max length is 128 (32*4)
+ * @param kmerSize size of kemrs to be extracted
+ * @param items array to store 4 kmers per thread
+ *
+ *****************************************************************************/
+ template<
+    class Offset>
+__device__ __inline__
+void warp_kmerize(
+    const char * sequenceBegin,
+    Offset sequenceLength,
+    numk_t kmerSize,
+    feature items[4]
+)
+{
+    const int warpLane = threadIdx.x % WARPSIZE;
+
+    constexpr int subWarpSize = 4;
+    const int lane = subWarpSize-1 - warpLane % subWarpSize;
+
+    uint32_t seq = 0;
+    uint32_t ambig = 0;
+
+    constexpr int charsPerThread = 4;
+    constexpr int charsPerSubWarp = subWarpSize*charsPerThread;
+    char4 chars = reinterpret_cast<const char4*>(sequenceBegin)[warpLane];
+
+    char c;
+    c = (charsPerThread*warpLane+0 < sequenceLength) ? chars.x : 'N';
+    c &= 0b11011111; // to upper case
+
+    seq |= (c == 'A') ? 0 : 0;
+    seq |= (c == 'C') ? 1 : 0;
+    seq |= (c == 'G') ? 2 : 0;
+    seq |= (c == 'T') ? 3 : 0;
+    ambig |= (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
+
+    seq   <<= 2;
+    ambig <<= 1;
+
+    c = (charsPerThread*warpLane+1 < sequenceLength) ? chars.y : 'N';
+    c &= 0b11011111; // to upper case
+
+    seq |= (c == 'A') ? 0 : 0;
+    seq |= (c == 'C') ? 1 : 0;
+    seq |= (c == 'G') ? 2 : 0;
+    seq |= (c == 'T') ? 3 : 0;
+    ambig |= (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
+
+    seq   <<= 2;
+    ambig <<= 1;
+
+    c = (charsPerThread*warpLane+2 < sequenceLength) ? chars.z : 'N';
+    c &= 0b11011111; // to upper case
+
+    seq |= (c == 'A') ? 0 : 0;
+    seq |= (c == 'C') ? 1 : 0;
+    seq |= (c == 'G') ? 2 : 0;
+    seq |= (c == 'T') ? 3 : 0;
+    ambig |= (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
+
+    seq   <<= 2;
+    ambig <<= 1;
+
+    c = (charsPerThread*warpLane+3 < sequenceLength) ? chars.w : 'N';
+    c &= 0b11011111; // to upper case
+
+    seq |= (c == 'A') ? 0 : 0;
+    seq |= (c == 'C') ? 1 : 0;
+    seq |= (c == 'G') ? 2 : 0;
+    seq |= (c == 'T') ? 3 : 0;
+    ambig |= (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
+
+    seq <<= 2*charsPerThread*lane;
+    ambig <<= charsPerThread*lane;
+
+    // combine threads of same subwarp
+    #pragma unroll
+    for(int stride = 1; stride < subWarpSize; stride *= 2) {
+        seq   |= __shfl_xor_sync(0xFFFFFFFF, seq, stride);
+        ambig |= __shfl_xor_sync(0xFFFFFFFF, ambig, stride);
+    }
+
+    // combine subwarp with subsequent subwarp
+    uint64_t seqStore = __shfl_down_sync(0xFFFFFFFF, seq, subWarpSize);
+    seqStore |= (uint64_t(seq) << 32) | seqStore;
+
+    uint32_t ambigStore = __shfl_down_sync(0xFFFFFFFF, ambig, subWarpSize);
+    // bounds checking: last subwarp adds ~0
+    ambigStore = (warpLane < WARPSIZE - subWarpSize) ? ambigStore : uint32_t(~0);
+    ambigStore = (ambig << 16) | ambigStore;
+
+    // if(lane == 0) {
+        // const int subwarpId = warpLane / subWarpSize;
+        // printf("id: %d seq: %u ambig: %u\n", subwarpId, seq, ambig);
+    // }
+
+    // letters stored from high to low bits
+    // mask get lowest bits
+    constexpr uint8_t kmerBits = sizeof(kmer_type)*CHAR_BIT;
+    const kmer_type kmerMask = kmer_type(~0) >> (kmerBits - 2*kmerSize);
+    // mask get highest bits
+    const uint32_t ambigMask = uint32_t(~0) << (32 - kmerSize);
+
+    // each thread extracts one feature
+    #pragma unroll
+    for(int i = 0; i < 4; ++i) {
+        const uint8_t seqSlot  = (2*i + warpLane / charsPerSubWarp);
+        const uint8_t seqSrc   = seqSlot * 4;
+        const uint8_t kmerSlot = warpLane % charsPerSubWarp;
+
+        uint32_t ambig = __shfl_sync(0xFFFFFFFF, ambigStore, seqSrc);
+        // shift to highest bits
+        ambig <<= kmerSlot;
+
+        uint64_t seq = __shfl_sync(0xFFFFFFFF, seqStore, seqSrc);
+        // shift kmer to lowest bits
+        seq >>= 64 - 2*(kmerSlot + kmerSize);
+
+        // get lowest bits
+        kmer_type kmer = kmer_type(seq) & kmerMask;
+
+        kmer = make_canonical_2bit(kmer);
+
+        bool pred = !(ambig & ambigMask);
+        items[i] = pred ? sketching_hash{}(kmer) : feature(~0);
+    }
+}
+
+
+/**************************************************************************//**
+ *
+ * @brief in-place bitonic sort of 128 (4*32) elements
+ *
+ * @details see bb_segsort submodule
+ *
+ * @param rg_k array of 4 items per thread
+ *
+ *****************************************************************************/
+template<class K>
+__device__ __inline__
+void warp_sort_128(K rg_k[4])
+{
+    const int warpLane = threadIdx.x % WARPSIZE;
+    const int bit1 = (warpLane>>0)&0x1;
+    const int bit2 = (warpLane>>1)&0x1;
+    const int bit3 = (warpLane>>2)&0x1;
+    const int bit4 = (warpLane>>3)&0x1;
+    const int bit5 = (warpLane>>4)&0x1;
+
+    // sort 128 elements
+    // exch_intxn: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
+    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
+    // exch_intxn: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[3] );
+    CMP_SWP_KEY(K,rg_k[1] ,rg_k[2] );
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
+    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
+    // exch_intxn: generate exch_intxn_keys()
+    exch_intxn_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x1,bit1);
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[2] );
+    CMP_SWP_KEY(K,rg_k[1] ,rg_k[3] );
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
+    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
+    // exch_intxn: generate exch_intxn_keys()
+    exch_intxn_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x3,bit2);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x1,bit1);
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[2] );
+    CMP_SWP_KEY(K,rg_k[1] ,rg_k[3] );
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
+    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
+    // exch_intxn: generate exch_intxn_keys()
+    exch_intxn_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x7,bit3);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x2,bit2);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x1,bit1);
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[2] );
+    CMP_SWP_KEY(K,rg_k[1] ,rg_k[3] );
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
+    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
+    // exch_intxn: generate exch_intxn_keys()
+    exch_intxn_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0xf,bit4);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x4,bit3);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x2,bit2);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x1,bit1);
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[2] );
+    CMP_SWP_KEY(K,rg_k[1] ,rg_k[3] );
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
+    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
+    // exch_intxn: generate exch_intxn_keys()
+    exch_intxn_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x1f,bit5);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x8,bit4);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x4,bit3);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x2,bit2);
+    // exch_paral: generate exch_paral_keys()
+    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
+                    0x1,bit1);
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[2] );
+    CMP_SWP_KEY(K,rg_k[1] ,rg_k[3] );
+    // exch_paral: switch to exch_local()
+    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
+    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
+
+    // transpose blocked to striped
+    if(warpLane&0x1 ) SWP_KEY(K, rg_k[0] , rg_k[1] );
+    if(warpLane&0x1 ) SWP_KEY(K, rg_k[2] , rg_k[3] );
+    rg_k[1]  = __shfl_xor_sync(0xffffffff,rg_k[1] , 0x1 );
+    rg_k[3]  = __shfl_xor_sync(0xffffffff,rg_k[3] , 0x1 );
+    if(warpLane&0x1 ) SWP_KEY(K, rg_k[0] , rg_k[1] );
+    if(warpLane&0x1 ) SWP_KEY(K, rg_k[2] , rg_k[3] );
+    if(warpLane&0x2 ) SWP_KEY(K, rg_k[0] , rg_k[2] );
+    if(warpLane&0x2 ) SWP_KEY(K, rg_k[1] , rg_k[3] );
+    rg_k[2]  = __shfl_xor_sync(0xffffffff,rg_k[2] , 0x2 );
+    rg_k[3]  = __shfl_xor_sync(0xffffffff,rg_k[3] , 0x2 );
+    if(warpLane&0x2 ) SWP_KEY(K, rg_k[0] , rg_k[2] );
+    if(warpLane&0x2 ) SWP_KEY(K, rg_k[1] , rg_k[3] );
+    if(warpLane&0x4 ) SWP_KEY(K, rg_k[0] , rg_k[1] );
+    if(warpLane&0x4 ) SWP_KEY(K, rg_k[2] , rg_k[3] );
+    rg_k[1]  = __shfl_xor_sync(0xffffffff,rg_k[1] , 0x4 );
+    rg_k[3]  = __shfl_xor_sync(0xffffffff,rg_k[3] , 0x4 );
+    if(warpLane&0x4 ) SWP_KEY(K, rg_k[0] , rg_k[1] );
+    if(warpLane&0x4 ) SWP_KEY(K, rg_k[2] , rg_k[3] );
+    if(warpLane&0x8 ) SWP_KEY(K, rg_k[0] , rg_k[2] );
+    if(warpLane&0x8 ) SWP_KEY(K, rg_k[1] , rg_k[3] );
+    rg_k[2]  = __shfl_xor_sync(0xffffffff,rg_k[2] , 0x8 );
+    rg_k[3]  = __shfl_xor_sync(0xffffffff,rg_k[3] , 0x8 );
+    if(warpLane&0x8 ) SWP_KEY(K, rg_k[0] , rg_k[2] );
+    if(warpLane&0x8 ) SWP_KEY(K, rg_k[1] , rg_k[3] );
+    if(warpLane&0x10) SWP_KEY(K, rg_k[0] , rg_k[1] );
+    if(warpLane&0x10) SWP_KEY(K, rg_k[2] , rg_k[3] );
+    rg_k[1]  = __shfl_xor_sync(0xffffffff,rg_k[1] , 0x10);
+    rg_k[3]  = __shfl_xor_sync(0xffffffff,rg_k[3] , 0x10);
+    if(warpLane&0x10) SWP_KEY(K, rg_k[0] , rg_k[1] );
+    if(warpLane&0x10) SWP_KEY(K, rg_k[2] , rg_k[3] );
+
+    SWP_KEY(K, rg_k[1] , rg_k[2] );
+}
+
+
+/**************************************************************************//**
+ *
  * @brief extract unique features from sorted items
  *
  * @param items         sorted features
@@ -64,6 +343,97 @@ uint32_t unique_sketch(
     uniqueFeatureCounter = min(uniqueFeatureCounter, maxSketchSize);
 
     return uniqueFeatureCounter;
+}
+
+
+/**************************************************************************//**
+ *
+ * @brief use one warp to generate min-hasher sketch from sequence;
+ *        maximum allowed sequence length is 128 characters
+ *
+ * @details smallest *unique* hash values of *one* hash function
+ *
+ * @param sequenceBegin pointer to sequence begin
+ * @param sequenceEnd   pointer to sequence end
+ * @param kmerSize      size of kemrs to be extracted
+ * @param sketch        pointer to sketch array
+ * @param maxSketchSize maximum allowed sketch size
+ *
+ * @return number of features in sketch
+ *
+ *****************************************************************************/
+ template<class Offset, class Feature>
+__device__ __inline__
+uint32_t warp_make_sketch(
+    const char * sequenceBegin,
+    const char * sequenceEnd,
+    const numk_t kmerSize,
+    Feature * sketch,
+    const uint32_t maxSketchSize)
+{
+    using offset_type = Offset;
+
+    uint32_t sketchSize = 0;
+
+    const offset_type sequenceLength = sequenceEnd - sequenceBegin;
+
+    // only process non-empty queries
+    if(sequenceLength) {
+        constexpr int itemsPerThread = 4; // 32*4=128 items
+        feature items[itemsPerThread];
+
+        warp_kmerize(sequenceBegin, sequenceLength, kmerSize, items);
+
+        warp_sort_128(items);
+
+        sketchSize = unique_sketch<itemsPerThread>(items, sketch, maxSketchSize);
+
+        __syncwarp();
+    }
+
+    return sketchSize;
+}
+
+
+/**************************************************************************//**
+ *
+ * @brief use one warp to generate min-hasher sketch from sequence
+ *
+ * @details smallest *unique* hash values of *one* hash function
+ *
+ * @param kmerSize       size of kemrs to be extracted
+ * @param sketch         pointer to sketch array
+ * @param maxSketchSize  maximum allowed sketch size
+ *
+ * @return number of features in sketch
+ *
+ *****************************************************************************/
+ template<class Feature>
+__device__ __inline__
+uint32_t warp_load_sketch(
+    const feature * sketches,
+    Feature * sketch,
+    const uint32_t maxSketchSize)
+{
+    const int warpLane = threadIdx.x % WARPSIZE;
+
+    const feature f =
+        (warpLane < maxSketchSize) ? sketches[warpLane] : feature(~0);
+
+    // count valid features
+    const bool validFeature = f != feature(~0);
+    const uint32_t sketchMask = __ballot_sync(0xFFFFFFFF, validFeature);
+    const uint32_t sketchSize = __popc(sketchMask);
+
+    // only process non-empty queries
+    if(sketchSize) {
+        if(warpLane < sketchSize)
+            sketch[warpLane] = f;
+
+        __syncwarp();
+    }
+
+    return sketchSize;
 }
 
 
@@ -215,7 +585,6 @@ uint32_t copy_loctions(
 }
 
 
-
 /**************************************************************************//**
  *
  * @brief query the hash table with each feature in sketch;
@@ -301,381 +670,6 @@ uint32_t query_bucket_hashtable(
 }
 
 
-/**************************************************************************//**
- *
- * @brief in-place bitonic sort of 128 (4*32) elements
- *
- * @details see bb_segsort submodule
- *
- * @param rg_k array of 4 items per thread
- *
- *****************************************************************************/
-template<class K>
-__device__ __inline__
-void warp_sort_128(K rg_k[4])
-{
-    const int warpLane = threadIdx.x % WARPSIZE;
-    const int bit1 = (warpLane>>0)&0x1;
-    const int bit2 = (warpLane>>1)&0x1;
-    const int bit3 = (warpLane>>2)&0x1;
-    const int bit4 = (warpLane>>3)&0x1;
-    const int bit5 = (warpLane>>4)&0x1;
-
-    // sort 128 elements
-    // exch_intxn: switch to exch_local()
-    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
-    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
-    // exch_intxn: switch to exch_local()
-    CMP_SWP_KEY(K,rg_k[0] ,rg_k[3] );
-    CMP_SWP_KEY(K,rg_k[1] ,rg_k[2] );
-    // exch_paral: switch to exch_local()
-    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
-    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
-    // exch_intxn: generate exch_intxn_keys()
-    exch_intxn_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
-                    0x1,bit1);
-    // exch_paral: switch to exch_local()
-    CMP_SWP_KEY(K,rg_k[0] ,rg_k[2] );
-    CMP_SWP_KEY(K,rg_k[1] ,rg_k[3] );
-    // exch_paral: switch to exch_local()
-    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
-    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
-    // exch_intxn: generate exch_intxn_keys()
-    exch_intxn_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
-                    0x3,bit2);
-    // exch_paral: generate exch_paral_keys()
-    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
-                    0x1,bit1);
-    // exch_paral: switch to exch_local()
-    CMP_SWP_KEY(K,rg_k[0] ,rg_k[2] );
-    CMP_SWP_KEY(K,rg_k[1] ,rg_k[3] );
-    // exch_paral: switch to exch_local()
-    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
-    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
-    // exch_intxn: generate exch_intxn_keys()
-    exch_intxn_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
-                    0x7,bit3);
-    // exch_paral: generate exch_paral_keys()
-    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
-                    0x2,bit2);
-    // exch_paral: generate exch_paral_keys()
-    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
-                    0x1,bit1);
-    // exch_paral: switch to exch_local()
-    CMP_SWP_KEY(K,rg_k[0] ,rg_k[2] );
-    CMP_SWP_KEY(K,rg_k[1] ,rg_k[3] );
-    // exch_paral: switch to exch_local()
-    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
-    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
-    // exch_intxn: generate exch_intxn_keys()
-    exch_intxn_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
-                    0xf,bit4);
-    // exch_paral: generate exch_paral_keys()
-    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
-                    0x4,bit3);
-    // exch_paral: generate exch_paral_keys()
-    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
-                    0x2,bit2);
-    // exch_paral: generate exch_paral_keys()
-    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
-                    0x1,bit1);
-    // exch_paral: switch to exch_local()
-    CMP_SWP_KEY(K,rg_k[0] ,rg_k[2] );
-    CMP_SWP_KEY(K,rg_k[1] ,rg_k[3] );
-    // exch_paral: switch to exch_local()
-    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
-    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
-    // exch_intxn: generate exch_intxn_keys()
-    exch_intxn_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
-                    0x1f,bit5);
-    // exch_paral: generate exch_paral_keys()
-    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
-                    0x8,bit4);
-    // exch_paral: generate exch_paral_keys()
-    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
-                    0x4,bit3);
-    // exch_paral: generate exch_paral_keys()
-    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
-                    0x2,bit2);
-    // exch_paral: generate exch_paral_keys()
-    exch_paral_keys(rg_k[0] ,rg_k[1] ,rg_k[2] ,rg_k[3] ,
-                    0x1,bit1);
-    // exch_paral: switch to exch_local()
-    CMP_SWP_KEY(K,rg_k[0] ,rg_k[2] );
-    CMP_SWP_KEY(K,rg_k[1] ,rg_k[3] );
-    // exch_paral: switch to exch_local()
-    CMP_SWP_KEY(K,rg_k[0] ,rg_k[1] );
-    CMP_SWP_KEY(K,rg_k[2] ,rg_k[3] );
-
-    // transpose blocked to striped
-    if(warpLane&0x1 ) SWP_KEY(K, rg_k[0] , rg_k[1] );
-    if(warpLane&0x1 ) SWP_KEY(K, rg_k[2] , rg_k[3] );
-    rg_k[1]  = __shfl_xor_sync(0xffffffff,rg_k[1] , 0x1 );
-    rg_k[3]  = __shfl_xor_sync(0xffffffff,rg_k[3] , 0x1 );
-    if(warpLane&0x1 ) SWP_KEY(K, rg_k[0] , rg_k[1] );
-    if(warpLane&0x1 ) SWP_KEY(K, rg_k[2] , rg_k[3] );
-    if(warpLane&0x2 ) SWP_KEY(K, rg_k[0] , rg_k[2] );
-    if(warpLane&0x2 ) SWP_KEY(K, rg_k[1] , rg_k[3] );
-    rg_k[2]  = __shfl_xor_sync(0xffffffff,rg_k[2] , 0x2 );
-    rg_k[3]  = __shfl_xor_sync(0xffffffff,rg_k[3] , 0x2 );
-    if(warpLane&0x2 ) SWP_KEY(K, rg_k[0] , rg_k[2] );
-    if(warpLane&0x2 ) SWP_KEY(K, rg_k[1] , rg_k[3] );
-    if(warpLane&0x4 ) SWP_KEY(K, rg_k[0] , rg_k[1] );
-    if(warpLane&0x4 ) SWP_KEY(K, rg_k[2] , rg_k[3] );
-    rg_k[1]  = __shfl_xor_sync(0xffffffff,rg_k[1] , 0x4 );
-    rg_k[3]  = __shfl_xor_sync(0xffffffff,rg_k[3] , 0x4 );
-    if(warpLane&0x4 ) SWP_KEY(K, rg_k[0] , rg_k[1] );
-    if(warpLane&0x4 ) SWP_KEY(K, rg_k[2] , rg_k[3] );
-    if(warpLane&0x8 ) SWP_KEY(K, rg_k[0] , rg_k[2] );
-    if(warpLane&0x8 ) SWP_KEY(K, rg_k[1] , rg_k[3] );
-    rg_k[2]  = __shfl_xor_sync(0xffffffff,rg_k[2] , 0x8 );
-    rg_k[3]  = __shfl_xor_sync(0xffffffff,rg_k[3] , 0x8 );
-    if(warpLane&0x8 ) SWP_KEY(K, rg_k[0] , rg_k[2] );
-    if(warpLane&0x8 ) SWP_KEY(K, rg_k[1] , rg_k[3] );
-    if(warpLane&0x10) SWP_KEY(K, rg_k[0] , rg_k[1] );
-    if(warpLane&0x10) SWP_KEY(K, rg_k[2] , rg_k[3] );
-    rg_k[1]  = __shfl_xor_sync(0xffffffff,rg_k[1] , 0x10);
-    rg_k[3]  = __shfl_xor_sync(0xffffffff,rg_k[3] , 0x10);
-    if(warpLane&0x10) SWP_KEY(K, rg_k[0] , rg_k[1] );
-    if(warpLane&0x10) SWP_KEY(K, rg_k[2] , rg_k[3] );
-
-    SWP_KEY(K, rg_k[1] , rg_k[2] );
-}
-
-
-/**************************************************************************//**
- *
- * @brief extract kmers from sequence
- *
- * @details each thread processes 4 characters and extracts up to 4 kmers
- *
- * @param sequenceBegin pointer to sequence begin
- * @param sequenceLength max length is 128 (32*4)
- * @param kmerSize size of kemrs to be extracted
- * @param items array to store 4 kmers per thread
- *
- *****************************************************************************/
- template<
-    class Offset>
-__device__ __inline__
-void warp_kmerize(
-    const char * sequenceBegin,
-    Offset sequenceLength,
-    numk_t kmerSize,
-    feature items[4]
-)
-{
-    const int warpLane = threadIdx.x % WARPSIZE;
-
-    constexpr int subWarpSize = 4;
-    const int lane = subWarpSize-1 - warpLane % subWarpSize;
-
-    uint32_t seq = 0;
-    uint32_t ambig = 0;
-
-    constexpr int charsPerThread = 4;
-    constexpr int charsPerSubWarp = subWarpSize*charsPerThread;
-    char4 chars = reinterpret_cast<const char4*>(sequenceBegin)[warpLane];
-
-    char c;
-    c = (charsPerThread*warpLane+0 < sequenceLength) ? chars.x : 'N';
-    c &= 0b11011111; // to upper case
-
-    seq |= (c == 'A') ? 0 : 0;
-    seq |= (c == 'C') ? 1 : 0;
-    seq |= (c == 'G') ? 2 : 0;
-    seq |= (c == 'T') ? 3 : 0;
-    ambig |= (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
-
-    seq   <<= 2;
-    ambig <<= 1;
-
-    c = (charsPerThread*warpLane+1 < sequenceLength) ? chars.y : 'N';
-    c &= 0b11011111; // to upper case
-
-    seq |= (c == 'A') ? 0 : 0;
-    seq |= (c == 'C') ? 1 : 0;
-    seq |= (c == 'G') ? 2 : 0;
-    seq |= (c == 'T') ? 3 : 0;
-    ambig |= (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
-
-    seq   <<= 2;
-    ambig <<= 1;
-
-    c = (charsPerThread*warpLane+2 < sequenceLength) ? chars.z : 'N';
-    c &= 0b11011111; // to upper case
-
-    seq |= (c == 'A') ? 0 : 0;
-    seq |= (c == 'C') ? 1 : 0;
-    seq |= (c == 'G') ? 2 : 0;
-    seq |= (c == 'T') ? 3 : 0;
-    ambig |= (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
-
-    seq   <<= 2;
-    ambig <<= 1;
-
-    c = (charsPerThread*warpLane+3 < sequenceLength) ? chars.w : 'N';
-    c &= 0b11011111; // to upper case
-
-    seq |= (c == 'A') ? 0 : 0;
-    seq |= (c == 'C') ? 1 : 0;
-    seq |= (c == 'G') ? 2 : 0;
-    seq |= (c == 'T') ? 3 : 0;
-    ambig |= (c == 'A' || c == 'C' || c == 'G' || c == 'T') ? 0 : 1;
-
-    seq <<= 2*charsPerThread*lane;
-    ambig <<= charsPerThread*lane;
-
-    // combine threads of same subwarp
-    #pragma unroll
-    for(int stride = 1; stride < subWarpSize; stride *= 2) {
-        seq   |= __shfl_xor_sync(0xFFFFFFFF, seq, stride);
-        ambig |= __shfl_xor_sync(0xFFFFFFFF, ambig, stride);
-    }
-
-    // combine subwarp with subsequent subwarp
-    uint64_t seqStore = __shfl_down_sync(0xFFFFFFFF, seq, subWarpSize);
-    seqStore |= (uint64_t(seq) << 32) | seqStore;
-
-    uint32_t ambigStore = __shfl_down_sync(0xFFFFFFFF, ambig, subWarpSize);
-    // bounds checking: last subwarp adds ~0
-    ambigStore = (warpLane < WARPSIZE - subWarpSize) ? ambigStore : uint32_t(~0);
-    ambigStore = (ambig << 16) | ambigStore;
-
-    // if(lane == 0) {
-        // const int subwarpId = warpLane / subWarpSize;
-        // printf("id: %d seq: %u ambig: %u\n", subwarpId, seq, ambig);
-    // }
-
-    // letters stored from high to low bits
-    // mask get lowest bits
-    constexpr uint8_t kmerBits = sizeof(kmer_type)*CHAR_BIT;
-    const kmer_type kmerMask = kmer_type(~0) >> (kmerBits - 2*kmerSize);
-    // mask get highest bits
-    const uint32_t ambigMask = uint32_t(~0) << (32 - kmerSize);
-
-    // each thread extracts one feature
-    #pragma unroll
-    for(int i = 0; i < 4; ++i) {
-        const uint8_t seqSlot  = (2*i + warpLane / charsPerSubWarp);
-        const uint8_t seqSrc   = seqSlot * 4;
-        const uint8_t kmerSlot = warpLane % charsPerSubWarp;
-
-        uint32_t ambig = __shfl_sync(0xFFFFFFFF, ambigStore, seqSrc);
-        // shift to highest bits
-        ambig <<= kmerSlot;
-
-        uint64_t seq = __shfl_sync(0xFFFFFFFF, seqStore, seqSrc);
-        // shift kmer to lowest bits
-        seq >>= 64 - 2*(kmerSlot + kmerSize);
-
-        // get lowest bits
-        kmer_type kmer = kmer_type(seq) & kmerMask;
-
-        kmer = make_canonical_2bit(kmer);
-
-        bool pred = !(ambig & ambigMask);
-        items[i] = pred ? sketching_hash{}(kmer) : feature(~0);
-    }
-}
-
-
-
-
-
-/**************************************************************************//**
- *
- * @brief use one warp to generate min-hasher sketch from sequence;
- *        maximum allowed sequence length is 128 characters
- *
- * @details smallest *unique* hash values of *one* hash function
- *
- * @param sequenceBegin pointer to sequence begin
- * @param sequenceEnd   pointer to sequence end
- * @param kmerSize      size of kemrs to be extracted
- * @param sketch        pointer to sketch array
- * @param maxSketchSize maximum allowed sketch size
- *
- * @return number of features in sketch
- *
- *****************************************************************************/
- template<class Offset, class Feature>
-__device__ __inline__
-uint32_t warp_make_sketch(
-    const char * sequenceBegin,
-    const char * sequenceEnd,
-    const numk_t kmerSize,
-    Feature * sketch,
-    const uint32_t maxSketchSize)
-{
-    using offset_type = Offset;
-
-    uint32_t sketchSize = 0;
-
-    const offset_type sequenceLength = sequenceEnd - sequenceBegin;
-
-    // only process non-empty queries
-    if(sequenceLength) {
-        constexpr int itemsPerThread = 4; // 32*4=128 items
-        feature items[itemsPerThread];
-
-        warp_kmerize(sequenceBegin, sequenceLength, kmerSize, items);
-
-        warp_sort_128(items);
-
-        sketchSize = unique_sketch<itemsPerThread>(items, sketch, maxSketchSize);
-
-        __syncwarp();
-    }
-
-    return sketchSize;
-}
-
-
-
-
-/**************************************************************************//**
- *
- * @brief use one warp to generate min-hasher sketch from sequence
- *
- * @details smallest *unique* hash values of *one* hash function
- *
- * @param kmerSize       size of kemrs to be extracted
- * @param sketch         pointer to sketch array
- * @param maxSketchSize  maximum allowed sketch size
- *
- * @return number of features in sketch
- *
- *****************************************************************************/
- template<class Feature>
-__device__ __inline__
-uint32_t warp_load_sketch(
-    const feature * sketches,
-    Feature * sketch,
-    const uint32_t maxSketchSize)
-{
-    const int warpLane = threadIdx.x % WARPSIZE;
-
-    const feature f =
-        (warpLane < maxSketchSize) ? sketches[warpLane] : feature(~0);
-
-    // count valid features
-    const bool validFeature = f != feature(~0);
-    const uint32_t sketchMask = __ballot_sync(0xFFFFFFFF, validFeature);
-    const uint32_t sketchSize = __popc(sketchMask);
-
-    // only process non-empty queries
-    if(sketchSize) {
-        if(warpLane < sketchSize)
-            sketch[warpLane] = f;
-
-        __syncwarp();
-    }
-
-    return sketchSize;
-}
-
-
 
 
 /**************************************************************************//**
@@ -745,7 +739,6 @@ void insert_features(
         }
     }
 }
-
 
 
 /**************************************************************************//**
@@ -856,8 +849,6 @@ void gpu_hahstable_query(
 }
 
 
-
-
 /**************************************************************************//**
  *
  * @brief query batch of sequences against bucket list hashtable
@@ -964,7 +955,6 @@ void gpu_hahstable_query(
         }
     }
 }
-
 
 
 } // namespace mc
