@@ -456,11 +456,11 @@ void warp_sort_128(K rg_k[4])
  *
  *****************************************************************************/
  template<
-    class SizeT>
+    class Offset>
 __device__ __inline__
 void warp_kmerize(
     const char * sequenceBegin,
-    SizeT sequenceLength,
+    Offset sequenceLength,
     numk_t kmerSize,
     feature items[4]
 )
@@ -585,12 +585,61 @@ void warp_kmerize(
 
 /**************************************************************************//**
  *
+ * @brief use one warp to generate min-hasher sketch from sequence;
+ *        maximum allowed sequence length is 128 characters
+ *
+ * @details smallest *unique* hash values of *one* hash function
+ *
+ * @param sequenceBegin pointer to sequence begin
+ * @param sequenceEnd   pointer to sequence end
+ * @param kmerSize      size of kemrs to be extracted
+ * @param sketch        pointer to sketch array
+ * @param maxSketchSize maximum allowed sketch size
+ *
+ * @return number of features in sketch
+ *
+ *****************************************************************************/
+ template<class Offset, class Feature>
+__device__ __inline__
+uint32_t warp_make_sketch(
+    const char * sequenceBegin,
+    const char * sequenceEnd,
+    const numk_t kmerSize,
+    Feature * sketch,
+    const uint32_t maxSketchSize)
+{
+    using offset_type = Offset;
+
+    uint32_t sketchSize = 0;
+
+    const offset_type sequenceLength = sequenceEnd - sequenceBegin;
+
+    // only process non-empty queries
+    if(sequenceLength) {
+        constexpr int itemsPerThread = 4; // 32*4=128 items
+        feature items[itemsPerThread];
+
+        warp_kmerize(sequenceBegin, sequenceLength, kmerSize, items);
+
+        warp_sort_128(items);
+
+        sketchSize = unique_sketch<itemsPerThread>(items, sketch, maxSketchSize);
+
+        __syncwarp();
+    }
+
+    return sketchSize;
+}
+
+
+
+
+/**************************************************************************//**
+ *
  * @brief use one warp to generate min-hasher sketch from sequence
  *
  * @details smallest *unique* hash values of *one* hash function
  *
- * @param sequenceBegin  pointer to sequence begin
- * @param sequenceLength max length is 128 (32*4)
  * @param kmerSize       size of kemrs to be extracted
  * @param sketch         pointer to sketch array
  * @param maxSketchSize  maximum allowed sketch size
@@ -598,32 +647,40 @@ void warp_kmerize(
  * @return number of features in sketch
  *
  *****************************************************************************/
- template<class SizeT, class Feature>
+ template<class Feature>
 __device__ __inline__
-uint32_t warp_make_sketch(
-    const char * sequenceBegin,
-    SizeT sequenceLength,
-    numk_t kmerSize,
+uint32_t warp_load_sketch(
+    const feature * sketches,
     Feature * sketch,
-    uint32_t maxSketchSize)
+    const uint32_t maxSketchSize)
 {
-    constexpr int itemsPerThread = 4; // 32*4=128 items
-    feature items[itemsPerThread];
+    const int warpLane = threadIdx.x % WARPSIZE;
 
-    warp_kmerize(sequenceBegin, sequenceLength, kmerSize, items);
+    const feature f =
+        (warpLane < maxSketchSize) ? sketches[warpLane] : feature(~0);
 
-    warp_sort_128(items);
+    // count valid features
+    const bool validFeature = f != feature(~0);
+    const uint32_t sketchMask = __ballot_sync(0xFFFFFFFF, validFeature);
+    const uint32_t sketchSize = __popc(sketchMask);
 
-    return unique_sketch<itemsPerThread>(items, sketch, maxSketchSize);
+    // only process non-empty queries
+    if(sketchSize) {
+        if(warpLane < sketchSize)
+            sketch[warpLane] = f;
+
+        __syncwarp();
+    }
+
+    return sketchSize;
 }
-
 
 
 
 
 /**************************************************************************//**
  *
- * @brief insert batch of sequences into hashtable
+ * @brief insert batch of sequences into bucket list hashtable
  *
  * @details each warp processes one sequence (window) of at most 128 characters
  *
@@ -633,7 +690,7 @@ template<
     int MAX_SKETCH_SIZE,
     class Hashtable,
     class IndexT,
-    class SizeT>
+    class Offset>
 __global__
 __launch_bounds__(BLOCK_THREADS)
 void insert_features(
@@ -642,7 +699,7 @@ void insert_features(
     const target_id * targetIds,
     const window_id * winOffsets,
     const char      * sequence,
-    const SizeT     * sequenceOffsets,
+    const Offset     * sequenceOffsets,
     numk_t kmerSize,
     uint32_t maxSketchSize,
     uint32_t windowSize,
@@ -650,16 +707,16 @@ void insert_features(
 )
 {
     using index_type = IndexT;
-    using size_type = SizeT;
+    using offset_type = Offset;
 
     constexpr int warpsPerBlock = BLOCK_THREADS / WARPSIZE;
 
     __shared__ feature sketch[warpsPerBlock][MAX_SKETCH_SIZE];
 
     for(index_type tgt = blockIdx.y; tgt < numTargets; tgt += gridDim.y) {
-        const size_type sequenceBegin = sequenceOffsets[tgt];
-        const size_type sequenceEnd   = sequenceOffsets[tgt+1];
-        const size_type sequenceLength = sequenceEnd - sequenceBegin;
+        const offset_type sequenceBegin = sequenceOffsets[tgt];
+        const offset_type sequenceEnd   = sequenceOffsets[tgt+1];
+        const offset_type sequenceLength = sequenceEnd - sequenceBegin;
         const window_id lastWindowSize = sequenceLength % windowStride;
         const window_id numWindows = sequenceLength / windowStride + (lastWindowSize >= kmerSize);
 
@@ -670,15 +727,13 @@ void insert_features(
             win < numWindows;
             win += warpsPerBlock * gridDim.x)
         {
-            const size_type offsetBegin = sequenceBegin + win*windowStride;
-            const size_type offsetEnd = min(sequenceEnd, offsetBegin + windowSize);
-            const size_type thisWindowSize = offsetEnd - offsetBegin;
+            const offset_type offsetBegin = sequenceBegin + win*windowStride;
+            const offset_type offsetEnd = min(sequenceEnd, offsetBegin + windowSize);
             const char * windowBegin = sequence + offsetBegin;
+            const char * windowEnd = sequence + offsetEnd;
 
-            uint32_t sketchSize = warp_make_sketch(
-                windowBegin, thisWindowSize, kmerSize, sketch[warpId], maxSketchSize);
-
-            __syncwarp();
+            uint32_t sketchSize = warp_make_sketch<offset_type>(
+                windowBegin, windowEnd, kmerSize, sketch[warpId], maxSketchSize);
 
             const target_id targetId = targetIds[tgt];
             const window_id winOffset = winOffsets[tgt]+win ;
@@ -704,7 +759,7 @@ template<
     int BLOCK_THREADS,
     int MAX_SKETCH_SIZE,
     class Hashtable,
-    class SizeT,
+    class Offset,
     class BucketSizeT,
     class Location>
 __global__
@@ -712,7 +767,7 @@ __launch_bounds__(BLOCK_THREADS)
 void gpu_hahstable_query(
     Hashtable hashtable,
     uint32_t numQueries,
-    const SizeT * sequenceOffsets,
+    const Offset * sequenceOffsets,
     const char * sequences,
     feature * sketches,
     numk_t kmerSize,
@@ -725,7 +780,6 @@ void gpu_hahstable_query(
     int      * locationCounts
 )
 {
-    using size_type = SizeT;
     using location = Location;
 
     constexpr int warpsPerBlock = BLOCK_THREADS / WARPSIZE;
@@ -741,17 +795,30 @@ void gpu_hahstable_query(
         queryId < numQueries;
         queryId += warpsPerBlock * gridDim.x)
     {
-        const size_type sequenceLength = sequenceOffsets[queryId+1] - sequenceOffsets[queryId];
+        uint32_t sketchSize = 0;
 
-        //only process non-empty queries
-        if(sequenceLength) {
+        if(sequences != nullptr)
+        {
             const char * sequenceBegin = sequences + sequenceOffsets[queryId];
+            const char * sequenceEnd   = sequences + sequenceOffsets[queryId+1];
 
-            uint32_t sketchSize = warp_make_sketch(
-                sequenceBegin, sequenceLength, kmerSize, sketch[warpId], maxSketchSize);
+            sketchSize = warp_make_sketch<Offset>(
+                sequenceBegin, sequenceEnd, kmerSize, sketch[warpId], maxSketchSize);
 
-            __syncwarp();
+            if(sketches != nullptr) {
+                // store sketch for multi-gpu processing
+                if(warpLane < maxSketchSize)
+                    sketches[queryId*maxSketchSize + warpLane] =
+                        (warpLane < sketchSize) ? sketch[warpId][warpLane] : feature(~0);
+            }
+        }
+        else
+        {
+            sketchSize = warp_load_sketch(sketches+queryId*maxSketchSize, sketch[warpId], maxSketchSize);
+        }
 
+        // only process non-empty queries
+        if(sketchSize) {
             // if(warpLane == 0) {
             //     printf("query %d features %llu %llu %llu %llu %llu %llu %llu %llu ...\n", queryId,
             //         sketch[warpId][0],
@@ -762,13 +829,6 @@ void gpu_hahstable_query(
             //         sketch[warpId][5],
             //         sketch[warpId][6],
             //         sketch[warpId][7]);
-            // }
-
-            if(sketches != nullptr) {
-                if(warpLane < maxSketchSize)
-                    sketches[queryId*maxSketchSize + warpLane] =
-                        (warpLane < sketchSize) ? sketch[warpId][warpLane] : feature(~0);
-            }
 
             query_hashtable(hashtable, sketch[warpId], sketchSize);
 
@@ -780,20 +840,15 @@ void gpu_hahstable_query(
                 sketch[warpId], sketchSize, locations, maxLocationsPerFeature, out);
 
             if(warpLane == 0) {
-                //store number of results of this query
+                // store number of results of this query
                 locationCounts[queryId] = numLocations;
             }
 
             __syncwarp();
         }
         else {
-            if(sketches != nullptr) {
-                if(warpLane < maxSketchSize)
-                    sketches[queryId*maxSketchSize + warpLane] = feature(~0);
-            }
-
             if(warpLane == 0) {
-                //store number of results of this query
+                // store number of results of this query
                 locationCounts[queryId] = 0;
             }
         }
@@ -862,7 +917,9 @@ void gpu_hahstable_query(
                 sketch[warpId][warpLane] = f;
 
             __syncwarp();
+        }
 
+        if(sketchSize) {
             // if(warpLane == 0) {
             //     printf("query %d features %llu %llu %llu %llu %llu %llu %llu %llu ...\n",
             //         queryId,
@@ -904,7 +961,7 @@ void gpu_hahstable_query(
 
 /**************************************************************************//**
  *
- * @brief query batch of sequences against hashtable
+ * @brief query batch of sequences against bucket list hashtable
  *
  * @details each warp processes one sequence (window) of at most 128 characters
  *
@@ -913,7 +970,7 @@ template<
     int BLOCK_THREADS,
     int MAX_SKETCH_SIZE,
     class Hashtable,
-    class SizeT,
+    class Offset,
     class BucketSizeT,
     class Location>
 __global__
@@ -921,7 +978,7 @@ __launch_bounds__(BLOCK_THREADS)
 void gpu_hahstable_query(
     Hashtable hashtable,
     uint32_t numQueries,
-    const SizeT * sequenceOffsets,
+    const Offset * sequenceOffsets,
     const char * sequences,
     feature * sketches,
     numk_t kmerSize,
@@ -933,7 +990,6 @@ void gpu_hahstable_query(
     int      * locationCounts
 )
 {
-    using size_type = SizeT;
     using location = Location;
 
     constexpr int warpsPerBlock = BLOCK_THREADS / WARPSIZE;
@@ -949,19 +1005,32 @@ void gpu_hahstable_query(
         queryId < numQueries;
         queryId += warpsPerBlock * gridDim.x)
     {
-        const size_type sequenceLength = sequenceOffsets[queryId+1] - sequenceOffsets[queryId];
+        uint32_t sketchSize = 0;
 
-        //only process non-empty queries
-        if(sequenceLength) {
+        if(sequences != nullptr)
+        {
             const char * sequenceBegin = sequences + sequenceOffsets[queryId];
+            const char * sequenceEnd   = sequences + sequenceOffsets[queryId+1];
 
-            uint32_t sketchSize = warp_make_sketch(
-                sequenceBegin, sequenceLength, kmerSize, sketch[warpId], maxSketchSize);
+            sketchSize = warp_make_sketch<Offset>(
+                sequenceBegin, sequenceEnd, kmerSize, sketch[warpId], maxSketchSize);
 
-            __syncwarp();
+            if(sketches != nullptr) {
+                // store sketch for multi-gpu processing
+                if(warpLane < maxSketchSize)
+                    sketches[queryId*maxSketchSize + warpLane] =
+                        (warpLane < sketchSize) ? sketch[warpId][warpLane] : feature(~0);
+            }
+        }
+        else
+        {
+            sketchSize = warp_load_sketch(sketches+queryId*maxSketchSize, sketch[warpId], maxSketchSize);
+        }
 
+        // only process non-empty queries
+        if(sketchSize) {
             // if(warpLane == 0) {
-            //     printf("query %d features %u %u %u %u %u %u %u %u ...\n", queryId,
+            //     printf("query %d features %llu %llu %llu %llu %llu %llu %llu %llu ...\n", queryId,
             //         sketch[warpId][0],
             //         sketch[warpId][1],
             //         sketch[warpId][2],
@@ -970,15 +1039,6 @@ void gpu_hahstable_query(
             //         sketch[warpId][5],
             //         sketch[warpId][6],
             //         sketch[warpId][7]);
-            // }
-
-            if(sketches != nullptr) {
-                if(warpLane < maxSketchSize)
-                    sketches[queryId*maxSketchSize + warpLane] =
-                        (warpLane < sketchSize) ?
-                        sketch[warpId][warpLane] :
-                        feature(~0);
-            }
 
             location * out = locations_out + queryId*maxSketchSize*maxLocationsPerFeature;
 
@@ -1009,7 +1069,7 @@ void gpu_hahstable_query(
 
 /**************************************************************************//**
  *
- * @brief query batch of sketches against hashtable
+ * @brief query batch of sketches against bucket list hashtable
  *
  * @details each warp processes one sketch of at most MAX_SKETCH_SIZE features
  *
@@ -1067,7 +1127,9 @@ void gpu_hahstable_query(
                 sketch[warpId][warpLane] = f;
 
             __syncwarp();
+        }
 
+        if(sketchSize) {
             // if(warpLane == 0) {
             //     printf("query %d features %u %u %u %u %u %u %u %u ...\n",
             //         queryId,
