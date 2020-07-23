@@ -178,12 +178,13 @@ public:
 
     /*************************************************************************//**
     *
-    * @brief   query all windows in batch using one warp per window
+    * @brief   query batch against hashtable
     *
-    * @details saves sketches to gpu memory in case of multi-gpu query
+    * @details either generate sketches from sequences and save them for next gpu
+    *          or use sketches from previous gpu
     *
     *****************************************************************************/
-    void query_sequences_async(
+    void query_async(
         uint32_t numWindows,
         const typename query_batch<location_type>::query_gpu_data& gpuData,
         const sketcher& querySketcher,
@@ -203,45 +204,6 @@ public:
                 numWindows,
                 gpuData.sequenceOffsets_,
                 gpuData.sequences_,
-                gpuData.sketches_,
-                querySketcher.kmer_size(),
-                querySketcher.sketch_size(),
-                querySketcher.window_size(),
-                querySketcher.window_stride(),
-                maxLocationsPerFeature,
-                gpuData.queryResults_,
-                gpuData.resultCounts_
-            );
-        }
-        else {
-            std::cerr << "Max window size is 128!\n";
-            std::cerr << "Max sketch size is " << maxSketchSize << "\n";
-        }
-    }
-
-    /*************************************************************************//**
-    *
-    * @brief   query sketches of all windows in batch using one warp per window
-    *
-    *****************************************************************************/
-    void query_sketches_async(
-        uint32_t numWindows,
-        const typename query_batch<location_type>::query_gpu_data& gpuData,
-        const sketcher& querySketcher,
-        bucket_size_type maxLocationsPerFeature) const
-    {
-        constexpr int maxSketchSize = 16;
-
-        // max 32*4 characters per warp, so max window size is 128
-        if(querySketcher.window_size() <= 128 && querySketcher.sketch_size() <= maxSketchSize) {
-            constexpr int warpsPerBlock = 2;
-            constexpr int threadsPerBlock = 32*warpsPerBlock;
-
-            const int numBlocks = (numWindows+warpsPerBlock-1) / warpsPerBlock;
-            gpu_hahstable_query<threadsPerBlock,maxSketchSize>
-                <<<numBlocks,threadsPerBlock,0,gpuData.workStream_>>>(
-                hashTable_,
-                numWindows,
                 gpuData.sketches_,
                 querySketcher.kmer_size(),
                 querySketcher.sketch_size(),
@@ -647,12 +609,13 @@ public:
 
     /*************************************************************************//**
     *
-    * @brief   query all windows in batch using one warp per window
+    * @brief   query batch against hashtable
     *
-    * @details saves sketches to gpu memory in case of multi-gpu query
+    * @details either generate sketches from sequences and save them for next gpu
+    *          or use sketches from previous gpu
     *
     *****************************************************************************/
-    void query_sequences_async(
+    void query_async(
         uint32_t numWindows,
         const typename query_batch<location_type>::query_gpu_data& gpuData,
         const sketcher& querySketcher,
@@ -672,46 +635,6 @@ public:
                 numWindows,
                 gpuData.sequenceOffsets_,
                 gpuData.sequences_,
-                gpuData.sketches_,
-                querySketcher.kmer_size(),
-                querySketcher.sketch_size(),
-                querySketcher.window_size(),
-                querySketcher.window_stride(),
-                locations_,
-                maxLocationsPerFeature,
-                gpuData.queryResults_,
-                gpuData.resultCounts_
-            );
-        }
-        else {
-            std::cerr << "Max window size is 128!\n";
-            std::cerr << "Max sketch size is " << maxSketchSize << "\n";
-        }
-    }
-
-    /*************************************************************************//**
-    *
-    * @brief   query sketches of all windows in batch using one warp per window
-    *
-    *****************************************************************************/
-    void query_sketches_async(
-        uint32_t numWindows,
-        const typename query_batch<location_type>::query_gpu_data& gpuData,
-        const sketcher& querySketcher,
-        bucket_size_type maxLocationsPerFeature) const
-    {
-        constexpr int maxSketchSize = 16;
-
-        // max 32*4 characters per warp, so max window size is 128
-        if(querySketcher.window_size() <= 128 && querySketcher.sketch_size() <= maxSketchSize) {
-            constexpr int warpsPerBlock = 2;
-            constexpr int threadsPerBlock = 32*warpsPerBlock;
-
-            const int numBlocks = (numWindows+warpsPerBlock-1) / warpsPerBlock;
-            gpu_hahstable_query<threadsPerBlock,maxSketchSize>
-                <<<numBlocks,threadsPerBlock,0,gpuData.workStream_>>>(
-                hashTable_,
-                numWindows,
                 gpuData.sketches_,
                 querySketcher.kmer_size(),
                 querySketcher.sketch_size(),
@@ -1214,22 +1137,15 @@ void gpu_hashmap<Key,ValueT>::query_hashtables_async(
 
         batch.wait_for_allhits_copied(gpuId);
 
-        if(gpuId == 0) {
+        if(gpuId == 0)
             batch.copy_queries_to_device_async(hostId);
 
-            hashtables[gpuId].query_sequences_async(
-                batch.host_data(hostId).num_windows(),
-                batch.gpu_data(gpuId),
-                querySketcher,
-                maxLocationsPerFeature_);
-        }
-        else {
-            hashtables[gpuId].query_sketches_async(
-                batch.host_data(hostId).num_windows(),
-                batch.gpu_data(gpuId),
-                querySketcher,
-                maxLocationsPerFeature_);
-        }
+        hashtables[gpuId].query_async(
+            batch.host_data(hostId).num_windows(),
+            batch.gpu_data(gpuId),
+            querySketcher,
+            maxLocationsPerFeature_);
+
         batch.mark_query_finished(gpuId);
 
         // batch.sync_work_stream(gpuId); CUERR
