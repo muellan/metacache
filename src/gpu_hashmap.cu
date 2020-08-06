@@ -19,19 +19,22 @@
  *
  *****************************************************************************/
 
-#include <limits>
 
+#include "database.h"
 #include "gpu_hashmap.cuh"
+#include "gpu_hashmap_operations.cuh"
 #include "hash_dna.h"
 #include "hash_int.h"
-#include "database.h"
-#include "gpu_hashmap_operations.cuh"
 #include "stat_combined.cuh"
 
 #include "../dep/warpcore/include/single_value_hash_table.cuh"
 #include "../dep/warpcore/include/bucket_list_hash_table.cuh"
 
 #include "../dep/bb_segsort/src/bb_segsort_keys.cuh"
+
+#include <limits>
+#include <future>
+
 
 namespace mc {
 

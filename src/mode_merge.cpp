@@ -20,20 +20,21 @@
  *
  *****************************************************************************/
 
-#include <iostream>
-#include <vector>
-#include <string>
-#include <sstream>
 
-#include "options.h"
-#include "cmdline_utility.h"
-#include "filesys_utility.h"
-#include "config.h"
-#include "taxonomy_io.h"
-#include "classification.h"
-#include "io_error.h"
 #include "candidate_generation.h"
+#include "classification.h"
+#include "cmdline_utility.h"
+#include "config.h"
+#include "filesys_utility.h"
+#include "io_error.h"
+#include "options.h"
 #include "printing.h"
+#include "taxonomy_io.h"
+
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
 
 
 namespace mc {

@@ -20,13 +20,14 @@
  *
  *****************************************************************************/
 
+
+#include "cmdline_utility.h"
+#include "filesys_utility.h"
+#include "taxonomy_io.h"
+
 #include <fstream>
 #include <limits>
 #include <sstream>
-
-#include "taxonomy_io.h"
-#include "cmdline_utility.h"
-#include "filesys_utility.h"
 
 
 namespace mc {

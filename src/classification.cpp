@@ -20,28 +20,28 @@
  *
  *****************************************************************************/
 
-#include <sstream>
-#include <stdexcept>
-#include <algorithm>
-#include <iterator>
-#include <memory>
-#include <unordered_map>
-#include <unordered_set>
-#include <iterator>
+
+#include "classification.h"
 
 #include "alignment.h"
 #include "candidate_generation.h"
 #include "cmdline_utility.h"
-#include "options.h"
+#include "database.h"
 #include "dna_encoding.h"
 #include "matches_per_target.h"
+#include "options.h"
 #include "printing.h"
 #include "querying.h"
 #include "sequence_io.h"
 #include "sequence_view.h"
-#include "database.h"
 
-#include "classification.h"
+#include <algorithm>
+#include <iterator>
+#include <memory>
+#include <sstream>
+#include <stdexcept>
+#include <unordered_map>
+#include <unordered_set>
 
 
 namespace mc {

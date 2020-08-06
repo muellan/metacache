@@ -22,8 +22,9 @@
 #ifndef MC_STRING_UTILS_H_
 #define MC_STRING_UTILS_H_
 
-#include <string>
+
 #include <algorithm>
+#include <string>
 
 
 namespace mc {

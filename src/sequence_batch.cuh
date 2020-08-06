@@ -22,11 +22,13 @@
 #ifndef MC_SEQUENCE_BATCH_H_
 #define MC_SEQUENCE_BATCH_H_
 
-#include <functional>
+
+#include "config.h"
 
 #include "cuda_runtime.h"
 
-#include "config.h"
+#include <functional>
+
 
 namespace mc {
 

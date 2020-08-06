@@ -31,16 +31,17 @@
  *
  *****************************************************************************/
 
-#include <stdexcept>
+
+#include "database.h"
+#include "filesys_utility.h"
+#include "options.h"
+
+#include "../dep/clipp.h"
+
 #include <algorithm>
 #include <iostream>
 #include <regex>
-
-#include "options.h"
-#include "filesys_utility.h"
-#include "database.h"
-
-#include "../dep/clipp.h"
+#include <stdexcept>
 
 
 namespace mc {

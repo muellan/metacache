@@ -20,32 +20,31 @@
  *
  *****************************************************************************/
 
-#include <cstdint>
+
+#include "batch_processing.h"
+#include "cmdline_utility.h"
+#include "database.h"
+#include "filesys_utility.h"
+#include "io_error.h"
+#include "io_options.h"
+#include "mode_query.h"
+#include "options.h"
+#include "printing.h"
+#include "sequence_io.h"
+#include "taxonomy_io.h"
+#include "timer.h"
+
 #include <algorithm>
+#include <chrono>
+#include <cstdint>
 #include <iostream>
 #include <map>
 #include <memory>
 #include <set>
 #include <stdexcept>
+#include <thread>
 #include <utility>
 #include <vector>
-
-#include <thread>
-#include <chrono>
-
-#include "timer.h"
-#include "options.h"
-#include "cmdline_utility.h"
-#include "filesys_utility.h"
-#include "io_error.h"
-#include "io_options.h"
-#include "database.h"
-#include "printing.h"
-#include "sequence_io.h"
-#include "taxonomy_io.h"
-#include "batch_processing.h"
-
-#include "mode_query.h"
 
 
 namespace mc {

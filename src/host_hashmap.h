@@ -22,12 +22,11 @@
 #ifndef MC_HOST_HASH_MAP_H_
 #define MC_HOST_HASH_MAP_H_
 
+#include "batch_processing.h"
 #include "config.h"
 #include "hash_multimap.h"
 #include "stat_combined.h"
-#include "batch_processing.h"
 #include "taxonomy.h"
-// #include "candidate_generation.h"
 
 
 namespace mc {

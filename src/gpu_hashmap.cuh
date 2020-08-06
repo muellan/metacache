@@ -22,15 +22,17 @@
 #ifndef MC_GPU_HASH_MAP_H_
 #define MC_GPU_HASH_MAP_H_
 
-#include <limits>
-#include <memory>
-#include <atomic>
 
 #include "config.h"
-#include "sequence_batch.cuh"
 #include "query_batch.cuh"
-#include "taxonomy.h"
+#include "sequence_batch.cuh"
 #include "stat_combined.cuh"
+#include "taxonomy.h"
+
+#include <atomic>
+#include <limits>
+#include <memory>
+
 
 namespace mc {
 

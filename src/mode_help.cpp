@@ -19,13 +19,14 @@
  *
  *****************************************************************************/
 
+
+#include "options.h"
+#include "filesys_utility.h"
+
 #include <string>
 #include <fstream>
 #include <iostream>
 #include <vector>
-
-#include "options.h"
-#include "filesys_utility.h"
 
 
 namespace mc {

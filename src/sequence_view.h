@@ -23,8 +23,8 @@
 #define MC_SEQUENCE_VIEW_H_
 
 
-#include <type_traits>
 #include <iterator>
+#include <type_traits>
 #include <vector>
 
 

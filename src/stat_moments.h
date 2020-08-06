@@ -24,19 +24,19 @@
 #define MC_STATISTICS_MOMENTS_H_
 
 
-#include <vector>
-#include <initializer_list>
-#include <array>
 #include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstdint>
+#include <functional>
+#include <initializer_list>
+#include <iterator>
+#include <limits>
 #include <numeric>
 #include <string>
-#include <utility>
 #include <type_traits>
-#include <functional>
-#include <limits>
-#include <iterator>
-#include <cstdint>
-#include <cmath>
+#include <utility>
+#include <vector>
 
 
 namespace mc {

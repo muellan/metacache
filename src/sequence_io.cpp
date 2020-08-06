@@ -20,15 +20,16 @@
  *
  *****************************************************************************/
 
-#include <sstream>
-#include <stdexcept>
-#include <limits>
-#include <regex>
-#include <algorithm>
 
 #include "io_error.h"
 #include "sequence_io.h"
 #include "string_utils.h"
+
+#include <algorithm>
+#include <limits>
+#include <regex>
+#include <sstream>
+#include <stdexcept>
 
 
 namespace mc {

@@ -22,15 +22,17 @@
 #ifndef MC_QUERY_BATCH_H_
 #define MC_QUERY_BATCH_H_
 
-#include <functional>
-#include <memory>
+
+#include "candidate_structs.h"
+#include "config.h"
+#include "hash_dna.h"
+#include "taxonomy.h"
 
 #include "cuda_runtime.h"
 
-#include "config.h"
-#include "candidate_structs.h"
-#include "hash_dna.h"
-#include "taxonomy.h"
+#include <functional>
+#include <memory>
+
 
 namespace mc {
 

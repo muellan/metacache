@@ -23,10 +23,10 @@
 #define MC_TIMER_H_
 
 
-#include <sstream>
+#include <chrono>
 #include <ctime>
 #include <ratio>
-#include <chrono>
+#include <sstream>
 
 
 namespace mc {

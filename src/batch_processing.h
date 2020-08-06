@@ -1,12 +1,13 @@
 #ifndef BATCH_PROCESSING_H_
 #define BATCH_PROCESSING_H_
 
-#include <vector>
-#include <atomic>
-#include <future>
-#include <chrono>
 
 #include "../dep/queue/concurrentqueue.h"
+
+#include <atomic>
+#include <chrono>
+#include <future>
+#include <vector>
 
 
 namespace mc {

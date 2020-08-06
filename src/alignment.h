@@ -22,11 +22,15 @@
  *
  *****************************************************************************/
 
+#ifndef MC_ALIGNMENT_H_
+#define MC_ALIGNMENT_H_
+
+
 #include <algorithm>
-#include <iostream>
-#include <vector>
-#include <tuple>
 #include <cstdint>
+#include <iostream>
+#include <tuple>
+#include <vector>
 
 
 namespace mc {
@@ -297,3 +301,5 @@ align_semi_global_score(const QuerySequence& query,
 
 
 } // namespace mc
+
+#endif

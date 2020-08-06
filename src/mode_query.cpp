@@ -20,21 +20,22 @@
  *
  *****************************************************************************/
 
+
+#include "mode_query.h"
+
+#include "classification.h"
+#include "classification_statistics.h"
+#include "cmdline_utility.h"
+#include "config.h"
+#include "filesys_utility.h"
+#include "options.h"
+#include "printing.h"
+
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#include "options.h"
-#include "cmdline_utility.h"
-#include "filesys_utility.h"
-#include "classification.h"
-#include "classification_statistics.h"
-#include "printing.h"
-#include "config.h"
-
-#include "mode_query.h"
 
 
 namespace mc {

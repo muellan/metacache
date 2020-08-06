@@ -24,11 +24,11 @@
 #define MC_CANDIDATE_GENERATION_H_
 
 
-#include <cstdint>
-#include <limits>
-
 #include "candidate_structs.h"
 #include "options.h"
+
+#include <cstdint>
+#include <limits>
 
 
 namespace mc {

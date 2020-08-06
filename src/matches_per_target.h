@@ -24,13 +24,13 @@
 #define MC_MATCHES_PER_TARGET_H_
 
 
-#include <vector>
-#include <unordered_map>
-#include <algorithm> // move, sort, lower_bound
-#include <iterator>  // make_move_iterator
-
 #include "candidate_generation.h"
 #include "database.h"
+
+#include <algorithm> // move, sort, lower_bound
+#include <iterator>  // make_move_iterator
+#include <unordered_map>
+#include <vector>
 
 
 namespace mc {

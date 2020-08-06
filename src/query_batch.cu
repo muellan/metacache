@@ -19,13 +19,15 @@
  *
  *****************************************************************************/
 
-#include "query_batch.cuh"
+
 #include "database.h"
 #include "gpu_result_processing.cuh"
+#include "query_batch.cuh"
+
+#include "../dep/bb_segsort/src/bb_segsort_keys.cuh"
 
 #include <cub/device/device_scan.cuh>
 
-#include "../dep/bb_segsort/src/bb_segsort_keys.cuh"
 
 namespace mc {
 

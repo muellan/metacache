@@ -23,19 +23,20 @@
 #ifndef MC_HASH_MAP_H_
 #define MC_HASH_MAP_H_
 
-#include <vector>
-#include <algorithm>
-#include <utility>
-#include <functional>
-#include <atomic>
-#include <mutex>
-#include <iostream>
-#include <type_traits>
-#include <memory>
 
 #include "chunk_allocator.h"
-#include "io_serialize.h"
 #include "cmdline_utility.h"
+#include "io_serialize.h"
+
+#include <algorithm>
+#include <atomic>
+#include <functional>
+#include <iostream>
+#include <memory>
+#include <mutex>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
 
 namespace mc {

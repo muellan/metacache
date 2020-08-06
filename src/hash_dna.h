@@ -24,18 +24,17 @@
 #define MC_SKETCHERS_H_
 
 
+#include "dna_encoding.h"
+#include "hash_int.h"
+#include "io_serialize.h"
+
 #include <algorithm>
 #include <array>
 #include <cstdint>
 #include <iterator>
 #include <limits>
-#include <utility>
 #include <type_traits>
-//#include <random>
-
-#include "dna_encoding.h"
-#include "hash_int.h"
-#include "io_serialize.h"
+#include <utility>
 
 
 namespace mc {

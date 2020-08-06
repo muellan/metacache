@@ -20,20 +20,20 @@
  *
  *****************************************************************************/
 
-#include <ostream>
-#include <utility>
 
-#include "database.h"
+#include "printing.h"
+
 #include "candidate_generation.h"
 #include "classification.h"
 #include "classification_statistics.h"
-#include "matches_per_target.h"
 #include "database.h"
+#include "matches_per_target.h"
+#include "options.h"
 #include "stat_confusion.h"
 #include "taxonomy.h"
-#include "options.h"
 
-#include "printing.h"
+#include <ostream>
+#include <utility>
 
 
 namespace mc {

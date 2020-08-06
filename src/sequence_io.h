@@ -24,12 +24,12 @@
 #define MC_FASTA_READER_H_
 
 
+#include "io_error.h"
+
 #include <cstdint>
 #include <fstream>
 #include <memory>
 #include <string>
-
-#include "io_error.h"
 
 
 namespace mc {

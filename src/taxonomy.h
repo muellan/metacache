@@ -23,19 +23,20 @@
 #ifndef MC_TAXONOMY_H_
 #define MC_TAXONOMY_H_
 
-#include <array>
-#include <vector>
-#include <set>
-#include <map>
-#include <unordered_map>
-#include <algorithm>
-#include <cstdint>
-#include <iostream>
-#include <mutex>
-#include <cassert>
 
 #include "io_serialize.h"
 #include "config.h"
+
+#include <algorithm>
+#include <array>
+#include <cassert>
+#include <cstdint>
+#include <iostream>
+#include <map>
+#include <mutex>
+#include <set>
+#include <unordered_map>
+#include <vector>
 
 
 namespace mc {

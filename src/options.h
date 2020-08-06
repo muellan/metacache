@@ -24,20 +24,18 @@
 #define MC_CMDLINE_INTERFACE_H_
 
 
-#include <string>
-#include <vector>
-#include <cstdint>
+#include "cmdline_utility.h"
+#include "config.h"
+#include "io_options.h"
+#include "sequence_io.h"
+#include "taxonomy.h"
+
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <string>
 #include <thread>
 #include <vector>
-
-#include "config.h"
-#include "taxonomy.h"
-#include "cmdline_utility.h"
-#include "sequence_io.h"
-#include "io_options.h"
 
 
 namespace mc {

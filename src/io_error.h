@@ -23,8 +23,8 @@
 #define MC_IO_ERROR_H_
 
 
-#include <string>
 #include <stdexcept>
+#include <string>
 
 
 namespace mc {

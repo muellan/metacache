@@ -24,12 +24,13 @@
 #define MC_CANDIDATE_STRUCTS_H_
 
 
-#include <cstdint>
-#include <limits>
-
 #include "config.h"
 #include "options.h"
 #include "taxonomy.h"
+
+#include <cstdint>
+#include <limits>
+
 
 namespace mc {
 

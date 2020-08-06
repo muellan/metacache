@@ -23,14 +23,15 @@
 #ifndef MC_CLASSIFICATION_H_
 #define MC_CLASSIFICATION_H_
 
+
+#include "config.h"
+#include "classification_statistics.h"
+#include "querying.h"
+#include "timer.h"
+
 #include <vector>
 #include <string>
 #include <iostream>
-
-#include "classification_statistics.h"
-#include "timer.h"
-#include "config.h"
-#include "querying.h"
 
 
 namespace mc {

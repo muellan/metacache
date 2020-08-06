@@ -23,11 +23,11 @@
 #ifndef MC_IO_HELPERS_H_
 #define MC_IO_HELPERS_H_
 
+#include <array>
 #include <cstdint>
+#include <iostream>
 #include <string>
 #include <vector>
-#include <array>
-#include <iostream>
 
 
 namespace mc {

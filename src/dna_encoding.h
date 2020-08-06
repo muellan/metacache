@@ -24,11 +24,12 @@
 #define MC_DNA_ENCODING_H_
 
 
-#include <vector>
-#include <algorithm>
-
 #include "bitmanip.h"
+
 #include "../dep/hpc_helpers/include/cuda_helpers.cuh"
+
+#include <algorithm>
+#include <vector>
 
 
 namespace mc {

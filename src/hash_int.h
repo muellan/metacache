@@ -24,10 +24,10 @@
 #define MC_HASHES_H_
 
 
+#include "../dep/hpc_helpers/include/cuda_helpers.cuh"
+
 #include <cstdint>
 #include <utility>
-
-#include "../dep/hpc_helpers/include/cuda_helpers.cuh"
 
 
 namespace mc {

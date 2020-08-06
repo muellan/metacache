@@ -22,9 +22,9 @@
 #ifndef MC_TYPENAME_H_
 #define MC_TYPENAME_H_
 
+#include <string>
 #include <type_traits>
 #include <typeinfo>
-#include <string>
 
 
 #ifdef __GNUC__

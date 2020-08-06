@@ -22,11 +22,12 @@
 #ifndef MC_CHUNK_ALLOCATOR_H_
 #define MC_CHUNK_ALLOCATOR_H_
 
-#include <vector>
-#include <memory>
+
 #include <algorithm>
 #include <iostream>
+#include <memory>
 //#include <mutex>
+#include <vector>
 
 
 namespace mc {

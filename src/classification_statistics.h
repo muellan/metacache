@@ -23,11 +23,12 @@
 #ifndef MC_CLASSIFICATION_STATISTICS_H_
 #define MC_CLASSIFICATION_STATISTICS_H_
 
+
 #include <atomic>
 #include <mutex>
 
-#include "taxonomy.h"
 #include "stat_confusion.h"
+#include "taxonomy.h"
 
 
 namespace mc {

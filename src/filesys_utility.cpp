@@ -18,11 +18,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *****************************************************************************/
-#include <dirent.h> //POSIX header
-#include <cstring>
-#include <iterator>
+
 
 #include "filesys_utility.h"
+
+#include <cstring>
+#include <dirent.h> //POSIX header
+#include <iterator>
 
 
 namespace mc {

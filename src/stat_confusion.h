@@ -22,8 +22,9 @@
 #ifndef MC_CONFUSION_H_
 #define MC_CONFUSION_H_
 
-#include <cstdint>
+
 #include <atomic>
+#include <cstdint>
 
 
 namespace mc {

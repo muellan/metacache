@@ -23,30 +23,14 @@
 #ifndef MC_SKETCH_DATABASE_H_
 #define MC_SKETCH_DATABASE_H_
 
-#include <climits>
-#include <iostream>
-#include <fstream>
-#include <vector>
-#include <map>
-#include <unordered_map>
-#include <unordered_set>
-#include <functional>
-#include <algorithm>
-#include <type_traits>
-#include <cstdint>
-#include <string>
-#include <limits>
-#include <memory>
-#include <future>
-#include <chrono>
 
-#include "version.h"
+#include "candidate_generation.h"
 #include "config.h"
 #include "io_error.h"
 #include "io_options.h"
 #include "taxonomy.h"
 #include "typename.h"
-#include "candidate_generation.h"
+#include "version.h"
 
 #ifndef GPU_MODE
     #include "host_hashmap.h"
@@ -56,6 +40,19 @@
 #endif
 
 #include "../dep/hpc_helpers/include/cuda_helpers.cuh"
+
+#include <algorithm>
+#include <atomic>
+#include <climits>
+#include <cstdint>
+#include <fstream>
+#include <functional>
+#include <iostream>
+#include <limits>
+#include <memory>
+#include <string>
+#include <type_traits>
+#include <vector>
 
 
 namespace mc {

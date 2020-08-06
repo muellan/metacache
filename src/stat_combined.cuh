@@ -23,11 +23,12 @@
 #define MC_STATISTICS_GPU_H_
 
 
+#include "config.h"
+
+#include "../dep/hpc_helpers/include/cuda_helpers.cuh"
+
 #include <cmath>
 #include <numeric>
-
-#include "config.h"
-#include "../dep/hpc_helpers/include/cuda_helpers.cuh"
 
 
 namespace mc {

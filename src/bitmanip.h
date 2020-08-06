@@ -23,8 +23,9 @@
 #ifndef MC_BITMANIP_H_
 #define MC_BITMANIP_H_
 
-#include <cstdint>
+
 #include <climits>
+#include <cstdint>
 #include <string>
 #include <type_traits>
 

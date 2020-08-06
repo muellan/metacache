@@ -21,6 +21,7 @@
 
 
 #include "stat_combined.cuh"
+
 #include "../dep/hpc_helpers/include/cuda_helpers.cuh"
 
 

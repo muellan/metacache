@@ -23,19 +23,21 @@
 #ifndef MC_QUERYING_H_
 #define MC_QUERYING_H_
 
-#include <vector>
-#include <iostream>
 
+#include "batch_processing.h"
+#include "candidate_generation.h"
+#include "cmdline_utility.h"
 #include "database.h"
 #include "options.h"
 #include "sequence_io.h"
-#include "cmdline_utility.h"
-#include "batch_processing.h"
-#include "candidate_generation.h"
 
 #ifdef GPU_MODE
     #include "query_batch.cuh"
 #endif
+
+#include <vector>
+#include <iostream>
+
 
 namespace mc {
 

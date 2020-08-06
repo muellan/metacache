@@ -18,20 +18,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *****************************************************************************/
-#include <map>
-#include <array>
-#include <iostream>
-#include <stdexcept>
-#include <string>
-#include <utility>
-#include <vector>
-#include <typeinfo>
 
-#include "options.h"
+
 #include "candidate_generation.h"
 #include "database.h"
+#include "options.h"
 #include "printing.h"
 #include "typename.h"
+
+#include <array>
+#include <iostream>
+#include <map>
+#include <stdexcept>
+#include <string>
+#include <typeinfo>
+#include <utility>
+#include <vector>
 
 
 namespace mc {

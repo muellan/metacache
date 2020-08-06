@@ -24,12 +24,12 @@
 #define MC_TAXONOMY_TOOLS_H_
 
 
-#include <vector>
+#include "io_options.h"
+#include "taxonomy.h"
+
 #include <map>
 #include <string>
-
-#include "taxonomy.h"
-#include "io_options.h"
+#include <vector>
 
 
 namespace mc {
