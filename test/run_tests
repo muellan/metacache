@@ -24,7 +24,8 @@ if [ $# -ge 1 ]; then
     threads="-threads 3"
     gpus="-gpus 1"
   elif [ "$1" == "clean" ]; then
-    rm *.db
+    rm *.meta
+    rm *.cache*
     rm -r data
     rm -r taxonomy
     rm -r results
@@ -66,7 +67,7 @@ popd
 # ---------------------------------------------------------
 # make small testing database
 # ---------------------------------------------------------
-if [ ! -e "bacteria1.db" ]; then
+if [ ! -e "bacteria1.meta" ]; then
     $metacache build bacteria1 data/bacteria1.fa -taxonomy taxonomy $gpus
 fi
 

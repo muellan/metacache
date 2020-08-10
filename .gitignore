@@ -1,5 +1,7 @@
 *.exe
 *.db
+*.meta
+*.cache*
 *.query
 *.json
 *.fa
@@ -14,7 +16,7 @@
 /db
 /db_info
 /genomes
-/debug  
+/debug
 /release
 /seafile
 /analysis
@@ -32,3 +34,6 @@
 metacache
 metacache_debug
 metacache_prf
+metacache_gpu
+metacache_gpu_debug
+metacache_gpu_prf

@@ -28,7 +28,7 @@ If you know that your database will include less than 65,535 sequences you can s
 
 #### Example
 
-The following snippet downloads the NCBI taxonomic hierarchy and builds a database `afs.db` from all genomes in `genomes_folder`. The reference sequence to taxon id mapping is supplied in the file `taxa.accession2taxid` which
+The following snippet downloads the NCBI taxonomic hierarchy and builds a database `afs` from all genomes in `genomes_folder`. The reference sequence to taxon id mapping is supplied in the file `taxa.accession2taxid` which
 conforms to the NCBI's `accession2taxid` format.
 ```
 download-ncbi-taxonomy ncbi_tax
@@ -51,7 +51,7 @@ It is important that you supply the option `-remove-overpopulated-features` if y
 
 #### Example
 
-This queries all reads in all FASTA and FASTQ files in `myreads_folder` against database `afs.db`. The individual read mappings are written to `read_mappings.txt` and the abundance analysis to `abund.txt`.
+This queries all reads in all FASTA and FASTQ files in `myreads_folder` against database `afs`. The individual read mappings are written to `read_mappings.txt` and the abundance analysis to `abund.txt`.
 ```
 metacache query afs myreads_folder -pairfiles \
           -max-cand 4 -hitmin 4 -hitdiff 80 \

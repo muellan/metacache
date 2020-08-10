@@ -11,7 +11,7 @@ make
 
 Note that the genomes will be downloaded first, which can take some time.
 
-Once the default database `refseq.db` is built you can classify reads:
+Once the default database `refseq` is built you can classify reads:
 ```
 ./metacache query refseq myReads.fa -out results.txt
 ./metacache query refseq anyFolderWithFastaOrFastqFiles -out results.txt

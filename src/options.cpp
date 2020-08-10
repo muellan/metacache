@@ -113,8 +113,13 @@ string taxon_rank_names(const string& separator = ", ")
 /// @return database filename with extension
 string sanitize_database_name(string name)
 {
-    if(name.find(".db") == string::npos) {
-        name += ".db";
+    auto pos = name.find(".meta");
+    if(pos != string::npos) {
+        name.erase(pos);
+    }
+    pos = name.find(".cache");
+    if(pos != string::npos) {
+        name.erase(pos);
     }
     return name;
 }
@@ -1624,13 +1629,13 @@ string info_mode_usage()
 string info_mode_examples() {
     return
     "    List metadata for all reference sequences in database 'refseq':\n"
-    "        metacache info refseq.db ref\n"
+    "        metacache info refseq ref\n"
     "\n"
     "    List metadata for the sequence with id NC_12345.6 in database 'refseq':\n"
-    "        metacache info refseq.db ref NC_12345.6\n"
+    "        metacache info refseq ref NC_12345.6\n"
     "\n"
     "    List distribution of the number of sequences on rank 'phylum':\n"
-    "        metacache info refseq.db rank phylum\n";
+    "        metacache info refseq rank phylum\n";
 }
 
 

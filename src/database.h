@@ -426,7 +426,8 @@ private:
      *          This should make DB files more robust against changes in the
      *          internal mapping structure.
      ****************************************************************/
-    void read_single(const std::string& filename, part_id gpuId, scope what);
+    void read_meta(const std::string& filename);
+    void read_cache(const std::string& filename, part_id partId);
 
 public:
     /****************************************************************
@@ -439,7 +440,8 @@ private:
     /****************************************************************
      * @brief   write database to binary file
      ****************************************************************/
-    void write_single(const std::string& filename, part_id gpuId) const;
+    void write_meta(const std::string& filename) const;
+    void write_cache(const std::string& filename, part_id partId) const;
 
 public:
     /****************************************************************

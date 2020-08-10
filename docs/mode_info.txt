@@ -1,6 +1,6 @@
 SYNOPSIS
 
-    metacache info 
+    metacache info
     metacache info <database>
     metacache info <database> reference [<sequence_id>]...
     metacache info <database> rank <rank_name>
@@ -61,11 +61,11 @@ PARAMETERS
 EXAMPLES
 
     List metadata for all reference sequences in database 'refseq':
-        metacache info refseq.db ref
+        metacache info refseq ref
 
     List metadata for the sequence with id NC_12345.6 in database 'refseq':
-        metacache info refseq.db ref NC_12345.6
+        metacache info refseq ref NC_12345.6
 
     List distribution of the number of sequences on rank 'phylum':
-        metacache info refseq.db rank phylum
+        metacache info refseq rank phylum
 

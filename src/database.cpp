@@ -74,9 +74,9 @@ bool database::add_target(part_id dbPart,
 
 
 // ----------------------------------------------------------------------------
-void database::read_single(const std::string& filename, part_id partId, scope what)
+void database::read_meta(const std::string& filename)
 {
-    std::cerr << "Reading database from file '" << filename << "' ... ";
+    std::cerr << "Reading database metadata from file '" << filename << "' ... ";
 
     std::ifstream is{filename, std::ios::in | std::ios::binary};
 
@@ -97,83 +97,71 @@ void database::read_single(const std::string& filename, part_id partId, scope wh
             + " (uses version " + std::to_string(MC_DB_VERSION) + ")" };
     }
 
-    //data type info
+    //data type widths
+    uint8_t featureSize = 0; read_binary(is, featureSize);
+    uint8_t targetSize = 0;  read_binary(is, targetSize);
+    uint8_t windowSize = 0;  read_binary(is, windowSize);
+    uint8_t bucketSize = 0;  read_binary(is, bucketSize);
+    uint8_t taxidSize = 0;   read_binary(is, taxidSize);
+    uint8_t numTaxRanks = 0; read_binary(is, numTaxRanks);
+
+    if( (sizeof(feature) != featureSize) ||
+        (sizeof(target_id) != targetSize) ||
+        (sizeof(bucket_size_type) != bucketSize) ||
+        (sizeof(window_id) != windowSize) )
     {
-        //data type widths
-        uint8_t featureSize = 0; read_binary(is, featureSize);
-        uint8_t targetSize = 0;  read_binary(is, targetSize);
-        uint8_t windowSize = 0;  read_binary(is, windowSize);
-        uint8_t bucketSize = 0;  read_binary(is, bucketSize);
-        uint8_t taxidSize = 0;   read_binary(is, taxidSize);
-        uint8_t numTaxRanks = 0; read_binary(is, numTaxRanks);
-
-        if( (sizeof(feature) != featureSize) ||
-            (sizeof(target_id) != targetSize) ||
-            (sizeof(bucket_size_type) != bucketSize) ||
-            (sizeof(window_id) != windowSize) )
-        {
-            throw file_read_error{
-                "Database " + filename +
-                " is incompatible with this variant of MetaCache" +
-                " due to different data type sizes"};
-        }
-
-        if( (sizeof(taxon_id) != taxidSize) ||
-            (taxonomy::num_ranks != numTaxRanks) )
-        {
-            throw file_read_error{
-                "Database " + filename +
-                " is incompatible with this variant of MetaCache" +
-                " due to different taxonomy data types"};
-        }
+        throw file_read_error{
+            "Database " + filename +
+            " is incompatible with this variant of MetaCache" +
+            " due to different data type sizes"};
     }
 
-    if(what != scope::hashtable_only) {
-        clear();
-
-        //sketching parameters
-        read_binary(is, targetSketcher_);
-        read_binary(is, querySketcher_);
-
-        //target insertion parameters
-        uint64_t maxLocationsPerFeature = 0;
-        read_binary(is, maxLocationsPerFeature);
-        max_locations_per_feature(maxLocationsPerFeature);
-
-        //taxon metadata
-        read_binary(is, taxonomyCache_);
-
-        target_id targetCount = 0;
-        read_binary(is, targetCount);
-        if(targetCount < 1) return;
-
-        targetCount_ = targetCount;
-    }
-    else {
-        //skip metadata
-
-        //sketching parameters
-        sketcher skecherDummy;
-        read_binary(is, skecherDummy);
-        read_binary(is, skecherDummy);
-
-        //target insertion parameters
-        uint64_t dummy;
-        read_binary(is, dummy);
-
-        //taxon metadata
-        taxonomy dummyTaxa;
-        read_binary(is, dummyTaxa);
-
-        target_id targetCount = 0;
-        read_binary(is, targetCount);
-        if(targetCount < 1) return;
+    if( (sizeof(taxon_id) != taxidSize) ||
+        (taxonomy::num_ranks != numTaxRanks) )
+    {
+        throw file_read_error{
+            "Database " + filename +
+            " is incompatible with this variant of MetaCache" +
+            " due to different taxonomy data types"};
     }
 
-    if(what != scope::metadata_only) {
-        //hash table
-        read_binary(is, featureStore_, partId);
+    clear();
+
+    //sketching parameters
+    read_binary(is, targetSketcher_);
+    read_binary(is, querySketcher_);
+
+    //target insertion parameters
+    uint64_t maxLocationsPerFeature = 0;
+    read_binary(is, maxLocationsPerFeature);
+    max_locations_per_feature(maxLocationsPerFeature);
+
+    //taxon metadata
+    read_binary(is, taxonomyCache_);
+
+    target_id targetCount = 0;
+    read_binary(is, targetCount);
+
+    if(targetCount < 1) return;
+    targetCount_ = targetCount;
+
+    std::cerr << "done." << std::endl;
+}
+
+
+// ----------------------------------------------------------------------------
+void database::read_cache(const std::string& filename, part_id partId)
+{
+    std::cerr << "Reading database part from file '" << filename << "' ... ";
+
+    std::ifstream is{filename, std::ios::in | std::ios::binary};
+
+    if(!is.good()) {
+        throw file_access_error{"Could not read database file '" + filename + "'"};
     }
+
+    //hash table
+    read_binary(is, featureStore_, partId);
 
     std::cerr << "done." << std::endl;
 }
@@ -189,30 +177,22 @@ void database::read(const std::string& filename, part_id numParts, scope what)
     featureStore_.enable_all_peer_access();
 #endif
 
-    if(numParts == 1) {
-        part_id partId = 0;
-        read_single(filename, partId, what);
-    }
-    else {
-        part_id partId = 0;
-        read_single(filename+std::to_string(partId), partId, what);
-
-        if(what != scope::metadata_only) {
-            for(part_id partId = 1; partId < numParts; ++partId) {
-                read_single(filename+std::to_string(partId), partId, scope::hashtable_only);
-            }
-        }
-    }
-
+    read_meta(filename+".meta");
     initialize_taxonomy_caches();
+
+    if(what == scope::metadata_only) return;
+
+    for(part_id partId = 0; partId < numParts; ++partId) {
+        read_cache(filename+".cache"+std::to_string(partId), partId);
+    }
 }
 
 
 
 //-------------------------------------------------------------------
-void database::write_single(const std::string& filename, part_id partId) const
+void database::write_meta(const std::string& filename) const
 {
-    std::cerr << "Writing database part to file '" << filename << "' ... ";
+    std::cerr << "Writing database metadata to file '" << filename << "' ... ";
 
     using std::uint64_t;
     using std::uint8_t;
@@ -245,6 +225,24 @@ void database::write_single(const std::string& filename, part_id partId) const
     write_binary(os, taxonomyCache_);
     write_binary(os, target_id(targetCount_));
 
+    std::cerr << "done." << std::endl;
+}
+
+
+//-------------------------------------------------------------------
+void database::write_cache(const std::string& filename, part_id partId) const
+{
+    std::cerr << "Writing database part to file '" << filename << "' ... ";
+
+    using std::uint64_t;
+    using std::uint8_t;
+
+    std::ofstream os{filename, std::ios::out | std::ios::binary};
+
+    if(!os.good()) {
+        throw file_access_error{"can't open file " + filename};
+    }
+
     //hash table
     write_binary(os, featureStore_, partId);
 
@@ -255,14 +253,10 @@ void database::write_single(const std::string& filename, part_id partId) const
 //-------------------------------------------------------------------
 void database::write(const std::string& filename) const
 {
-    if(featureStore_.num_parts() == 1) {
-        part_id partId = 0;
-        write_single(filename, partId);
-    }
-    else {
-        for(part_id partId = 0; partId < featureStore_.num_parts(); ++partId)
-            write_single(filename+std::to_string(partId), partId);
-    }
+    write_meta(filename+".meta");
+
+    for(part_id partId = 0; partId < featureStore_.num_parts(); ++partId)
+        write_cache(filename+".cache"+std::to_string(partId), partId);
 }
 
 
