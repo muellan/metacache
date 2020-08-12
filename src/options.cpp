@@ -361,23 +361,17 @@ database_storage_options_cli(database_storage_options& opt, error_messages& err)
     const database defaultDb;
 
     return (
-#ifndef GPU_MODE
     (   option("-parts") &
         integer("#", opt.numParts)
             .if_missing([&]{ err += "Number missing after '-parts'!"; })
     )
         %("Sets the number of database parts to use."
+#ifndef GPU_MODE
           "default: 1"s)
-    ,
 #else
-    (   option("-gpus") &
-        integer("#", opt.numParts)
-            .if_missing([&]{ err += "Number missing after '-gpus'!"; })
-    )
-        %("Sets the maximum number of GPUs to use."
-          "default: all available GPUs"s)
-    ,
+          "default: number of available GPUs"s)
 #endif
+    ,
     (   option("-max-locations-per-feature") &
         integer("#", opt.maxLocationsPerFeature)
             .if_missing([&]{ err += "Number missing after '-max-locations-per-feature'!"; })
@@ -1058,8 +1052,16 @@ performance_options_cli(performance_tuning_options& opt, error_messages& err)
             .if_missing([&]{ err += "Number missing after '-query-limit'!"; })
     )
         %("Classify at max. <#> queries (reads or read pairs) per input file.\n"
-          "default: "s + (opt.queryLimit < 1 ? "none"s : to_string(opt.queryLimit))
+          "default: "s + (opt.queryLimit < 1 ? "none"s : to_string(opt.queryLimit)))
+#ifdef GPU_MODE
+    ,
+    (   option("-replicate") &
+        integer("#", opt.replication)
+            .if_missing([&]{ err += "Number missing after '-replicate'!"; })
     )
+        %("Replication factor for database. Enables to use multiple GPUs pipelines.\n"
+          "default: "s + to_string(opt.replication))
+#endif
     );
 }
 

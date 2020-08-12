@@ -433,7 +433,8 @@ public:
     /****************************************************************
      * @brief   read all database parts from binary files
      ****************************************************************/
-    void read(const std::string& filename, part_id numParts, scope what = scope::everything);
+    void read(const std::string& filename, part_id numParts, unsigned replication,
+              scope what = scope::everything);
 
 
 private:

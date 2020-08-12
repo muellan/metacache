@@ -209,17 +209,22 @@ query_id query_batched(
 #else
     bool copyAllHits = opt.output.analysis.showAllHits;
 
-    std::mutex scheduleMtx;
+    std::vector<std::mutex> scheduleMtxs(opt.performance.replication);
 
-    query_batch<location> queryBatch(
-        opt.performance.batchSize,
-        opt.performance.batchSize*db.query_sketcher().window_size(),
-        db.query_sketcher().sketch_size(),
-        db.query_sketcher().sketch_size()*db.max_locations_per_feature(),
-        opt.classify.maxNumCandidatesPerQuery,
-        copyAllHits,
-        (opt.performance.numThreads - (opt.performance.numThreads > 1)),
-        db.num_parts());
+    std::vector<query_batch<location>> queryBatches;
+    queryBatches.reserve(opt.performance.replication);
+
+    for(unsigned rep = 0; rep < opt.performance.replication; ++rep)
+        queryBatches.emplace_back(
+            opt.performance.batchSize,
+            opt.performance.batchSize*db.query_sketcher().window_size(),
+            db.query_sketcher().sketch_size(),
+            db.query_sketcher().sketch_size()*db.max_locations_per_feature(),
+            opt.classify.maxNumCandidatesPerQuery,
+            copyAllHits,
+            (opt.performance.numThreads - (opt.performance.numThreads > 1)),
+            db.num_parts(),
+            rep);
 #endif
 
     // get executor that runs classification in batches
@@ -255,7 +260,9 @@ query_id query_batched(
             query_host(db, opt.classify, batch, targetMatches[id], resultsBuffer, update);
 #else
             // query batch to gpu and wait for results
-            query_gpu(db, opt.classify, batch, copyAllHits, queryBatch, id, resultsBuffer, update, scheduleMtx);
+            query_gpu(db, opt.classify, batch, copyAllHits,
+                      queryBatches[id%opt.performance.replication], id/opt.performance.replication,
+                      resultsBuffer, update, scheduleMtxs[id%opt.performance.replication]);
 #endif
 
             std::lock_guard<std::mutex> lock(finalizeMtx);

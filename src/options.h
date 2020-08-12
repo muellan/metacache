@@ -90,10 +90,10 @@ struct sketching_options
 struct database_storage_options
 {
 #ifndef GPU_MODE
-    unsigned numParts = 1;
+    part_id numParts = 1;
 #else
     // use all available gpus
-    unsigned numParts = std::numeric_limits<unsigned>::max();
+    part_id numParts = std::numeric_limits<part_id>::max();
 #endif
 
     float maxLoadFactor = -1;  // < 0 : use database default
@@ -247,6 +247,8 @@ struct performance_tuning_options
 #endif
     //limits number of reads per sequence source (file)
     std::int_least64_t queryLimit = std::numeric_limits<std::int_least64_t>::max();
+
+    unsigned replication = 1;
 };
 
 

@@ -286,7 +286,7 @@ public:
                        size_type maxSketchSize,
                        size_type maxResultsPerWindow,
                        size_type maxCandidatesPerQuery,
-                       bool multiGPU,
+                       const std::vector<part_id>& gpus,
                        part_id gpuId);
         query_gpu_data(const query_gpu_data&) = delete;
         query_gpu_data(query_gpu_data&&);
@@ -333,16 +333,20 @@ public:
                 size_type maxCandidatesPerQuery,
                 bool copyAllHits,
                 part_id numHostThreads,
-                part_id numGPUs);
-    //-----------------------------------------------------
+                part_id numGPUs,
+                unsigned replica);
     query_batch(const query_batch&) = delete;
-    //---------------------------------------------------------------
+    query_batch(query_batch&&);
     /** @brief free memory allocation */
     ~query_batch();
 
     //---------------------------------------------------------------
     part_id num_gpus() const noexcept {
         return numGPUs_;
+    }
+    //---------------------------------------------------------------
+    part_id gpu(part_id gpuId) const noexcept {
+        return gpus_[gpuId];
     }
     //---------------------------------------------------------------
     query_host_data& host_data(part_id hostId) noexcept {
@@ -411,15 +415,17 @@ public:
 
     //---------------------------------------------------------------
 private:
+    part_id numGPUs_;
+
     index_type maxWindows_;
     size_type  maxSequenceLength_;
     size_type  maxSketchSize_;
     size_type  maxResultsPerWindow_;
     size_type  maxCandidatesPerQuery_;
 
+    std::vector<part_id> gpus_;
     std::vector<query_host_data> hostData_;
     std::vector<query_gpu_data> gpuData_;
-
     std::vector<segmented_sort> sorters_;
 
     cudaStream_t h2dCopyStream_;
@@ -427,8 +433,6 @@ private:
     cudaEvent_t queriesCopiedEvent_;
     cudaEvent_t queryIdsCopiedEvent_;
     cudaEvent_t maxWinCopiedEvent_;
-
-    part_id numGPUs_;
 };
 
 

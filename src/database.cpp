@@ -168,12 +168,23 @@ void database::read_cache(const std::string& filename, part_id partId)
 
 
 //-------------------------------------------------------------------
-void database::read(const std::string& filename, part_id numParts, scope what)
+void database::read(const std::string& filename, part_id numParts, unsigned replication, scope what)
 {
 #ifdef GPU_MODE
-    featureStore_.num_gpus(numParts);
-    numParts = featureStore_.num_gpus();
+    // limit numGPUs by number of available GPUs
+    featureStore_.num_parts(numParts);
+    numParts = featureStore_.num_parts();
 
+    part_id numGPUs = std::min(numParts * replication, featureStore_.num_gpus());
+
+    // make numGPUs multiple of numParts
+    replication = numGPUs / numParts;
+    numGPUs = replication * numParts;
+
+    if(numGPUs == 0)
+        throw std::runtime_error{"Number of GPUs must be greater than number of parts"};
+
+    featureStore_.num_gpus(numGPUs);
     featureStore_.enable_all_peer_access();
 #endif
 
@@ -182,8 +193,10 @@ void database::read(const std::string& filename, part_id numParts, scope what)
 
     if(what == scope::metadata_only) return;
 
-    for(part_id partId = 0; partId < numParts; ++partId) {
-        read_cache(filename+".cache"+std::to_string(partId), partId);
+    for(unsigned r = 0; r < replication; ++r) {
+        for(part_id partId = 0; partId < numParts; ++partId) {
+            read_cache(filename+".cache"+std::to_string(partId), r*numParts+partId);
+        }
     }
 }
 
@@ -294,8 +307,9 @@ make_database(const std::string& filename, database::scope what, info_level info
                   << filename << "' ... " << std::flush;
     }
     try {
-        unsigned numParts = 1;
-        db.read(filename, numParts, what);
+        part_id numParts = 1;
+        unsigned replication = 1;
+        db.read(filename, numParts, replication, what);
         if(showInfo) std::cerr << "done." << std::endl;
     }
     catch(const file_access_error& e) {

@@ -301,6 +301,7 @@ void run_interactive_query_mode(const database& db,
 database
 read_database(const string& filename,
               const database_storage_options& dbopt,
+              const performance_tuning_options& perfopt,
               const sketching_options& skopt)
 {
     database db;
@@ -312,7 +313,7 @@ read_database(const string& filename,
     }
 
     try {
-        db.read(filename, dbopt.numParts);
+        db.read(filename, dbopt.numParts, perfopt.replication);
     }
     catch(const file_access_error& e) {
         cerr << "FAIL" << endl;
@@ -381,7 +382,7 @@ void main_mode_query(const cmdline_args& args)
 {
     auto opt = get_query_options(args);
 
-    auto db = read_database(opt.dbfile, opt.dbconfig, opt.sketching);
+    auto db = read_database(opt.dbfile, opt.dbconfig, opt.performance, opt.sketching);
 
     if(!opt.infiles.empty()) {
         cerr << "Classifying query sequences.\n";

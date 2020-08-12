@@ -118,7 +118,11 @@ public:
 public:
     //---------------------------------------------------------------
     part_id num_parts() const noexcept {
-        return numGPUs_;
+        return numParts_;
+    }
+    //-----------------------------------------------------
+    void num_parts(part_id numParts) noexcept {
+        numParts_ = std::min(numParts, numGPUs_);
     }
     //---------------------------------------------------------------
     part_id num_gpus() const noexcept {
@@ -256,6 +260,7 @@ public:
     //-----------------------------------------------------
     void wait_until_add_target_complete(part_id gpuId, const sketcher& targetSketcher);
 
+private:
     //---------------------------------------------------------------
     template<class Hashtable>
     void query_hashtables_async(
@@ -266,6 +271,7 @@ public:
         bool copyAllHits,
         taxon_rank lowestRank) const;
 
+public:
     //-----------------------------------------------------
     void query_async(
         query_batch<value_type>& batch,
@@ -310,6 +316,7 @@ private:
 private:
     //---------------------------------------------------------------
     part_id numGPUs_;
+    part_id numParts_;
     float maxLoadFactor_;
     std::uint64_t maxLocationsPerFeature_;
     std::atomic_bool valid_;

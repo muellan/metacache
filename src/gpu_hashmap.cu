@@ -878,6 +878,7 @@ private:
 template<class Key, class ValueT>
 gpu_hashmap<Key,ValueT>::gpu_hashmap() :
     numGPUs_(0),
+    numParts_(0),
     maxLoadFactor_(default_max_load_factor()),
     maxLocationsPerFeature_(max_supported_locations_per_feature()),
     valid_(true)
@@ -901,6 +902,7 @@ gpu_hashmap<Key,ValueT>::~gpu_hashmap() {
 template<class Key, class ValueT>
 gpu_hashmap<Key,ValueT>::gpu_hashmap(gpu_hashmap&& other) :
     numGPUs_{other.numGPUs_},
+    numParts_{other.numParts_},
     maxLoadFactor_{other.maxLoadFactor_},
     maxLocationsPerFeature_{other.maxLocationsPerFeature_},
     valid_{other.valid_.exchange(false)},
@@ -1023,10 +1025,11 @@ gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numGPUs)
+void gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numParts)
 {
     part_id numGPUsFound = num_gpus();
-    num_gpus(numGPUs);
+    num_gpus(numParts);
+    num_parts(numParts);
 
     std::cerr << "using " << numGPUs_ << " of " << numGPUsFound << " available CUDA devices\n";
 
@@ -1157,14 +1160,16 @@ void gpu_hashmap<Key,ValueT>::query_hashtables_async(
 {
     for(part_id gpuId = 0; gpuId < batch.num_gpus(); ++gpuId)
     {
-        cudaSetDevice(gpuId); CUERR
+        part_id gpu = batch.gpu(gpuId);
+
+        cudaSetDevice(gpu); CUERR
 
         batch.wait_for_allhits_copied(gpuId);
 
         if(gpuId == 0)
             batch.copy_queries_to_device_async(hostId);
 
-        hashtables[gpuId].query_async(
+        hashtables[gpu].query_async(
             batch.host_data(hostId).num_windows(),
             batch.gpu_data(gpuId),
             querySketcher,
@@ -1180,7 +1185,7 @@ void gpu_hashmap<Key,ValueT>::query_hashtables_async(
         batch.compact_sort_and_copy_allhits_async(hostId, gpuId, copyAllHits);
 
         batch.generate_and_copy_top_candidates_async(
-            hostId, gpuId, lineages_[gpuId], lowestRank);
+            hostId, gpuId, lineages_[gpu], lowestRank);
 
         // batch.sync_copy_stream(gpuId); CUERR
     }

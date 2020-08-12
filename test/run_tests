@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+# set -e
 
 # ---------------------------------------------------------
 # script expects to run in its own directory
@@ -22,7 +22,7 @@ if [ $# -ge 1 ]; then
     target="gpu_release"
     metacache="../metacache_gpu"
     threads="-threads 3"
-    gpus="-gpus 1"
+    gpus="-parts 1"
   elif [ "$1" == "clean" ]; then
     rm *.meta
     rm *.cache*
