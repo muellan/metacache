@@ -1043,8 +1043,8 @@ void gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numParts)
         cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
         std::cerr << "gpu " << gpuId << " freeMemory: " << helpers::B2GB(freeMemory) << " GB\n";
 
-        // keep 1 GB of memory free aside from hash table
-        const size_t tableMemory = freeMemory - (1ULL << 30);
+        // keep 2 GB of memory free aside from hash table
+        const size_t tableMemory = freeMemory - (1ULL << 31);
 
         constexpr size_t valueSize = sizeof(ValueT);
 
