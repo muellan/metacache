@@ -50,9 +50,9 @@ using std::string;
  *****************************************************************************/
 void show_database_config(const string& dbfile)
 {
-    auto db = make_database(dbfile, database::scope::metadata_only);
+    int dbPart = -1;
+    auto db = make_database(dbfile, dbPart, database::scope::metadata_only);
     print_static_properties(db);
-    print_content_properties(db);
 }
 
 
@@ -74,9 +74,9 @@ void print_query_config()
  *
  *
  *****************************************************************************/
-void show_database_statistics(const string& dbfile)
+void show_database_statistics(const string& dbfile, int dbPart)
 {
-    auto db = make_database(dbfile);
+    auto db = make_database(dbfile, dbPart);
     print_static_properties(db);
     print_content_properties(db);
 }
@@ -88,9 +88,9 @@ void show_database_statistics(const string& dbfile)
  *
  *
  *****************************************************************************/
-void show_feature_map(const string& dbfile)
+void show_feature_map(const string& dbfile, int dbPart)
 {
-    auto db = make_database(dbfile);
+    auto db = make_database(dbfile, dbPart);
     print_static_properties(db);
     print_content_properties(db);
     cout << "===================================================\n";
@@ -104,9 +104,9 @@ void show_feature_map(const string& dbfile)
  *
  *
  *****************************************************************************/
-void show_feature_counts(const string& dbfile)
+void show_feature_counts(const string& dbfile, int dbPart)
 {
-    auto db = make_database(dbfile);
+    auto db = make_database(dbfile, dbPart);
     print_static_properties(db);
     print_content_properties(db);
     cout << "===================================================\n";
@@ -147,7 +147,8 @@ void show_target_info(std::ostream& os, const taxon& tax, const ranked_lineage& 
  *****************************************************************************/
 void show_target_info(const info_options& opt)
 {
-    auto db = make_database(opt.dbfile, database::scope::metadata_only);
+    int dbPart = -1;
+    auto db = make_database(opt.dbfile, dbPart, database::scope::metadata_only);
     const auto& taxonomy = db.taxo_cache();
 
     if(!opt.targetIds.empty()) {
@@ -188,7 +189,8 @@ void show_lineage_table(const info_options& opt)
 {
     using rank = taxonomy::rank;
 
-    auto db = make_database(opt.dbfile, database::scope::metadata_only);
+    int dbPart = -1;
+    auto db = make_database(opt.dbfile, dbPart, database::scope::metadata_only);
     if(db.target_count() < 1) return;
 
     //table header
@@ -228,7 +230,8 @@ void show_rank_statistics(const info_options& opt)
         return;
     }
 
-    auto db = make_database(opt.dbfile, database::scope::metadata_only);
+    int dbPart = -1;
+    auto db = make_database(opt.dbfile, dbPart, database::scope::metadata_only);
     const auto& taxonomy = db.taxo_cache();
 
     std::map<const taxon*, std::size_t> stat;
@@ -301,13 +304,13 @@ void main_mode_info(const cmdline_args& args)
             print_query_config();
             break;
         case info_mode::db_statistics:
-            show_database_statistics(opt.dbfile);
+            show_database_statistics(opt.dbfile, opt.dbpart);
             break;
         case info_mode::db_feature_map:
-            show_feature_map(opt.dbfile);
+            show_feature_map(opt.dbfile, opt.dbpart);
             break;
         case info_mode::db_feature_counts:
-            show_feature_counts(opt.dbfile);
+            show_feature_counts(opt.dbfile, opt.dbpart);
             break;
     }
 }

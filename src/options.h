@@ -127,6 +127,7 @@ struct database_storage_options
 struct build_options
 {
     std::string dbfile;
+    int dbpart = -1;
     std::vector<std::string> infiles;
 
     sketching_options sketching;
@@ -407,6 +408,7 @@ struct classification_output_options
 struct query_options
 {
     std::string dbfile;
+    int dbpart = -1;
     std::vector<std::string> infiles;
 
     // how to pair up reads
@@ -469,6 +471,7 @@ std::string query_mode_docs();
 struct merge_options
 {
     std::string dbfile;
+    int dbpart = -1;
     std::vector<std::string> infiles;
 
     taxonomy_options taxonomy;
@@ -513,6 +516,7 @@ enum class info_mode {
 
 struct info_options {
     std::string dbfile;
+    int dbpart = -1;
     info_mode mode = info_mode::basic;
     std::vector<std::string> targetIds;
     taxon_rank rank = taxon_rank::none;

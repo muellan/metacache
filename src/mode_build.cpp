@@ -593,7 +593,7 @@ void main_mode_modify(const cmdline_args& args)
 
     cout << "Modify database " << opt.dbfile << endl;
 
-    auto db = make_database(opt.dbfile);
+    auto db = make_database(opt.dbfile, opt.dbpart);
 
     if(opt.infoLevel != info_level::silent && !opt.infiles.empty()) {
         cout << "Adding reference sequences to database..." << endl;

@@ -168,8 +168,13 @@ void database::read_cache(const std::string& filename, part_id partId)
 
 
 //-------------------------------------------------------------------
-void database::read(const std::string& filename, part_id numParts, unsigned replication, scope what)
+void database::read(const std::string& filename, int singlePartId,
+                    part_id numParts, unsigned replication,
+                    scope what)
 {
+    if(singlePartId >= 0)
+        numParts = 1;
+
 #ifdef GPU_MODE
     // limit numGPUs by number of available GPUs
     featureStore_.num_parts(numParts);
@@ -194,8 +199,13 @@ void database::read(const std::string& filename, part_id numParts, unsigned repl
     if(what == scope::metadata_only) return;
 
     for(unsigned r = 0; r < replication; ++r) {
-        for(part_id partId = 0; partId < numParts; ++partId) {
-            read_cache(filename+".cache"+std::to_string(partId), r*numParts+partId);
+        if(singlePartId >= 0) {
+            read_cache(filename+".cache"+std::to_string(singlePartId), r+singlePartId);
+        }
+        else {
+            for(part_id partId = 0; partId < numParts; ++partId) {
+                read_cache(filename+".cache"+std::to_string(partId), r*numParts+partId);
+            }
         }
     }
 }
@@ -294,7 +304,7 @@ void database::clear_without_deallocation() {
 
 // ----------------------------------------------------------------------------
 database
-make_database(const std::string& filename, database::scope what, info_level info)
+make_database(const std::string& filename, int dbPart, database::scope what, info_level info)
 {
     if(filename.empty()) throw file_access_error{"No database name given"};
 
@@ -309,7 +319,7 @@ make_database(const std::string& filename, database::scope what, info_level info
     try {
         part_id numParts = 1;
         unsigned replication = 1;
-        db.read(filename, numParts, replication, what);
+        db.read(filename, dbPart, numParts, replication, what);
         if(showInfo) std::cerr << "done." << std::endl;
     }
     catch(const file_access_error& e) {

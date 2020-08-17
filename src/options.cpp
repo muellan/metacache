@@ -110,18 +110,25 @@ string taxon_rank_names(const string& separator = ", ")
 
 
 //-------------------------------------------------------------------
-/// @return database filename with extension
-string sanitize_database_name(string name)
+/// @brief remove extension from database filename and extract part id
+void sanitize_database_name(string& name, int& partId)
 {
     auto pos = name.find(".meta");
     if(pos != string::npos) {
         name.erase(pos);
     }
-    pos = name.find(".cache");
-    if(pos != string::npos) {
-        name.erase(pos);
+    else {
+        pos = name.find(".cache");
+        if(pos != string::npos) {
+            try {
+                partId = std::stoi(name.substr(pos+6));
+            }
+            catch(std::invalid_argument& e) {
+                std::cerr << "No id found after '.cache'. Using whole database.";
+            }
+            name.erase(pos);
+        }
     }
-    return name;
 }
 
 
@@ -243,12 +250,15 @@ void raise_default_error(const error_messages& err,
 
 /// @brief
 clipp::parameter
-database_parameter(string& filename, error_messages& err)
+database_parameter(string& filename, int& partId, error_messages& err)
 {
     using namespace clipp;
 
     return value(match::prefix_not{"-"}, "database")
-        .call([&](const string& arg){ filename = sanitize_database_name(arg); })
+        .call([&](const string& arg){
+            filename = arg;
+            sanitize_database_name(filename, partId);
+        })
         .if_missing([&]{ err += "Database filename is missing!"; })
         .doc("database file name;\n"
              "A MetaCache database contains taxonomic information and "
@@ -482,7 +492,7 @@ build_mode_cli(build_options& opt, error_messages& err)
     return (
     "REQUIRED PARAMETERS" %
     (
-        database_parameter(opt.dbfile, err)
+        database_parameter(opt.dbfile, opt.dbpart, err)
         ,
         values(match::prefix_not{"-"}, "sequence file/directory", opt.infiles)
             .if_missing([&]{
@@ -628,7 +638,7 @@ modify_mode_cli(build_options& opt, error_messages& err)
     return (
     "REQUIRED PARAMETERS" %
     (
-        database_parameter(opt.dbfile, err)
+        database_parameter(opt.dbfile, opt.dbpart, err)
         ,
         values(match::prefix_not{"-"}, "sequence file/directory", opt.infiles)
             .if_missing([&]{
@@ -679,7 +689,7 @@ get_modify_options(const cmdline_args& args, modify_options opt)
     }
 
     // use settings from database file as defaults
-    auto db = make_database(opt.dbfile, database::scope::metadata_only);
+    auto db = make_database(opt.dbfile, opt.dbpart, database::scope::metadata_only);
 
     const auto& ts = db.target_sketcher();
     auto& sk = opt.sketching;
@@ -1077,7 +1087,7 @@ query_mode_cli(query_options& opt, error_messages& err)
     return (
     "BASIC PARAMETERS" %
     (
-        database_parameter(opt.dbfile, err)
+        database_parameter(opt.dbfile, opt.dbpart, err)
         ,
         opt_values(match::prefix_not{"-"}, "sequence file/directory", opt.infiles)
             % "FASTA or FASTQ files containing genomic sequences "
@@ -1556,7 +1566,7 @@ info_mode_cli(info_options& opt, error_messages& err)
     using namespace clipp;
 
     return "PARAMETERS" % (
-        database_parameter(opt.dbfile, err)
+        database_parameter(opt.dbfile, opt.dbpart, err)
             .required(false).set(opt.mode, info_mode::db_config)
         ,
         one_of(

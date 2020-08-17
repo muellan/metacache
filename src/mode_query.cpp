@@ -299,11 +299,10 @@ void run_interactive_query_mode(const database& db,
  *
  *****************************************************************************/
 database
-read_database(const string& filename,
-              const database_storage_options& dbopt,
-              const performance_tuning_options& perfopt,
-              const sketching_options& skopt)
+read_database(const query_options& opt)
 {
+    const database_storage_options& dbopt = opt.dbconfig;
+
     database db;
 
     if(dbopt.maxLoadFactor > 0.4 && dbopt.maxLoadFactor < 0.99) {
@@ -313,7 +312,7 @@ read_database(const string& filename,
     }
 
     try {
-        db.read(filename, dbopt.numParts, perfopt.replication);
+        db.read(opt.dbfile, opt.dbpart, dbopt.numParts, opt.performance.replication);
     }
     catch(const file_access_error& e) {
         cerr << "FAIL" << endl;
@@ -345,6 +344,7 @@ read_database(const string& filename,
              << dbopt.maxLocationsPerFeature << '\n';
     }
 
+    const sketching_options& skopt = opt.sketching;
     //use a different sketching scheme for querying?
     if((skopt.sketchlen > 0) || (skopt.winlen > 0) || (skopt.winstride > 0)) {
         auto s = db.query_sketcher();
@@ -382,7 +382,7 @@ void main_mode_query(const cmdline_args& args)
 {
     auto opt = get_query_options(args);
 
-    auto db = read_database(opt.dbfile, opt.dbconfig, opt.performance, opt.sketching);
+    auto db = read_database(opt);
 
     if(!opt.infiles.empty()) {
         cerr << "Classifying query sequences.\n";

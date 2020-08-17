@@ -433,7 +433,8 @@ public:
     /****************************************************************
      * @brief   read all database parts from binary files
      ****************************************************************/
-    void read(const std::string& filename, part_id numParts, unsigned replication,
+    void read(const std::string& filename, int singlePartId,
+              part_id numParts, unsigned replication,
               scope what = scope::everything);
 
 
@@ -517,7 +518,7 @@ using feature         = database::feature;
  *
  *****************************************************************************/
 database
-make_database(const std::string& filename,
+make_database(const std::string& filename, int dbPart,
               database::scope = database::scope::everything,
               info_level = info_level::moderate);
 
