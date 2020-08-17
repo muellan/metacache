@@ -451,7 +451,7 @@ void prepare_database(database& db, const build_options& opt)
         }
     }
 
-    db.initialize_hash_table(opt.dbconfig.numParts);
+    db.initialize_hash_table(opt.numDbParts);
 }
 
 

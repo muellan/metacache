@@ -371,17 +371,6 @@ database_storage_options_cli(database_storage_options& opt, error_messages& err)
     const database defaultDb;
 
     return (
-    (   option("-parts") &
-        integer("#", opt.numParts)
-            .if_missing([&]{ err += "Number missing after '-parts'!"; })
-    )
-        %("Sets the number of database parts to use."
-#ifndef GPU_MODE
-          "default: 1"s)
-#else
-          "default: number of available GPUs"s)
-#endif
-    ,
     (   option("-max-locations-per-feature") &
         integer("#", opt.maxLocationsPerFeature)
             .if_missing([&]{ err += "Number missing after '-max-locations-per-feature'!"; })
@@ -522,6 +511,17 @@ build_mode_cli(build_options& opt, error_messages& err)
               "default: "s + (opt.resetParents ? "on" : "off"))
         ,
         database_storage_options_cli(opt.dbconfig, err)
+        ,
+        (   option("-parts") &
+            integer("#", opt.numDbParts)
+                .if_missing([&]{ err += "Number missing after '-parts'!"; })
+        )
+            %("Sets the number of database parts to use."
+#ifndef GPU_MODE
+            "default: 1"s)
+#else
+            "default: number of available GPUs"s)
+#endif
         ,
         option("-query").set(opt.queryAfterBuild)
             %("Run interactive query after building database.\n"

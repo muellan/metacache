@@ -74,7 +74,7 @@ bool database::add_target(part_id dbPart,
 
 
 // ----------------------------------------------------------------------------
-void database::read_meta(const std::string& filename)
+part_id database::read_meta(const std::string& filename)
 {
     std::cerr << "Reading database metadata from file '" << filename << "' ... ";
 
@@ -102,13 +102,15 @@ void database::read_meta(const std::string& filename)
     uint8_t targetSize = 0;  read_binary(is, targetSize);
     uint8_t windowSize = 0;  read_binary(is, windowSize);
     uint8_t bucketSize = 0;  read_binary(is, bucketSize);
+    uint8_t partSize = 0;    read_binary(is, partSize);
     uint8_t taxidSize = 0;   read_binary(is, taxidSize);
     uint8_t numTaxRanks = 0; read_binary(is, numTaxRanks);
 
     if( (sizeof(feature) != featureSize) ||
         (sizeof(target_id) != targetSize) ||
+        (sizeof(window_id) != windowSize) ||
         (sizeof(bucket_size_type) != bucketSize) ||
-        (sizeof(window_id) != windowSize) )
+        (sizeof(part_id) != partSize))
     {
         throw file_read_error{
             "Database " + filename +
@@ -142,10 +144,15 @@ void database::read_meta(const std::string& filename)
     target_id targetCount = 0;
     read_binary(is, targetCount);
 
-    if(targetCount < 1) return;
+    if(targetCount < 1) return 0;
     targetCount_ = targetCount;
 
+    part_id numParts = 0;
+    read_binary(is, numParts);
+
     std::cerr << "done." << std::endl;
+
+    return numParts;
 }
 
 
@@ -169,33 +176,32 @@ void database::read_cache(const std::string& filename, part_id partId)
 
 //-------------------------------------------------------------------
 void database::read(const std::string& filename, int singlePartId,
-                    part_id numParts, unsigned replication,
+                    unsigned replication,
                     scope what)
 {
-    if(singlePartId >= 0)
+    part_id numParts = read_meta(filename+".meta");
+
+    if(singlePartId >= 0) {
+        if(part_id(singlePartId) >= numParts)
+            throw std::runtime_error{
+                "Database part "+std::to_string(singlePartId)+" is not available. "
+                "Database has only "+std::to_string(numParts)+" parts."};
+
         numParts = 1;
+    }
 
 #ifdef GPU_MODE
-    // limit numGPUs by number of available GPUs
-    featureStore_.num_parts(numParts);
-    numParts = featureStore_.num_parts();
+    part_id numGPUs = numParts * replication;
 
-    part_id numGPUs = std::min(numParts * replication, featureStore_.num_gpus());
-
-    // make numGPUs multiple of numParts
-    replication = numGPUs / numParts;
-    numGPUs = replication * numParts;
-
-    if(numGPUs == 0)
+    if(numGPUs > featureStore_.num_gpus())
         throw std::runtime_error{"Number of GPUs must be greater than number of parts"};
 
+    featureStore_.num_parts(numParts);
     featureStore_.num_gpus(numGPUs);
     featureStore_.enable_all_peer_access();
 #endif
 
-    read_meta(filename+".meta");
     initialize_taxonomy_caches();
-
     if(what == scope::metadata_only) return;
 
     for(unsigned r = 0; r < replication; ++r) {
@@ -234,6 +240,7 @@ void database::write_meta(const std::string& filename) const
     write_binary(os, uint8_t(sizeof(target_id)));
     write_binary(os, uint8_t(sizeof(window_id)));
     write_binary(os, uint8_t(sizeof(bucket_size_type)));
+    write_binary(os, uint8_t(sizeof(part_id)));
     write_binary(os, uint8_t(sizeof(taxon_id)));
     write_binary(os, uint8_t(taxonomy::num_ranks));
 
@@ -246,7 +253,10 @@ void database::write_meta(const std::string& filename) const
 
     //taxon & target metadata
     write_binary(os, taxonomyCache_);
+
     write_binary(os, target_id(targetCount_));
+
+    write_binary(os, num_parts());
 
     std::cerr << "done." << std::endl;
 }
@@ -278,7 +288,7 @@ void database::write(const std::string& filename) const
 {
     write_meta(filename+".meta");
 
-    for(part_id partId = 0; partId < featureStore_.num_parts(); ++partId)
+    for(part_id partId = 0; partId < num_parts(); ++partId)
         write_cache(filename+".cache"+std::to_string(partId), partId);
 }
 
@@ -317,9 +327,8 @@ make_database(const std::string& filename, int dbPart, database::scope what, inf
                   << filename << "' ... " << std::flush;
     }
     try {
-        part_id numParts = 1;
         unsigned replication = 1;
-        db.read(filename, dbPart, numParts, replication, what);
+        db.read(filename, dbPart, replication, what);
         if(showInfo) std::cerr << "done." << std::endl;
     }
     catch(const file_access_error& e) {

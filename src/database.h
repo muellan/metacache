@@ -426,7 +426,7 @@ private:
      *          This should make DB files more robust against changes in the
      *          internal mapping structure.
      ****************************************************************/
-    void read_meta(const std::string& filename);
+    part_id read_meta(const std::string& filename);
     void read_cache(const std::string& filename, part_id partId);
 
 public:
@@ -434,7 +434,7 @@ public:
      * @brief   read all database parts from binary files
      ****************************************************************/
     void read(const std::string& filename, int singlePartId,
-              part_id numParts, unsigned replication,
+              unsigned replication,
               scope what = scope::everything);
 
 

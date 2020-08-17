@@ -89,13 +89,6 @@ struct sketching_options
  *****************************************************************************/
 struct database_storage_options
 {
-#ifndef GPU_MODE
-    part_id numParts = 1;
-#else
-    // use all available gpus
-    part_id numParts = std::numeric_limits<part_id>::max();
-#endif
-
     float maxLoadFactor = -1;  // < 0 : use database default
 
     // restrict number of locations per feature
@@ -132,6 +125,13 @@ struct build_options
 
     sketching_options sketching;
     database_storage_options dbconfig;
+
+#ifndef GPU_MODE
+    part_id numDbParts = 1;
+#else
+    // use all available gpus
+    part_id numDbParts = std::numeric_limits<part_id>::max();
+#endif
 
     taxonomy_options taxonomy;
     bool resetParents = false;

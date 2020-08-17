@@ -312,7 +312,7 @@ read_database(const query_options& opt)
     }
 
     try {
-        db.read(opt.dbfile, opt.dbpart, dbopt.numParts, opt.performance.replication);
+        db.read(opt.dbfile, opt.dbpart, opt.performance.replication);
     }
     catch(const file_access_error& e) {
         cerr << "FAIL" << endl;
