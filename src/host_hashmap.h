@@ -571,11 +571,13 @@ public:
         return classification_candidates{taxonomy, sorter.locations(), rules};
     }
 
-
+    //---------------------------------------------------------------
+    void resize_query_hash_table_vector(part_id numParts) {
+        hashTables_.resize(numParts);
+    }
 
     //---------------------------------------------------------------
     friend void read_binary(std::istream& is, host_hashmap& m, part_id part) {
-        m.hashTables_.emplace_back();
         read_binary(is, m.hashTables_[part]);
     }
 

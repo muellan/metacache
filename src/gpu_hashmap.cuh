@@ -232,9 +232,14 @@ public:
     }
 
     /****************************************************************
-     * @brief allocate gpu hash table for database building
+     * @brief allocate gpu hash tables for database building
      */
     void initialize_build_hash_tables(part_id numGPUs);
+
+    /****************************************************************
+     * @brief resize vector of gpu hash tables before database loading
+     */
+    void resize_query_hash_table_vector(part_id numGPUs);
 
     /****************************************************************
      * @brief split sequence into batches and insert into build hash table
@@ -327,12 +332,12 @@ private:
      * @brief multi value hashtables for building,
      *        which maps feature -> values
      */
-    std::vector<build_hash_table> buildHashTables_;
+    std::vector<std::unique_ptr<build_hash_table>> buildHashTables_;
     /**
      * @brief single value hashtable for querying,
      *        which maps feature -> values pointer
      */
-    std::vector<query_hash_table> queryHashTables_;
+    std::vector<std::unique_ptr<query_hash_table>> queryHashTables_;
 
 
     std::vector<ranked_lineage *> lineages_;

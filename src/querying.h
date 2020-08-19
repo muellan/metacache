@@ -35,8 +35,8 @@
     #include "query_batch.cuh"
 #endif
 
-#include <vector>
 #include <iostream>
+#include <vector>
 
 
 namespace mc {

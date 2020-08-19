@@ -23,6 +23,8 @@
 
 #include "database.h"
 
+#include <future>
+
 
 namespace mc {
 
@@ -202,16 +204,26 @@ void database::read(const std::string& filename, int singlePartId,
     initialize_taxonomy_caches();
     if(what == scope::metadata_only) return;
 
+    featureStore_.resize_query_hash_table_vector(numParts * replication);
+
+    std::vector<std::future<void>> threads;
+    threads.reserve(numParts * replication);
+
     for(unsigned r = 0; r < replication; ++r) {
         if(singlePartId >= 0) {
-            read_cache(filename+".cache"+std::to_string(singlePartId), r+singlePartId);
+            threads.emplace_back(std::async(std::launch::async,
+                &database::read_cache, this, filename+".cache"+std::to_string(singlePartId), r+singlePartId));
         }
         else {
             for(part_id partId = 0; partId < numParts; ++partId) {
-                read_cache(filename+".cache"+std::to_string(partId), r*numParts+partId);
+                threads.emplace_back(std::async(std::launch::async,
+                    &database::read_cache, this, filename+".cache"+std::to_string(partId), r*numParts+partId));
             }
         }
     }
+
+     for(auto& t : threads)
+        t.get();
 }
 
 
