@@ -1,13 +1,12 @@
 SYNOPSIS
 
-    metacache info
-    metacache info <database>
-    metacache info <database> reference [<sequence_id>]...
-    metacache info <database> rank <rank_name>
-    metacache info <database> lineages
-    metacache info <database> statistics
-    metacache info <database> locations
-    metacache info <database> featurecounts
+    metacache info [<database> ]
+    metacache info [<database> reference [<sequence_id>]... ]
+    metacache info [<database> rank <rank_name> ]
+    metacache info [<database> lineages ]
+    metacache info [<database> statistics ]
+    metacache info [<database> locations ]
+    metacache info [<database> featurecounts ]
 
 
 DESCRIPTION

@@ -516,10 +516,13 @@ build_mode_cli(build_options& opt, error_messages& err)
             integer("#", opt.numDbParts)
                 .if_missing([&]{ err += "Number missing after '-parts'!"; })
         )
-            %("Sets the number of database parts to use."
+            %("Splits the database into multiple parts. Each part contains "
+              "a separate hash table."
 #ifndef GPU_MODE
+            "\n"
             "default: 1"s)
 #else
+            " Each part occupies one GPU.\n"
             "default: number of available GPUs"s)
 #endif
         ,
@@ -906,7 +909,7 @@ classification_output_format_cli(classification_output_formatting& opt,
             %("Show a unique id for each query.\n"
               "Note that in paired-end mode a query is a pair of two "
               "read sequences. This option will always be activated if "
-              "option '-hits-per-seq' is given.\n"
+              "option '-hits-per-ref' is given.\n"
               "default: "s + (opt.showQueryIds ? "on" : "off"))
         ,
         option("-lineage", "-lineages").set(opt.showLineage)
@@ -977,7 +980,7 @@ classification_analysis_cli(classification_analysis_options& opt, error_messages
                 %("Shows a list of all hits for each reference sequence.\n"
                   "If this condensed list is all you need, you should "
                   "deactive the per-read mapping output with '-no-map'.\n"
-                  "If a valid filename is given after '-hits-per-seq', "
+                  "If a valid filename is given after '-hits-per-ref', "
                   "the list will be written to a separate file.\n"
                   "Option '-queryids' will be activated and the lowest "
                   "classification rank will be set to 'sequence'.\n"
@@ -1098,7 +1101,7 @@ query_mode_cli(query_options& opt, error_messages& err)
               "* If no input filenames or directories are given, MetaCache will "
               "run in interactive query mode. This can be used to load the database into "
               "memory only once and then query it multiple times with different "
-              "query options. "
+              "query options."
     ),
     "MAPPING RESULTS OUTPUT" %
     one_of(

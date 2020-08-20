@@ -29,7 +29,7 @@ BASIC PARAMETERS
                       * If no input filenames or directories are given,
                       MetaCache will run in interactive query mode. This can be
                       used to load the database into memory only once and then
-                      query it multiple times with different query options. 
+                      query it multiple times with different query options.
 
 
 MAPPING RESULTS OUTPUT
@@ -313,7 +313,7 @@ ADVANCED: PERFORMANCE TUNING / TESTING
                       default (on this machine): 4096
 
     -query-limit <#>  Classify at max. <#> queries (reads or read pairs) per
-                      input file. and 
+                      input file.
                       default: 9223372036854775807
 
 

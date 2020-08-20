@@ -106,6 +106,13 @@ ADVANCED OPTIONS
                       speed, a larger one will improve memory efficiency.
                       default: 0.800000
 
+    -parts <#>        Splits the database into multiple parts. Each part
+                      contains a separate hash table.
+                      default: 1
+
+    -query            Run interactive query after building database.
+                      default: off
+
 EXAMPLES
 
     Build database 'mydb' from sequence file 'genomes.fna':

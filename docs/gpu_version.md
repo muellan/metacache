@@ -42,9 +42,18 @@ In order to **query** a multi-GPU database make sure to set the same number of G
 
 The command line options of the GPU version are similar to the CPU version with a few notable exceptions:
 
+##### mode build
+
+* `-parts <#>` sets the number of GPUs to use (default: all available GPUs).
+
+##### mode query
+
+* `-replicate <#>` enables multiple GPU pipelines (default: 1). Each pipeline occupies one GPU per database part.
+
 ##### mode build & mode query
 
-* `-gpus <#>` sets the maximum number of GPUs to use (default: all available GPUs).
+* `-kmerlen` kmer length is limited to 16 (default: 16).
+* `-sketchlen` sketch length is limited to 16 (default: 16).
 * `-winlen` window length is limited to 127 (default: 127).
 * `-winstride` window stride has to be multiple of 4 (default: 112).
 * `-remove-overpopulated-features` is not supported.
