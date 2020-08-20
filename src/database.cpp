@@ -138,17 +138,15 @@ part_id database::read_meta(const std::string& filename)
     read_binary(is, maxLocationsPerFeature);
     max_locations_per_feature(maxLocationsPerFeature);
 
-    //taxon metadata
-    read_binary(is, taxonomyCache_);
-
     target_id targetCount = 0;
     read_binary(is, targetCount);
-
-    if(targetCount < 1) return 0;
     targetCount_ = targetCount;
 
     part_id numParts = 0;
     read_binary(is, numParts);
+
+    //taxon metadata
+    read_binary(is, taxonomyCache_);
 
     std::cerr << "done." << std::endl;
 
@@ -251,12 +249,12 @@ void database::write_meta(const std::string& filename) const
     //target insertion parameters
     write_binary(os, uint64_t(max_locations_per_feature()));
 
-    //taxon & target metadata
-    write_binary(os, taxonomyCache_);
-
     write_binary(os, target_id(targetCount_));
 
     write_binary(os, num_parts());
+
+    //taxon & target metadata
+    write_binary(os, taxonomyCache_);
 
     std::cerr << "done." << std::endl;
 }
