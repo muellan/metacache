@@ -76,7 +76,7 @@ bool database::add_target(part_id dbPart,
 
 
 // ----------------------------------------------------------------------------
-part_id database::read_meta(const std::string& filename)
+part_id database::read_meta(const std::string& filename, std::future<void>& taxonomyReaderThread)
 {
     std::cerr << "Reading database metadata from file '" << filename << "' ... ";
 
@@ -147,8 +147,9 @@ part_id database::read_meta(const std::string& filename)
     part_id numParts = 0;
     read_binary(is, numParts);
 
-    //taxon metadata
-    read_binary(is, taxonomyCache_);
+    // read taxon metadata in separate thread
+    taxonomyReaderThread = std::async(std::launch::async,
+        [&, is = std::move(is)]() mutable {read_binary(is, taxonomyCache_);});
 
     std::cerr << "done." << std::endl;
 
@@ -179,7 +180,8 @@ void database::read(const std::string& filename, int singlePartId,
                     unsigned replication,
                     scope what)
 {
-    part_id numParts = read_meta(filename+".meta");
+    std::future<void> taxonomyReaderThread;
+    part_id numParts = read_meta(filename+".meta", taxonomyReaderThread);
 
     if(singlePartId >= 0) {
         if(part_id(singlePartId) >= numParts)
@@ -201,28 +203,32 @@ void database::read(const std::string& filename, int singlePartId,
     featureStore_.enable_all_peer_access();
 #endif
 
-    initialize_taxonomy_caches();
-    if(what == scope::metadata_only) return;
+    // read caches in separate threads
+    std::vector<std::future<void>> cacheReaderThreads;
 
-    featureStore_.resize_query_hash_table_vector(numParts * replication);
+    if(what != scope::metadata_only) {
+        featureStore_.resize_query_hash_table_vector(numParts * replication);
 
-    std::vector<std::future<void>> threads;
-    threads.reserve(numParts * replication);
+        cacheReaderThreads.reserve(numParts * replication);
 
-    for(unsigned r = 0; r < replication; ++r) {
-        if(singlePartId >= 0) {
-            threads.emplace_back(std::async(std::launch::async,
-                &database::read_cache, this, filename+".cache"+std::to_string(singlePartId), r+singlePartId));
-        }
-        else {
-            for(part_id partId = 0; partId < numParts; ++partId) {
-                threads.emplace_back(std::async(std::launch::async,
-                    &database::read_cache, this, filename+".cache"+std::to_string(partId), r*numParts+partId));
+        for(unsigned r = 0; r < replication; ++r) {
+            if(singlePartId >= 0) {
+                cacheReaderThreads.emplace_back(std::async(std::launch::async,
+                    &database::read_cache, this, filename+".cache"+std::to_string(singlePartId), r+singlePartId));
+            }
+            else {
+                for(part_id partId = 0; partId < numParts; ++partId) {
+                    cacheReaderThreads.emplace_back(std::async(std::launch::async,
+                        &database::read_cache, this, filename+".cache"+std::to_string(partId), r*numParts+partId));
+                }
             }
         }
     }
 
-     for(auto& t : threads)
+    taxonomyReaderThread.get();
+    initialize_taxonomy_caches();
+
+     for(auto& t : cacheReaderThreads)
         t.get();
 }
 
