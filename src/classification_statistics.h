@@ -71,12 +71,7 @@ public:
      */
     void assign(rank assigned) noexcept
     {
-        if(assigned == rank::none) {
-            ++assigned_[int(rank::none)];
-        }
-        else {
-            for(rank r = assigned; r <= rank::root; ++r) ++assigned_[int(r)];
-        }
+        ++assigned_[int(assigned)];
     }
 
     //---------------------------------------------------------------
@@ -99,24 +94,15 @@ public:
         if(correct < known)    correct = known;
 
         //if ground truth known -> count correct and wrong assignments
-        if(known == rank::none) {
-            ++known_[int(rank::none)];
-        }
-        else {
-            for(rank r = known; r <= rank::root; ++r) ++known_[int(r)];
+        ++known_[int(known)];
 
-            if(correct == rank::none) {
-                ++correct_[int(rank::none)];
-            }
-            else {
-                for(rank r = correct; r <= rank::root; ++r) ++correct_[int(r)];
-            }
+        if(known != rank::none) {
+            ++correct_[int(correct)];
+
             //if ranks below the correct rank are known and assigned,
             //then all ranks below the correct rank are wrong
             if(correct > known && correct > assigned) {
-                for(rank r = rank::Sequence; r < correct; ++r) {
-                    ++wrong_[int(r)];
-                }
+                ++wrong_[int(correct)-1];
             }
         }
     }
@@ -148,13 +134,17 @@ public:
 
 
     count_t assigned() const noexcept {
-        return assigned_[int(rank::root)];
+        count_t sum = 0;
+        for(rank r = rank::Sequence; r <= rank::root; ++r) sum += assigned_[int(r)];
+        return sum;
     }
     /**
      * @brief number of assignments on a taxonomix rank (and above)
      */
-    count_t assigned(rank r) const noexcept {
-        return assigned_[int(r)];
+    count_t assigned(rank rr) const noexcept {
+        count_t sum = 0;
+        for(rank r = rank::Sequence; r <= rr; ++r) sum += assigned_[int(r)];
+        return sum;
     }
     count_t unassigned() const noexcept {
         return assigned_[int(rank::none)];
@@ -166,13 +156,17 @@ public:
     }
 
     count_t known() const noexcept {
-        return known_[int(rank::root)];
+        count_t sum = 0;
+        for(rank r = rank::Sequence; r <= rank::root; ++r) sum += known_[int(r)];
+        return sum;
     }
     /**
      * @brief number of cases with ground truth known on ranks >= r
      */
-    count_t known(rank r) const noexcept {
-        return known_[int(r)];
+    count_t known(rank rr) const noexcept {
+        count_t sum = 0;
+        for(rank r = rank::Sequence; r <= rr; ++r) sum += known_[int(r)];
+        return sum;
     }
     count_t unknown() const noexcept {
         return known_[int(rank::none)];
@@ -181,21 +175,29 @@ public:
     /**
      * @brief number of known correct assignments on ranks >= r
      */
-    count_t correct(rank r) const noexcept {
-        return correct_[int(r)];
+    count_t correct(rank rr) const noexcept {
+        count_t sum = 0;
+        for(rank r = rank::Sequence; r <= rr; ++r) sum += correct_[int(r)];
+        return sum;
     }
     count_t correct() const noexcept {
-        return correct_[int(rank::root)];
+        count_t sum = 0;
+        for(rank r = rank::Sequence; r <= rank::root; ++r) sum += correct_[int(r)];
+        return sum;
     }
 
     /**
      * @brief number of known wrong assignments on ranks <= r
      */
-    count_t wrong(rank r) const noexcept {
-        return wrong_[int(r)];
+    count_t wrong(rank rr) const noexcept {
+        count_t sum = 0;
+        for(rank r = rr; r <= rank::root; ++r) sum += wrong_[int(r)];
+        return sum;
     }
     count_t wrong() const noexcept {
-        return wrong_[int(rank::root)];
+        count_t sum = 0;
+        for(rank r = rank::Sequence; r <= rank::root; ++r) sum += wrong_[int(r)];
+        return sum;
     }
 
 
