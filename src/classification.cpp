@@ -420,11 +420,11 @@ void show_alignment(std::ostream& os,
         const auto& src = tgtTax->source();
         try {
             //load candidate file and forward to sequence
-            auto reader = make_sequence_reader(src.filename);
-            reader->skip(src.index-1);
+            sequence_reader reader{src.filename};
+            reader.skip(src.index-1);
 
-            if(reader->has_next()) {
-                auto tgtSequ = reader->next().data;
+            if(reader.has_next()) {
+                auto tgtSequ = reader.next().data;
                 auto subject = make_view_from_window_range(
                                tgtSequ, tophits[0].pos,
                                targetSketcher.window_size(),

@@ -12,6 +12,7 @@ DIALECT       = -std=c++14
 WARNINGS      = -Wall -Wextra -Wpedantic
 NVCC_WARNINGS = -Xcompiler="-Wall -Wextra"
 OPTIMIZATION  = -O3
+INCLUDES      = -lz -DMC_ZLIB
 #-march native -fomit-frame-pointer
 # CUB = -I<path-to-cub>
 NVCC_FLAGS    = $(CUB) -arch=sm_70 -lineinfo --expt-relaxed-constexpr --extended-lambda
@@ -20,9 +21,9 @@ CXXFLAGS      = $(INCLUDES) $(MACROS) $(DIALECT) $(WARNINGS)
 
 CUDA_FLAGS    = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) $(NVCC_WARNINGS)
 
-LDFLAGS       = -pthread
+LDFLAGS       = -pthread $(INCLUDES)
 
-CUDA_LDFLAGS  = $(NVCC_FLAGS) -Xcompiler="-pthread"
+CUDA_LDFLAGS  = $(NVCC_FLAGS) $(INCLUDES) -Xcompiler="-pthread"
 
 
 #--------------------------------------------------------------------
@@ -59,6 +60,7 @@ HEADERS = \
           src/querying.h \
           src/sequence_batch.cuh \
           src/sequence_io.h \
+          src/sequence_iostream.h \
           src/sequence_view.h \
           src/stat_combined.cuh \
           src/stat_combined.h \
@@ -226,7 +228,7 @@ $(DIR)/options.o : src/options.cpp $(HEADERS)
 $(DIR)/mode_help.o : src/mode_help.cpp src/modes.h src/filesys_utility.h
 	$(COMPILE)
 
-$(DIR)/sequence_io.o : src/sequence_io.cpp src/sequence_io.h src/io_error.h
+$(DIR)/sequence_io.o : src/sequence_io.cpp src/sequence_io.h src/io_error.h src/sequence_iostream.h
 	$(COMPILE)
 
 $(DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.h

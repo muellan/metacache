@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -18,18 +18,22 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
+ * Original FASTA / FASTQ reaser code taken from the Kraken library written by
+ * Derrick Wood <dwood@cs.jhu.edu>
+ *
  *****************************************************************************/
 
-#ifndef MC_FASTA_READER_H_
-#define MC_FASTA_READER_H_
+#ifndef MC_FASTX_READER_H_
+#define MC_FASTX_READER_H_
 
-
+#include "sequence_iostream.h"
 #include "io_error.h"
 
 #include <cstdint>
 #include <fstream>
 #include <memory>
 #include <string>
+
 
 
 namespace mc {
@@ -47,8 +51,8 @@ class sequence_reader
 public:
     using index_type     = std::uint_least64_t;
     using header_type    = std::string;
-    using data_type      = std::string;
-    using qualities_type = std::string;
+    using data_type      = char_sequence;
+    using qualities_type = char_sequence;
 
     /** @brief data associated with one sequence */
     struct sequence {
@@ -63,14 +67,19 @@ public:
         data_type   qualities;  // quality scores (FASTQ)
     };
 
+    sequence_reader() : stream_{}, index_{0} {};
 
-    sequence_reader(): index_{0}, valid_{true} {}
+    sequence_reader(const std::string& filename);
 
     sequence_reader(const sequence_reader&) = delete;
     sequence_reader& operator = (const sequence_reader&) = delete;
-    sequence_reader& operator = (sequence_reader&&) = delete;
+    sequence_reader& operator = (sequence_reader&& other) {
+        std::swap(other.stream_, stream_);
+        std::swap(other.index_, index_);
+        return *this;
+    }
 
-    virtual ~sequence_reader() = default;
+    ~sequence_reader() = default;
 
 
     /** @brief read & return next sequence */
@@ -95,77 +104,23 @@ public:
     /** @brief read next sequence data & header, re-uses external storage */
     index_type next_header_and_data(header_type&, data_type&);
 
-
     /** @brief skip n sequences */
     void skip(index_type n);
 
-    bool has_next() const noexcept { return valid_; }
+    bool has_next() const noexcept { return stream_.good(); }
 
     index_type index() const noexcept { return index_; }
 
     void index_offset(index_type index) { index_ = index; }
 
-
-protected:
-    void invalidate() { valid_ = false; }
-
-
 private:
-    virtual void read_next(header_type*, data_type*, qualities_type*) = 0;
+    void read_next(header_type*, data_type*, qualities_type*);
 
-    virtual void skip_next() = 0;
+    void skip_next();
 
+    fastx_stream stream_;
     index_type index_;
-    bool valid_;
 };
-
-
-
-
-/*************************************************************************//**
- *
- *
- *
- *****************************************************************************/
-class fasta_reader :
-    public sequence_reader
-{
-public:
-    explicit
-    fasta_reader(const std::string& filename);
-
-private:
-    void read_next(header_type*, data_type*, qualities_type*) override;
-    void skip_next() override;
-
-private:
-    std::ifstream file_;
-    std::string buffer_;
-};
-
-
-
-
-/*************************************************************************//**
- *
- *
- *
- *****************************************************************************/
-class fastq_reader :
-    public sequence_reader
-{
-public:
-    explicit
-    fastq_reader(const std::string& filename);
-
-private:
-    void read_next(header_type*, data_type*, qualities_type*) override;
-    void skip_next() override;
-
-private:
-    std::ifstream file_;
-};
-
 
 
 
@@ -179,6 +134,10 @@ private:
 class sequence_pair_reader
 {
 public:
+    enum class pairing_mode : unsigned char {
+        none, files, sequences
+    };
+
     using index_type       = sequence_reader::index_type;
     using data_type        = sequence_reader::data_type;
     using header_type      = sequence_reader::header_type;
@@ -235,9 +194,9 @@ public:
 
 
 private:
-    std::unique_ptr<sequence_reader> reader1_;
-    std::unique_ptr<sequence_reader> reader2_;
-    bool singleMode_;
+    sequence_reader reader1_;
+    sequence_reader reader2_;
+    pairing_mode pairing_;
 };
 
 
@@ -251,18 +210,6 @@ private:
 enum class sequence_id_type {
     any, acc, acc_ver, gi
 };
-
-
-
-/*************************************************************************//**
- *
- * @brief guesses and returns a suitable sequence reader
- *        based on a filename pattern
- *
- *****************************************************************************/
-std::unique_ptr<sequence_reader>
-make_sequence_reader(const std::string& filename);
-
 
 
 

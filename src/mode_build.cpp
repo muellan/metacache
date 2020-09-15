@@ -366,15 +366,15 @@ void add_targets_to_database(database& db,
 
                     const taxon_id fileTaxId = find_taxon_id(sequ2taxid, fileId);
 
-                    auto reader = make_sequence_reader(filename);
+                    sequence_reader reader{filename};
 
-                    while(reader->has_next() && executor.valid()) {
+                    while(reader.has_next() && executor.valid()) {
                         // get (ref to) next input sequence storage and fill it
                         auto& seq = executor.next_item(producerId);
                         seq.fileSource.filename = filename;
-                        seq.fileSource.index = reader->index();
+                        seq.fileSource.index = reader.index();
                         seq.fileTaxId = fileTaxId;
-                        reader->next_header_and_data(seq.header, seq.data);
+                        reader.next_header_and_data(seq.header, seq.data);
                     }
                 }
                 catch(std::exception& e) {

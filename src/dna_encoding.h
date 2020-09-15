@@ -25,6 +25,7 @@
 
 
 #include "bitmanip.h"
+#include "sequence_iostream.h"
 
 #include "../dep/hpc_helpers/include/cuda_helpers.cuh"
 
@@ -44,11 +45,10 @@ using numk_t = std::uint8_t;
  *
  *
  *****************************************************************************/
-template<class CharT>
 inline void
-reverse_complement(std::basic_string<CharT>& str)
+reverse_complement(char_sequence& str)
 {
-    std::reverse(begin(str), end(str));
+    std::reverse(str.begin(), str.end());
 
     for(auto& c : str) {
         switch(c) {
@@ -66,9 +66,8 @@ reverse_complement(std::basic_string<CharT>& str)
 }
 
 //-------------------------------------------------------------------
-template<class CharT>
-inline std::basic_string<CharT>
-make_reverse_complement(std::basic_string<CharT> str)
+inline char_sequence
+make_reverse_complement(char_sequence str)
 {
     reverse_complement(str);
     return str;

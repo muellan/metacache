@@ -32,6 +32,7 @@
 
 
 #include "hash_dna.h"
+#include "sequence_iostream.h"
 
 
 namespace mc {
@@ -84,7 +85,7 @@ namespace mc {
 /**************************************************************************
  * @brief nucleotide sequence storage type
  */
-using sequence = std::string;
+using sequence = char_sequence;
 using query_id = std::uint_least64_t;
 
 

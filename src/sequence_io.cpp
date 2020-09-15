@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -18,23 +18,42 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
+ * Original FASTA / FASTQ reader code taken from Kraken written by
+ * Derrick Wood <dwood@cs.jhu.edu>
+ *
  *****************************************************************************/
 
-
-#include "io_error.h"
 #include "sequence_io.h"
+#include "io_error.h"
 #include "string_utils.h"
 
-#include <algorithm>
-#include <limits>
-#include <regex>
-#include <sstream>
 #include <stdexcept>
+#include <regex>
 
 
 namespace mc {
 
 using std::string;
+
+
+
+//-----------------------------------------------------------------------------
+sequence_reader::sequence_reader(const std::string& filename) :
+    stream_{},
+    index_{0}
+{
+    if(!filename.empty()) {
+        stream_.open(filename.c_str());
+
+        if(!stream_.good()) {
+            throw file_access_error{"can't open file " + filename};
+        }
+    }
+    else {
+        throw file_access_error{"no filename was given"};
+    }
+}
+
 
 
 //-------------------------------------------------------------------
@@ -135,167 +154,74 @@ void sequence_reader::skip(index_type skip)
 
 
 
-
-
-
-//-----------------------------------------------------------------------------
-// F A S T A    R E A D E R
-//-----------------------------------------------------------------------------
-fasta_reader::fasta_reader(const string& filename):
-    sequence_reader{},
-    file_{}, buffer_{}
-{
-    if(filename.empty()) {
-        throw file_access_error{"no filename was give"};
-    }
-
-    file_.open(filename);
-
-    if(!file_.good()) {
-        invalidate();
-        throw file_access_error{"can't open file " + filename};
-    }
-
-    if(file_.get() != '>') {
-        invalidate();
-        throw io_format_error{"malformed FASTA file - expected header char > not found"};
-    }
-}
-
-
 //-------------------------------------------------------------------
-void fasta_reader::read_next(header_type* header, data_type* data, qualities_type*)
+void sequence_reader::read_next(header_type* header,
+                                data_type* data,
+                                qualities_type* qualities)
 {
-    if(header) {
-        getline(file_, *header);
-    } else {
-        file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    if(header) header->clear();
+    if(data) data->clear();
+    if(qualities) qualities->clear();
+
+    // find next header if not found in previous call
+    while (stream_.good() && stream_.last_char() != '>' && stream_.last_char() != '@') {
+        stream_.read_char();
     }
+    if (!stream_.good()) return; // end of file or error
 
-    if(data) {
-        using traits_t = std::string::traits_type;
+    if(header)
+        stream_.append_line(*header);
+    else
+        stream_.skip_line();
+    if (!stream_.good()) return;  // end of file or error
 
-        constexpr auto idelim = traits_t::to_int_type('>');
-        constexpr auto eof = traits_t::eof();
-
-        auto c = idelim;
-        data->erase();
-        buffer_.erase();
-
-        do {
-            std::getline(file_, buffer_);
-            *data += buffer_;
-            c = file_.rdbuf()->sgetc();
-        } while(file_.good() && !traits_t::eq_int_type(c, idelim));
-
-        if(traits_t::eq_int_type(c, eof)) {
-            file_.setstate(std::iostream::ios_base::eofbit);
-        }
-        else if(traits_t::eq_int_type(c, idelim)) {
-            file_.rdbuf()->sbumpc();
+    // read first character of next line
+    stream_.read_char();
+    // read sequence
+    while (stream_.good() && stream_.last_char() != '>' && stream_.last_char() != '+') {
+        if (stream_.last_char() == '\n') continue; // skip empty lines
+        // append first character of next line
+        if(data) {
+            // append first character of next line
+            data->push_back(stream_.last_char());
+            // append rest of line
+            stream_.append_line(*data);
         }
         else {
-            file_.setstate(std::iostream::ios_base::failbit);
+            stream_.skip_line();
         }
-
-    } else {
-        file_.ignore(std::numeric_limits<std::streamsize>::max(), '>');
+        stream_.read_char();
     }
+    if (!stream_.good()) return;  // end of file or error
 
-    if(!file_.good()) {
-        invalidate();
-    }
-}
+    // check for 3rd FASTQ line
+    if (stream_.last_char() != '+') return; // FASTA
+    // else: FASTQ
 
+    // skip 3rd FASTQ line
+    stream_.skip_line();
 
-
-
-//-------------------------------------------------------------------
-void fasta_reader::skip_next()
-{
-    file_.ignore(std::numeric_limits<std::streamsize>::max(), '>');
-
-    if(!file_.good()) {
-        invalidate();
-    }
-}
-
-
-
-
-
-
-//-----------------------------------------------------------------------------
-// F A S T Q    R E A D E R
-//-----------------------------------------------------------------------------
-fastq_reader::fastq_reader(const string& filename):
-    sequence_reader{},
-    file_{}
-{
-    if(filename.empty()) {
-        throw file_access_error{"no filename was given"};
-    }
-
-    file_.open(filename);
-
-    if(!file_.good()) {
-        invalidate();
-        throw file_access_error{"can't open file " + filename};
-    }
-
-    if(file_.get() != '@') {
-        invalidate();
-        throw io_format_error{"malformed FASTQ file - expected header char > not found"};
-    }
-}
-
-
-//-------------------------------------------------------------------
-void fastq_reader::read_next(header_type* header, data_type* data,
-                             qualities_type* qualities)
-{
-    using traits_t = std::string::traits_type;
-
-    if(header) {
-        getline(file_, *header);
-    } else {
-        file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-    }
-
-    // 2nd line (sequence data)
-    if(data) {
-        getline(file_, *data);
-    } else {
-        file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-    }
-
-    // 3rd (qualities header) + 4th line (qualities)
     if(qualities) {
-        // qualities header
-        file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        if(file_.good() && traits_t::eq_int_type(file_.rdbuf()->sgetc(), traits_t::to_int_type('+'))) {
-            throw io_format_error{"malformed FASTQ - quality header"};
-            invalidate();
-            return;
-        }
-        // skip '+'
-        file_.rdbuf()->sbumpc();
-        // read actual qualitites
-        getline(file_, *qualities);
-    } else {
-        file_.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        // qualities->reserve_exactly(data->capacity());
+        qualities->reserve(data->capacity());
+        // read quality string
+        stream_.append_line(*qualities);
     }
-    file_.ignore(std::numeric_limits<std::streamsize>::max(), '@');
+    else {
+        stream_.skip_line();
+    }
+    if (!stream_.good()) return;  // end of file or error
 
-    if(!file_.good()) {
-        invalidate();
-    }
+    // read first character of next line
+    stream_.read_char();
+
+    return;
 }
 
 
 
 //-------------------------------------------------------------------
-void fastq_reader::skip_next()
+void sequence_reader::skip_next()
 {
     read_next(nullptr, nullptr, nullptr);
 }
@@ -311,17 +237,20 @@ void fastq_reader::skip_next()
 sequence_pair_reader::sequence_pair_reader(const std::string& filename1,
                                            const std::string& filename2)
 :
-    reader1_{nullptr},
-    reader2_{nullptr},
-    singleMode_{true}
+    reader1_{},
+    reader2_{},
+    pairing_{pairing_mode::none}
 {
     if(!filename1.empty()) {
-        reader1_ = make_sequence_reader(filename1);
+        reader1_ = sequence_reader(filename1);
 
         if(!filename2.empty()) {
-            singleMode_ = false;
             if(filename1 != filename2) {
-                reader2_ = make_sequence_reader(filename2);
+                pairing_ = pairing_mode::files;
+                reader2_ = sequence_reader(filename2);
+            }
+            else {
+                pairing_ = pairing_mode::sequences;
             }
         }
     }
@@ -332,10 +261,9 @@ sequence_pair_reader::sequence_pair_reader(const std::string& filename1,
 //-------------------------------------------------------------------
 bool sequence_pair_reader::has_next() const noexcept
 {
-    if(!reader1_) return false;
-    if(!reader1_->has_next()) return false;
-    if(!reader2_) return true;
-    if(!reader2_->has_next()) return false;
+    if(!reader1_.has_next()) return false;
+    if(pairing_ != pairing_mode::files) return true;
+    if(!reader2_.has_next()) return false;
     return true;
 }
 
@@ -357,25 +285,27 @@ void sequence_pair_reader::next(sequence_pair& seq)
 {
     if(!has_next()) return;
 
-    // only one sequence per call
-    if(singleMode_) {
-        reader1_->next(seq.first);
-        seq.second.header.clear();
-        seq.second.data.clear();
-        seq.second.qualities.clear();
-    }
-    // pair = single sequences from 2 separate files (read in lockstep)
-    else if(reader2_) {
-        reader1_->next(seq.first);
-        reader2_->next(seq.second);
-    }
-    // pair = 2 consecutive sequences from same file
-    else {
-        const auto idx = reader1_->index();
-        reader1_->next(seq.first);
-        //make sure the index is only increased after the 2nd 'next()'
-        reader1_->index_offset(idx);
-        reader1_->next(seq.second);
+    switch(pairing_) {
+        case pairing_mode::none :
+            // only one sequence per call
+            reader1_.next(seq.first);
+            seq.second.header.clear();
+            seq.second.data.clear();
+            seq.second.qualities.clear();
+            break;
+        case pairing_mode::files :
+            // pair = single sequences from 2 separate files (read in lockstep)
+            reader1_.next(seq.first);
+            reader2_.next(seq.second);
+            break;
+        case pairing_mode::sequences :
+            // pair = 2 consecutive sequences from same file
+            const auto idx = reader1_.index();
+            reader1_.next(seq.first);
+            //make sure the index is only increased after the 2nd 'next()'
+            reader1_.index_offset(idx);
+            reader1_.next(seq.second);
+            break;
     }
 }
 
@@ -387,24 +317,24 @@ sequence_pair_reader::next_header()
 {
     if(!has_next()) return header_type{};
 
-    // only one sequence per call
-    if(singleMode_) {
-        return reader1_->next_header();
+    switch(pairing_) {
+        case pairing_mode::none :
+            // only one sequence per call
+            return reader1_.next_header();
+        case pairing_mode::files :
+            // pair = single sequences from 2 separate files (read in lockstep)
+            reader2_.next_header();
+            return reader1_.next_header();
+        default :
+        // case pairing_mode::sequences :
+            // pair = 2 consecutive sequences from same file
+            const auto idx = reader1_.index();
+            auto header = reader1_.next_header();
+            //make sure the index is only increased after the 2nd 'next()'
+            reader1_.index_offset(idx);
+            reader1_.next_header();
+            return header;
     }
-
-    // pair = single sequences from 2 separate files (read in lockstep)
-    if(reader2_) {
-        reader2_->next_header();
-        return reader1_->next_header();
-    }
-
-    // pair = 2 consecutive sequences from same file
-    const auto idx = reader1_->index();
-    auto header = reader1_->next_header();
-    //make sure the index is only increased after the 2nd 'next()'
-    reader1_->index_offset(idx);
-    reader1_->next_header();
-    return header;
 }
 
 
@@ -416,24 +346,24 @@ sequence_pair_reader::next_data(sequence::data_type& data1,
 {
     if(!has_next()) return index();
 
-    // only one sequence per call
-    if(singleMode_) {
-        data2.clear();
-        return reader1_->next_data(data1);
+    switch(pairing_) {
+        case pairing_mode::none :
+            // only one sequence per call
+            data2.clear();
+            return reader1_.next_data(data1);
+        case pairing_mode::files :
+            // pair = single sequences from 2 separate files (read in lockstep)
+            reader1_.next_data(data1);
+            return reader2_.next_data(data2);
+        default :
+        // case pairing_mode::sequences :
+            // pair = 2 consecutive sequences from same file
+            const auto idx = reader1_.index();
+            reader1_.next_data(data1);
+            //make sure the index is only increased after the 2nd 'next()'
+            reader1_.index_offset(idx);
+            return reader1_.next_data(data2);
     }
-
-    // pair = single sequences from 2 separate files (read in lockstep)
-    if(reader2_) {
-        reader1_->next_data(data1);
-        return reader2_->next_data(data2);
-    }
-
-    // pair = 2 consecutive sequences from same file
-    const auto idx = reader1_->index();
-    reader1_->next_data(data1);
-    //make sure the index is only increased after the 2nd 'next()'
-    reader1_->index_offset(idx);
-    return reader1_->next_data(data2);
 }
 
 
@@ -446,24 +376,24 @@ sequence_pair_reader::next_header_and_data(sequence::header_type& header1,
 {
     if(!has_next()) return index();
 
-    // only one sequence per call
-    if(singleMode_) {
-        data2.clear();
-        return reader1_->next_header_and_data(header1, data1);
+    switch(pairing_) {
+        case pairing_mode::none :
+            // only one sequence per call
+            data2.clear();
+            return reader1_.next_header_and_data(header1, data1);
+        case pairing_mode::files :
+            // pair = single sequences from 2 separate files (read in lockstep)
+            reader1_.next_header_and_data(header1, data1);
+            return reader2_.next_data(data2);
+        default :
+        // case pairing_mode::sequences :
+            // pair = 2 consecutive sequences from same file
+            const auto idx = reader1_.index();
+            reader1_.next_header_and_data(header1, data1);
+            //make sure the index is only increased after the 2nd 'next()'
+            reader1_.index_offset(idx);
+            return reader1_.next_data(data2);
     }
-
-    // pair = single sequences from 2 separate files (read in lockstep)
-    if(reader2_) {
-        reader1_->next_header_and_data(header1, data1);
-        return reader2_->next_data(data2);
-    }
-
-    // pair = 2 consecutive sequences from same file
-    const auto idx = reader1_->index();
-    reader1_->next_header_and_data(header1, data1);
-    //make sure the index is only increased after the 2nd 'next()'
-    reader1_->index_offset(idx);
-    return reader1_->next_data(data2);
 }
 
 
@@ -471,19 +401,24 @@ sequence_pair_reader::next_header_and_data(sequence::header_type& header1,
 //-------------------------------------------------------------------
 void sequence_pair_reader::skip(index_type skip)
 {
-    if(skip < 1 || !reader1_) return;
+    if(skip < 1) return;
 
-    if(reader2_) {
-        reader1_->skip(skip);
-        reader2_->skip(skip);
-    }
-    else if(singleMode_) {
-        reader1_->skip(skip);
-    }
-    else {
-        const auto idx = reader1_->index();
-        reader1_->skip(2*skip);
-        reader1_->index_offset(idx+skip);
+    switch(pairing_) {
+        case pairing_mode::none :
+            // only one sequence per call
+            reader1_.skip(skip);
+            break;
+        case pairing_mode::files :
+            // pair = single sequences from 2 separate files (read in lockstep)
+            reader1_.skip(skip);
+            reader2_.skip(skip);
+            break;
+        case pairing_mode::sequences :
+            // pair = 2 consecutive sequences from same file
+            const auto idx = reader1_.index();
+            reader1_.skip(2*skip);
+            reader1_.index_offset(idx+skip);
+            break;
     }
 }
 
@@ -492,8 +427,7 @@ void sequence_pair_reader::skip(index_type skip)
 //-------------------------------------------------------------------
 sequence_pair_reader::index_type sequence_pair_reader::index() const noexcept
 {
-    if(!reader1_) return index_type{0};
-    return reader1_->index();
+    return reader1_.index();
 }
 
 
@@ -501,56 +435,11 @@ sequence_pair_reader::index_type sequence_pair_reader::index() const noexcept
 //-------------------------------------------------------------------
 void sequence_pair_reader::index_offset(index_type index)
 {
-    if(!reader1_) return;
-
-    reader1_->index_offset(index);
-    if(reader2_) reader2_->index_offset(index);
+    reader1_.index_offset(index);
+    if(pairing_ == pairing_mode::files)
+        reader2_.index_offset(index);
 }
 
-
-
-
-
-
-//-------------------------------------------------------------------
-std::unique_ptr<sequence_reader>
-make_sequence_reader(const string& filename)
-{
-    if(filename.empty()) return nullptr;
-
-    auto n = filename.size();
-    if(filename.find(".fq")    == (n-3) ||
-       filename.find(".fnq")   == (n-4) ||
-       filename.find(".fastq") == (n-6) )
-    {
-        return std::make_unique<fastq_reader>(filename);
-    }
-    else if(filename.find(".fa")    == (n-3) ||
-            filename.find(".fna")   == (n-4) ||
-            filename.find(".fasta") == (n-6) )
-    {
-        return std::make_unique<fasta_reader>(filename);
-    }
-
-    //try to determine file type content
-    std::ifstream is {filename};
-    if(is.good()) {
-        string line;
-        getline(is,line);
-        if(!line.empty()) {
-            if(line[0] == '>') {
-                return std::make_unique<fasta_reader>(filename);
-            }
-            else if(line[0] == '@') {
-                return std::make_unique<fastq_reader>(filename);
-            }
-        }
-        throw file_read_error{"file format not recognized"};
-    }
-
-    throw file_access_error{"file not accessible"};
-    return nullptr;
-}
 
 
 
@@ -638,7 +527,7 @@ extract_accession_string(const string& text, sequence_id_type idtype)
 
     switch(idtype) {
         case sequence_id_type::acc:
-        /* [[fallthrough]] */
+            [[fallthrough]]
         case sequence_id_type::acc_ver:
             return extract_ncbi_accession_number(text, idtype);
         case sequence_id_type::gi:
