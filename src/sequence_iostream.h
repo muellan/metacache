@@ -23,8 +23,8 @@
  *
  *****************************************************************************/
 
-#ifndef FASTX_STREAM_H
-#define FASTX_STREAM_H
+#ifndef CHAR_ISTREAM_H
+#define CHAR_ISTREAM_H
 
 #ifdef MC_ZLIB
 #include <zlib.h>
@@ -173,7 +173,7 @@ private:
 };
 
 
-class fastx_stream
+class char_istream
 {
 public:
     enum class Status : char {
@@ -243,19 +243,19 @@ public:
         return 16384;
     }
 
-    fastx_stream() :
+    char_istream() :
         filehandle_{}, buf_{nullptr},
         begin_{0}, end_{0},
         lastChar_{0},
         status_{Status::err}
     {}
 
-    explicit fastx_stream(const char* filename) : fastx_stream()
+    explicit char_istream(const char* filename) : char_istream()
     {
         open(filename);
     }
 
-    fastx_stream(fastx_stream&& other) :
+    char_istream(char_istream&& other) :
         filehandle_{std::move(other.filehandle_)},
         buf_{std::move(other.buf_)},
         begin_{other.begin_},
@@ -271,7 +271,7 @@ public:
         other.status_ = Status::err;
     }
 
-    fastx_stream& operator = (fastx_stream&& other)
+    char_istream& operator = (char_istream&& other)
     {
         std::swap(other.filehandle_.file_, filehandle_.file_);
         std::swap(other.buf_, buf_);
@@ -321,9 +321,10 @@ private:
 public:
     void read_char()
     {
-        if(validate_buffer()) {
+        if(validate_buffer())
             lastChar_ = buf_[(begin_++)];
-        }
+        else
+            lastChar_ = 0;
     }
 
     void append_line(char_sequence& str) {

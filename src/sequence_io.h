@@ -79,8 +79,6 @@ public:
         return *this;
     }
 
-    ~sequence_reader() = default;
-
 
     /** @brief read & return next sequence */
     sequence next();
@@ -118,7 +116,7 @@ private:
 
     void skip_next();
 
-    fastx_stream stream_;
+    char_istream stream_;
     index_type index_;
 };
 
@@ -157,8 +155,6 @@ public:
     sequence_pair_reader(const sequence_pair_reader&) = delete;
     sequence_pair_reader& operator = (const sequence_pair_reader&) = delete;
     sequence_pair_reader& operator = (sequence_pair_reader&&) = delete;
-
-    ~sequence_pair_reader() = default;
 
 
     /** @brief read & return next sequence */

@@ -52,6 +52,11 @@ sequence_reader::sequence_reader(const std::string& filename) :
     else {
         throw file_access_error{"no filename was given"};
     }
+
+    stream_.read_char();
+    if(stream_.last_char() != '>' && stream_.last_char() != '@')
+        throw io_format_error{"malformed fasta/fastq file - "
+                              "expected header char '>' or '@' not found"};
 }
 
 
@@ -163,8 +168,10 @@ void sequence_reader::read_next(header_type* header,
     if(data) data->clear();
     if(qualities) qualities->clear();
 
-    // find next header if not found in previous call
     while (stream_.good() && stream_.last_char() != '>' && stream_.last_char() != '@') {
+        // malformed fastx file, try to recover at next line
+        stream_.skip_line();
+        // read first character of next line
         stream_.read_char();
     }
     if (!stream_.good()) return; // end of file or error
