@@ -240,7 +240,7 @@ public:
     Status status_;
 
     static constexpr size_t bufsize() noexcept {
-        return 16384;
+        return 1U << 16 ;
     }
 
     char_istream() :
