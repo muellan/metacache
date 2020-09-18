@@ -58,6 +58,12 @@ Visit MetaCache's github [repository].
 Run 'make' in the directory containing the Makefile. 
 This will compile MetaCache with the default data type settings which support databases with up to 65,535 reference sequences (targets) and k-mer sizes up to 16. This offers a good database space efficiency and is currently sufficient for the complete bacterial, viral and archaea genomes from the NCBI RefSeq.
 
+If you want MetaCache to be able to process gzipped files make sure you have the zlib library installed on your system and compile with:
+
+  ```
+  make MACROS="-DMC_ZLIB"
+  ```
+
 Using the following compilation options you can compile MetaCache with support for more reference sequences and greater k-mer lengths.
 
 ##### number of referece sequences (targets)
@@ -104,7 +110,7 @@ Using the following compilation options you can compile MetaCache with support f
 
 You can of course combine these options (don't forget the surrounding quotes):
   ```
-  make MACROS="-DMC_TARGET_ID_TYPE=uint32_t -DMC_WINDOW_ID_TYPE=uint32_t"
+  make MACROS="-DMC_ZLIB -DMC_TARGET_ID_TYPE=uint32_t -DMC_WINDOW_ID_TYPE=uint32_t"
   ```
 
 **Note that a database can only be queried with the same variant of MetaCache (regarding data type sizes) that it was built with.**

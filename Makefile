@@ -12,7 +12,7 @@ DIALECT       = -std=c++14
 WARNINGS      = -Wall -Wextra -Wpedantic
 NVCC_WARNINGS = -Xcompiler="-Wall -Wextra"
 OPTIMIZATION  = -O3
-INCLUDES      = -lz -DMC_ZLIB
+INCLUDES      = -lz
 #-march native -fomit-frame-pointer
 # CUB = -I<path-to-cub>
 NVCC_FLAGS    = $(CUB) -arch=sm_70 -lineinfo --expt-relaxed-constexpr --extended-lambda
