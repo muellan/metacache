@@ -78,8 +78,6 @@ bool database::add_target(part_id dbPart,
 // ----------------------------------------------------------------------------
 part_id database::read_meta(const std::string& filename, std::future<void>& taxonomyReaderThread)
 {
-    std::cerr << "Reading database metadata from file '" << filename << "' ... ";
-
     std::ifstream is{filename, std::ios::in | std::ios::binary};
 
     if(!is.good()) {
@@ -151,8 +149,6 @@ part_id database::read_meta(const std::string& filename, std::future<void>& taxo
     taxonomyReaderThread = std::async(std::launch::async,
         [&, is = std::move(is)]() mutable {read_binary(is, taxonomyCache_);});
 
-    std::cerr << "done." << std::endl;
-
     return numParts;
 }
 
@@ -160,8 +156,6 @@ part_id database::read_meta(const std::string& filename, std::future<void>& taxo
 // ----------------------------------------------------------------------------
 void database::read_cache(const std::string& filename, part_id partId)
 {
-    std::cerr << "Reading database part from file '" << filename << "' ... ";
-
     std::ifstream is{filename, std::ios::in | std::ios::binary};
 
     if(!is.good()) {
@@ -170,8 +164,6 @@ void database::read_cache(const std::string& filename, part_id partId)
 
     //hash table
     read_binary(is, featureStore_, partId);
-
-    std::cerr << "done." << std::endl;
 }
 
 
@@ -180,6 +172,8 @@ void database::read(const std::string& filename, int singlePartId,
                     unsigned replication,
                     scope what)
 {
+    std::cerr << "Reading database metadata ...\n";
+
     std::future<void> taxonomyReaderThread;
     part_id numParts = read_meta(filename+".meta", taxonomyReaderThread);
 
@@ -213,11 +207,15 @@ void database::read(const std::string& filename, int singlePartId,
 
         for(unsigned r = 0; r < replication; ++r) {
             if(singlePartId >= 0) {
+                std::cerr << "Reading database part " << singlePartId << " ...\n";
+
                 cacheReaderThreads.emplace_back(std::async(std::launch::async,
                     &database::read_cache, this, filename+".cache"+std::to_string(singlePartId), r+singlePartId));
             }
             else {
                 for(part_id partId = 0; partId < numParts; ++partId) {
+                    std::cerr << "Reading database part " << partId << " ...\n";
+
                     cacheReaderThreads.emplace_back(std::async(std::launch::async,
                         &database::read_cache, this, filename+".cache"+std::to_string(partId), r*numParts+partId));
                 }
@@ -230,6 +228,8 @@ void database::read(const std::string& filename, int singlePartId,
 
      for(auto& t : cacheReaderThreads)
         t.get();
+
+    std::cerr << "done." << std::endl;
 }
 
 

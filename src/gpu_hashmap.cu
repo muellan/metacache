@@ -1231,34 +1231,33 @@ void gpu_hashmap<Key,ValueT>::deserialize(std::istream& is, part_id gpuId)
     len_t nvalues = 0;
     read_binary(is, nvalues);
 
-    std::cerr << "\n\t#features: " << nkeys << " #locations: " << nvalues << "\n";
+    // std::cerr << "\n\t#features: " << nkeys << " #locations: " << nvalues << "\n";
 
     if(nkeys > 0) {
+        // std::cerr << "\tloading database to gpu " << gpuId << "\n";
         cudaSetDevice(gpuId); CUERR
-        std::cerr << "\tloading database to gpu " << gpuId << "\n";
 
         size_t freeMemory = 0;
         size_t totalMemory = 0;
         cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
-        std::cerr << "\tfreeMemory: " << helpers::B2GB(freeMemory) << " GB\n";
+        // std::cerr << "\tfreeMemory: " << helpers::B2GB(freeMemory) << " GB\n";
 
-        //initialize hash table
+        // initialize hash table
         queryHashTables_[gpuId] = std::make_unique<query_hash_table>(nkeys/maxLoadFactor_);
 
-        std::cerr << "\tfeatures capacity: " << queryHashTables_[gpuId]->bucket_count() << "\n";
+        // std::cerr << "\tfeatures capacity: " << queryHashTables_[gpuId]->bucket_count() << "\n";
 
-        size_t indexSize = queryHashTables_[gpuId]->bucket_count() * (sizeof(value_type) + sizeof(value_type));
-        std::cerr << "\tindex size: " << helpers::B2GB(indexSize) << " GB\n";
+        // size_t indexSize = queryHashTables_[gpuId]->bucket_count() * (sizeof(value_type) + sizeof(value_type));
+        // size_t valuesSize = nvalues*sizeof(location);
+        // std::cerr << "\tindex size: " << helpers::B2GB(indexSize) << " GB\n";
+        // std::cerr << "\tlocations size: " << helpers::B2GB(valuesSize) << " GB\n";
+        // std::cerr << "\ttotal size: " << helpers::B2GB(indexSize + valuesSize) << " GB\n";
 
         // load hash table
         queryHashTables_[gpuId]->deserialize(is, nkeys, nvalues);
 
-        size_t valuesSize = nvalues*sizeof(location);
-        std::cerr << "\tlocations size: " << helpers::B2GB(valuesSize) << " GB\n";
-        std::cerr << "\ttotal size: " << helpers::B2GB(indexSize + valuesSize) << " GB\n";
-
         cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
-        std::cerr << "\tfreeMemory: " << helpers::B2GB(freeMemory) << " GB\n";
+        // std::cerr << "\tfreeMemory: " << helpers::B2GB(freeMemory) << " GB\n";
     }
 }
 
@@ -1285,7 +1284,7 @@ void gpu_hashmap<Key,ValueT>::copy_target_lineages_to_gpus(
     const size_t size = lins.size()*sizeof(ranked_lineage);
 
     for(part_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
-        std::cerr << "copy lineages to gpu " << gpuId << "\n";
+        // std::cerr << "Copying lineages to GPU " << gpuId << " ...\n";
         cudaSetDevice(gpuId); CUERR
         cudaMalloc(&lineages_[gpuId], size); CUERR
         cudaMemcpy(lineages_[gpuId], lins.data(), size, cudaMemcpyHostToDevice); CUERR
