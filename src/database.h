@@ -390,7 +390,8 @@ public:
                const candidate_generation_rules& rules,
                matches_sorter& sorter) const
     {
-        return featureStore_.query_host(query1, query2, querySketcher_, taxonomyCache_, rules, sorter);
+        return featureStore_.query_host(
+            query1, query2, querySketcher_, taxonomyCache_, rules, sorter);
     }
 #else
     void
@@ -428,7 +429,8 @@ private:
      *          internal mapping structure.
      ****************************************************************/
     part_id read_meta(const std::string& filename, std::future<void>& taxonomyReaderThread);
-    void read_cache(const std::string& filename, part_id partId);
+    void read_cache(const std::string& filename, part_id partId,
+                    std::atomic_size_t& bytesRead, std::atomic_size_t& bytesTotal);
 
 public:
     /****************************************************************

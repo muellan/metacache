@@ -289,8 +289,10 @@ public:
     /****************************************************************
      * @brief deserialize hashmap from input stream
      */
-     friend void read_binary(std::istream& is, gpu_hashmap& m, part_id gpuId) {
-        m.deserialize(is, gpuId);
+     friend void read_binary(std::istream& is, gpu_hashmap& m, part_id gpuId,
+                             std::atomic_size_t& bytesRead, std::atomic_size_t& bytesTotal)
+    {
+        m.deserialize(is, gpuId, bytesRead, bytesTotal);
     }
 
     /****************************************************************
@@ -309,7 +311,7 @@ public:
 
 private:
     //---------------------------------------------------------------
-    void deserialize(std::istream& is, part_id gpuId);
+    void deserialize(std::istream& is, part_id gpuId, std::atomic_size_t& bytesRead, std::atomic_size_t& bytesTotal);
 
     //---------------------------------------------------------------
     /**

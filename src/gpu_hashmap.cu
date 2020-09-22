@@ -768,7 +768,8 @@ private:
 public:
     //---------------------------------------------------------------
     template<class LenT>
-    void deserialize(std::istream& is, LenT nkeys, LenT nlocations)
+    void deserialize(std::istream& is, LenT nkeys, LenT nlocations,
+                     std::atomic_size_t& bytesRead)
     {
         using len_t = LenT;
 
@@ -822,6 +823,9 @@ public:
                     status, stream);
 
                 locsOffset += batchValuesCount;
+
+                bytesRead += batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
+                          + batchValuesCount*sizeof(location);
             }
 
             //load last batch
@@ -834,6 +838,9 @@ public:
                     status, stream);
 
                 locsOffset += batchValuesCount;
+
+                bytesRead += batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
+                          + batchValuesCount*sizeof(location);
 
                 //check status from last batch
                 //implicit sync
@@ -1222,7 +1229,11 @@ void gpu_hashmap<Key,ValueT>::query_async(
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::deserialize(std::istream& is, part_id gpuId)
+void gpu_hashmap<Key,ValueT>::deserialize(
+    std::istream& is,
+    part_id gpuId,
+    std::atomic_size_t& bytesRead,
+    std::atomic_size_t& bytesTotal)
 {
     using len_t = std::uint64_t;
 
@@ -1237,9 +1248,9 @@ void gpu_hashmap<Key,ValueT>::deserialize(std::istream& is, part_id gpuId)
         // std::cerr << "\tloading database to gpu " << gpuId << "\n";
         cudaSetDevice(gpuId); CUERR
 
-        size_t freeMemory = 0;
-        size_t totalMemory = 0;
-        cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
+        // size_t freeMemory = 0;
+        // size_t totalMemory = 0;
+        // cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
         // std::cerr << "\tfreeMemory: " << helpers::B2GB(freeMemory) << " GB\n";
 
         // initialize hash table
@@ -1248,15 +1259,17 @@ void gpu_hashmap<Key,ValueT>::deserialize(std::istream& is, part_id gpuId)
         // std::cerr << "\tfeatures capacity: " << queryHashTables_[gpuId]->bucket_count() << "\n";
 
         // size_t indexSize = queryHashTables_[gpuId]->bucket_count() * (sizeof(value_type) + sizeof(value_type));
-        // size_t valuesSize = nvalues*sizeof(location);
+        size_t keysSize = nkeys*(sizeof(key_type) + sizeof(bucket_size_type));
+        size_t valuesSize = nvalues*sizeof(location);
         // std::cerr << "\tindex size: " << helpers::B2GB(indexSize) << " GB\n";
         // std::cerr << "\tlocations size: " << helpers::B2GB(valuesSize) << " GB\n";
         // std::cerr << "\ttotal size: " << helpers::B2GB(indexSize + valuesSize) << " GB\n";
+        bytesTotal += keysSize + valuesSize;
 
         // load hash table
-        queryHashTables_[gpuId]->deserialize(is, nkeys, nvalues);
+        queryHashTables_[gpuId]->deserialize(is, nkeys, nvalues, bytesRead);
 
-        cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
+        // cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
         // std::cerr << "\tfreeMemory: " << helpers::B2GB(freeMemory) << " GB\n";
     }
 }

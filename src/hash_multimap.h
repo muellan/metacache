@@ -923,8 +923,9 @@ public:
     /****************************************************************
      * @brief deserialize hashmap from input stream
      */
-    friend void read_binary(std::istream& is, hash_multimap& m) {
-        m.deserialize(is);
+    friend void read_binary(std::istream& is, hash_multimap& m,
+                            std::atomic_size_t& bytesRead, std::atomic_size_t& bytesTotal) {
+        m.deserialize(is, bytesRead, bytesTotal);
     }
 
     /****************************************************************
@@ -982,22 +983,19 @@ private:
 
 
     //---------------------------------------------------------------
-    void deserialize(std::istream& is)
+    void deserialize(std::istream& is, std::atomic_size_t& bytesRead, std::atomic_size_t& bytesTotal)
     {
         using len_t = std::uint64_t;
 
         clear();
-        std::cerr << '\n';
-        show_progress_indicator(std::cerr, 0);
 
         len_t nkeys = 0;
         read_binary(is, nkeys);
         len_t nvalues = 0;
         read_binary(is, nvalues);
 
-        len_t totalSize = nkeys*(sizeof(key_type)+sizeof(bucket_size_type))
-                        + nvalues*sizeof(value_type);
-        len_t indicator = 0;
+        bytesTotal += nkeys*(sizeof(key_type)+sizeof(bucket_size_type))
+                    + nvalues*sizeof(value_type);
 
         len_t batchSize = 0;
         read_binary(is, batchSize);
@@ -1021,15 +1019,17 @@ private:
                     auto batchValuesCount = deserialize_batch_of_buckets(
                         is, keyBuffer, sizeBuffer, batchSize, valuesOffset);
 
-                    indicator += batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
-                               + batchValuesCount*sizeof(value_type);
-                    show_progress_indicator(std::cerr, float(indicator)/totalSize);
+                    bytesRead += batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
+                              + batchValuesCount*sizeof(value_type);
 
                     valuesOffset += batchValuesCount;
                 }
 
-                deserialize_batch_of_buckets(
+                auto batchValuesCount = deserialize_batch_of_buckets(
                     is, keyBuffer, sizeBuffer, lastBatchSize, valuesOffset);
+
+                bytesRead += batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
+                           + batchValuesCount*sizeof(value_type);
             }
 
             numKeys_ = nkeys;
