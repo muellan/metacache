@@ -226,10 +226,32 @@ void database::read(const std::string& filename, int singlePartId,
     taxonomyReaderThread.get();
     initialize_taxonomy_caches();
 
-     for(auto& t : cacheReaderThreads)
-        t.get();
+    if(what != scope::metadata_only) {
+        part_id readyCounter = 0;
+        std::vector<std::future_status> status(cacheReaderThreads.size(), std::future_status::timeout);
 
-    std::cerr << "done." << std::endl;
+        std::cerr << readyCounter << "/" << cacheReaderThreads.size() << " parts read ";
+
+        while(readyCounter != cacheReaderThreads.size()) {
+            for(part_id i = 0; i < cacheReaderThreads.size(); ++i) {
+                if(status[i] != std::future_status::ready) {
+                    status[i] = cacheReaderThreads[i].wait_for(std::chrono::seconds(1));
+                    if(status[i] == std::future_status::ready) {
+                        cacheReaderThreads[i].get();
+                        ++readyCounter;
+                        clear_current_line(std::cerr);
+                        std::cerr << readyCounter << "/" << cacheReaderThreads.size() << " parts read ";
+                    }
+                    else {
+                        std::cerr << '.';
+                    }
+                }
+            }
+        }
+        clear_current_line(std::cerr);
+    }
+
+    std::cerr << "Completed database reading.\n";
 }
 
 
