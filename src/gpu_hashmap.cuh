@@ -136,7 +136,7 @@ public:
     }
 
     //---------------------------------------------------------------
-    bool valid() const noexcept { return valid_; };
+    bool add_target_failed(part_id gpuId) const noexcept;
 
     //---------------------------------------------------------------
     void pop_status();
@@ -326,7 +326,6 @@ private:
     part_id numParts_;
     float maxLoadFactor_;
     std::uint64_t maxLocationsPerFeature_;
-    std::atomic_bool valid_;
 
     std::vector<insert_buffer> insertBuffers_;
 
@@ -340,7 +339,6 @@ private:
      *        which maps feature -> values pointer
      */
     std::vector<std::unique_ptr<query_hash_table>> queryHashTables_;
-
 
     std::vector<ranked_lineage *> lineages_;
 };

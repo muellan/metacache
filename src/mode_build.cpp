@@ -294,7 +294,7 @@ void add_targets_to_database(
                 cout << seqId << " not added to database" << endl;
             }
         }
-        if(db.add_target_failed()) break;
+        if(db.add_target_failed(dbPart)) break;
     }
 }
 
@@ -321,7 +321,7 @@ void add_targets_to_database(database& db,
     execOpt.concurrency(8, db.num_parts());
 #endif
 
-    execOpt.abort_if([&] { return db.add_target_failed(); });
+    execOpt.abort_if([&] (int id) { return db.add_target_failed(id); });
 
     execOpt.on_error([&] (std::exception& e) {
         if(dynamic_cast<database::target_limit_exceeded_error*>(&e)) {

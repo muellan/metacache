@@ -331,14 +331,14 @@ public:
 
 
     //---------------------------------------------------------------
-    void wait_until_add_target_complete(part_id gpuId) {
-        featureStore_.wait_until_add_target_complete(gpuId, targetSketcher_);
+    void wait_until_add_target_complete(part_id partId) {
+        featureStore_.wait_until_add_target_complete(partId, targetSketcher_);
     }
 
 
     //---------------------------------------------------------------
-    bool add_target_failed() {
-        return !featureStore_.valid();
+    bool add_target_failed(part_id partId) {
+        return featureStore_.add_target_failed(partId);
     }
 
 

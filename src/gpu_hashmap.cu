@@ -94,6 +94,7 @@ public:
             1.051, 1, max_bucket_size(),            // grow factor, min & max bucket size
             // 1.075, 3, 26,                           // grow factor, min & max bucket size
             maxLocationsPerFeature},                // max values per key
+        valid_{true},
         batchSize_{default_batch_size()},
         seqBatches_{},
         currentSeqBatch_{0}
@@ -112,9 +113,10 @@ public:
 
     //---------------------------------------------------------------
     bool validate() {
-        if(hashTable_.peek_status(statusStream_) - status_type::max_values_for_key_reached())
-            return false;
-        return true;
+        if(valid_ && hashTable_.peek_status(statusStream_) - status_type::max_values_for_key_reached()) {
+            valid_ = false;
+        }
+        return valid_;
     }
 
     //---------------------------------------------------------------
@@ -557,6 +559,7 @@ public:
 
 private:
     hash_table_t hashTable_;
+    bool valid_;
 
     size_type batchSize_;
 
@@ -889,8 +892,7 @@ gpu_hashmap<Key,ValueT>::gpu_hashmap() :
     numGPUs_(0),
     numParts_(0),
     maxLoadFactor_(default_max_load_factor()),
-    maxLocationsPerFeature_(max_supported_locations_per_feature()),
-    valid_(true)
+    maxLocationsPerFeature_(max_supported_locations_per_feature())
 {
     int deviceCount = 0;
     cudaGetDeviceCount(&deviceCount); CUERR
@@ -914,13 +916,21 @@ gpu_hashmap<Key,ValueT>::gpu_hashmap(gpu_hashmap&& other) :
     numParts_{other.numParts_},
     maxLoadFactor_{other.maxLoadFactor_},
     maxLocationsPerFeature_{other.maxLocationsPerFeature_},
-    valid_{other.valid_.exchange(false)},
     buildHashTables_{std::move(other.buildHashTables_)},
     queryHashTables_{std::move(other.queryHashTables_)},
     lineages_{std::move(other.lineages_)}
 {};
 
 
+
+//---------------------------------------------------------------
+template<class Key, class ValueT>
+bool gpu_hashmap<Key,ValueT>::add_target_failed(part_id gpuId) const noexcept {
+    if(gpuId < buildHashTables_.size())
+        return !(buildHashTables_[gpuId]->validate());
+    else
+        return true;
+};
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
@@ -1132,12 +1142,9 @@ void gpu_hashmap<Key,ValueT>::insert(
 {
     cudaSetDevice(gpuId); CUERR
 
-    if(valid_ && buildHashTables_[gpuId]->validate()) {
+    if(buildHashTables_[gpuId]->validate()) {
         buildHashTables_[gpuId]->insert_async(
             seqBatchHost, targetSketcher);
-    }
-    else {
-        valid_ = false;
     }
 }
 //-----------------------------------------------------

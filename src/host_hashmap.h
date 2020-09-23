@@ -146,7 +146,6 @@ public:
     host_hashmap() :
         maxLoadFactor_(default_max_load_factor()),
         maxLocationsPerFeature_{max_supported_locations_per_feature()},
-        valid_(true),
         hashTables_{},
         inserters_{}
     {}
@@ -155,7 +154,6 @@ public:
     host_hashmap(host_hashmap&& other) :
         maxLoadFactor_{other.maxLoadFactor_},
         maxLocationsPerFeature_{other.maxLocationsPerFeature_},
-        valid_{other.valid_.exchange(false)},
         hashTables_{std::move(other.hashTables_)},
         inserters_{std::move(other.inserters_)}
     {}
@@ -437,14 +435,16 @@ public:
 private:
     //---------------------------------------------------------------
     void destroy_inserter(part_id part) {
-        // destroy inserter
         inserters_[part] = nullptr;
     }
 
 public:
     //---------------------------------------------------------------
-    bool valid() const noexcept {
-        return valid_;
+    bool add_target_failed(part_id partId) const noexcept {
+        if(inserters_[partId])
+            return !(inserters_[partId]->valid());
+        else
+            return false;
     }
 
 
@@ -467,9 +467,6 @@ public:
                     sketch.tgt = tgt;
                     sketch.win = win;
                     sketch.sk = std::move(sk);
-                }
-                else {
-                    valid_ = false;
                 }
                 ++win;
             });
@@ -499,8 +496,6 @@ private:
         execOpt.batch_size(1000);
         execOpt.queue_size(100);
         execOpt.concurrency(1,1);
-
-        execOpt.abort_if([&, this] { return !(this->valid()); });
 
         inserters_[part] = std::make_unique<batch_executor<window_sketch>>( execOpt,
             [&,this,part](int, const auto& batch) {
@@ -592,7 +587,6 @@ public:
 private:
     float maxLoadFactor_;
     std::uint64_t maxLocationsPerFeature_;
-    std::atomic_bool valid_;
 
     std::vector<hash_table> hashTables_;
 

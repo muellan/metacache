@@ -26,7 +26,7 @@ public:
     friend class batch_executor<WorkItem>;
 
     using error_handler   = std::function<void(std::exception&)>;
-    using abort_condition = std::function<bool()>;
+    using abort_condition = std::function<bool(int)>;
     using finalizer       = std::function<void(int)>;
     using item_measure    = std::function<size_t(const WorkItem&)>;
 
@@ -36,7 +36,7 @@ public:
         queueSize_{1},
         batchSize_{1},
         handleErrors_{[](std::exception&){}},
-        abortRequested_{[]{ return false; }},
+        abortRequested_{[](int){ return false; }},
         finalize_{[](int){}},
         measureWorkItem_{[](const WorkItem&){ return 1; }}
     {}
@@ -132,22 +132,22 @@ public:
 
             // spawn consumer threads
             consumers_.reserve(param_.num_consumers());
-            for(int i = 0; i < param_.num_consumers(); ++i) {
-                consumers_.emplace_back(std::async(std::launch::async, [&,i] {
+            for(int consumerId = 0; consumerId < param_.num_consumers(); ++consumerId) {
+                consumers_.emplace_back(std::async(std::launch::async, [&,consumerId] {
                     batch_type batch;
-                    validate();
+                    validate(consumerId);
                     while(valid() || workQueue_.size_approx() > 0) {
                         if(workQueue_.try_dequeue(batch)) {
-                            consume_(i, batch);
+                            consume_(consumerId, batch);
                             // put batch storage back
                             storageQueue_.enqueue(std::move(batch));
-                            validate();
+                            validate(consumerId);
                         }
                         else {
                             std::this_thread::sleep_for(std::chrono::milliseconds{1});
                         }
                     }
-                    param_.finalize_(i);
+                    param_.finalize_(consumerId);
                 }));
             }
         }
@@ -281,15 +281,15 @@ private:
         }
         // ... or consume directly if only producer threads
         else {
-            validate();
+            validate(producerId);
             if(valid()) consume_(producerId, handler.batch_);
         }
     }
 
 
     // -----------------------------------------------------------------------
-    void validate() {
-        if(param_.abortRequested_()) {
+    void validate(int id) {
+        if(param_.abortRequested_(id)) {
             keepWorking_.store(false);
         }
     }
