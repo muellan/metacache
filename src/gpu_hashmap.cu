@@ -769,7 +769,7 @@ public:
     //---------------------------------------------------------------
     template<class LenT>
     void deserialize(std::istream& is, LenT nkeys, LenT nlocations,
-                     std::atomic_size_t& bytesRead)
+                     concurrent_progress& readingProgress)
     {
         using len_t = LenT;
 
@@ -824,8 +824,9 @@ public:
 
                 locsOffset += batchValuesCount;
 
-                bytesRead += batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
-                          + batchValuesCount*sizeof(location);
+                readingProgress.counter +=
+                    batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
+                    + batchValuesCount*sizeof(location);
             }
 
             //load last batch
@@ -839,8 +840,9 @@ public:
 
                 locsOffset += batchValuesCount;
 
-                bytesRead += batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
-                          + batchValuesCount*sizeof(location);
+                readingProgress.counter +=
+                    batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
+                    + batchValuesCount*sizeof(location);
 
                 //check status from last batch
                 //implicit sync
@@ -1232,8 +1234,7 @@ template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::deserialize(
     std::istream& is,
     part_id gpuId,
-    std::atomic_size_t& bytesRead,
-    std::atomic_size_t& bytesTotal)
+    concurrent_progress& readingProgress)
 {
     using len_t = std::uint64_t;
 
@@ -1264,10 +1265,10 @@ void gpu_hashmap<Key,ValueT>::deserialize(
         // std::cerr << "\tindex size: " << helpers::B2GB(indexSize) << " GB\n";
         // std::cerr << "\tlocations size: " << helpers::B2GB(valuesSize) << " GB\n";
         // std::cerr << "\ttotal size: " << helpers::B2GB(indexSize + valuesSize) << " GB\n";
-        bytesTotal += keysSize + valuesSize;
+        readingProgress.total += keysSize + valuesSize;
 
         // load hash table
-        queryHashTables_[gpuId]->deserialize(is, nkeys, nvalues, bytesRead);
+        queryHashTables_[gpuId]->deserialize(is, nkeys, nvalues, readingProgress);
 
         // cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
         // std::cerr << "\tfreeMemory: " << helpers::B2GB(freeMemory) << " GB\n";

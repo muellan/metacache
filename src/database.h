@@ -430,7 +430,7 @@ private:
      ****************************************************************/
     part_id read_meta(const std::string& filename, std::future<void>& taxonomyReaderThread);
     void read_cache(const std::string& filename, part_id partId,
-                    std::atomic_size_t& bytesRead, std::atomic_size_t& bytesTotal);
+                    concurrent_progress& readingProgress);
 
 public:
     /****************************************************************

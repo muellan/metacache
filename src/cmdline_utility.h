@@ -23,6 +23,7 @@
 #define MC_CMDLINE_TOOLS_H_
 
 
+#include <atomic>
 #include <iosfwd>
 #include <string>
 #include <vector>
@@ -52,6 +53,36 @@ cmdline_args make_args_list(char** first, char** last);
 void show_progress_indicator(std::ostream&, float done, int totalLength = 80);
 
 void clear_current_line(std::ostream&, int length = 80);
+
+
+
+/*************************************************************************//**
+ *
+ * @brief show progress on single thread, updateable from multiple threads
+ *
+ *****************************************************************************/
+struct concurrent_progress {
+    std::atomic_size_t counter{0};
+    std::atomic_size_t total{0};
+    bool initialized{false};
+
+    void show(std::ostream& os) {
+        if(initialized)
+            clear_current_line(os);
+        else
+            initialized = true;
+
+        if(total > 0)
+            show_progress_indicator(os, float(counter)/total);
+        else
+            show_progress_indicator(os, 0);
+    }
+
+    void clear(std::ostream& os) {
+        if(initialized)
+            clear_current_line(os);
+    }
+};
 
 
 

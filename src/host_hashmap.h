@@ -578,9 +578,9 @@ public:
 
     //---------------------------------------------------------------
     friend void read_binary(std::istream& is, host_hashmap& m, part_id part,
-                            std::atomic_size_t& bytesRead, std::atomic_size_t& bytesTotal)
+                            concurrent_progress& readingProgress)
     {
-        read_binary(is, m.hashTables_[part], bytesRead, bytesTotal);
+        read_binary(is, m.hashTables_[part], readingProgress);
     }
 
     //---------------------------------------------------------------

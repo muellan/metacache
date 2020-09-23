@@ -924,8 +924,8 @@ public:
      * @brief deserialize hashmap from input stream
      */
     friend void read_binary(std::istream& is, hash_multimap& m,
-                            std::atomic_size_t& bytesRead, std::atomic_size_t& bytesTotal) {
-        m.deserialize(is, bytesRead, bytesTotal);
+                            concurrent_progress& readingProgress) {
+        m.deserialize(is, readingProgress);
     }
 
     /****************************************************************
@@ -983,7 +983,7 @@ private:
 
 
     //---------------------------------------------------------------
-    void deserialize(std::istream& is, std::atomic_size_t& bytesRead, std::atomic_size_t& bytesTotal)
+    void deserialize(std::istream& is, concurrent_progress& readingProgress)
     {
         using len_t = std::uint64_t;
 
@@ -994,8 +994,8 @@ private:
         len_t nvalues = 0;
         read_binary(is, nvalues);
 
-        bytesTotal += nkeys*(sizeof(key_type)+sizeof(bucket_size_type))
-                    + nvalues*sizeof(value_type);
+        readingProgress.total += nkeys*(sizeof(key_type)+sizeof(bucket_size_type))
+                               + nvalues*sizeof(value_type);
 
         len_t batchSize = 0;
         read_binary(is, batchSize);
@@ -1019,8 +1019,9 @@ private:
                     auto batchValuesCount = deserialize_batch_of_buckets(
                         is, keyBuffer, sizeBuffer, batchSize, valuesOffset);
 
-                    bytesRead += batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
-                              + batchValuesCount*sizeof(value_type);
+                    readingProgress.counter +=
+                        batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
+                        + batchValuesCount*sizeof(value_type);
 
                     valuesOffset += batchValuesCount;
                 }
@@ -1028,8 +1029,9 @@ private:
                 auto batchValuesCount = deserialize_batch_of_buckets(
                     is, keyBuffer, sizeBuffer, lastBatchSize, valuesOffset);
 
-                bytesRead += batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
-                           + batchValuesCount*sizeof(value_type);
+                readingProgress.counter +=
+                    batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
+                    + batchValuesCount*sizeof(value_type);
             }
 
             numKeys_ = nkeys;

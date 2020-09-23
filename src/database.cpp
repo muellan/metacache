@@ -155,7 +155,7 @@ part_id database::read_meta(const std::string& filename, std::future<void>& taxo
 
 // ----------------------------------------------------------------------------
 void database::read_cache(const std::string& filename, part_id partId,
-                          std::atomic_size_t& bytesRead, std::atomic_size_t& bytesTotal)
+                          concurrent_progress& readingProgress)
 {
     std::ifstream is{filename, std::ios::in | std::ios::binary};
 
@@ -164,7 +164,7 @@ void database::read_cache(const std::string& filename, part_id partId,
     }
 
     //hash table
-    read_binary(is, featureStore_, partId, bytesRead, bytesTotal);
+    read_binary(is, featureStore_, partId, readingProgress);
 }
 
 
@@ -200,8 +200,7 @@ void database::read(const std::string& filename, int singlePartId,
 
     // read caches in separate threads
     std::vector<std::future<void>> cacheReaderThreads;
-    std::atomic_size_t bytesRead{0};
-    std::atomic_size_t bytesTotal{0};
+    concurrent_progress readingProgress{};
 
     if(what != scope::metadata_only) {
         featureStore_.resize_query_hash_table_vector(numParts * replication);
@@ -211,13 +210,13 @@ void database::read(const std::string& filename, int singlePartId,
         for(unsigned r = 0; r < replication; ++r) {
             if(singlePartId >= 0) {
                 cacheReaderThreads.emplace_back(std::async(std::launch::async, [&, r]() {
-                    read_cache(filename+".cache"+std::to_string(singlePartId), r+singlePartId, bytesRead, bytesTotal);
+                    read_cache(filename+".cache"+std::to_string(singlePartId), r+singlePartId, readingProgress);
                 }));
             }
             else {
                 for(part_id partId = 0; partId < numParts; ++partId) {
                     cacheReaderThreads.emplace_back(std::async(std::launch::async, [&, r, partId]() {
-                        read_cache(filename+".cache"+std::to_string(partId), r*numParts+partId, bytesRead, bytesTotal);
+                        read_cache(filename+".cache"+std::to_string(partId), r*numParts+partId, readingProgress);
                     }));
                 }
             }
@@ -230,7 +229,7 @@ void database::read(const std::string& filename, int singlePartId,
     if(what != scope::metadata_only) {
         std::cerr << "Reading " << numParts << " database part(s) ...\n";
 
-        show_progress_indicator(std::cerr, 0);
+        readingProgress.show(std::cerr);
 
         part_id readyCounter = 0;
         std::vector<std::future_status> status(cacheReaderThreads.size(), std::future_status::timeout);
@@ -244,13 +243,12 @@ void database::read(const std::string& filename, int singlePartId,
                         ++readyCounter;
                     }
                     else {
-                        clear_current_line(std::cerr);
-                        show_progress_indicator(std::cerr, float(bytesRead)/bytesTotal);
+                        readingProgress.show(std::cerr);
                     }
                 }
             }
         }
-        clear_current_line(std::cerr);
+        readingProgress.clear(std::cerr);
     }
 
     std::cerr << "Completed database reading.\n";
