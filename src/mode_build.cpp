@@ -310,9 +310,6 @@ void add_targets_to_database(database& db,
     const std::map<string,taxon_id>& sequ2taxid,
     info_level infoLvl = info_level::moderate)
 {
-    int numFiles = infiles.size();
-    std::atomic_int fileCounter{0};
-
     // make executor that runs database insertion (concurrently) in batches
     // IMPORTANT: do not use more than one worker thread!
     batch_processing_options<input_sequence> execOpt;
@@ -348,16 +345,20 @@ void add_targets_to_database(database& db,
 
     // spawn threads to read sequences
     std::vector<std::future<void>> producers;
+    concurrent_progress readingProgress{};
+    const size_t numFiles = infiles.size();
+    readingProgress.total = numFiles;
+    std::mutex outputMtx;
 
     for(int producerId = 0; producerId < execOpt.num_producers(); ++producerId) {
         producers.emplace_back(std::async(std::launch::async, [&, producerId] {
-            auto fileId = fileCounter++;
+            auto fileId = readingProgress.counter++;
             while(fileId < numFiles) {
                 const auto& filename = infiles[fileId];
                 if(infoLvl == info_level::verbose) {
-                    cout << "  " << filename << endl;
-                } else if((infoLvl != info_level::silent) && (fileId % 8 == 0) ) {
-                    show_progress_indicator(cout, fileId/float(numFiles));
+                    std::lock_guard<std::mutex> lock(outputMtx);
+                    cout << "  (" << fileId << '/' << numFiles << ") "
+                         << filename << endl;
                 }
 
                 try {
@@ -379,19 +380,25 @@ void add_targets_to_database(database& db,
                 }
                 catch(std::exception& e) {
                     if(infoLvl == info_level::verbose) {
+                        std::lock_guard<std::mutex> lock(outputMtx);
                         cout << "FAIL: " << e.what() << endl;
                     }
                 }
 
-                fileId = fileCounter++;
+                fileId = readingProgress.counter++;
             }
 
             executor.finalize_producer(producerId);
         }));
     }
 
-    for(auto& producer : producers) {
-        if(producer.valid()) producer.get();
+    if(infoLvl == info_level::moderate) {
+        show_progress_until_ready(cerr, readingProgress, producers);
+    }
+    else {
+        for(auto& producer : producers) {
+            if(producer.valid()) producer.get();
+        }
     }
 
     db.taxo_cache().mark_cached_lineages_outdated();

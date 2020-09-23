@@ -24,6 +24,7 @@
 
 
 #include <atomic>
+#include <future>
 #include <iosfwd>
 #include <string>
 #include <vector>
@@ -67,13 +68,12 @@ struct concurrent_progress {
     bool initialized{false};
 
     void show(std::ostream& os) {
-        if(initialized)
-            clear_current_line(os);
-        else
-            initialized = true;
+        initialized = true;
 
-        if(total > 0)
-            show_progress_indicator(os, float(counter)/total);
+        if(total > 0) {
+            float progress = std::min(1.0f, float(counter)/total);
+            show_progress_indicator(os, progress);
+        }
         else
             show_progress_indicator(os, 0);
     }
@@ -83,6 +83,16 @@ struct concurrent_progress {
             clear_current_line(os);
     }
 };
+
+
+
+/*************************************************************************//**
+ *
+ * @brief show progress on single thread until all futures are ready
+ *
+ *****************************************************************************/
+void show_progress_until_ready(std::ostream& os, concurrent_progress& progress,
+                               std::vector<std::future<void>>& futures);
 
 
 

@@ -22,7 +22,9 @@
 
 #include "cmdline_utility.h"
 
+#include <future>
 #include <iostream>
+#include <vector>
 
 
 namespace mc {
@@ -66,6 +68,34 @@ void clear_current_line(std::ostream& os, int length)
     os << '\r';
     for(; length > 0; --length) os << ' ';
     os << '\r' << std::flush;
+}
+
+
+
+//-------------------------------------------------------------------
+void show_progress_until_ready(std::ostream& os, concurrent_progress& progress,
+                               std::vector<std::future<void>>& futures)
+{
+    progress.show(os);
+
+    size_t readyCounter = 0;
+    std::vector<std::future_status> status(futures.size(), std::future_status::timeout);
+
+    while(readyCounter != futures.size()) {
+        for(size_t i = 0; i < futures.size(); ++i) {
+            if(status[i] != std::future_status::ready) {
+                status[i] = futures[i].wait_for(std::chrono::seconds(1));
+                if(status[i] == std::future_status::ready) {
+                    futures[i].get();
+                    ++readyCounter;
+                }
+                else {
+                    progress.show(os);
+                }
+            }
+        }
+    }
+    progress.clear(os);
 }
 
 

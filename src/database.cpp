@@ -229,26 +229,7 @@ void database::read(const std::string& filename, int singlePartId,
     if(what != scope::metadata_only) {
         std::cerr << "Reading " << numParts << " database part(s) ...\n";
 
-        readingProgress.show(std::cerr);
-
-        part_id readyCounter = 0;
-        std::vector<std::future_status> status(cacheReaderThreads.size(), std::future_status::timeout);
-
-        while(readyCounter != cacheReaderThreads.size()) {
-            for(part_id i = 0; i < cacheReaderThreads.size(); ++i) {
-                if(status[i] != std::future_status::ready) {
-                    status[i] = cacheReaderThreads[i].wait_for(std::chrono::seconds(1));
-                    if(status[i] == std::future_status::ready) {
-                        cacheReaderThreads[i].get();
-                        ++readyCounter;
-                    }
-                    else {
-                        readingProgress.show(std::cerr);
-                    }
-                }
-            }
-        }
-        readingProgress.clear(std::cerr);
+        show_progress_until_ready(std::cerr, readingProgress, cacheReaderThreads);
     }
 
     std::cerr << "Completed database reading.\n";
