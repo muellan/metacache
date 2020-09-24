@@ -86,7 +86,7 @@ class batch_executor
 public:
 
     using batch_type      = std::vector<WorkItem>;
-    using batch_consumer  = std::function<void(int,batch_type&)>;
+    using batch_consumer  = std::function<bool(int,batch_type&)>;
     using error_handler   = typename batch_processing_options<WorkItem>::error_handler;
     using abort_condition = typename batch_processing_options<WorkItem>::abort_condition;
     using finalizer       = typename batch_processing_options<WorkItem>::finalizer;
@@ -138,9 +138,16 @@ public:
                     validate(consumerId);
                     while(valid() || workQueue_.size_approx() > 0) {
                         if(workQueue_.try_dequeue(batch)) {
-                            consume_(consumerId, batch);
-                            // put batch storage back
-                            storageQueue_.enqueue(std::move(batch));
+                            if(consume_(consumerId, batch)) {
+                                // batch processed completely
+                                // put batch storage back
+                                storageQueue_.enqueue(std::move(batch));
+                            }
+                            else {
+                                // work remaining in batch
+                                // put batch back
+                                workQueue_.enqueue(std::move(batch));
+                            }
                             validate(consumerId);
                         }
                         else {

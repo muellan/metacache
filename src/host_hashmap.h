@@ -447,6 +447,11 @@ public:
             return false;
     }
 
+    //---------------------------------------------------------------
+    bool check_load_factor(part_id) const {
+        // guaranteed by hash table
+        return true;
+    }
 
     //---------------------------------------------------------------
     /**
@@ -500,6 +505,7 @@ private:
         inserters_[part] = std::make_unique<batch_executor<window_sketch>>( execOpt,
             [&,this,part](int, const auto& batch) {
                 this->add_sketch_batch(part, batch);
+                return true;
             });
     }
 

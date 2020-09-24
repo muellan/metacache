@@ -256,14 +256,17 @@ using input_batch = std::vector<input_sequence>;
  * @return false, if database not ready / insertion error
  *
  *****************************************************************************/
-void add_targets_to_database(
+bool add_targets_to_database(
     database& db,
     int dbPart,
-    const input_batch& batch,
+    input_batch& batch,
     const std::map<string,taxon_id>& sequ2taxid,
     info_level infoLvl = info_level::moderate)
 {
-    for(const auto& seq : batch) {
+    for(auto& seq : batch) {
+        if(!db.check_load_factor(dbPart)) return false;
+        if(db.add_target_failed(dbPart)) return false;
+
         if(!seq.data.empty()) {
             auto seqId = extract_accession_string(
                              seq.header, sequence_id_type::any);
@@ -293,9 +296,12 @@ void add_targets_to_database(
             if(infoLvl == info_level::verbose && !added) {
                 cout << seqId << " not added to database" << endl;
             }
+
+            seq.data.clear();
         }
-        if(db.add_target_failed(dbPart)) break;
     }
+
+    return true;
 }
 
 
@@ -339,8 +345,8 @@ void add_targets_to_database(database& db,
     execOpt.on_work_done([&] (int id) { db.wait_until_add_target_complete(id); });
 
     batch_executor<input_sequence> executor { execOpt,
-        [&] (int id, const auto& batch) {
-            add_targets_to_database(db, id, batch, sequ2taxid, infoLvl);
+        [&] (int id, auto& batch) {
+            return add_targets_to_database(db, id, batch, sequ2taxid, infoLvl);
         }};
 
     // spawn threads to read sequences

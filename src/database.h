@@ -337,8 +337,12 @@ public:
 
 
     //---------------------------------------------------------------
-    bool add_target_failed(part_id partId) {
+    bool add_target_failed(part_id partId) const {
         return featureStore_.add_target_failed(partId);
+    }
+    //---------------------------------------------------------------
+    bool check_load_factor(part_id partId) const {
+        return featureStore_.check_load_factor(partId);
     }
 
 

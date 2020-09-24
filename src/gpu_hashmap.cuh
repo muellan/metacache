@@ -137,6 +137,8 @@ public:
 
     //---------------------------------------------------------------
     bool add_target_failed(part_id gpuId) const noexcept;
+    //---------------------------------------------------------------
+    bool check_load_factor(part_id gpuId) const noexcept;
 
     //---------------------------------------------------------------
     void pop_status();

@@ -152,7 +152,7 @@ public:
     }
     //---------------------------------------------------------------
     float load_factor() const noexcept {
-        return key_count() / hashTable_.key_capacity();
+        return float(key_count()) / hashTable_.key_capacity();
         // return hashTable_.storage_density();
     }
     //---------------------------------------------------------------
@@ -955,8 +955,8 @@ bool gpu_hashmap<Key,ValueT>::add_target_failed(part_id gpuId) const noexcept {
 template<class Key, class ValueT>
 bool gpu_hashmap<Key,ValueT>::check_load_factor(part_id gpuId) const noexcept {
     if(gpuId < buildHashTables_.size())
-        return (buildHashTables_[gpuId].load_factor() < maxLoadFactor_) &&
-               (buildHashTables_[gpuId].value_load_factor() < maxLoadFactor_);
+        return (buildHashTables_[gpuId]->load_factor() < maxLoadFactor_) &&
+               (buildHashTables_[gpuId]->value_load_factor() < maxLoadFactor_);
     else
         return false;
 };
@@ -1059,10 +1059,11 @@ gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
                                        << " mean: " << accumulator.mean()
                                        << " +/- " << accumulator.stddev()
                                        << " <> " << accumulator.skewness() << '\n'
-            << "features             " << std::uint64_t(accumulator.size()) << '\n'
+            << "features             " << std::uint64_t(accumulator.size())
+            << " (" << 100*buildHashTables_[gpuId]->load_factor() << "%)\n"
             << "dead features        " << dead_feature_count() << '\n'
-            << "locations            " << std::uint64_t(accumulator.sum()) << '\n';
-            // << "load                 " << buildHashTables_[gpuId]->load_factor() << '\n';
+            << "locations            " << std::uint64_t(accumulator.sum())
+            << " (" << 100*buildHashTables_[gpuId]->value_load_factor() << "%)\n";
 
         totalAccumulator += accumulator;
     }

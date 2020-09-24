@@ -267,6 +267,8 @@ query_id query_batched(
 
             std::lock_guard<std::mutex> lock(finalizeMtx);
             finalize(std::move(resultsBuffer));
+
+            return true;
         }};
 
     // read sequences from file

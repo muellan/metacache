@@ -35,9 +35,6 @@ bool database::add_target(part_id dbPart,
                           taxon_id parentTaxid,
                           file_source source)
 {
-    using std::begin;
-    using std::end;
-
     // reached hard limit for number of targets
     if(targetCount_.load() >= max_target_count()) {
         throw target_limit_exceeded_error{};
