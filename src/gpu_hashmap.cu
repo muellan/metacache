@@ -84,6 +84,7 @@ class gpu_hashmap<Key,ValueT>::build_hash_table {
     using status_type  = typename warpcore::Status;
 
 public:
+    //---------------------------------------------------------------
     build_hash_table(
         size_type key_capacity,
         size_type value_capacity,
@@ -94,12 +95,19 @@ public:
             1.051, 1, max_bucket_size(),            // grow factor, min & max bucket size
             // 1.075, 3, 26,                           // grow factor, min & max bucket size
             maxLocationsPerFeature},                // max values per key
+        h_keyCount_{nullptr},
+        d_keyCount_{nullptr},
         valid_{true},
         batchSize_{default_batch_size()},
         seqBatches_{},
         currentSeqBatch_{0}
     {
         std::cerr << "hashtable status: " << hashTable_.pop_status() << "\n";
+
+        cudaMallocHost(&h_keyCount_, sizeof(size_type)); CUERR
+        cudaMalloc    (&d_keyCount_, sizeof(size_type)); CUERR
+        *h_keyCount_ = 0;
+        cudaMemset(d_keyCount_, 0, sizeof(size_type)); CUERR
 
         seqBatches_.emplace_back(MAX_TARGETS_PER_BATCH, MAX_LENGTH_PER_BATCH);
         seqBatches_.emplace_back(MAX_TARGETS_PER_BATCH, MAX_LENGTH_PER_BATCH);
@@ -110,10 +118,20 @@ public:
 
         // cudaDeviceSynchronize(); CUERR
     }
+    //---------------------------------------------------------------
+    ~build_hash_table() {
+        cudaFreeHost(h_keyCount_); CUERR
+        cudaFree    (d_keyCount_); CUERR
+
+        cudaStreamDestroy(copyStream_); CUERR
+        cudaStreamDestroy(insertStream_); CUERR
+        cudaStreamDestroy(statusStream_); CUERR
+    }
+
 
     //---------------------------------------------------------------
     bool validate() {
-        if(valid_ && hashTable_.peek_status(statusStream_) - status_type::max_values_for_key_reached()) {
+        if(valid_ && hashTable_.peek_status(statusStream_).has_any_errors()) {
             valid_ = false;
         }
         return valid_;
@@ -121,7 +139,7 @@ public:
 
     //---------------------------------------------------------------
     status_type pop_status() {
-        return hashTable_.pop_status();
+        return hashTable_.pop_status() - status_type::duplicate_key();
     }
 
     //---------------------------------------------------------------
@@ -133,16 +151,24 @@ public:
         return batchSize_;
     }
     //---------------------------------------------------------------
-    float load_factor() noexcept {
-        return hashTable_.storage_density();
+    float load_factor() const noexcept {
+        return key_count() / hashTable_.key_capacity();
+        // return hashTable_.storage_density();
+    }
+    //---------------------------------------------------------------
+    float value_load_factor() const noexcept {
+        return hashTable_.value_load_factor();
     }
     //---------------------------------------------------------------
     size_type bucket_count() const noexcept {
         return hashTable_.key_capacity();
     }
     //-----------------------------------------------------
-    size_type key_count() noexcept {
-        return hashTable_.num_keys();
+    size_type key_count() const noexcept {
+        cudaMemcpyAsync(h_keyCount_, d_keyCount_, sizeof(size_type), cudaMemcpyDeviceToHost, statusStream_);
+        cudaStreamSynchronize(statusStream_); CUERR
+        return *h_keyCount_;
+        // return hashTable_.num_keys();
     }
     //-----------------------------------------------------
     size_type location_count() noexcept {
@@ -175,6 +201,7 @@ public:
             insert_features<threadsPerBlock,maxSketchSize>
                 <<<numBlocks,threadsPerBlock,0,insertStream_>>>(
                 hashTable_,
+                d_keyCount_,
                 seqBatches_[currentSeqBatch_].num_targets(),
                 seqBatches_[currentSeqBatch_].target_ids(),
                 seqBatches_[currentSeqBatch_].window_offsets(),
@@ -559,6 +586,8 @@ public:
 
 private:
     hash_table_t hashTable_;
+    size_type * h_keyCount_;
+    size_type * d_keyCount_;
     bool valid_;
 
     size_type batchSize_;
@@ -723,11 +752,6 @@ private:
         const auto tableStatus = hashTable_.pop_status(stream);
         if(tableStatus.has_any()) {
             std::cerr << tableStatus << '\n';
-            for(size_t j=0; j<batchSize; ++j) {
-                if(status[j].has_any()) {
-                    std::cerr << h_keyBuffer[j] << ' ' << status[j] << '\n';
-                }
-            }
         }
 
         //insert batch
@@ -852,11 +876,6 @@ public:
                 const auto tableStatus = hashTable_.pop_status(stream);
                 if(tableStatus.has_any()) {
                     std::cerr << tableStatus << '\n';
-                    for(size_t j=0; j<batchSize; ++j) {
-                        if(status[j].has_any()) {
-                            std::cerr << h_keyBuffer[j] << ' ' << status[j] << '\n';
-                        }
-                    }
                 }
             }
 
@@ -922,7 +941,6 @@ gpu_hashmap<Key,ValueT>::gpu_hashmap(gpu_hashmap&& other) :
 {};
 
 
-
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 bool gpu_hashmap<Key,ValueT>::add_target_failed(part_id gpuId) const noexcept {
@@ -931,6 +949,18 @@ bool gpu_hashmap<Key,ValueT>::add_target_failed(part_id gpuId) const noexcept {
     else
         return true;
 };
+
+
+//---------------------------------------------------------------
+template<class Key, class ValueT>
+bool gpu_hashmap<Key,ValueT>::check_load_factor(part_id gpuId) const noexcept {
+    if(gpuId < buildHashTables_.size())
+        return (buildHashTables_[gpuId].load_factor() < maxLoadFactor_) &&
+               (buildHashTables_[gpuId].value_load_factor() < maxLoadFactor_);
+    else
+        return false;
+};
+
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>

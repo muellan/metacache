@@ -474,6 +474,7 @@ template<
 __device__ __inline__
 void insert_into_hashtable(
     Hashtable& hashtable,
+    typename Hashtable::index_type& insertedKeysCounter,
     const Feature * sketch,
     uint32_t sketchSize,
     location loc)
@@ -497,6 +498,10 @@ void insert_into_hashtable(
         // if(group.thread_rank() == 0 && status.has_any()) {
         //     printf("status %d\n", status.has_any());
         // }
+
+        if((group.thread_rank() == 0) && (!status.has_duplicate_key()) ) {
+            ++insertedKeysCounter;
+        }
     }
 }
 
@@ -710,6 +715,7 @@ __global__
 __launch_bounds__(BLOCK_THREADS)
 void insert_features(
     Hashtable hashtable,
+    typename Hashtable::index_type * keyCounter,
     IndexT numTargets,
     const target_id * targetIds,
     const window_id * winOffsets,
@@ -727,6 +733,8 @@ void insert_features(
     constexpr int warpsPerBlock = BLOCK_THREADS / WARPSIZE;
 
     __shared__ feature sketch[warpsPerBlock][MAX_SKETCH_SIZE];
+
+    typename Hashtable::index_type insertedKeysCounter = 0;
 
     for(index_type tgt = blockIdx.y; tgt < numTargets; tgt += gridDim.y) {
         const offset_type sequenceBegin = sequenceOffsets[tgt];
@@ -754,10 +762,20 @@ void insert_features(
             const window_id winOffset = winOffsets[tgt]+win ;
 
             insert_into_hashtable(
-                hashtable, sketch[warpId], sketchSize, location{winOffset, targetId});
+                hashtable, insertedKeysCounter, sketch[warpId], sketchSize, location{winOffset, targetId});
 
             __syncwarp();
         }
+    }
+
+    // warp reduce
+    for(int stride = 1; stride < WARPSIZE; stride *= 2) {
+        insertedKeysCounter += __shfl_down_sync(0xFFFFFFFF, insertedKeysCounter, stride);
+    }
+    // update global key count
+    const int warpLane = threadIdx.x % WARPSIZE;
+    if(warpLane == 0) {
+        atomicAdd(keyCounter, insertedKeysCounter);
     }
 }
 
