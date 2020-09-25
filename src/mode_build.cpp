@@ -327,8 +327,6 @@ void add_targets_to_database(database& db,
     execOpt.concurrency(8, db.num_parts());
 #endif
 
-    execOpt.abort_if([&] (int id) { return db.add_target_failed(id); });
-
     execOpt.on_error([&] (std::exception& e) {
         if(dynamic_cast<database::target_limit_exceeded_error*>(&e)) {
             cout << endl;
@@ -359,7 +357,7 @@ void add_targets_to_database(database& db,
     for(int producerId = 0; producerId < execOpt.num_producers(); ++producerId) {
         producers.emplace_back(std::async(std::launch::async, [&, producerId] {
             auto fileId = readingProgress.counter++;
-            while(fileId < numFiles) {
+            while(fileId < numFiles && executor.valid()) {
                 const auto& filename = infiles[fileId];
                 if(infoLvl == info_level::verbose) {
                     std::lock_guard<std::mutex> lock(outputMtx);

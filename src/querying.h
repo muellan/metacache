@@ -229,9 +229,9 @@ query_id query_batched(
 
     // get executor that runs classification in batches
     batch_processing_options<sequence_query> execOpt;
-    execOpt.concurrency(1, opt.performance.numThreads - 1);
+    execOpt.concurrency(1, opt.performance.numThreads - (opt.performance.numThreads > 1));
     execOpt.batch_size(opt.performance.batchSize);
-    execOpt.queue_size(opt.performance.numThreads > 1 ? opt.performance.numThreads + 8 : 0);
+    execOpt.queue_size(opt.performance.numThreads + 8);
     execOpt.on_error(handleErrors);
     execOpt.work_item_measure([&] (const auto& query) {
         using std::begin;
