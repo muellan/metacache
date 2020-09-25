@@ -95,7 +95,7 @@ void show_progress_until_ready(std::ostream& os, concurrent_progress& progress,
             }
         }
     }
-    progress.clear(os);
+    progress.clear_line(os);
 }
 
 

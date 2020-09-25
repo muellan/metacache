@@ -405,6 +405,11 @@ void add_targets_to_database(database& db,
         }
     }
 
+    float progress = readingProgress.progress();
+    if(progress < 1.0f) {
+        cout << "WARNING: Could only only process " << 100*progress << "% of input files." << endl;
+    }
+
     db.taxo_cache().mark_cached_lineages_outdated();
 }
 

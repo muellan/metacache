@@ -67,18 +67,21 @@ struct concurrent_progress {
     std::atomic_size_t total{0};
     bool initialized{false};
 
+    float progress() const {
+        return std::min(1.0f, float(counter)/total);
+    }
+
     void show(std::ostream& os) {
         initialized = true;
 
         if(total > 0) {
-            float progress = std::min(1.0f, float(counter)/total);
-            show_progress_indicator(os, progress);
+            show_progress_indicator(os, progress());
         }
         else
             show_progress_indicator(os, 0);
     }
 
-    void clear(std::ostream& os) {
+    void clear_line(std::ostream& os) const {
         if(initialized)
             clear_current_line(os);
     }

@@ -130,11 +130,15 @@ public:
 
 
     //---------------------------------------------------------------
-    bool validate() {
+    bool valid() const noexcept {
+        return valid_;
+    }
+
+    //---------------------------------------------------------------
+    void validate() {
         if(valid_ && hashTable_.peek_status(statusStream_).has_any_errors()) {
             valid_ = false;
         }
-        return valid_;
     }
 
     //---------------------------------------------------------------
@@ -157,7 +161,7 @@ public:
     }
     //---------------------------------------------------------------
     float value_load_factor() const noexcept {
-        return hashTable_.value_load_factor();
+        return hashTable_.value_load_factor(statusStream_);
     }
     //---------------------------------------------------------------
     size_type bucket_count() const noexcept {
@@ -945,7 +949,7 @@ gpu_hashmap<Key,ValueT>::gpu_hashmap(gpu_hashmap&& other) :
 template<class Key, class ValueT>
 bool gpu_hashmap<Key,ValueT>::add_target_failed(part_id gpuId) const noexcept {
     if(gpuId < buildHashTables_.size())
-        return !(buildHashTables_[gpuId]->validate());
+        return !(buildHashTables_[gpuId]->valid());
     else
         return true;
 };
@@ -1155,6 +1159,7 @@ window_id gpu_hashmap<Key,ValueT>::add_target(
             insert(gpuId, insertBuffers_[gpuId].current_seq_batch(), targetSketcher);
             insertBuffers_[gpuId].switch_seq_batch();
             insertBuffers_[gpuId].current_seq_batch().clear();
+            if(!(buildHashTables_[gpuId]->valid())) break;
         }
 
         totalWindows += processedWindows;
@@ -1172,8 +1177,9 @@ void gpu_hashmap<Key,ValueT>::insert(
     const sketcher& targetSketcher)
 {
     cudaSetDevice(gpuId); CUERR
+    buildHashTables_[gpuId]->validate();
 
-    if(buildHashTables_[gpuId]->validate()) {
+    if(buildHashTables_[gpuId]->valid()) {
         buildHashTables_[gpuId]->insert_async(
             seqBatchHost, targetSketcher);
     }
