@@ -163,6 +163,11 @@ public:
             if(a.tgt > b.tgt) return false;
             return (a.win < b.win);
         }
+
+        DEVICEQUALIFIER
+        uint64_t toU64() const noexcept {
+            return (uint64_t(tgt) << 32) + uint64_t(win);
+        }
     };
 #ifndef GPU_MODE
     //avoid padding bits

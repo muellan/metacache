@@ -28,7 +28,7 @@
 #include "stat_combined.cuh"
 
 #include "../dep/warpcore/include/single_value_hash_table.cuh"
-#include "../dep/warpcore/include/bucket_list_hash_table.cuh"
+#include "../dep/warpcore/include/multi_bucket_hash_table.cuh"
 
 #include "../dep/bb_segsort/src/bb_segsort_keys.cuh"
 
@@ -68,17 +68,22 @@ class gpu_hashmap<Key,ValueT>::build_hash_table {
     using key_type   = Key;
     using location_type = ValueT;
 
+    using location_type_equivalent = uint64_t;
+
+    static_assert(sizeof(location_type) == sizeof(location_type_equivalent),
+                  "location_type must be 64 bit");
+
     using ranked_lineage = taxonomy::ranked_lineage;
 
-    using hash_table_t = warpcore::BucketListHashTable<
-        key_type, location_type,
-        // warpcore::defaults::empty_key<key_type>(),       //=0
-        key_type(-2),
-        warpcore::defaults::tombstone_key<key_type>(),      //=-1
-        warpcore::storage::multi_value::BucketListStore<
-            location_type,40,bucket_size_bits(),bucket_size_bits()
-        >
-    >;
+    using hash_table_t = warpcore::MultiBucketHashTable<
+        key_type,
+        location_type_equivalent,
+        key_type(-2), // empty key
+        warpcore::defaults::tombstone_key<key_type>(),
+        location_type_equivalent(-1), // empty value
+        warpcore::defaults::probing_scheme_t<key_type, 8>,
+        // warpcore::storage::key_value::SoAStore<key_type, warpcore::ArrayBucket<location_type_equivalent,1>>>;
+        warpcore::storage::key_value::AoSStore<key_type, warpcore::ArrayBucket<location_type_equivalent,1>>>;
 
     using size_type  = typename hash_table_t::index_type;
     using status_type  = typename warpcore::Status;
@@ -86,14 +91,11 @@ class gpu_hashmap<Key,ValueT>::build_hash_table {
 public:
     //---------------------------------------------------------------
     build_hash_table(
-        size_type key_capacity,
-        size_type value_capacity,
+        size_type capacity,
         bucket_size_type maxLocationsPerFeature
     ) :
-        hashTable_{key_capacity, value_capacity,
+        hashTable_{capacity,
             warpcore::defaults::seed<key_type>(),   // seed
-            1.051, 1, max_bucket_size(),            // grow factor, min & max bucket size
-            // 1.075, 3, 26,                           // grow factor, min & max bucket size
             maxLocationsPerFeature},                // max values per key
         h_keyCount_{nullptr},
         d_keyCount_{nullptr},
@@ -116,7 +118,7 @@ public:
         cudaStreamCreate(&insertStream_); CUERR
         cudaStreamCreate(&statusStream_); CUERR
 
-        // cudaDeviceSynchronize(); CUERR
+        cudaDeviceSynchronize(); CUERR
     }
     //---------------------------------------------------------------
     ~build_hash_table() {
@@ -128,6 +130,12 @@ public:
         cudaStreamDestroy(statusStream_); CUERR
     }
 
+
+    //---------------------------------------------------------------
+    static constexpr int bucket_size() noexcept
+    {
+        return hash_table_t::bucket_size();
+    }
 
     //---------------------------------------------------------------
     bool valid() const noexcept {
@@ -156,27 +164,32 @@ public:
     }
     //---------------------------------------------------------------
     float load_factor() const noexcept {
-        return float(key_count()) / hashTable_.key_capacity();
+        // return float(key_count()) / bucket_count();
         // return hashTable_.storage_density();
+        return hashTable_.key_load_factor(statusStream_);
     }
     //---------------------------------------------------------------
     float value_load_factor() const noexcept {
         return hashTable_.value_load_factor(statusStream_);
     }
     //---------------------------------------------------------------
+    float storage_density() const noexcept {
+        return hashTable_.storage_density(statusStream_);
+    }
+    //---------------------------------------------------------------
     size_type bucket_count() const noexcept {
-        return hashTable_.key_capacity();
+        return hashTable_.capacity();
     }
     //-----------------------------------------------------
     size_type key_count() const noexcept {
-        cudaMemcpyAsync(h_keyCount_, d_keyCount_, sizeof(size_type), cudaMemcpyDeviceToHost, statusStream_);
-        cudaStreamSynchronize(statusStream_); CUERR
-        return *h_keyCount_;
-        // return hashTable_.num_keys();
+        // cudaMemcpyAsync(h_keyCount_, d_keyCount_, sizeof(size_type), cudaMemcpyDeviceToHost, statusStream_);
+        // cudaStreamSynchronize(statusStream_); CUERR
+        // return *h_keyCount_;
+        return hashTable_.num_keys(statusStream_);
     }
     //-----------------------------------------------------
     size_type location_count() noexcept {
-        return hashTable_.num_values();
+        return hashTable_.num_values(statusStream_);
     }
 
     //---------------------------------------------------------------
@@ -339,11 +352,6 @@ private:
     **************************************************************************/
     class retrieval_buffer
     {
-        using location_type_equivalent = uint64_t;
-
-        static_assert(sizeof(location_type) == sizeof(location_type_equivalent),
-                      "location_type must be 64 bit");
-
     public:
         retrieval_buffer(size_type batchSize) :
             h_valuesAlloc0_{0},
@@ -494,7 +502,7 @@ private:
         hashTable_.retrieve(
             d_keys, batchSize,
             buffer.d_offsets(), buffer.d_offsets()+1,
-            buffer.d_values(), buffer.values_count(),
+            reinterpret_cast<location_type_equivalent*>(buffer.d_values()), buffer.values_count(),
             buffer.stream());
 
         calculate_sizes_kernel<<<SDIV(batchSize, MAXBLOCKSIZE), MAXBLOCKSIZE,0, buffer.stream()>>>(
@@ -959,8 +967,7 @@ bool gpu_hashmap<Key,ValueT>::add_target_failed(part_id gpuId) const noexcept {
 template<class Key, class ValueT>
 bool gpu_hashmap<Key,ValueT>::check_load_factor(part_id gpuId) const noexcept {
     if(gpuId < buildHashTables_.size())
-        return (buildHashTables_[gpuId]->load_factor() < maxLoadFactor_) &&
-               (buildHashTables_[gpuId]->value_load_factor() < maxLoadFactor_);
+        return (buildHashTables_[gpuId]->load_factor() < maxLoadFactor_);
     else
         return false;
 };
@@ -1063,11 +1070,12 @@ gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
                                        << " mean: " << accumulator.mean()
                                        << " +/- " << accumulator.stddev()
                                        << " <> " << accumulator.skewness() << '\n'
-            << "features             " << std::uint64_t(accumulator.size())
+            << "features             " << buildHashTables_[gpuId]->key_count()
             << " (" << 100*buildHashTables_[gpuId]->load_factor() << "%)\n"
             << "dead features        " << dead_feature_count() << '\n'
-            << "locations            " << std::uint64_t(accumulator.sum())
-            << " (" << 100*buildHashTables_[gpuId]->value_load_factor() << "%)\n";
+            << "locations            " << buildHashTables_[gpuId]->location_count()
+            << " (" << 100*buildHashTables_[gpuId]->value_load_factor() << "%)\n"
+            << "storage density      " << 100*buildHashTables_[gpuId]->storage_density() << "%\n";
 
         totalAccumulator += accumulator;
     }
@@ -1100,16 +1108,18 @@ void gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numParts)
         // keep 2 GB of memory free aside from hash table
         const size_t tableMemory = freeMemory - (1ULL << 31);
 
-        constexpr size_t valueSize = sizeof(ValueT);
+        // AoS
+        constexpr size_t entrySize = sizeof(ValueT) * (build_hash_table::bucket_size() + 1);
+        // SoA
+        // constexpr size_t entrySize = sizeof(Key) + sizeof(ValueT) * build_hash_table::bucket_size();
 
-        const size_t keyCapacity   = tableMemory *  2/13 / (2*valueSize);
-        const size_t valueCapacity = tableMemory * 11/13 / valueSize;
+        const size_t capacity = tableMemory / entrySize;
 
-        std::cerr << "gpu " << gpuId
-                  << " allocate hashtable for " << keyCapacity << " keys"
-                                       " and " << valueCapacity << " values\n";
+        std::cerr << "gpu " << gpuId << " allocate hashtable for "
+                  << capacity << " keys and "
+                  << capacity * build_hash_table::bucket_size() << " values\n";
         buildHashTables_.emplace_back(std::make_unique<build_hash_table>(
-            keyCapacity, valueCapacity, max_locations_per_feature()));
+            capacity, max_locations_per_feature()));
 
         cudaMemGetInfo(&freeMemory, &totalMemory); CUERR
         std::cerr << "gpu " << gpuId << " freeMemory: " << helpers::B2GB(freeMemory) << " GB\n";

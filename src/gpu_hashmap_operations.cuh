@@ -477,10 +477,8 @@ void insert_into_hashtable(
     typename Hashtable::index_type& insertedKeysCounter,
     const Feature * sketch,
     uint32_t sketchSize,
-    location loc)
+    typename Hashtable::value_type loc)
 {
-    using location = typename Hashtable::value_type;
-
     namespace cg = cooperative_groups;
 
     const auto group =
@@ -493,7 +491,7 @@ void insert_into_hashtable(
     for(int i = groupId; i < sketchSize; i += groupsPerWarp)
     {
         const auto status = hashtable.insert(
-            sketch[i], loc, group);
+            sketch[i], loc, group, 1000000);
 
         // if(group.thread_rank() == 0 && status.has_any()) {
         //     printf("status %d\n", status.has_any());
@@ -634,6 +632,8 @@ uint32_t query_bucket_hashtable(
     uint32_t sketchSize,
     location * out)
 {
+    using slot = typename Hashtable::value_type;
+
     namespace cg = cooperative_groups;
 
     const auto group =
@@ -681,7 +681,7 @@ uint32_t query_bucket_hashtable(
         if(size) {
             uint64_t dummy;
             const auto status = hashtable.retrieve(
-                sketch[i], out + offset, dummy, group);
+                sketch[i], reinterpret_cast<slot*>(out + offset), dummy, group);
         }
     }
 
@@ -760,9 +760,10 @@ void insert_features(
 
             const target_id targetId = targetIds[tgt];
             const window_id winOffset = winOffsets[tgt]+win ;
+            const uint64_t loc = (uint64_t(targetId) << 32) + winOffset;
 
             insert_into_hashtable(
-                hashtable, insertedKeysCounter, sketch[warpId], sketchSize, location{winOffset, targetId});
+                hashtable, insertedKeysCounter, sketch[warpId], sketchSize, loc);
 
             __syncwarp();
         }
