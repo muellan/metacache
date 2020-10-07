@@ -26,7 +26,7 @@ You can download the NCBI's taxonomy with an included helper script:
 ```
 download-ncbi-taxonomy ncbi_taxonomy
 ```
-This downloads the taxonomy and put it in a folder called `ncbi_taxonomy`
+This downloads the taxonomy and puts it in a folder called `ncbi_taxonomy`
 
 
 
