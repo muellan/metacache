@@ -82,8 +82,8 @@ class gpu_hashmap<Key,ValueT>::build_hash_table {
         warpcore::defaults::tombstone_key<key_type>(),
         location_type_equivalent(-1), // empty value
         warpcore::defaults::probing_scheme_t<key_type, 8>,
-        // warpcore::storage::key_value::SoAStore<key_type, warpcore::ArrayBucket<location_type_equivalent,1>>>;
-        warpcore::storage::key_value::AoSStore<key_type, warpcore::ArrayBucket<location_type_equivalent,1>>>;
+        warpcore::storage::key_value::SoAStore<key_type, warpcore::ArrayBucket<location_type_equivalent,4>>>;
+        // warpcore::storage::key_value::AoSStore<key_type, warpcore::ArrayBucket<location_type_equivalent,4>>>;
 
     using size_type  = typename hash_table_t::index_type;
     using status_type  = typename warpcore::Status;
@@ -1109,9 +1109,9 @@ void gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numParts)
         const size_t tableMemory = freeMemory - (1ULL << 31);
 
         // AoS
-        constexpr size_t entrySize = sizeof(ValueT) * (build_hash_table::bucket_size() + 1);
+        // constexpr size_t entrySize = sizeof(ValueT) * (build_hash_table::bucket_size() + 1);
         // SoA
-        // constexpr size_t entrySize = sizeof(Key) + sizeof(ValueT) * build_hash_table::bucket_size();
+        constexpr size_t entrySize = sizeof(Key) + sizeof(ValueT) * build_hash_table::bucket_size();
 
         const size_t capacity = tableMemory / entrySize;
 
