@@ -46,7 +46,12 @@ void calculate_sizes_kernel(SizeT * d_offsets, BucketSizeT * d_sizes, SizeT batc
     const auto tid = blockDim.x * blockIdx.x + threadIdx.x;
 
     if(tid < batchSize) {
-        d_sizes[tid] = d_offsets[tid+1] - d_offsets[tid];
+        SizeT size = d_offsets[tid+1] - d_offsets[tid];
+        if(size > std::numeric_limits<BucketSizeT>::max()) {
+            printf("Error: Id %d bucket size type overflow: %llu\n", tid, size);
+            size = std::numeric_limits<BucketSizeT>::max();
+        }
+        d_sizes[tid] = size;
     }
 }
 
@@ -476,17 +481,13 @@ private:
     };
 
     //---------------------------------------------------------------
-    void retrieve_and_write_binary(
-        std::ostream& os,
+    size_type retrieve_batch(
         key_type * d_keys,
         retrieval_buffer& buffer,
         bool hostId,
         size_type batchSize,
-        bucket_size_type maxLocationsPerFeature,
-        std::mutex& retrieveMtx,
-        std::mutex& writeMtx
+        bucket_size_type maxLocationsPerFeature
     ) {
-        retrieveMtx.lock();
         // get valuesCount
         hashTable_.num_values(
             d_keys, batchSize,
@@ -526,14 +527,40 @@ private:
 
         cudaStreamSynchronize(buffer.stream()); CUERR
 
-        size_type valuesCount = buffer.values_count();
+        return buffer.values_count();
+    }
 
-        retrieveMtx.unlock();
-
-        std::lock_guard<std::mutex> lock(writeMtx);
+    //---------------------------------------------------------------
+    void write_batch(
+        std::ostream& os,
+        retrieval_buffer& buffer,
+        bool hostId,
+        size_type batchSize,
+        size_type valuesCount
+    ) {
         write_binary(os, buffer.h_keys(hostId), batchSize);
         write_binary(os, buffer.h_sizes(hostId), batchSize);
         write_binary(os, buffer.h_values(hostId), valuesCount);
+    }
+
+    //---------------------------------------------------------------
+    void retrieve_and_write_batch(
+        std::ostream& os,
+        key_type * d_keys,
+        retrieval_buffer& buffer,
+        bool hostId,
+        size_type batchSize,
+        bucket_size_type maxLocationsPerFeature,
+        std::mutex& retrieveMtx,
+        std::mutex& writeMtx
+    ) {
+        retrieveMtx.lock();
+        size_type valuesCount = retrieve_batch(
+            d_keys, buffer, hostId, batchSize, maxLocationsPerFeature);
+        retrieveMtx.unlock();
+
+        std::lock_guard<std::mutex> lock(writeMtx);
+        write_batch(os, buffer, hostId, batchSize, valuesCount);
     }
 
 public:
@@ -567,29 +594,31 @@ public:
         // spawn thread to retrieve half of the db
         auto retriever = std::async(std::launch::async, [&] {
             cudaSetDevice(gpuId);
+            bool hostId = 0;
 
-            for(len_t b = 0; b < numCycles; b+=2) {
-                retrieve_and_write_binary(os,
+            for(len_t b = hostId; b < numCycles; b+=2) {
+                retrieve_and_write_batch(os,
                     d_keys + b * batchSize_,
-                    buffer, 0, batchSize_, maxLocationsPerFeature,
+                    buffer, hostId, batchSize_, maxLocationsPerFeature,
                     retrieveMtx, writeMtx);
             }
         });
 
+        bool hostId = 1;
         // retrieve other half
-        for(len_t b = 1; b < numCycles; b+=2) {
-            retrieve_and_write_binary(os,
+        for(len_t b = hostId; b < numCycles; b+=2) {
+            retrieve_and_write_batch(os,
                 d_keys + b * batchSize_,
-                buffer, 1, batchSize_, maxLocationsPerFeature,
+                buffer, hostId, batchSize_, maxLocationsPerFeature,
                 retrieveMtx, writeMtx);
         }
 
         retriever.get();
 
         if(lastBatchSize) {
-            retrieve_and_write_binary(os,
+            retrieve_and_write_batch(os,
                 d_keys + numCycles * batchSize_,
-                buffer, 1, lastBatchSize, maxLocationsPerFeature,
+                buffer, hostId, lastBatchSize, maxLocationsPerFeature,
                 retrieveMtx, writeMtx);
         }
 
