@@ -102,19 +102,12 @@ public:
         hashTable_{capacity,
             warpcore::defaults::seed<key_type>(),   // seed
             maxLocationsPerFeature},                // max values per key
-        h_keyCount_{nullptr},
-        d_keyCount_{nullptr},
         valid_{true},
         batchSize_{default_batch_size()},
         seqBatches_{},
         currentSeqBatch_{0}
     {
         std::cerr << "hashtable status: " << hashTable_.pop_status() << "\n";
-
-        cudaMallocHost(&h_keyCount_, sizeof(size_type)); CUERR
-        cudaMalloc    (&d_keyCount_, sizeof(size_type)); CUERR
-        *h_keyCount_ = 0;
-        cudaMemset(d_keyCount_, 0, sizeof(size_type)); CUERR
 
         seqBatches_.emplace_back(MAX_TARGETS_PER_BATCH, MAX_LENGTH_PER_BATCH);
         seqBatches_.emplace_back(MAX_TARGETS_PER_BATCH, MAX_LENGTH_PER_BATCH);
@@ -127,9 +120,6 @@ public:
     }
     //---------------------------------------------------------------
     ~build_hash_table() {
-        cudaFreeHost(h_keyCount_); CUERR
-        cudaFree    (d_keyCount_); CUERR
-
         cudaStreamDestroy(copyStream_); CUERR
         cudaStreamDestroy(insertStream_); CUERR
         cudaStreamDestroy(statusStream_); CUERR
@@ -187,9 +177,6 @@ public:
     }
     //-----------------------------------------------------
     size_type key_count() const noexcept {
-        // cudaMemcpyAsync(h_keyCount_, d_keyCount_, sizeof(size_type), cudaMemcpyDeviceToHost, statusStream_);
-        // cudaStreamSynchronize(statusStream_); CUERR
-        // return *h_keyCount_;
         return hashTable_.num_keys(statusStream_);
     }
     //-----------------------------------------------------
@@ -223,7 +210,6 @@ public:
             insert_features<threadsPerBlock,maxSketchSize>
                 <<<numBlocks,threadsPerBlock,0,insertStream_>>>(
                 hashTable_,
-                d_keyCount_,
                 seqBatches_[currentSeqBatch_].num_targets(),
                 seqBatches_[currentSeqBatch_].target_ids(),
                 seqBatches_[currentSeqBatch_].window_offsets(),
@@ -627,8 +613,6 @@ public:
 
 private:
     hash_table_t hashTable_;
-    size_type * h_keyCount_;
-    size_type * d_keyCount_;
     bool valid_;
 
     size_type batchSize_;
