@@ -62,7 +62,6 @@ void warp_kmerize(
     uint32_t ambig = 0;
 
     constexpr int charsPerThread = 4;
-    constexpr int charsPerSubWarp = subWarpSize*charsPerThread;
     char4 chars = reinterpret_cast<const char4*>(sequenceBegin)[warpLane];
 
     char c;
@@ -114,14 +113,16 @@ void warp_kmerize(
     seq <<= 2*charsPerThread*lane;
     ambig <<= charsPerThread*lane;
 
-    // combine threads of same subwarp
+    // combine threads of same subwarp,
+    // so each thread has charsPerThread*subWarpSize characters
     #pragma unroll
     for(int stride = 1; stride < subWarpSize; stride *= 2) {
         seq   |= __shfl_xor_sync(0xFFFFFFFF, seq, stride);
         ambig |= __shfl_xor_sync(0xFFFFFFFF, ambig, stride);
     }
 
-    // combine subwarp with subsequent subwarp
+    // combine subwarp with subsequent subwarp,
+    // so each thread has 2*charsPerThread*subWarpSize characters
     uint64_t seqStore = __shfl_down_sync(0xFFFFFFFF, seq, subWarpSize);
     seqStore |= (uint64_t(seq) << 32) | seqStore;
 
@@ -130,39 +131,34 @@ void warp_kmerize(
     ambigStore = (warpLane < WARPSIZE - subWarpSize) ? ambigStore : uint32_t(~0);
     ambigStore = (ambig << 16) | ambigStore;
 
-    // if(lane == 0) {
-        // const int subwarpId = warpLane / subWarpSize;
-        // printf("id: %d seq: %u ambig: %u\n", subwarpId, seq, ambig);
-    // }
-
     // letters stored from high to low bits
-    // mask get lowest bits
+    // thread i uses characters [charsPerThread*i, charsPerThread*(i+1)+kmerSize-1]
+    // shift to low bits,
+    // so each thread uses lowest kmerSize+charsPerThread-1 characters
+    seqStore >>= 2*charsPerThread*lane + 2;
+    ambigStore >>= charsPerThread*lane + 1;
+
+    // mask get lowest kmerSize characters
     constexpr uint8_t kmerBits = sizeof(kmer_type)*CHAR_BIT;
     const kmer_type kmerMask = kmer_type(~0) >> (kmerBits - 2*kmerSize);
-    // mask get highest bits
-    const uint32_t ambigMask = uint32_t(~0) << (32 - kmerSize);
+    const uint32_t ambigMask = uint32_t(~0) >> (32 - kmerSize);
 
-    // each thread extracts one feature
+    // each thread generates charsPerThread kmers
     #pragma unroll
-    for(int i = 0; i < 4; ++i) {
-        const uint8_t seqSlot  = (2*i + warpLane / charsPerSubWarp);
-        const uint8_t seqSrc   = seqSlot * 4;
-        const uint8_t kmerSlot = warpLane % charsPerSubWarp;
-
-        uint32_t ambig = __shfl_sync(0xFFFFFFFF, ambigStore, seqSrc);
-        // shift to highest bits
-        ambig <<= kmerSlot;
-
-        uint64_t seq = __shfl_sync(0xFFFFFFFF, seqStore, seqSrc);
-        // shift kmer to lowest bits
-        seq >>= 64 - 2*(kmerSlot + kmerSize);
+    for(int i = 0; i < charsPerThread; ++i) {
+        // shift by one character each iteration
+        ambig = ambigStore >> (i);
+        seq = seqStore >> (2*i);
 
         // get lowest bits
         kmer_type kmer = kmer_type(seq) & kmerMask;
 
         kmer = make_canonical_2bit(kmer);
 
+        // check for ambiguous base
         bool pred = !(ambig & ambigMask);
+
+        // ignore kmers with ambiguous base
         items[i] = pred ? sketching_hash{}(kmer) : feature(~0);
     }
 }
