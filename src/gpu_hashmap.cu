@@ -1378,13 +1378,13 @@ void gpu_hashmap<Key,ValueT>::copy_target_lineages_to_gpus(
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::enable_all_peer_access()
 {
-    for (part_id srcId = 0; srcId < numGPUs_; ++srcId) {
-        cudaSetDevice(srcId);
-        for (part_id dstId = 0; dstId < numGPUs_; ++dstId) {
-            if (srcId != dstId) {
-                 cudaDeviceEnablePeerAccess(dstId, 0);
-            }
-        }
+    for (part_id gpuId = 0; gpuId < numGPUs_-1; ++gpuId) {
+        // std::cerr << "Enabling peer access: GPUs "
+            // << gpuId << "<->" << << gpuId+1 " ...\n";
+        cudaSetDevice(gpuId);
+        cudaDeviceEnablePeerAccess(gpuId+1, 0); CUERR
+        cudaSetDevice(gpuId+1);
+        cudaDeviceEnablePeerAccess(gpuId, 0); CUERR
     }
 }
 
