@@ -74,10 +74,10 @@ public:
 
         /*************************************************************************//**
         *
-        * @brief add sequence pair to batch as windows of encoded characters
+        * @brief add sequence pair to batch as windows of characters
         *        if sequence pair does not fit into batch, don't add it
         *
-        * @detail each window of a sequence is added as a separate query
+        * @details each window of a sequence is added as a separate query
         *
         * @return true if added, false otherwise
         *

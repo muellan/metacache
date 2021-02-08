@@ -123,9 +123,9 @@ public:
 
     /*************************************************************************//**
     *
-    * @brief encode target sequence and add it to batch
+    * @brief add target sequence and add it to batch
     *
-    * @detail if sequence does not fit into batch, only some windows of it are added
+    * @details if sequence does not fit into batch, only some windows of it are added
     *
     * @return number of processed windows
     *

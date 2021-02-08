@@ -456,10 +456,10 @@ void sequence_pair_reader::index_offset(index_type index)
  *
  * @brief regex to find accession[.version] number
  *
- * @detail first sub-match will be ignored
- *         second sub-match is accession[.version] number
- *         third sub-match is accession number
- *         forth sub-match is version
+ * @details first sub-match will be ignored
+ *          second sub-match is accession[.version] number
+ *          third sub-match is accession number
+ *          forth sub-match is version
  *
  *****************************************************************************/
 const std::regex
