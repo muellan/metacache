@@ -26,7 +26,7 @@
 
 #include "config.h"
 #include "classification_statistics.h"
-#include "querying.h"
+#include "database_query.h"
 #include "timer.h"
 
 #include <vector>

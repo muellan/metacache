@@ -21,10 +21,11 @@
  *****************************************************************************/
 
 
+
 #include "building.h"
 #include "database.h"
 #include "options.h"
-#include "timer.h"
+#include "querying.h"
 
 #include <iostream>
 
@@ -37,24 +38,37 @@ using std::endl;
 
 
 
+
 /*************************************************************************//**
  *
- * @brief adds targets to datbase and writes to disk
+ * @brief adds targets to datbase and queries
  *
  *****************************************************************************/
-void add_to_database_and_save(database& db, const build_options& opt)
+void add_to_database_and_query(database& db, build_query_options& opt)
 {
     timer time;
     time.start();
 
-    add_to_database(db, opt, time);
-
-    write_database(db, opt);
+    add_to_database(db, opt.build, time);
 
     time.stop();
 
-    if(opt.infoLevel != info_level::silent) {
-        cout << "Total build time: " << time.seconds() << " s" << endl;
+    db.initialize_taxonomy_caches();
+
+    if(!opt.query.infiles.empty()) {
+        cerr << "Classifying query sequences.\n";
+
+        adapt_options_to_database(opt.query.classify, db);
+        process_input_files(db, opt.query);
+    }
+    else {
+        cout << "No input files provided.\n";
+
+        run_interactive_query_mode(db, opt.query);
+    }
+
+    if(opt.saveDatabase) {
+        write_database(db, opt.build);
     }
 
     //prevents slow deallocation
@@ -62,53 +76,29 @@ void add_to_database_and_save(database& db, const build_options& opt)
 }
 
 
-
 /*************************************************************************//**
  *
- * @brief adds reference sequences to an existing database
+ * @brief builds a database from reference input sequences and query it
  *
  *****************************************************************************/
-void main_mode_modify(const cmdline_args& args)
+void main_mode_build_query(const cmdline_args& args)
 {
-    auto opt = get_modify_options(args);
+    auto opt = get_build_query_options(args);
 
-    cout << "Modify database " << opt.dbfile << endl;
-
-    auto db = make_database(opt.dbfile, opt.dbpart);
-
-    if(opt.infoLevel != info_level::silent && !opt.infiles.empty()) {
-        cout << "Adding reference sequences to database..." << endl;
-    }
-
-    add_to_database_and_save(db, opt);
-}
-
-
-
-/*************************************************************************//**
- *
- * @brief builds a database from reference input sequences
- *
- *****************************************************************************/
-void main_mode_build(const cmdline_args& args)
-{
-    auto opt = get_build_options(args);
-
-    if(opt.infoLevel != info_level::silent) {
-        cout << "Building new database '" << opt.dbfile
-             << "' from reference sequences." << endl;
+    if(opt.build.infoLevel != info_level::silent) {
+        cout << "Building new database from reference sequences." << endl;
     }
 
     //configure sketching scheme
     auto sketcher = database::sketcher{};
-    sketcher.kmer_size(opt.sketching.kmerlen);
-    sketcher.sketch_size(opt.sketching.sketchlen);
-    sketcher.window_size(opt.sketching.winlen);
-    sketcher.window_stride(opt.sketching.winstride);
+    sketcher.kmer_size(opt.build.sketching.kmerlen);
+    sketcher.sketch_size(opt.build.sketching.sketchlen);
+    sketcher.window_size(opt.build.sketching.winlen);
+    sketcher.window_stride(opt.build.sketching.winstride);
 
     auto db = database{sketcher};
 
-    add_to_database_and_save(db, opt);
+    add_to_database_and_query(db, opt);
 }
 
 

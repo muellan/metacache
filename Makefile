@@ -31,6 +31,7 @@ HEADERS = \
           src/alignment.h \
           src/batch_processing.h \
           src/bitmanip.h \
+          src/building.h \
           src/candidate_generation.h \
           src/candidate_structs.h \
           src/chunk_allocator.h \
@@ -39,6 +40,7 @@ HEADERS = \
           src/cmdline_utility.h \
           src/config.h \
           src/database.h \
+          src/database_query.h \
           src/dna_encoding.h \
           src/filesys_utility.h \
           src/gpu_hashmap.cuh \
@@ -52,7 +54,6 @@ HEADERS = \
           src/io_options.h \
           src/io_serialize.h \
           src/matches_per_target.h \
-          src/mode_query.h \
           src/modes.h \
           src/options.h \
           src/printing.h \
@@ -79,6 +80,7 @@ SOURCES = \
           src/filesys_utility.cpp \
           src/main.cpp \
           src/mode_build.cpp \
+          src/mode_build_query.cpp \
           src/mode_help.cpp \
           src/mode_info.cpp \
           src/mode_merge.cpp \
@@ -205,6 +207,9 @@ $(DIR)/classification.o : src/classification.cpp $(HEADERS)
 	$(COMPILE)
 
 $(DIR)/mode_build.o : src/mode_build.cpp $(HEADERS)
+	$(COMPILE)
+
+$(DIR)/mode_build_query.o : src/mode_build_query.cpp $(HEADERS)
 	$(COMPILE)
 
 $(DIR)/mode_info.o : src/mode_info.cpp $(HEADERS)

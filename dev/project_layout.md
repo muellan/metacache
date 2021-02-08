@@ -13,16 +13,18 @@ Mode Starting
 main.cpp                     main entry point; selects modes
 
 modes.h                      declares mode starting functions
-mode_build.cpp               database building
+mode_build.cpp               build database and write to disk
+mode_build_query.cpp         build database and directly query it
 mode_help.cpp                shows help files from /docs
 mode_info.cpp                database property queries
 mode_merge.cpp               merge query results from different databases
-mode_query.cpp               start classification
+mode_query.cpp               load database and start classification
 ```
 
 Classification ("query" mode)
 ---------------------------------------------------------------------
 ```
+querying.h                   process read files
 classification.h             classification starting function
 classification.cpp           query database and classify reads
 candidates_generation.h      determine top hits in contiguous windows
@@ -31,7 +33,7 @@ gpu_result_processing.cuh    compact and sort query results, generate candidates
 query_batch.cuh/cu           gpu data handling for query
 matches_per_target.h         target->matches map construction
 
-querying.h                   multi-threaded, batched database query functions;
+database_query.h             multi-threaded, batched database query functions;
                              also paired-end read handling
 
 
@@ -41,6 +43,7 @@ printing.h/cpp               classification and analysis output functions
 Database Operations / Sketching
 ---------------------------------------------------------------------
 ```
+building.h                   add targets to database
 database.h/cpp               wrapper for hashmap + sketchers + taxonomy + auxiliary data
 
 host_hashmap.h               specialized interface to hash_multimap

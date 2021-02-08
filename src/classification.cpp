@@ -31,7 +31,7 @@
 #include "matches_per_target.h"
 #include "options.h"
 #include "printing.h"
-#include "querying.h"
+#include "database_query.h"
 #include "sequence_io.h"
 #include "sequence_view.h"
 

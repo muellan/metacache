@@ -55,12 +55,13 @@ void main_mode_help(const cmdline_args& args)
             "\n"
             "    Available modes:\n"
             "\n"
-            "    help        shows documentation \n"
-            "    query       classify read sequences using pre-built database\n"
-            "    merge       merge classification results of independent queries\n"
-            "    build       build new database from reference sequences (usually genomes)\n"
-            "    modify      add reference sequences and/or taxonomy to existing database\n"
-            "    info        show database and reference sequence properties\n"
+            "    help          shows documentation \n"
+            "    build         build new database from reference sequences (usually genomes)\n"
+            "    modify        add reference sequences and/or taxonomy to existing database\n"
+            "    query         classify read sequences using pre-built database\n"
+            "    build+query   build new database and query and query directly afterwards\n"
+            "    merge         merge classification results of independent queries\n"
+            "    info          show database and reference sequence properties\n"
             "\n"
             "\n"
             "EXAMPLES:\n"
@@ -93,6 +94,9 @@ void main_mode_help(const cmdline_args& args)
     }
     else if(args[2] == "query") {
         std::cout << query_mode_docs() << '\n';
+    }
+    else if(args[2] == "build+query") {
+        std::cout << build_query_mode_docs() << '\n';
     }
     else if(args[2] == "merge") {
         std::cout << merge_mode_docs() << '\n';

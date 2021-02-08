@@ -49,7 +49,7 @@ void main_mode_modify(const cmdline_args&);
 
 /*************************************************************************//**
  *
- * @brief run query reads against pre-built database
+ * @brief queries reads against pre-built database
  *
  *****************************************************************************/
 void main_mode_query(const cmdline_args&);
@@ -58,7 +58,16 @@ void main_mode_query(const cmdline_args&);
 
 /*************************************************************************//**
  *
- * @brief merge classification result files
+ * @brief builds a database and directly queries
+ *
+ *****************************************************************************/
+void main_mode_build_query(const cmdline_args&);
+
+
+
+/*************************************************************************//**
+ *
+ * @brief merges classification result files
  *
  *****************************************************************************/
 void main_mode_merge(const cmdline_args&);
@@ -76,7 +85,7 @@ void main_mode_info(const cmdline_args&);
 
 /*************************************************************************//**
  *
- * @brief help
+ * @brief shows help files from /docs
  *
  *****************************************************************************/
 void main_mode_help(const cmdline_args&);

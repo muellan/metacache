@@ -24,338 +24,216 @@
 #define MC_QUERYING_H_
 
 
-#include "batch_processing.h"
-#include "candidate_generation.h"
+#include "classification.h"
+#include "classification_statistics.h"
 #include "cmdline_utility.h"
-#include "database.h"
+#include "config.h"
+#include "filesys_utility.h"
 #include "options.h"
-#include "sequence_io.h"
+#include "printing.h"
 
-#ifdef GPU_MODE
-    #include "query_batch.cuh"
-#endif
-
+#include <algorithm>
 #include <iostream>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 
 namespace mc {
 
-
-/*************************************************************************//**
- *
- * @brief single query = id + header + read(pair)
- *
- *****************************************************************************/
-struct sequence_query
-{
-    sequence_query() = default;
-    sequence_query(const sequence_query&) = default;
-    sequence_query(sequence_query&&) = default;
-    sequence_query& operator = (const sequence_query&) = default;
-    sequence_query& operator = (sequence_query&&) = default;
-
-    explicit
-    sequence_query(query_id qid, std::string headerText,
-                   sequence s1, sequence s2 = sequence{}) noexcept
-    :
-        id{qid}, header(std::move(headerText)),
-        seq1(std::move(s1)), seq2(std::move(s2))
-    {}
-
-    bool empty() const noexcept { return header.empty() || seq1.empty(); }
-
-    query_id id = 0;
-    std::string header;
-    sequence seq1;
-    sequence seq2;  // 2nd part of paired-end read
-};
+using std::vector;
+using std::string;
+using std::cout;
+using std::cerr;
+using std::endl;
+using std::flush;
 
 
 
 /*************************************************************************//**
  *
- * @brief process batch of results from database query
- *
- * @tparam Buffer        batch buffer object
- *
- * @tparam BufferUpdate  takes database matches of one query and a buffer;
- *                       must be thread-safe (only const operations on DB!)
+ * @brief runs classification on input files; sets output target streams
  *
  *****************************************************************************/
-#ifndef GPU_MODE
-    template<class Buffer, class BufferUpdate>
-    void query_host(
-        const database& db,
-        const classification_options& opt,
-        const std::vector<sequence_query>& batch,
-        database::matches_sorter& targetMatches,
-        Buffer& resultsBuffer, BufferUpdate& update)
-    {
-        for(const auto& query : batch) {
-            auto rules = make_candidate_generation_rules(db.target_sketcher(), opt, query);
-
-            auto tophits = db.query_host(query.seq1, query.seq2, rules, targetMatches);
-
-            update(resultsBuffer, query, targetMatches.locations(), tophits);
-        }
-    }
-#else
-    template<class Buffer, class BufferUpdate>
-    void query_gpu(
-        const database& db,
-        const classification_options& opt,
-        const std::vector<sequence_query>& sequenceBatch,
-        bool copyAllHits,
-        query_batch<location>& queryBatch,
-        part_id hostId,
-        Buffer& batchBuffer, BufferUpdate& update,
-        std::mutex& scheduleMtx)
-    {
-        for(const auto& query : sequenceBatch) {
-            auto rules = make_candidate_generation_rules(db.target_sketcher(), opt, query);
-
-            if(!queryBatch.add_paired_read(hostId, query.seq1, query.seq2,
-                                           db.query_sketcher(), rules))
-            {
-                std::cerr << "query batch is too small for a single read!" << std::endl;
-            }
-        }
-
-        // std::cerr << "host id " << hostId << ": " << queryBatch.host_data(hostId).num_windows() << " windows\n";
-
-        if(queryBatch.host_data(hostId).num_windows() > 0)
-        {
-            {
-                std::lock_guard<std::mutex> lock(scheduleMtx);
-
-                db.query_gpu_async(queryBatch, hostId, copyAllHits, opt.lowestRank);
-            }
-            queryBatch.host_data(hostId).wait_for_results();
-
-            for(size_t s = 0; s < queryBatch.host_data(hostId).num_queries(); ++s) {
-                span<location> allhits = copyAllHits ? queryBatch.host_data(hostId).allhits(s) : span<location>();
-
-                // std::cout << s << ". targetMatches:    ";
-                // for(const auto& m : allhits)
-                //     std::cout << m.tgt << ':' << m.win << ' ';
-                // std::cout << '\n';
-
-                span<match_candidate> tophits = queryBatch.host_data(hostId).top_candidates(s);
-
-                // std::cout << s << ". top hits: ";
-                // for(const auto& t : tophits) {
-                //     if(t.hits > 0) {
-                //         if(t.tax)
-                //             std::cout << t.tax->id() << ':' << t.hits << ' ';
-                //         else
-                //             std::cout << "notax:"  << t.hits << ' ';
-                //     }
-                // }
-                // std::cout << '\n';
-
-                update(batchBuffer, sequenceBatch[s], allhits, tophits);
-            }
-            // std::cout << '\n';
-
-            queryBatch.host_data(hostId).clear();
-        }
-    }
-#endif
-
-
-
- /*************************************************************************//**
- *
- * @brief queries database with batches of reads from ONE sequence source (pair)
- *        produces batch buffers with one match list per sequence
- *
- * @tparam BufferSource     returns a per-batch buffer object
- *
- * @tparam BufferUpdate     takes database matches of one query and a buffer;
- *                          must be thread-safe (only const operations on DB!)
- *
- * @tparam BufferSink       recieves buffer after batch is finished
- *
- * @tparam InfoCallback     prints messages
- *
- * @tparam ProgressHandler  prints progress messages
- *
- * @tparam ErrorHandler     handles exceptions
- *
- *****************************************************************************/
-template<
-    class BufferSource, class BufferUpdate, class BufferSink,
-    class ErrorHandler
->
-query_id query_batched(
-    const std::string& filename1, const std::string& filename2,
-    const database& db,
-    const query_options& opt,
-    query_id idOffset,
-    BufferSource&& getBuffer, BufferUpdate&& update, BufferSink&& finalize,
-    ErrorHandler&& handleErrors)
+inline
+void process_input_files(const vector<string>& infiles,
+                         const database& db, const query_options& opt,
+                         const string& queryMappingsFilename,
+                         const string& targetsFilename,
+                         const string& abundanceFilename)
 {
-    if(opt.performance.queryLimit < 1) return idOffset;
-    size_t queryLimit = opt.performance.queryLimit > 0 ?
-                        size_t(opt.performance.queryLimit) :
-                        std::numeric_limits<size_t>::max();
+    std::ostream* perReadOut   = &cout;
+    std::ostream* perTargetOut = &cout;
+    std::ostream* perTaxonOut  = &cout;
+    std::ostream* status       = &cerr;
 
-    std::mutex finalizeMtx;
+    std::ofstream mapFile;
+    if(!queryMappingsFilename.empty()) {
+        mapFile.open(queryMappingsFilename, std::ios::out);
 
-#ifndef GPU_MODE
-    std::vector<database::matches_sorter> targetMatches(opt.performance.numThreads -
-                                                        (opt.performance.numThreads > 1));
-#else
-    bool copyAllHits = opt.output.analysis.showAllHits;
-
-    std::vector<std::mutex> scheduleMtxs(opt.performance.replication);
-
-    std::vector<query_batch<location>> queryBatches;
-    queryBatches.reserve(opt.performance.replication);
-
-    for(unsigned rep = 0; rep < opt.performance.replication; ++rep)
-        queryBatches.emplace_back(
-            opt.performance.batchSize,
-            opt.performance.batchSize*db.query_sketcher().window_size(),
-            db.query_sketcher().sketch_size(),
-            db.query_sketcher().sketch_size()*db.max_locations_per_feature(),
-            opt.classify.maxNumCandidatesPerQuery,
-            copyAllHits,
-            (opt.performance.numThreads - (opt.performance.numThreads > 1)),
-            db.num_parts(),
-            rep);
-#endif
-
-    // get executor that runs classification in batches
-    batch_processing_options<sequence_query> execOpt;
-    execOpt.concurrency(1, opt.performance.numThreads - (opt.performance.numThreads > 1));
-    execOpt.batch_size(opt.performance.batchSize);
-    execOpt.queue_size(opt.performance.numThreads + 8);
-    execOpt.on_error(handleErrors);
-    execOpt.work_item_measure([&] (const auto& query) {
-        using std::begin;
-        using std::end;
-        using std::distance;
-
-        const numk_t kmerSize = db.query_sketcher().kmer_size();
-        const size_t windowStride = db.query_sketcher().window_stride();
-
-        const size_t seqLength1 = distance(begin(query.seq1), end(query.seq1));
-        const size_t seqLength2 = distance(begin(query.seq2), end(query.seq2));
-
-        const window_id numWindows1 = (seqLength1-kmerSize + windowStride) / windowStride;
-        const window_id numWindows2 = (seqLength2-kmerSize + windowStride) / windowStride;
-
-        return std::max(window_id(1), numWindows1 + numWindows2);
-    });
-
-    batch_executor<sequence_query> executor {
-        execOpt,
-        // classifies a batch of input queries
-        [&](int id, std::vector<sequence_query>& batch) {
-            auto resultsBuffer = getBuffer();
-
-#ifndef GPU_MODE
-            query_host(db, opt.classify, batch, targetMatches[id], resultsBuffer, update);
-#else
-            // query batch to gpu and wait for results
-            query_gpu(db, opt.classify, batch, copyAllHits,
-                      queryBatches[id%opt.performance.replication], id/opt.performance.replication,
-                      resultsBuffer, update, scheduleMtxs[id%opt.performance.replication]);
-#endif
-
-            std::lock_guard<std::mutex> lock(finalizeMtx);
-            finalize(std::move(resultsBuffer));
-
-            return true;
-        }};
-
-    // read sequences from file
-    try {
-        sequence_pair_reader reader{filename1, filename2};
-        reader.index_offset(idOffset);
-
-        while(reader.has_next()) {
-            if(queryLimit < 1) break;
-
-            // get (ref to) next query sequence storage and fill it
-            auto& query = executor.next_item();
-            query.id = reader.next_header_and_data(query.header, query.seq1, query.seq2);
-
-            --queryLimit;
+        if(mapFile.good()) {
+            cout << "Per-Read mappings will be written to file: " << queryMappingsFilename << endl;
+            perReadOut = &mapFile;
+            //default: auxiliary output same as mappings output
+            perTargetOut = perReadOut;
+            perTaxonOut  = perReadOut;
         }
-
-        idOffset = reader.index();
-    }
-    catch(std::exception& e) {
-        handleErrors(e);
+        else {
+            throw file_write_error{"Could not write to file " + queryMappingsFilename};
+        }
     }
 
-    return idOffset;
+    std::ofstream targetMappingsFile;
+    if(!targetsFilename.empty()) {
+        targetMappingsFile.open(targetsFilename, std::ios::out);
+
+        if(targetMappingsFile.good()) {
+            cout << "Per-Target mappings will be written to file: " << targetsFilename << endl;
+            perTargetOut = &targetMappingsFile;
+        }
+        else {
+            throw file_write_error{"Could not write to file " + targetsFilename};
+        }
+    }
+
+    std::ofstream abundanceFile;
+    if(!abundanceFilename.empty()) {
+        abundanceFile.open(abundanceFilename, std::ios::out);
+
+        if(abundanceFile.good()) {
+            cout << "Per-Taxon mappings will be written to file: " << abundanceFilename << endl;
+            perTaxonOut = &abundanceFile;
+        }
+        else {
+            throw file_write_error{"Could not write to file " + abundanceFilename};
+        }
+    }
+
+    classification_results results {*perReadOut,*perTargetOut,*perTaxonOut,*status};
+
+    if(opt.output.showQueryParams) {
+        show_query_parameters(results.perReadOut, opt);
+    }
+
+    results.flush_all_streams();
+
+    results.time.start();
+    map_queries_to_targets(infiles, db, opt, results);
+    results.time.stop();
+
+    clear_current_line(results.status);
+    results.status.flush();
+
+    if(opt.output.showSummary) show_summary(opt, results);
+
+    results.flush_all_streams();
 }
 
 
 
-
- /*************************************************************************//**
+/*************************************************************************//**
  *
- * @brief queries database with batches of reads from multiple sequence sources
- *
- * @tparam BufferSource     returns a per-batch buffer object
- *
- * @tparam BufferUpdate     takes database matches of one query and a buffer;
- *                          must be thread-safe (only const operations on DB!)
- *
- * @tparam BufferSink       recieves buffer after batch is finished
- *
- * @tparam InfoCallback     prints messages
- *
- * @tparam ProgressHandler  prints progress messages
- *
- * @tparam ErrorHandler     handles exceptions
+ * @brief runs classification on input files;
+ *        handles output file split
  *
  *****************************************************************************/
-template<
-    class BufferSource, class BufferUpdate, class BufferSink,
-    class InfoCallback, class ProgressHandler, class ErrorHandler
->
-void query_database(
-    const std::vector<std::string>& infilenames,
-    const database& db,
-    const query_options& opt,
-    BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
-    InfoCallback&& showInfo, ProgressHandler&& showProgress,
-    ErrorHandler&& errorHandler)
+inline
+void process_input_files(const database& db,
+                         const query_options& opt)
 {
-    const size_t stride = opt.pairing == pairing_mode::files ? 1 : 0;
-    const std::string nofile;
-    query_id queryIdOffset = 0;
+    const auto& infiles = opt.infiles;
 
-    // input filenames passed to sequence reader depend on pairing mode:
-    // none     -> infiles[i], ""
-    // sequence -> infiles[i], infiles[i]
-    // files    -> infiles[i], infiles[i+1]
+    if(infiles.empty()) {
+        cerr << "No input filenames provided!\n";
+        return;
+    }
+    else {
+        bool noneReadable = std::none_of(infiles.begin(), infiles.end(),
+                           [](const auto& f) { return file_readable(f); });
+        if(noneReadable) {
+            string msg = "None of the following query sequence files could be opened:";
+            for(const auto& f : infiles) { msg += "\n    " + f; }
+            throw std::runtime_error{std::move(msg)};
+        }
+    }
 
-    for(size_t i = 0; i < infilenames.size(); i += stride+1) {
-        //pair up reads from two consecutive files in the list
-        const auto& fname1 = infilenames[i];
+    //process files / file pairs separately
+    const auto& ano = opt.output.analysis;
 
-        const auto& fname2 = (opt.pairing == pairing_mode::none)
-                             ? nofile : infilenames[i+stride];
+    if(opt.splitOutputPerInput) {
+        string queryMappingsFile;
+        string targetMappingsFile;
+        string abundanceFile;
+        const size_t stride = (opt.pairing == pairing_mode::files) &&
+                              (infiles.size() > 1) ? 2 : 1;
 
-        if(opt.pairing == pairing_mode::files) {
-            showInfo(fname1 + " + " + fname2);
+        for(std::size_t i = 0; i < infiles.size(); i += stride) {
+            string suffix;
+            vector<string> input;
+
+            if(stride == 2) {
+                //process each input file pair separately
+                const auto& f1 = infiles[i];
+                const auto& f2 = infiles[i+1];
+                suffix = "_" + extract_filename(f1)
+                       + "_" + extract_filename(f2)
+                       + ".txt";
+                input = vector<string>{f1,f2};
+            }
+            else {
+                //process each input file separately
+                const auto& f = infiles[i];
+                suffix = "_" + extract_filename(f) + ".txt";
+                input = vector<string>{f};
+            }
+
+            if(!opt.queryMappingsFile.empty()) {
+                queryMappingsFile = opt.queryMappingsFile + suffix;
+            }
+            if(!ano.targetMappingsFile.empty() &&
+                ano.targetMappingsFile != opt.queryMappingsFile)
+            {
+                targetMappingsFile = ano.targetMappingsFile + suffix;
+            }
+            if(!ano.abundanceFile.empty() &&
+                ano.abundanceFile != opt.queryMappingsFile)
+            {
+                abundanceFile = ano.abundanceFile + suffix;
+            }
+            process_input_files(input, db, opt,
+                queryMappingsFile, targetMappingsFile, abundanceFile);
+        }
+    }
+    //process all input files at once
+    else {
+        process_input_files(infiles, db, opt,
+                            opt.queryMappingsFile,
+                            ano.targetMappingsFile,
+                            ano.abundanceFile);
+    }
+}
+
+
+
+/*************************************************************************//**
+ *
+ * @brief sets up some query options according to database parameters
+ *        or command line options
+ *
+ *****************************************************************************/
+inline
+void adapt_options_to_database(classification_options& opt, const database& db)
+{
+    //deduce hit threshold from database?
+    if(opt.hitsMin < 1) {
+        auto sks = db.target_sketcher().sketch_size();
+        if(sks >= 6) {
+            opt.hitsMin = static_cast<int>(sks / 3.0);
+        } else if (sks >= 4) {
+            opt.hitsMin = 2;
         } else {
-            showInfo(fname1);
+            opt.hitsMin = 1;
         }
-        showProgress(infilenames.size() > 1 ? i/float(infilenames.size()) : -1);
-
-        queryIdOffset = query_batched(fname1, fname2, db, opt, queryIdOffset,
-                                     std::forward<BufferSource>(bufsrc),
-                                     std::forward<BufferUpdate>(bufupdate),
-                                     std::forward<BufferSink>(bufsink),
-                                     errorHandler);
     }
 }
 
@@ -363,40 +241,55 @@ void query_database(
 
 /*************************************************************************//**
  *
- * @brief queries database
- *
- * @tparam BufferSource  returns a per-batch buffer object
- *
- * @tparam BufferUpdate  takes database matches of one query and a buffer;
- *                       must be thread-safe (only const operations on DB!)
- *
- * @tparam BufferSink    recieves buffer after batch is finished
- *
- * @tparam InfoCallback  prints status messages
+ * @brief primitive REPL mode for repeated querying using the same database
  *
  *****************************************************************************/
-template<
-    class BufferSource, class BufferUpdate, class BufferSink, class InfoCallback
->
-void query_database(
-    const std::vector<std::string>& infilenames,
-    const database& db,
-    const query_options& opt,
-    BufferSource&& bufsrc, BufferUpdate&& bufupdate, BufferSink&& bufsink,
-    InfoCallback&& showInfo)
+inline
+void run_interactive_query_mode(const database& db,
+                                const query_options& initOpt)
 {
-    query_database(infilenames, db, opt,
-       std::forward<BufferSource>(bufsrc),
-       std::forward<BufferUpdate>(bufupdate),
-       std::forward<BufferSink>(bufsink),
-       std::forward<InfoCallback>(showInfo),
-       [] (float p) { show_progress_indicator(std::cerr, p); },
-       [] (std::exception& e) { std::cerr << "FAIL: " << e.what() << '\n'; }
-    );
+    cout << "Running in interactive mode:\n"
+            " - Enter input file name(s) and command line options and press return.\n"
+            " - The initially given command line options will be used as defaults.\n"
+            " - All command line options that would modify the database are ignored.\n"
+            " - Each line will be processed separately.\n"
+            " - Lines starting with '#' will be ignored.\n"
+            " - Enter an empty line or press Ctrl-D to quit MetaCache.\n"
+            << endl;
+
+    while(true) {
+        cout << "$> " << std::flush;
+
+        string input;
+        std::getline(std::cin, input);
+        if(input.empty() || input.find(":q") == 0) {
+            cout << "Terminate." << endl;
+            return;
+        }
+        else if(input.find("#") == 0)
+        {
+            //comment line, do nothing
+        }
+        else {
+            //tokenize input into whitespace-separated words and build args list
+            vector<string> args {initOpt.dbfile};
+            std::istringstream iss(input);
+            while(iss >> input) { args.push_back(input); }
+
+            //read command line options (use initial ones as defaults)
+            try {
+                auto opt = get_query_options(args, initOpt);
+                adapt_options_to_database(opt.classify, db);
+                process_input_files(db, opt);
+            }
+            catch(std::exception& e) {
+                if(initOpt.output.showErrors) cerr << e.what() << '\n';
+            }
+        }
+    }
 }
 
 
 } // namespace mc
-
 
 #endif

@@ -458,6 +458,48 @@ std::string query_mode_docs();
 /*************************************************************************//**
  *
  *
+ *  B U I L D + Q U E R Y   M O D E
+ *
+ *
+ *****************************************************************************/
+
+/*************************************************************************//**
+ *
+ * @brief build + query parameters
+ *
+ *****************************************************************************/
+struct build_query_options
+{
+    build_options build;
+	query_options query;
+
+    bool saveDatabase = false;
+};
+
+
+
+/*************************************************************************//**
+ * @brief command line args -> build+query mode options
+ *****************************************************************************/
+build_query_options get_build_query_options(
+    const cmdline_args&, build_query_options defaults = build_query_options{});
+
+
+
+/*************************************************************************//**
+ * @brief build+query mode documentation
+ *****************************************************************************/
+std::string build_query_mode_usage();
+std::string build_query_mode_examples();
+std::string build_query_mode_docs();
+
+
+
+
+
+/*************************************************************************//**
+ *
+ *
  *  M E R G E   M O D E
  *
  *
@@ -491,7 +533,7 @@ merge_options get_merge_options(const cmdline_args&, merge_options
 
 
 /*************************************************************************//**
- * @brief query mode documentation
+ * @brief merge mode documentation
  *****************************************************************************/
 std::string merge_mode_usage();
 std::string merge_mode_examples();

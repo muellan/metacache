@@ -537,6 +537,21 @@ build_mode_cli(build_options& opt, error_messages& err)
 
 
 //-------------------------------------------------------------------
+void process_build_options(build_options& opt)
+{
+    augment_taxonomy_options(opt.taxonomy);
+    replace_directories_with_contained_files(opt.infiles);
+
+    if(opt.dbconfig.maxLocationsPerFeature < 0)
+        opt.dbconfig.maxLocationsPerFeature = database::max_supported_locations_per_feature();
+
+    auto& sk = opt.sketching;
+    if(sk.winstride < 0) sk.winstride = sk.winlen - sk.kmerlen + 1;
+}
+
+
+
+//-------------------------------------------------------------------
 build_options
 get_build_options(const cmdline_args& args, build_options opt)
 {
@@ -550,14 +565,7 @@ get_build_options(const cmdline_args& args, build_options opt)
         raise_default_error(err, "build", build_mode_usage());
     }
 
-    augment_taxonomy_options(opt.taxonomy);
-    replace_directories_with_contained_files(opt.infiles);
-
-    if(opt.dbconfig.maxLocationsPerFeature < 0)
-        opt.dbconfig.maxLocationsPerFeature = database::max_supported_locations_per_feature();
-
-    auto& sk = opt.sketching;
-    if(sk.winstride < 0) sk.winstride = sk.winlen - sk.kmerlen + 1;
+    process_build_options(opt);
 
     return opt;
 }
@@ -632,7 +640,7 @@ string build_mode_docs() {
  *
  *****************************************************************************/
 
-/// @brief build mode command-line options
+/// @brief modify mode command-line options
 clipp::group
 modify_mode_cli(build_options& opt, error_messages& err)
 {
@@ -853,7 +861,7 @@ classification_params_cli(classification_options& opt, error_messages& err)
 
 
 //-------------------------------------------------------------------
-/// @brief build mode command-line options
+/// @brief query mode command-line options
 clipp::group
 classification_output_format_cli(classification_output_formatting& opt,
                                  error_messages& err)
@@ -924,7 +932,7 @@ classification_output_format_cli(classification_output_formatting& opt,
 
 
 //-------------------------------------------------------------------
-/// @brief build mode command-line options
+/// @brief query mode command-line options
 clipp::group
 classification_analysis_cli(classification_analysis_options& opt, error_messages& err)
 {
@@ -1001,7 +1009,7 @@ classification_analysis_cli(classification_analysis_options& opt, error_messages
 
 
 //-------------------------------------------------------------------
-/// @brief build mode command-line options
+/// @brief query mode command-line options
 clipp::group
 classification_evaluation_cli(classification_evaluation_options& opt,
                               error_messages&)
@@ -1040,7 +1048,7 @@ classification_evaluation_cli(classification_evaluation_options& opt,
 
 
 //-------------------------------------------------------------------
-/// @brief build mode command-line options
+/// @brief query mode command-line options
 clipp::group
 performance_options_cli(performance_tuning_options& opt, error_messages& err)
 {
@@ -1081,7 +1089,7 @@ performance_options_cli(performance_tuning_options& opt, error_messages& err)
 
 
 //-------------------------------------------------------------------
-/// @brief build mode command-line options
+/// @brief query mode command-line options
 clipp::group
 query_mode_cli(query_options& opt, error_messages& err)
 {
@@ -1192,19 +1200,8 @@ query_mode_cli(query_options& opt, error_messages& err)
 
 
 //-------------------------------------------------------------------
-query_options
-get_query_options(const cmdline_args& args, query_options opt)
+void process_query_options(query_options& opt)
 {
-    error_messages err;
-
-    auto cli = query_mode_cli(opt, err);
-
-    auto result = clipp::parse(args, cli);
-
-    if(!result || err.any()) {
-        raise_default_error(err, "query", query_mode_usage());
-    }
-
     replace_directories_with_contained_files(opt.infiles);
 
     if(opt.pairing == pairing_mode::files) {
@@ -1269,6 +1266,25 @@ get_query_options(const cmdline_args& args, query_options opt)
     else if(ana.showAllHits) {
         fmt.mapViewMode = map_view_mode::all;
     }
+}
+
+
+
+//-------------------------------------------------------------------
+query_options
+get_query_options(const cmdline_args& args, query_options opt)
+{
+    error_messages err;
+
+    auto cli = query_mode_cli(opt, err);
+
+    auto result = clipp::parse(args, cli);
+
+    if(!result || err.any()) {
+        raise_default_error(err, "query", query_mode_usage());
+    }
+
+    process_query_options(opt);
 
     return opt;
 }
@@ -1377,6 +1393,262 @@ string query_mode_docs() {
 
 
 
+/*****************************************************************************
+ *
+ *
+ *  B U I L D + Q U E R Y   M O D E
+ *
+ *
+ *****************************************************************************/
+/// @brief build+query mode command-line options
+clipp::group
+build_query_mode_cli(build_query_options& opt, error_messages& err)
+{
+    using namespace clipp;
+
+    return (
+    "REQUIRED PARAMETERS" %
+    (
+        required("-targets") &
+        values("sequence file/directory", opt.build.infiles)
+            .if_missing([&]{
+                err += "No reference sequence files provided or found!";
+            })
+            % "FASTA or FASTQ files containing genomic sequences "
+              "(complete genomes, scaffolds, contigs, ...) that shall be"
+              "used as representatives of an organism/taxon.\n"
+              "If directory names are given, they will be searched for "
+              "sequence files (at most 10 levels deep).\n"
+    ),
+    "BASIC OPTIONS" %
+    (
+        taxonomy_cli(opt.build.taxonomy, err),
+        info_level_cli(opt.build.infoLevel, err)
+    ),
+    "SKETCHING (SUBSAMPLING)" %
+        sketching_options_cli(opt.build.sketching, err)
+    ,
+    "ADVANCED OPTIONS" %
+    (
+        option("-reset-taxa", "-reset-parents").set(opt.build.resetParents)
+            %("Attempts to re-rank all sequences after the main build phase "
+              "using '.accession2taxid' files. This will reset the taxon id "
+              "of a reference sequence even if a taxon id could be obtained "
+              "from other sources during the build phase.\n"
+              "default: "s + (opt.build.resetParents ? "on" : "off"))
+        ,
+        database_storage_options_cli(opt.build.dbconfig, err)
+        ,
+        (   option("-parts") &
+            integer("#", opt.build.numDbParts)
+                .if_missing([&]{ err += "Number missing after '-parts'!"; })
+        )
+            %("Splits the database into multiple parts. Each part contains "
+              "a separate hash table."
+#ifndef GPU_MODE
+            "\n"
+            "default: 1"s)
+#else
+            " Each part occupies one GPU.\n"
+            "default: number of available GPUs"s)
+#endif
+        ,
+        (
+            option("-save-db") &
+            value("database filename")
+                .set(opt.saveDatabase)
+                .call([&](const string& arg){
+                    opt.build.dbfile = arg;
+                    sanitize_database_name(opt.build.dbfile, opt.build.dbpart);
+                })
+                .if_missing([&]{ err += "Database filename is missing!"; })
+        )
+            %("Save database to disk after querying.")
+
+    ),
+    "QUERY PARAMETERS" %
+    (
+        option("-query") &
+        values("sequence file/directory", opt.query.infiles)
+            % "FASTA or FASTQ files containing genomic sequences "
+              "(short reads, long reads, contigs, complete genomes, ...) "
+              "that shall be classified.\n"
+              "* If directory names are given, they will be searched for "
+              "sequence files (at most 10 levels deep).\n"
+              "* If no input filenames or directories are given, MetaCache will "
+              "run in interactive query mode. This can be used to load the database into "
+              "memory only once and then query it multiple times with different "
+              "query options."
+    ),
+    "MAPPING RESULTS OUTPUT" %
+    one_of(
+        (   option("-out") &
+            value("file", opt.query.queryMappingsFile)
+                .if_missing([&]{ err += "Output filename missing after '-out'!"; })
+        )
+            % "Redirect output to file <file>.\n"
+              "If not specified, output will be written to stdout. "
+              "If more than one input file was given all output "
+              "will be concatenated into one file."
+        ,
+        (   option("-split-out", "-splitout").set(opt.query.splitOutputPerInput) &
+            value("file", opt.query.queryMappingsFile)
+                .if_missing([&]{ err += "Output filename missing after '-split-out'!"; })
+        )
+            % "Generate output and statistics for each input file "
+              "separately. For each input file <in> an output file "
+              "with name <file>_<in> will be written."
+    ),
+    "PAIRED-END READ HANDLING" %
+    (   one_of(
+            option("-pairfiles", "-pair-files", "-paired-files")
+            .set(opt.query.pairing, pairing_mode::files)
+            % "Interleave paired-end reads from two consecutive files, "
+              "so that the nth read from file m and the nth read "
+              "from file m+1 will be treated as a pair. "
+              "If more than two files are provided, their names "
+              "will be sorted before processing. Thus, the order "
+              "defined by the filenames determines the pairing not "
+              "the order in which they were given in the command line."
+            ,
+            option("-pairseq", "-pair-seq", "-paired-seq")
+            .set(opt.query.pairing, pairing_mode::sequences)
+            % "Two consecutive sequences (1+2, 3+4, ...) from each file "
+              "will be treated as paired-end reads."
+        ),
+
+        (   option("-insertsize", "-insert-size") &
+            integer("#", opt.query.classify.insertSizeMax)
+                .if_missing([&]{ err += "Number missing after '-insertsize'!"; })
+        )
+            % "Maximum insert size to consider.\n"
+              "default: sum of lengths of the individual reads"
+    )
+    ,
+    "CLASSIFICATION" %
+        classification_params_cli(opt.query.classify, err)
+    ,
+    "GENERAL OUTPUT FORMATTING" % (
+        option("-no-summary", "-nosummary").set(opt.query.output.showSummary,false)
+            %("Dont't show result summary & mapping statistics at the "
+              "end of the mapping output\n"
+              "default: "s + (!opt.query.output.showSummary ? "on" : "off"))
+        ,
+        option("-no-query-params", "-no-queryparams", "-noqueryparams")
+            .set(opt.query.output.showQueryParams,false)
+            %("Don't show query settings at the beginning of the "
+              "mapping output\n"
+              "default: "s + (!opt.query.output.showQueryParams ? "on" : "off"))
+        ,
+        option("-no-err", "-noerr", "-no-errors").set(opt.query.output.showErrors,false)
+            %("Suppress all error messages.\n"
+              "default: "s + (!opt.query.output.showErrors ? "on" : "off"))
+    )
+    ,
+    "CLASSIFICATION RESULT FORMATTING" %
+        classification_output_format_cli(opt.query.output.format, err)
+    ,
+    classification_analysis_cli(opt.query.output.analysis, err)
+    ,
+    "ADVANCED: GROUND TRUTH BASED EVALUATION" %
+        classification_evaluation_cli(opt.query.output.evaluate, err)
+    ,
+    "ADVANCED: PERFORMANCE TUNING / TESTING" %
+        performance_options_cli(opt.query.performance, err)
+    ,
+    catch_unknown(err)
+    );
+}
+
+
+
+//-------------------------------------------------------------------
+build_query_options
+get_build_query_options(const cmdline_args& args, build_query_options opt)
+{
+    error_messages err;
+
+    auto cli = build_query_mode_cli(opt, err);
+
+    auto result = clipp::parse(args, cli);
+
+    if(!result || err.any()) {
+        raise_default_error(err, "build+query", build_query_mode_usage());
+    }
+
+    process_build_options(opt.build);
+    process_query_options(opt.query);
+
+    return opt;
+}
+
+
+
+//-------------------------------------------------------------------
+string build_query_mode_usage() {
+    return
+    "    metacache build+query -targets <sequence file/directory>... [OPTION]...\n\n"
+    "    metacache build+query [OPTION]... -targets <sequence file/directory>...\n\n"
+    ""
+    "    metacache build+query -targets <sequence file/directory>..."
+    " -query <sequence file/directory>... [OPTION]...\n\n"
+    "    metacache build+query -targets <sequence file/directory>... [OPTION]..."
+    " -query <sequence file/directory>...\n\n"
+    "    metacache build+query [OPTION]... -targets <sequence file/directory>..."
+    " -query <sequence file/directory>...";
+}
+
+
+
+//-------------------------------------------------------------------
+string build_query_mode_examples() {
+    return
+    "    Build database from sequence file 'genomes.fna' and query all sequences "
+    "in 'myreads.fna':\n"
+    "        metacache build+query -targets genomes.fna -query myreads.fna\n"
+    "\n"
+    "    Build database with latest complete genomes from the NCBI RefSeq and"
+    " query interactively\n"
+    "        download-ncbi-genomes refseq/bacteria myfolder\n"
+    "        download-ncbi-genomes refseq/viruses myfolder\n"
+    "        download-ncbi-taxonomy myfolder\n"
+    "        metacache build+query -targets myfolder -taxonomy myfolder\n"
+    "\n";
+}
+
+
+
+//-------------------------------------------------------------------
+string build_query_mode_docs() {
+
+    build_query_options opt;
+    error_messages err;
+
+    auto cli = build_query_mode_cli(opt, err);
+
+    string docs = "SYNOPSIS\n\n";
+
+    docs += build_query_mode_usage();
+
+    docs += "\n\n\n"
+        "DESCRIPTION\n"
+        "\n"
+        "    Create a new database of reference sequences (usually genomic sequences)"
+        " and use it to map (other) sequences to their most likely taxon of origin.\n"
+        "\n\n";
+
+    docs += clipp::documentation(cli, cli_doc_formatting()).str();
+
+    docs += "\n\nEXAMPLES\n\n";
+    docs += build_query_mode_examples();
+
+    return docs;
+}
+
+
+
+
+
 /*************************************************************************//**
  *
  *
@@ -1385,7 +1657,7 @@ string query_mode_docs() {
  *
  *****************************************************************************/
 
-/// @brief build mode command-line options
+/// @brief merge mode command-line options
 clipp::group
 merge_mode_cli(merge_options& opt, error_messages& err)
 {

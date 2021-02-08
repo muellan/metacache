@@ -50,6 +50,9 @@ int main(int argc, char** argv)
         else if(modestr == "query") {
             main_mode_query(make_args_list(argv+2, argv+argc));
         }
+        else if(modestr == "build+query") {
+            main_mode_build_query(make_args_list(argv+2, argv+argc));
+        }
         else if(modestr == "merge") {
             main_mode_merge(make_args_list(argv+2, argv+argc));
         }
