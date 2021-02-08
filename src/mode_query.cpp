@@ -161,59 +161,44 @@ void process_input_files(const database& db,
         string queryMappingsFile;
         string targetMappingsFile;
         string abundanceFile;
-        //process each input file pair separately
-        if(opt.pairing == pairing_mode::files && infiles.size() > 1) {
-            for(std::size_t i = 0; i < infiles.size(); i += 2) {
+        const size_t stride = (opt.pairing == pairing_mode::files) &&
+                              (infiles.size() > 1) ? 2 : 1;
+
+        for(std::size_t i = 0; i < infiles.size(); i += stride) {
+            string suffix;
+            vector<string> input;
+
+            if(stride == 2) {
+                //process each input file pair separately
                 const auto& f1 = infiles[i];
                 const auto& f2 = infiles[i+1];
-                if(!opt.queryMappingsFile.empty()) {
-                    queryMappingsFile = opt.queryMappingsFile
-                            + "_" + extract_filename(f1)
-                            + "_" + extract_filename(f2)
-                            + ".txt";
-                }
-                if(!ano.targetMappingsFile.empty() &&
-                    ano.targetMappingsFile != opt.queryMappingsFile)
-                {
-                    targetMappingsFile = ano.targetMappingsFile
-                            + "_" + extract_filename(f1)
-                            + "_" + extract_filename(f2)
-                            + ".txt";
-                }
-                if(!ano.abundanceFile.empty() &&
-                    ano.abundanceFile != opt.queryMappingsFile)
-                {
-                    abundanceFile = ano.abundanceFile
-                            + "_" + extract_filename(f1)
-                            + "_" + extract_filename(f2)
-                            + ".txt";
-                }
-                process_input_files(vector<string>{f1,f2}, db, opt,
-                    queryMappingsFile, targetMappingsFile, abundanceFile);
+                suffix = "_" + extract_filename(f1)
+                       + "_" + extract_filename(f2)
+                       + ".txt";
+                input = vector<string>{f1,f2};
             }
-        }
-        //process each input file separately
-        else {
-            for(const auto& f : infiles) {
-                if(!opt.queryMappingsFile.empty()) {
-                    queryMappingsFile = opt.queryMappingsFile + "_"
-                            + extract_filename(f) + ".txt";
-                }
-                if(!ano.targetMappingsFile.empty() &&
-                    ano.targetMappingsFile != opt.queryMappingsFile)
-                {
-                    targetMappingsFile = ano.targetMappingsFile + "_"
-                            + extract_filename(f) + ".txt";
-                }
-                if(!ano.abundanceFile.empty() &&
-                    ano.abundanceFile != opt.queryMappingsFile)
-                {
-                    abundanceFile = ano.abundanceFile + "_"
-                            + extract_filename(f) + ".txt";
-                }
-                process_input_files(vector<string>{f}, db, opt,
-                    queryMappingsFile, targetMappingsFile, abundanceFile);
+            else {
+                //process each input file separately
+                const auto& f = infiles[i];
+                suffix = "_" + extract_filename(f) + ".txt";
+                input = vector<string>{f};
             }
+
+            if(!opt.queryMappingsFile.empty()) {
+                queryMappingsFile = opt.queryMappingsFile + suffix;
+            }
+            if(!ano.targetMappingsFile.empty() &&
+                ano.targetMappingsFile != opt.queryMappingsFile)
+            {
+                targetMappingsFile = ano.targetMappingsFile + suffix;
+            }
+            if(!ano.abundanceFile.empty() &&
+                ano.abundanceFile != opt.queryMappingsFile)
+            {
+                abundanceFile = ano.abundanceFile + suffix;
+            }
+            process_input_files(input, db, opt,
+                queryMappingsFile, targetMappingsFile, abundanceFile);
         }
     }
     //process all input files at once
@@ -258,6 +243,15 @@ void adapt_options_to_database(classification_options& opt, const database& db)
 void run_interactive_query_mode(const database& db,
                                 const query_options& initOpt)
 {
+    cout << "Running in interactive mode:\n"
+            " - Enter input file name(s) and command line options and press return.\n"
+            " - The initially given command line options will be used as defaults.\n"
+            " - All command line options that would modify the database are ignored.\n"
+            " - Each line will be processed separately.\n"
+            " - Lines starting with '#' will be ignored.\n"
+            " - Enter an empty line or press Ctrl-D to quit MetaCache.\n"
+            << endl;
+
     while(true) {
         cout << "$> " << std::flush;
 
@@ -391,15 +385,7 @@ void main_mode_query(const cmdline_args& args)
         process_input_files(db, opt);
     }
     else {
-        cout << "No input files provided.\n"
-            "Running in interactive mode:\n"
-            " - Enter input file name(s) and command line options and press return.\n"
-            " - The initially given command line options will be used as defaults.\n"
-            " - All command line options that would modify the database are ignored.\n"
-            " - Each line will be processed separately.\n"
-            " - Lines starting with '#' will be ignored.\n"
-            " - Enter an empty line or press Ctrl-D to quit MetaCache.\n"
-            << endl;
+        cout << "No input files provided.\n";
 
         run_interactive_query_mode(db, opt);
     }
