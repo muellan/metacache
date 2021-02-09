@@ -301,6 +301,9 @@ public:
         if(taxonomyCache_.empty()) {
             throw std::runtime_error{"no taxonomy available!"};
         }
+        else {
+            initialize_taxonomy_caches();
+        }
 
         return featureStore_.remove_ambiguous_features(r, maxambig, taxonomyCache_);
     }

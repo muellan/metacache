@@ -104,7 +104,7 @@ lowest_ranked_ancestor(const ranked_lineage * targetLineages,
 //-----------------------------------------------------------------------------
 __device__
 const taxon*
-taxon_of_target(const ranked_lineage * targetLineages, target_id tgt)
+cached_taxon_of_target(const ranked_lineage * targetLineages, target_id tgt)
 {
     return targetLineages[tgt][0];
 }
@@ -208,7 +208,7 @@ bool insert_into_tophits(
     if(mergeBelow > taxon_rank::Sequence)
         cand.tax = lowest_ranked_ancestor(lineages, cand.tgt, mergeBelow);
     else
-        cand.tax = taxon_of_target(lineages, cand.tgt);
+        cand.tax = cached_taxon_of_target(lineages, cand.tgt);
 
     if(!cand.tax) return true;
 

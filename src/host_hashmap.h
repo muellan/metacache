@@ -411,7 +411,7 @@ public:
                     if(!i->empty()) {
                         std::set<const taxon*> taxa;
                         for(auto loc : *i) {
-                            taxa.insert(taxonomy.ancestor(loc.tgt, r));
+                            taxa.insert(taxonomy.cached_ancestor(loc.tgt, r));
                             if(taxa.size() > maxambig) {
                                 hashTable.clear(i);
                                 ++rem;

@@ -257,7 +257,7 @@ void show_taxon(std::ostream& os,
         const auto rmin = opt.lowestRank < tax->rank() ? tax->rank() : opt.lowestRank;
         const auto rmax = opt.showLineage ? opt.highestRank : rmin;
 
-        show_lineage(os, taxonomy.ranks(tax), opt.taxonStyle, rmin, rmax, opt.tokens);
+        show_lineage(os, taxonomy.cached_ranks(tax), opt.taxonStyle, rmin, rmax, opt.tokens);
     }
 }
 
@@ -281,7 +281,7 @@ void show_candidates(std::ostream& os,
         for(size_t i = 0; i < cand.size() && cand[i].hits > 0; ++i) {
             if(i > 0) os << ',';
             const taxon* tax = (cand[i].tax->rank() < lowest) ?
-                               taxonomy.ancestor(cand[i].tax,lowest) :
+                               taxonomy.cached_ancestor(cand[i].tgt,lowest) :
                                cand[i].tax;
             if(tax) {
                 os << tax->id();
@@ -311,7 +311,7 @@ void show_matches(std::ostream& os,
             if(*cur == *it)
                 ++count;
             else {
-                const taxon* tax = taxonomy.taxon_of_target(cur->tgt);
+                const taxon* tax = taxonomy.cached_taxon_of_target(cur->tgt);
                 if(tax) os << tax->name()
                            << '/' << int(cur->win)
                            << ':' << count << ',';
@@ -319,7 +319,7 @@ void show_matches(std::ostream& os,
                 count = 1;
             }
         }
-        const taxon* tax = taxonomy.taxon_of_target(cur->tgt);
+        const taxon* tax = taxonomy.cached_taxon_of_target(cur->tgt);
         if(tax) os << tax->name()
                    << '/' << int(cur->win)
                    << ':' << count << ',';
@@ -331,9 +331,9 @@ void show_matches(std::ostream& os,
             if(*cur == *it)
                 ++count;
             else {
-                const taxon* tax = taxonomy.ancestor(cur->tgt, lowest);
+                const taxon* tax = taxonomy.cached_ancestor(cur->tgt, lowest);
                 if(!tax) {
-                    tax = taxonomy.taxon_of_target(cur->tgt);
+                    tax = taxonomy.cached_taxon_of_target(cur->tgt);
                 }
                 os << tax->name() << ':' << count << ',';
 
@@ -341,9 +341,9 @@ void show_matches(std::ostream& os,
                 count = 1;
             }
         }
-        const taxon* tax = taxonomy.ancestor(cur->tgt, lowest);
+        const taxon* tax = taxonomy.cached_ancestor(cur->tgt, lowest);
         if(!tax) {
-            tax = taxonomy.taxon_of_target(cur->tgt);
+            tax = taxonomy.cached_taxon_of_target(cur->tgt);
         }
         os << tax->name() << ':' << count << ',';
     }
@@ -399,8 +399,8 @@ void show_matches_per_targets(std::ostream& os,
     const auto rmax = opt.showLineage ? opt.highestRank : rmin;
 
     for(const auto& mapping : tgtMatches) {
-        show_lineage(os, db.taxo_cache().ranks(mapping.first), opt.taxonStyle, rmin, rmax, opt.tokens);
-        os << opt.tokens.column << db.taxo_cache().taxon_of_target(mapping.first)->source().windows
+        show_lineage(os, db.taxo_cache().cached_ranks(mapping.first), opt.taxonStyle, rmin, rmax, opt.tokens);
+        os << opt.tokens.column << db.taxo_cache().cached_taxon_of_target(mapping.first)->source().windows
            << opt.tokens.column;
 
         bool first = true;

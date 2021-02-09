@@ -560,7 +560,7 @@ struct info_options {
     std::string dbfile;
     int dbpart = -1;
     info_mode mode = info_mode::basic;
-    std::vector<std::string> targetIds;
+    std::vector<std::string> targetNames;
     taxon_rank rank = taxon_rank::none;
 };
 

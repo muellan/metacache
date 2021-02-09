@@ -117,18 +117,18 @@ ground_truth(const taxonomy_cache& taxonomy, const string& header)
     //try to extract query id and find the corresponding target in database
     const taxon* tax = nullptr;
     tax = taxonomy.taxon_with_name(extract_accession_string(header, sequence_id_type::acc_ver));
-    if(tax) return taxonomy.next_ranked_ancestor(tax);
+    if(tax) return taxonomy.cached_next_ranked_ancestor(tax);
 
     tax = taxonomy.taxon_with_similar_name(extract_accession_string(header, sequence_id_type::acc));
-    if(tax) return taxonomy.next_ranked_ancestor(tax);
+    if(tax) return taxonomy.cached_next_ranked_ancestor(tax);
 
     //try to extract id from header
     tax = taxonomy.taxon_with_id(extract_taxon_id(header));
-    if(tax) return taxonomy.next_ranked_ancestor(tax);
+    if(tax) return taxonomy.cached_next_ranked_ancestor(tax);
 
     //try to find entire header as sequence identifier
     tax = taxonomy.taxon_with_name(header);
-    if(tax) return taxonomy.next_ranked_ancestor(tax);
+    if(tax) return taxonomy.cached_next_ranked_ancestor(tax);
 
     return nullptr;
 }
@@ -184,7 +184,7 @@ classify(const taxonomy_cache& taxonomy, const classification_options& opt,
         if(i->hits > threshold) {
             // include candidate in lca
             // lca lives on lineage of first cand, its rank can only increase
-            lca = taxonomy.ranked_lca(cand[0].tgt, i->tgt, lca->rank());
+            lca = taxonomy.cached_ranked_lca(cand[0].tgt, i->tgt, lca->rank());
             // exit early if lca rank already too high
             if(!lca || lca->rank() > opt.highestRank)
                 return nullptr;
@@ -268,7 +268,7 @@ void update_coverage_statistics(const taxonomy_cache& taxonomy,
 {
     if(!cls.groundTruth) return;
     //check if taxa are covered in DB
-    for(const taxon* tax : taxonomy.ranks(cls.groundTruth)) {
+    for(const taxon* tax : taxonomy.cached_ranks(cls.groundTruth)) {
         if(tax) {
             auto r = tax->rank();
             if(taxonomy.covers(*tax)) {
@@ -308,7 +308,7 @@ void evaluate_classification(
     }
 
     if(opt.precision) {
-        auto lca = taxonomy.ranked_lca(cls.best, cls.groundTruth);
+        auto lca = taxonomy.cached_ranked_lca(cls.best, cls.groundTruth);
         auto lowestCorrectRank = lca ? lca->rank() : taxon_rank::none;
 
         statistics.assign_known_correct(
@@ -339,7 +339,7 @@ void estimate_abundance(const taxonomy_cache& taxonomy, taxon_count_map& allTaxC
         taxon t{0,0,"",rank-1};
         auto begin = allTaxCounts.lower_bound(&t);
         for(auto taxCount = begin; taxCount != allTaxCounts.end();) {
-            auto lineage = taxonomy.ranks(taxCount->first);
+            auto lineage = taxonomy.cached_ranks(taxCount->first);
             const taxon* ancestor = nullptr;
             unsigned index = static_cast<unsigned>(rank);
             while(!ancestor && index < lineage.size())
@@ -366,7 +366,7 @@ void estimate_abundance(const taxonomy_cache& taxonomy, taxon_count_map& allTaxC
     //traverse allTaxCounts from leafs to root
     for(auto taxCount = allTaxCounts.rbegin(); taxCount != allTaxCounts.rend(); ++taxCount) {
         //find closest parent
-        auto lineage = taxonomy.ranks(taxCount->first);
+        auto lineage = taxonomy.cached_ranks(taxCount->first);
         const taxon* parent = nullptr;
         auto index = static_cast<std::uint8_t>(taxCount->first->rank()+1);
         while(index < lineage.size()) {
@@ -574,7 +574,7 @@ void filter_targets_by_coverage(
     //calculate coverage percentages
     for(const auto& mapping : tgtMatches) {
         target_id target = mapping.first;
-        const taxon* tax = taxonomy.taxon_of_target(target);
+        const taxon* tax = taxonomy.cached_taxon_of_target(target);
         const window_id targetSize = tax->source().windows;
         std::unordered_set<window_id> hitWindows;
         for(const auto& candidate : mapping.second) {

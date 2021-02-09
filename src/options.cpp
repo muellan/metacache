@@ -1851,7 +1851,7 @@ info_mode_cli(info_options& opt, error_messages& err)
                         "target", "targets", "tgt",
                         "sequence", "sequences", "seq")
                     .set(opt.mode, info_mode::targets),
-                opt_values("sequence_id", opt.targetIds)
+                opt_values("sequence_id", opt.targetNames)
             ),
             (
                 command("rank").set(opt.mode, info_mode::tax_ranks),

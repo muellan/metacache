@@ -151,29 +151,23 @@ void show_target_info(const info_options& opt)
     auto db = make_database(opt.dbfile, dbPart, database::scope::metadata_only);
     const auto& taxonomy = db.taxo_cache();
 
-    if(!opt.targetIds.empty()) {
-        for(const auto& tid : opt.targetIds) {
-            const taxon* tax = taxonomy.taxon_with_name(tid);
-            if(tax) {
-                show_target_info(cout, *tax, taxonomy.ranks(tax));
+    if(!opt.targetNames.empty()) {
+        for(const auto& target : opt.targetNames) {
+            const taxon* tax = taxonomy.taxon_with_name(target);
+            if(tax && tax->id() < 0) {
+                target_id tgt = -tax->id()-1;
+                show_target_info(cout, *tax, taxonomy.cached_ranks(tgt));
             }
             else {
-                cout << "Target (reference sequence) '" << tid
+                cout << "Target (reference sequence) '" << target
                      << "' not found in database.\n";
             }
         }
     }
     else {
         cout << "Targets (reference sequences) in database:\n";
-        //TODO get targets & lineages from cache
-        for(target_id tgt = 0; tgt < db.target_count(); ++tgt) {
-            const taxon* tax = taxonomy.taxon_of_target(tgt);
-            if(tax) {
-                show_target_info(cout, *tax, taxonomy.ranks(tgt));
-            }
-            else {
-                cout << "Invalid target with id " << tgt << ".\n";
-            }
+        for(const auto& ranks : taxonomy.target_lineages()) {
+            show_target_info(cout, *ranks[0], ranks);
         }
     }
 }
@@ -200,10 +194,11 @@ void show_lineage_table(const info_options& opt)
     }
     cout << '\n';
 
+    const auto& taxonomy = db.taxo_cache();
+
     //rows
-    for(const auto& tax : db.taxo_cache().target_taxa()) {
-        cout << tax.name();
-        auto ranks = db.taxo_cache().ranks(tax);
+    for(const auto& ranks : taxonomy.target_lineages()) {
+        cout << ranks[0]->name();
         for(auto r = rank::Sequence; r <= rank::Domain; ++r) {
             cout << '\t'
                  << (ranks[int(r)] ? ranks[int(r)]->id() : taxonomy::none_id());
@@ -236,8 +231,8 @@ void show_rank_statistics(const info_options& opt)
 
     std::map<const taxon*, std::size_t> stat;
 
-    for(const auto& tax : taxonomy.target_taxa()) {
-        const taxon* t = taxonomy.ancestor(tax, opt.rank);
+    for(target_id tgt = 0; tgt < db.target_count(); ++tgt) {
+        const taxon* t = taxonomy.cached_ancestor(tgt, opt.rank);
         if(t) {
             auto it = stat.find(t);
             if(it != stat.end()) {

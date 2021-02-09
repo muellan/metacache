@@ -35,6 +35,7 @@
 #include <map>
 #include <mutex>
 #include <set>
+#include <shared_mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -511,17 +512,8 @@ public:
     const taxon*
     lca(const taxon& a, const taxon& b) const
     {
-        return lca(lineage(a), lineage(b));
+        return lca(make_lineage(a), make_lineage(b));
     }
-
-    //---------------------------------------------------------------
-    const taxon*
-    ranked_lca(const taxon& a, const taxon& b) const
-    {
-        return ranked_lca(ranks(a), ranks(b));
-    }
-
-
     //---------------------------------------------------------------
     const taxon*
     lca(const full_lineage& lina, const full_lineage& linb) const
@@ -530,19 +522,6 @@ public:
             for(auto tb : linb) {
                 if(ta && tb && (ta == tb)) return ta;
             }
-        }
-        return nullptr;
-    }
-    //-----------------------------------------------------
-    const taxon*
-    ranked_lca(const ranked_lineage& lina, const ranked_lineage& linb,
-               rank lowest = rank::Sequence) const
-    {
-        for(int i  = static_cast<int>(lowest);
-                i <= static_cast<int>(rank::root);
-                ++i)
-        {
-            if(lina[i] && (lina[i] == linb[i])) return lina[i];
         }
         return nullptr;
     }
@@ -581,12 +560,12 @@ public:
 
     //---------------------------------------------------------------
     ranked_lineage
-    ranks(const taxon& tax) const {
-        return ranks(tax.id());
+    make_ranks(const taxon& tax) const {
+        return make_ranks(tax.id());
     }
     //-----------------------------------------------------
     ranked_lineage
-    ranks(taxon_id id) const
+    make_ranks(taxon_id id) const
     {
         auto lin = ranked_lineage{};
         for(auto& x : lin) x = nullptr;
@@ -606,12 +585,12 @@ public:
 
     //---------------------------------------------------------------
     full_lineage
-    lineage(const taxon& tax) const {
-        return lineage(tax.id());
+    make_lineage(const taxon& tax) const {
+        return make_lineage(tax.id());
     }
     //-----------------------------------------------------
     full_lineage
-    lineage(taxon_id id) const
+    make_lineage(taxon_id id) const
     {
         auto lin = full_lineage{};
 
@@ -703,7 +682,7 @@ private:
 
 /*************************************************************************//**
  *
- * @brief concurrency-safe ranked lineage cache
+ * @brief ranked lineage cache
  *
  *****************************************************************************/
 class ranked_lineages_cache
@@ -721,15 +700,13 @@ public:
      *                     and for their ranked ancestors
      */
     explicit
-    ranked_lineages_cache(const taxonomy& taxa,
-                          taxon_rank highestRank = taxon_rank::none)
+    ranked_lineages_cache(const taxonomy& taxa)
     :
-        taxa_(taxa), highestRank_{highestRank},
-        empty_{}, lins_{}, mutables_{},
+        taxa_(taxa), highestRank_{taxon_rank::Sequence},
+        empty_{}, lins_{},
         outdated_(true)
     {
         for(auto& x : empty_) x = nullptr;
-        update();
     }
 
 
@@ -738,7 +715,7 @@ public:
 
     ranked_lineages_cache(ranked_lineages_cache&& src):
         taxa_(src.taxa_), highestRank_{src.highestRank_},
-        lins_{std::move(src.lins_)}, mutables_{},
+        lins_{std::move(src.lins_)},
         outdated_(src.outdated_)
     {}
 
@@ -750,42 +727,52 @@ public:
         outdated_ = true;
     }
 
-private:
     //---------------------------------------------------------------
-    const ranked_lineage&
-    insert(const taxon& tax) {
-        auto i = lins_.find(&tax);
-        if(i != lins_.end())
-            return i->second;
-        else
-            return lins_.emplace(&tax, taxa_.ranks(tax)).first->second;
+    void
+    init_from_targets(const std::vector<ranked_lineage>& lins) {
+        clear();
+        highestRank_ = taxon_rank::Sequence;
+        for(const auto& lin : lins)
+            insert_lineage(lin);
     }
-public:
-    //-----------------------------------------------------
-    /**
-     * @param brief  if cache is outdated, clear it, then reinitialize it
-     */
-    void update() {
-        if(!outdated_) return;
 
-        std::lock_guard<std::mutex> lock(mutables_);
-        lins_.clear();
-        for(const auto& t : taxa_) {
-            if(t.rank() <= highestRank_) {
-                // insert lineage of taxon
-                auto& lin = insert(t);
-                // and all its ranked ancestors
-                for(const auto& tax : lin) {
-                    if(tax)
-                        insert(*tax);
-                }
+    //---------------------------------------------------------------
+    /**
+     * @brief  insert lineage for all its ranked ancestors
+     */
+    void
+    insert_lineage(ranked_lineage lin) {
+        for(int i = static_cast<int>(taxon_rank::Sequence);
+                i < static_cast<int>(taxon_rank::root);
+                ++i)
+        {
+            const taxon* tax = lin[i];
+            if(tax) {
+                // insert if not present
+                if(lins_.find(tax) == lins_.end())
+                    lins_.emplace(tax, lin);
+                // remove this rank for next ancestor
+                lin[i] = nullptr;
             }
         }
-        outdated_ = false;
     }
+
+    //---------------------------------------------------------------
+    /**
+     * @brief  insert lineage for taxon and all its ranked ancestors
+     */
+    void
+    insert(const taxon& tax) {
+        auto i = lins_.find(&tax);
+        if(i == lins_.end()) {
+            auto lin = lins_.emplace(&tax, taxa_.make_ranks(tax)).first->second;
+            insert_lineage(lin);
+        }
+    }
+
     //-----------------------------------------------------
     /**
-     * @brief    set highest rank of cache, then update
+     * @brief    increase highest rank of cache, then update if outdated
      *
      * @details  if new rank is not higher than previous rank,
      *           only update if already outdated
@@ -793,21 +780,46 @@ public:
      * @param highestRank  initialize cache for taxa below and at this rank
      *                     and for their ranked ancestors
      */
-    void update(taxon_rank highestRank) {
+    void update(taxon_rank highestRank = taxon_rank::Sequence) {
         if(highestRank_ < highestRank) {
+            highestRank_ = highestRank;
             outdated_ = true;
         }
-        highestRank_ = highestRank;
-        update();
+
+        if(!outdated_) return;
+
+        for(const auto& t : taxa_) {
+            if(t.rank() <= highestRank_) {
+                insert(t);
+            }
+        }
+        outdated_ = false;
     }
 
     //-----------------------------------------------------
     void clear() {
-        std::lock_guard<std::mutex> lock(mutables_);
         lins_.clear();
         outdated_ = true;
     }
 
+    //-----------------------------------------------------
+    /**
+     * @brief  rebuild cache using previous highest rank
+     */
+    void reset() {
+        clear();
+        update();
+    }
+
+    //-----------------------------------------------------
+    /**
+     * @brief  rebuild cache using new highest rank
+     */
+    void reset(taxon_rank highestRank) {
+        clear();
+        highestRank_ = highestRank;
+        update();
+    }
 
     //---------------------------------------------------------------
     /// @brief only works if tax is cached - make sure to call update first
@@ -832,7 +844,6 @@ private:
     taxon_rank highestRank_;
     ranked_lineage empty_;
     mutable std::unordered_map<const taxon*,ranked_lineage> lins_;
-    mutable std::mutex mutables_;
     bool outdated_;
 };
 
@@ -841,7 +852,7 @@ private:
 
 /*************************************************************************//**
 *
-* @brief concurrency-safe ranked lineage cache
+* @brief ranked lineage cache
 *
 *****************************************************************************/
 class ranked_lineages_of_targets
@@ -892,15 +903,35 @@ public:
     }
 
     //---------------------------------------------------------------
+    /**
+     * @brief  update cache if target count increased or already outdated
+     */
     void update(target_id numTargets = 0) {
+        if(numTargets > lins_.size()) {
+            outdated_ = true;
+        }
+
         if(!outdated_) return;
 
-        if(numTargets == 0) numTargets = lins_.size();
-        lins_.clear();
-        for(target_id tgt = 0; tgt < numTargets; ++tgt) {
-            lins_.emplace_back(taxa_.ranks(taxon_id_of_target(tgt)));
+        // add new target ranks
+        const target_id oldSize = lins_.size();
+        lins_.resize(numTargets);
+
+
+        for(target_id tgt = oldSize; tgt < numTargets; ++tgt) {
+            lins_[tgt] = taxa_.make_ranks(taxon_id_of_target(tgt));
         }
         outdated_ = false;
+    }
+
+    //---------------------------------------------------------------
+    /**
+     * @brief  rebuild cache for given target count
+     */
+    void reset(target_id numTargets = 0) {
+        if(numTargets == 0) numTargets = lins_.size();
+        clear();
+        update(numTargets);
     }
 
     //-----------------------------------------------------
@@ -953,7 +984,7 @@ public:
     //---------------------------------------------------------------
     taxonomy_cache() :
         taxa_{},
-        taxonLineages_{taxa_, taxon_rank::Sequence},
+        taxonLineages_{taxa_},
         targetLineages_{taxa_},
         name2tax_{}
     {}
@@ -992,7 +1023,7 @@ public:
 
 
     //---------------------------------------------------------------
-    const taxon* taxon_of_target(target_id id) const {
+    const taxon* cached_taxon_of_target(target_id id) const {
         return targetLineages_[id][0];
     }
     //-----------------------------------------------------
@@ -1028,14 +1059,14 @@ public:
      * @brief concurrency-safe taxon name lookup
      */
     bool contains_name(const taxon_name& sid) {
-        std::lock_guard<std::mutex> lock(name2taxMtx);
+        std::shared_lock<std::shared_timed_mutex> lock(name2taxMtx);
         return name2tax_.find(sid) != name2tax_.end();
     }
     /****************************************************************
      * @brief concurrency-safe taxon name insert
      */
     void insert_name(taxon_name sid, const taxon* tax) {
-        std::lock_guard<std::mutex> lock(name2taxMtx);
+        std::unique_lock<std::shared_timed_mutex> lock(name2taxMtx);
         name2tax_.insert({std::move(sid), tax});
     }
 
@@ -1081,28 +1112,38 @@ public:
 
     //---------------------------------------------------------------
     full_lineage
-    lineage(const taxon* tax) const noexcept {
-        return tax ? lineage(*tax) : full_lineage();
+    make_lineage(const taxon* tax) const noexcept {
+        return tax ? make_lineage(*tax) : full_lineage();
     }
     //-----------------------------------------------------
     full_lineage
-    lineage(const taxon& tax) const noexcept {
-        return taxa_.lineage(tax);
+    make_lineage(const taxon& tax) const noexcept {
+        return taxa_.make_lineage(tax);
     }
 
     //---------------------------------------------------------------
+    const ranked_lineage
+    make_ranks(const taxon* tax) const noexcept {
+        return tax ? make_ranks(*tax) : ranked_lineage{};
+    }
+    // -----------------------------------------------------
+    const ranked_lineage
+    make_ranks(const taxon& tax) const noexcept {
+        return taxa_.make_ranks(tax);
+    }
+    //---------------------------------------------------------------
     const ranked_lineage&
-    ranks(const taxon* tax) const noexcept {
+    cached_ranks(const taxon* tax) const noexcept {
+        return taxonLineages_[tax];
+    }
+    // -----------------------------------------------------
+    const ranked_lineage&
+    cached_ranks(const taxon& tax) const noexcept {
         return taxonLineages_[tax];
     }
     //-----------------------------------------------------
     const ranked_lineage&
-    ranks(const taxon& tax) const noexcept {
-        return taxonLineages_[tax];
-    }
-    //-----------------------------------------------------
-    const ranked_lineage&
-    ranks(target_id tgt) const noexcept {
+    cached_ranks(target_id tgt) const noexcept {
         return targetLineages_[tgt];
     }
 
@@ -1119,28 +1160,28 @@ public:
 
     //---------------------------------------------------------------
     const taxon*
-    ancestor(const taxon* tax, taxon_rank r) const noexcept {
-        return tax ? ancestor(*tax,r) : nullptr;
+    cached_taxon_ancestor(const taxon* tax, taxon_rank r) const noexcept {
+        return tax ? cached_taxon_ancestor(*tax,r) : nullptr;
     }
     //-----------------------------------------------------
     const taxon*
-    ancestor(const taxon& tax, taxon_rank r) const noexcept {
+    cached_taxon_ancestor(const taxon& tax, taxon_rank r) const noexcept {
         return taxonLineages_[tax][int(r)];
     }
     //-----------------------------------------------------
     const taxon*
-    ancestor(target_id tgt, taxon_rank r) const noexcept {
+    cached_ancestor(target_id tgt, taxon_rank r) const noexcept {
         return targetLineages_[tgt][int(r)];
     }
 
     //---------------------------------------------------------------
     const taxon*
-    next_ranked_ancestor(const taxon* tax) const noexcept {
-        return tax ? next_ranked_ancestor(*tax) : nullptr;
+    cached_next_ranked_ancestor(const taxon* tax) const noexcept {
+        return tax ? cached_next_ranked_ancestor(*tax) : nullptr;
     }
     //-----------------------------------------------------
     const taxon*
-    next_ranked_ancestor(const taxon& tax) const noexcept {
+    cached_next_ranked_ancestor(const taxon& tax) const noexcept {
         if(tax.rank() != taxon_rank::none) return &tax;
         for(const taxon* a : taxonLineages_[tax]) {
             if(a) return a;
@@ -1170,20 +1211,44 @@ public:
         return taxa_.lca(ta,tb);
     }
 
+     //-----------------------------------------------------
+    const taxon*
+    ranked_lca(const ranked_lineage& lina, const ranked_lineage& linb,
+               taxon_rank lowest = taxon_rank::Sequence) const
+    {
+        for(int i  = static_cast<int>(lowest);
+                i <= static_cast<int>(taxon_rank::root);
+                ++i)
+        {
+            if(lina[i] && (lina[i] == linb[i])) return lina[i];
+        }
+        return nullptr;
+    }
     //---------------------------------------------------------------
     const taxon*
-    ranked_lca(const taxon* ta, const taxon* tb) const {
-        return (ta && tb) ? ranked_lca(*ta,*tb) : nullptr;
+    make_ranked_lca(const taxon* ta, const taxon* tb) const {
+        return (ta && tb) ? make_ranked_lca(*ta,*tb) : nullptr;
+    }
+    //---------------------------------------------------------------
+    const taxon*
+    make_ranked_lca(const taxon& ta, const taxon& tb) const
+    {
+        return ranked_lca(taxa_.make_ranks(ta), taxa_.make_ranks(tb));
+    }
+    //---------------------------------------------------------------
+    const taxon*
+    cached_ranked_lca(const taxon* ta, const taxon* tb) const {
+        return (ta && tb) ? cached_ranked_lca(*ta,*tb) : nullptr;
     }
     //-----------------------------------------------------
     const taxon*
-    ranked_lca(const taxon& ta, const taxon& tb) const {
-        return taxa_.ranked_lca(taxonLineages_[ta], taxonLineages_[tb]);
+    cached_ranked_lca(const taxon& ta, const taxon& tb) const {
+        return ranked_lca(taxonLineages_[ta], taxonLineages_[tb]);
     }
     //-----------------------------------------------------
     const taxon*
-    ranked_lca(target_id ta, target_id tb, taxon_rank lowest) const {
-        return taxa_.ranked_lca(targetLineages_[ta], targetLineages_[tb], lowest);
+    cached_ranked_lca(target_id ta, target_id tb, taxon_rank lowest) const {
+        return ranked_lca(targetLineages_[ta], targetLineages_[tb], lowest);
     }
 
 
@@ -1201,7 +1266,7 @@ public:
 
         for(const auto& tax : taxa_) {
             if(tax.rank() == taxon_rank::Sequence) {
-                for(const taxon* t : taxa_.lineage(tax)) {
+                for(const taxon* t : taxa_.make_lineage(tax)) {
                     if(t == &covered) ++coverage;
                 }
             }
@@ -1219,7 +1284,7 @@ public:
     bool covers(const taxon& covered) const {
         for(const auto& tax : taxa_) {
             if(tax.rank() == taxon_rank::Sequence) {
-                for(const taxon* t : taxa_.lineage(tax)) {
+                for(const taxon* t : taxa_.make_lineage(tax)) {
                     if(t == &covered) return true;
                 }
             }
@@ -1245,25 +1310,25 @@ public:
             taxa_.insert_or_replace(std::move(t));
         }
         //re-initialize ranks cache
-        mark_cached_lineages_outdated();
-        update_cached_lineages(taxon_rank::Sequence);
+        targetLineages_.reset();
+        taxonLineages_.init_from_targets(targetLineages_.lineages());
     }
 
 
     //---------------------------------------------------------------
     void initialize_caches(std::uint64_t targetCount) {
-        mark_cached_lineages_outdated();
-        update_cached_lineages(taxon_rank::Sequence, targetCount);
+        targetLineages_.reset(targetCount);
+        taxonLineages_.init_from_targets(targetLineages_.lineages());
 
         //sequence id lookup
-        for(const auto& t : taxa_.subrange_until(0)) {
+        for(const auto& t : target_taxa()) {
             name2tax_.insert({t.name(), &t});
         }
     }
 
 
     //---------------------------------------------------------------
-    void mark_cached_lineages_outdated() const {
+    void mark_cached_lineages_outdated() {
         taxonLineages_.mark_outdated();
         targetLineages_.mark_outdated();
     }
@@ -1295,7 +1360,7 @@ private:
     mutable ranked_lineages_of_targets targetLineages_;
     std::map<taxon_name,const taxon*> name2tax_;
 
-    std::mutex name2taxMtx;
+    std::shared_timed_mutex name2taxMtx;
     std::mutex taxaMtx;
 };
 

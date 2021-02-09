@@ -185,7 +185,7 @@ public:
         if(rules.mergeBelow > taxon_rank::Sequence)
             cand.tax = taxonomy.lowest_ranked_ancestor(cand.tgt, rules.mergeBelow);
         else
-            cand.tax = taxonomy.taxon_of_target(cand.tgt);
+            cand.tax = taxonomy.cached_taxon_of_target(cand.tgt);
 
         if(!cand.tax) return true;
 
@@ -297,7 +297,7 @@ public:
                 const taxonomy_cache& taxonomy,
                 const candidate_generation_rules& = candidate_generation_rules{})
     {
-        cand.tax = taxonomy.taxon_of_target(cand.tgt);
+        cand.tax = taxonomy.cached_taxon_of_target(cand.tgt);
         cand_.push_back(cand);
         return true;
     }
