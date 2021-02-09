@@ -74,6 +74,7 @@ HEADERS = \
           src/version.h
 
 SOURCES = \
+          src/building.cpp \
           src/classification.cpp \
           src/cmdline_utility.cpp \
           src/database.cpp \
@@ -87,6 +88,7 @@ SOURCES = \
           src/mode_query.cpp \
           src/options.cpp \
           src/printing.cpp \
+          src/querying.cpp \
           src/sequence_io.cpp \
           src/taxonomy_io.cpp
 
@@ -198,6 +200,12 @@ $(CUDA_ARTIFACT): $(OBJS) $(CUDA_OBJS)
 	$(CUDA_COMPILER) -o $(CUDA_ARTIFACT) $(OBJS) $(CUDA_OBJS) $(CUDA_LDFLAGS)
 
 $(DIR)/main.o : src/main.cpp src/modes.h
+	$(COMPILE)
+
+$(DIR)/building.o : src/building.cpp $(HEADERS)
+	$(COMPILE)
+
+$(DIR)/querying.o : src/querying.cpp $(HEADERS)
 	$(COMPILE)
 
 $(DIR)/printing.o : src/printing.cpp $(HEADERS)
