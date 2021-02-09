@@ -1845,7 +1845,7 @@ info_mode_cli(info_options& opt, error_messages& err)
             .required(false).set(opt.mode, info_mode::db_config)
         ,
         one_of(
-            command(""), // dummy
+            option(""), // dummy
             (
                 command("reference", "references", "ref",
                         "target", "targets", "tgt",
