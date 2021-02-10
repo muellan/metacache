@@ -116,7 +116,7 @@ void rank_targets_with_mapping_file(taxonomy_cache& taxonomy,
         if(tax) {
             auto i = targetTaxa.find(tax);
             if(i != targetTaxa.end()) {
-                taxonomy.reset_parent(*tax, taxid);
+                taxonomy.reset_target_parent(*tax, taxid);
                 targetTaxa.erase(i);
                 if(targetTaxa.empty()) break;
             }

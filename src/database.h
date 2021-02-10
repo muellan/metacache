@@ -298,7 +298,7 @@ public:
      */
     feature_count_type
     remove_ambiguous_features(taxon_rank r, bucket_size_type maxambig) {
-        if(taxonomyCache_.empty()) {
+        if(taxonomyCache_.taxa_empty()) {
             throw std::runtime_error{"no taxonomy available!"};
         }
         else {

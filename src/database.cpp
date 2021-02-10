@@ -60,9 +60,8 @@ bool database::add_target(part_id dbPart,
     if(parentTaxid < 1) parentTaxid = 0;
     const taxon* newtax = nullptr;
     // insert sequence metadata as a new taxon
-    newtax = taxonomyCache_.emplace_taxon(
-        taxid, parentTaxid, sid,
-        taxon_rank::Sequence, std::move(source));
+    newtax = taxonomyCache_.emplace_target_taxon(
+        taxid, parentTaxid, sid, std::move(source));
 
     // allows lookup via sequence id (e.g. NCBI accession number)
     taxonomyCache_.insert_name(std::move(sid), newtax);

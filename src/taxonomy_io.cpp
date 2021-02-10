@@ -100,8 +100,8 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
     }
     else {
         cerr << "Could not read taxon names file "
-                  << taxNamesFile
-                  << "; continuing with ids only." << std::endl;
+             << taxNamesFile
+             << "; continuing with ids only." << std::endl;
     }
 
     taxonomy tax;
@@ -122,7 +122,7 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
             forward(is, '\n');
             mergedTaxa.insert({oldId,newId});
 
-            tax.emplace(oldId, newId, "", "");
+            tax.emplace_non_target_taxon(oldId, newId, "", "");
         }
         if(showInfo) cout << "done." << std::endl;
     }
@@ -163,9 +163,9 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
             mi = mergedTaxa.find(parentId);
             if(mi != mergedTaxa.end()) parentId = mi->second;
 
-            tax.emplace(taxonId, parentId, taxonName, rankName);
+            tax.emplace_non_target_taxon(taxonId, parentId, taxonName, rankName);
         }
-        if(showInfo) cout << tax.size() << " taxa read." << std::endl;
+        if(showInfo) cout << tax.non_target_taxon_count() << " taxa read." << std::endl;
     }
     else {
         cerr << "Could not read taxonomic nodes file "
