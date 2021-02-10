@@ -34,9 +34,9 @@
 #include <iostream>
 #include <map>
 #include <mutex>
-#include <set>
 #include <shared_mutex>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 
@@ -296,10 +296,9 @@ public:
             rank_{rk}
         {}
 
-        //makes taxa sortable
         inline friend bool
-        operator < (const taxon& a, const taxon& b) noexcept {
-            return a.id_ < b.id_;
+        operator == (const taxon& a, const taxon& b) noexcept {
+            return a.id_ == b.id_;
         }
 
         taxon_id id() const noexcept { return id_; }
@@ -356,9 +355,17 @@ public:
         rank_type rank_;
     };
 
+    struct taxon_hash
+    {
+        std::size_t operator()(const taxon& tax) const noexcept
+        {
+            return std::hash<taxon_id>{}(tax.id());
+        }
+    };
+
 
 private:
-    using taxon_store = std::set<taxon>;
+    using taxon_store = std::unordered_set<taxon,taxon_hash>;
 
 public:
     //-----------------------------------------------------

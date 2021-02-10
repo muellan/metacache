@@ -28,6 +28,9 @@
 #include "stat_combined.h"
 #include "taxonomy.h"
 
+#include <set>
+#include <vector>
+
 
 namespace mc {
 
