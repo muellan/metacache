@@ -1402,13 +1402,16 @@ public:
 
     //---------------------------------------------------------------
     void initialize_caches(std::uint64_t targetCount) {
+        auto thread = std::async(std::launch::async, [&] {
+            for(const auto& t : target_taxa()) {
+                name2tax_.insert({t.name(), &t});
+            }
+        });
+
         targetLineages_.reset(targetCount);
         taxonLineages_.init_from_targets(targetLineages_.lineages());
 
-        //sequence id lookup
-        for(const auto& t : target_taxa()) {
-            name2tax_.insert({t.name(), &t});
-        }
+        thread.get();
     }
 
 
