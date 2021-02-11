@@ -34,6 +34,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <numeric>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -957,10 +958,6 @@ private:
     {
         auto batchValuesOffset = valuesOffset;
 
-        //load batch
-        read_binary(is, keyBuffer.data(), batchSize);
-        read_binary(is, sizeBuffer.data(), batchSize);
-
         //insert batch
         for(std::uint64_t i = 0; i < batchSize; ++i) {
             const auto& bucketSize = sizeBuffer[i];
@@ -976,7 +973,7 @@ private:
             }
         }
         std::uint64_t batchValuesCount = valuesOffset - batchValuesOffset;
-        read_binary(is, batchValuesOffset, batchValuesCount);
+        // read_binary(is, batchValuesOffset, batchValuesCount);
 
         return batchValuesCount;
     }
@@ -1009,13 +1006,51 @@ private:
             auto valuesOffset = alloc_.allocate(nvalues);
 
             {// read keys & bucket sizes & values in batches
+                std::mutex mtx;
+                std::condition_variable condVar0;
+                std::condition_variable condVar1;
+                bool threadSwitcher = 0;
+
                 const len_t numFullBatches = nkeys / batchSize;
                 const len_t lastBatchSize = nkeys % batchSize;
 
                 std::vector<key_type> keyBuffer(batchSize);
                 std::vector<bucket_size_type> sizeBuffer(batchSize);
 
+                auto valueReader = std::async(std::launch::async, [&, valuesOffset] {
+                    auto valuesPointer = valuesOffset;
+                    std::uint64_t batchValuesCount = 0;
+
+                    for(len_t b = 0; b < numFullBatches; ++b) {
+                        {
+                            std::unique_lock<std::mutex> lock(mtx);
+                            condVar1.wait(lock, [&]{ return threadSwitcher == 1; });
+
+                            batchValuesCount = std::accumulate(
+                                sizeBuffer.begin(), sizeBuffer.end(), std::uint64_t(0));
+
+                            read_binary(is, valuesPointer, batchValuesCount);
+
+                            threadSwitcher = 0;
+                        }
+                        condVar0.notify_one();
+
+                        valuesPointer += batchValuesCount;
+                    }
+                });
+
                 for(len_t b = 0; b < numFullBatches; ++b) {
+                    {
+                        std::unique_lock<std::mutex> lock(mtx);
+                        condVar0.wait(lock, [&]{ return threadSwitcher == 0; });
+
+                        read_binary(is, keyBuffer.data(), batchSize);
+                        read_binary(is, sizeBuffer.data(), batchSize);
+
+                        threadSwitcher = 1;
+                    }
+                    condVar1.notify_one();
+
                     auto batchValuesCount = deserialize_batch_of_buckets(
                         is, keyBuffer, sizeBuffer, batchSize, valuesOffset);
 
@@ -1026,8 +1061,15 @@ private:
                     valuesOffset += batchValuesCount;
                 }
 
+                valueReader.get();
+
+                read_binary(is, keyBuffer.data(), lastBatchSize);
+                read_binary(is, sizeBuffer.data(), lastBatchSize);
+
                 auto batchValuesCount = deserialize_batch_of_buckets(
                     is, keyBuffer, sizeBuffer, lastBatchSize, valuesOffset);
+
+                read_binary(is, valuesOffset, batchValuesCount);
 
                 readingProgress.counter +=
                     batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
