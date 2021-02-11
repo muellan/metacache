@@ -41,9 +41,9 @@
 #include <iostream>
 #include <map>
 #include <memory>
-#include <set>
 #include <stdexcept>
 #include <thread>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -56,7 +56,7 @@ using std::cerr;
 using std::flush;
 using std::endl;
 
-
+using taxon_pointer_set = std::unordered_set<const taxon*>;
 
 /*************************************************************************//**
  *
@@ -67,7 +67,7 @@ using std::endl;
  *
  *****************************************************************************/
 void rank_targets_with_mapping_file(taxonomy_cache& taxonomy,
-                                    std::set<const taxon*>& targetTaxa,
+                                    taxon_pointer_set& targetTaxa,
                                     const string& mappingFile,
                                     info_level infoLvl)
 {
@@ -138,10 +138,10 @@ void rank_targets_with_mapping_file(taxonomy_cache& taxonomy,
  * @return target taxa that have no parent taxon assigned
  *
  *****************************************************************************/
-std::set<const taxon*>
+taxon_pointer_set
 unranked_targets(const taxonomy_cache& taxonomy)
 {
-    auto res = std::set<const taxon*>{};
+    auto res = taxon_pointer_set{};
 
     for(const auto& tax : taxonomy.target_taxa()) {
         if(!tax.has_parent()) res.insert(&tax);
@@ -157,10 +157,10 @@ unranked_targets(const taxonomy_cache& taxonomy)
  * @return all target taxa
  *
  *****************************************************************************/
-std::set<const taxon*>
+taxon_pointer_set
 all_targets(const taxonomy_cache& taxonomy)
 {
-    auto res = std::set<const taxon*>{};
+    auto res = taxon_pointer_set{};
 
     for(const auto& tax : taxonomy.target_taxa()) {
         res.insert(&tax);
@@ -178,7 +178,7 @@ all_targets(const taxonomy_cache& taxonomy)
  *****************************************************************************/
 void try_to_rank_unranked_targets(taxonomy_cache& taxonomy, const build_options& opt)
 {
-    std::set<const taxon*> unranked;
+    taxon_pointer_set unranked;
     if(opt.resetParents)
         unranked = all_targets(taxonomy);
     else

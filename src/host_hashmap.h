@@ -412,7 +412,7 @@ public:
             else {
                 for(auto i = hashTable.begin(), e = hashTable.end(); i != e; ++i) {
                     if(!i->empty()) {
-                        std::set<const taxon*> taxa;
+                        std::unordered_set<const taxon*> taxa;
                         for(auto loc : *i) {
                             taxa.insert(taxonomy.cached_ancestor(loc.tgt, r));
                             if(taxa.size() > maxambig) {
