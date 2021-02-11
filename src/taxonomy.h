@@ -31,6 +31,7 @@
 #include <array>
 #include <cassert>
 #include <cstdint>
+#include <future>
 #include <iostream>
 #include <map>
 #include <mutex>
@@ -981,11 +982,30 @@ public:
         // add new target ranks
         const target_id oldSize = lins_.size();
         lins_.resize(numTargets);
+        const target_id numNewTargets = numTargets - oldSize;
 
+        const unsigned numThreads = std::min(4U, numNewTargets / (1U << 10));
+        const target_id targetsPerThread = numThreads ? numNewTargets / numThreads : 0;
+        const target_id targetsRemaining = numThreads ? numNewTargets % numThreads : numNewTargets;
 
-        for(target_id tgt = oldSize; tgt < numTargets; ++tgt) {
+        std::vector<std::future<void>> threads{};
+        for(unsigned i = 0; i < numThreads; ++i) {
+            threads.emplace_back(std::async(std::launch::async, [&, i]{
+                for(target_id j = 0; j < targetsPerThread; ++j) {
+                    const target_id tgt = oldSize+i*targetsPerThread + j;
+                    lins_[tgt] = taxa_.make_ranks(taxon_id_of_target(tgt));
+                }
+            }));
+        }
+
+        for(target_id j = 0; j < targetsRemaining; ++j) {
+            const target_id tgt = oldSize+numThreads*targetsPerThread + j;
             lins_[tgt] = taxa_.make_ranks(taxon_id_of_target(tgt));
         }
+
+        for(auto& t : threads)
+            t.get();
+
         outdated_ = false;
     }
 
