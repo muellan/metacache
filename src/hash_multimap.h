@@ -239,6 +239,8 @@ class hash_multimap
     using value_alloc  = std::allocator_traits<ValueAllocator>;
     using alloc_config = allocator_config<ValueAllocator>;
 
+    using serialization_size_type = std::uint64_t;
+
 public:
     //---------------------------------------------------------------
     using key_type         = Key;
@@ -948,53 +950,112 @@ public:
 
 
 private:
-    //---------------------------------------------------------------
-    std::uint64_t deserialize_batch_of_buckets(
-        std::istream& is,
-        std::vector<key_type>& keyBuffer,
-        std::vector<bucket_size_type>& sizeBuffer,
-        std::uint64_t batchSize,
-        value_type * valuesOffset)
-    {
-        auto batchValuesOffset = valuesOffset;
+    struct deserializer {
+        using size_type = serialization_size_type;
 
-        //insert batch
-        for(std::uint64_t i = 0; i < batchSize; ++i) {
-            const auto& bucketSize = sizeBuffer[i];
+        std::vector<key_type> keyBuffer;
+        std::vector<bucket_size_type> sizeBuffer;
+        size_type fullBatchSize;
+        size_type numFullBatches;
+        size_type lastBatchSize;
+        value_type * valuesOffset0;
+        value_type * valuesOffset1;
+
+        std::mutex mtx;
+        std::condition_variable condVar0;
+        std::condition_variable condVar1;
+        bool threadSwitcher;
+
+        deserializer(size_type nkeys, size_type batchSize, value_type * valuePointer) :
+            keyBuffer(batchSize),
+            sizeBuffer(batchSize),
+            fullBatchSize{batchSize},
+            numFullBatches{nkeys / batchSize},
+            lastBatchSize{nkeys % batchSize},
+            valuesOffset0{valuePointer},
+            valuesOffset1{valuePointer},
+            mtx{},
+            condVar0{},
+            condVar1{},
+            threadSwitcher{0}
+        {}
+    };
+
+    //---------------------------------------------------------------
+    void deserialize_batch_of_buckets(
+        std::istream& is,
+        deserializer& deserializer,
+        serialization_size_type batchSize)
+    {
+        // read keys and sizes
+        {
+            std::unique_lock<std::mutex> lock(deserializer.mtx);
+            deserializer.condVar0.wait(lock, [&]{ return deserializer.threadSwitcher == 0; });
+
+            read_binary(is, deserializer.keyBuffer.data(), batchSize);
+            read_binary(is, deserializer.sizeBuffer.data(), batchSize);
+
+            deserializer.threadSwitcher = 1;
+        }
+        deserializer.condVar1.notify_one();
+
+        // insert batch
+        for(serialization_size_type i = 0; i < batchSize; ++i) {
+            const auto& bucketSize = deserializer.sizeBuffer[i];
 
             if(bucketSize > 0) {
-                const auto& key = keyBuffer[i];
+                const auto& key = deserializer.keyBuffer[i];
 
-                auto it = insert_into_slot(key, valuesOffset, bucketSize, bucketSize);
+                auto it = insert_into_slot(key, deserializer.valuesOffset0, bucketSize, bucketSize);
                 if(it == buckets_.end())
                     std::cerr << "could not insert key " << key << '\n';
 
-                valuesOffset += bucketSize;
+                deserializer.valuesOffset0 += bucketSize;
             }
         }
-        std::uint64_t batchValuesCount = valuesOffset - batchValuesOffset;
-        // read_binary(is, batchValuesOffset, batchValuesCount);
+    }
+
+    //---------------------------------------------------------------
+    serialization_size_type deserialize_batch_of_values(
+        std::istream& is,
+        deserializer& deserializer,
+        serialization_size_type batchSize)
+    {
+        serialization_size_type batchValuesCount = 0;
+        {
+            std::unique_lock<std::mutex> lock(deserializer.mtx);
+            deserializer.condVar1.wait(lock, [&]{ return deserializer.threadSwitcher == 1; });
+
+            batchValuesCount = std::accumulate(
+                deserializer.sizeBuffer.begin(),
+                deserializer.sizeBuffer.begin()+batchSize,
+                serialization_size_type(0));
+
+            read_binary(is, deserializer.valuesOffset1, batchValuesCount);
+
+            deserializer.threadSwitcher = 0;
+        }
+        deserializer.condVar0.notify_one();
+
+        deserializer.valuesOffset1 += batchValuesCount;
 
         return batchValuesCount;
     }
 
-
     //---------------------------------------------------------------
     void deserialize(std::istream& is, concurrent_progress& readingProgress)
     {
-        using len_t = std::uint64_t;
-
         clear();
 
-        len_t nkeys = 0;
+        serialization_size_type nkeys = 0;
         read_binary(is, nkeys);
-        len_t nvalues = 0;
+        serialization_size_type nvalues = 0;
         read_binary(is, nvalues);
 
         readingProgress.total += nkeys*(sizeof(key_type)+sizeof(bucket_size_type))
                                + nvalues*sizeof(value_type);
 
-        len_t batchSize = 0;
+        serialization_size_type batchSize = 0;
         read_binary(is, batchSize);
 
         if(nkeys > 0) {
@@ -1003,77 +1064,39 @@ private:
             //array; the default chunk_allocator does this
             reserve_keys(nkeys);
             reserve_values(nvalues);
-            auto valuesOffset = alloc_.allocate(nvalues);
+            const auto valuesPointer = alloc_.allocate(nvalues);
+
+            deserializer deserializer(nkeys, batchSize, valuesPointer);
 
             {// read keys & bucket sizes & values in batches
-                std::mutex mtx;
-                std::condition_variable condVar0;
-                std::condition_variable condVar1;
-                bool threadSwitcher = 0;
+                auto valueReader = std::async(std::launch::async, [&]
+                {
+                    for(serialization_size_type b = 0; b < deserializer.numFullBatches; ++b) {
+                        auto batchValuesCount = deserialize_batch_of_values(
+                            is, deserializer, deserializer.fullBatchSize);
 
-                const len_t numFullBatches = nkeys / batchSize;
-                const len_t lastBatchSize = nkeys % batchSize;
-
-                std::vector<key_type> keyBuffer(batchSize);
-                std::vector<bucket_size_type> sizeBuffer(batchSize);
-
-                auto valueReader = std::async(std::launch::async, [&, valuesOffset] {
-                    auto valuesPointer = valuesOffset;
-                    std::uint64_t batchValuesCount = 0;
-
-                    for(len_t b = 0; b < numFullBatches; ++b) {
-                        {
-                            std::unique_lock<std::mutex> lock(mtx);
-                            condVar1.wait(lock, [&]{ return threadSwitcher == 1; });
-
-                            batchValuesCount = std::accumulate(
-                                sizeBuffer.begin(), sizeBuffer.end(), std::uint64_t(0));
-
-                            read_binary(is, valuesPointer, batchValuesCount);
-
-                            threadSwitcher = 0;
-                        }
-                        condVar0.notify_one();
-
-                        valuesPointer += batchValuesCount;
+                        readingProgress.counter +=
+                            batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
+                            + batchValuesCount*sizeof(value_type);
                     }
-                });
 
-                for(len_t b = 0; b < numFullBatches; ++b) {
-                    {
-                        std::unique_lock<std::mutex> lock(mtx);
-                        condVar0.wait(lock, [&]{ return threadSwitcher == 0; });
-
-                        read_binary(is, keyBuffer.data(), batchSize);
-                        read_binary(is, sizeBuffer.data(), batchSize);
-
-                        threadSwitcher = 1;
-                    }
-                    condVar1.notify_one();
-
-                    auto batchValuesCount = deserialize_batch_of_buckets(
-                        is, keyBuffer, sizeBuffer, batchSize, valuesOffset);
+                    auto batchValuesCount = deserialize_batch_of_values(
+                        is, deserializer, deserializer.lastBatchSize);
 
                     readingProgress.counter +=
                         batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
                         + batchValuesCount*sizeof(value_type);
+                });
 
-                    valuesOffset += batchValuesCount;
+                for(serialization_size_type b = 0; b < deserializer.numFullBatches; ++b) {
+                    deserialize_batch_of_buckets(
+                        is, deserializer, deserializer.fullBatchSize);
                 }
 
+                deserialize_batch_of_buckets(
+                    is, deserializer, deserializer.lastBatchSize);
+
                 valueReader.get();
-
-                read_binary(is, keyBuffer.data(), lastBatchSize);
-                read_binary(is, sizeBuffer.data(), lastBatchSize);
-
-                auto batchValuesCount = deserialize_batch_of_buckets(
-                    is, keyBuffer, sizeBuffer, lastBatchSize, valuesOffset);
-
-                read_binary(is, valuesOffset, batchValuesCount);
-
-                readingProgress.counter +=
-                    batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
-                    + batchValuesCount*sizeof(value_type);
             }
 
             numKeys_ = nkeys;
@@ -1091,16 +1114,14 @@ private:
      */
     void serialize(std::ostream& os) const
     {
-        using len_t = std::uint64_t;
+        const serialization_size_type nonEmptyBucketCount = non_empty_bucket_count();
 
-        const len_t nonEmptyBucketCount = non_empty_bucket_count();
-
-        write_binary(os, len_t(nonEmptyBucketCount));
-        write_binary(os, len_t(value_count()));
-        write_binary(os, len_t(batch_size()));
+        write_binary(os, serialization_size_type(nonEmptyBucketCount));
+        write_binary(os, serialization_size_type(value_count()));
+        write_binary(os, serialization_size_type(batch_size()));
 
         const auto batchSize = batch_size();
-        const len_t avgValueCount = value_count() / nonEmptyBucketCount;
+        const serialization_size_type avgValueCount = value_count() / nonEmptyBucketCount;
 
         {// write keys & bucket sizes & values in batches
             std::vector<key_type> keyBuffer;
