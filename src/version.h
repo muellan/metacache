@@ -24,11 +24,11 @@
 #define MC_VERSION_H_
 
 
-#define MC_VERSION 20210212
+#define MC_VERSION 20210305
 
 #define MC_DB_VERSION 20200820
 
-#define MC_VERSION_STRING "1.9.1"
+#define MC_VERSION_STRING "1.9.2"
 
 
 #endif
