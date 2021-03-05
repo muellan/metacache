@@ -576,7 +576,7 @@ public:
     }
 
     //---------------------------------------------------------------
-    void resize_query_hash_table_vector(part_id numParts) {
+    void prepare_for_query_hash_tables(part_id numParts, unsigned) {
         hashTables_.resize(numParts);
     }
 

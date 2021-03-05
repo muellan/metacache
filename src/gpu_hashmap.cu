@@ -1228,7 +1228,17 @@ void gpu_hashmap<Key,ValueT>::wait_until_add_target_complete(
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::resize_query_hash_table_vector(part_id numGPUs) {
+void gpu_hashmap<Key,ValueT>::prepare_for_query_hash_tables(
+    part_id numParts, unsigned replication)
+{
+    part_id numGPUs = numParts * replication;
+
+    if(numGPUs > num_gpus())
+        throw std::runtime_error{"Number of GPUs must be greater than number of parts"};
+
+    num_parts(numParts);
+    num_gpus(numGPUs);
+
     queryHashTables_.resize(numGPUs);
 }
 
@@ -1377,15 +1387,22 @@ void gpu_hashmap<Key,ValueT>::copy_target_lineages_to_gpus(
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::enable_all_peer_access()
+void gpu_hashmap<Key,ValueT>::enable_peer_access()
 {
-    for (part_id gpuId = 0; gpuId < numGPUs_-1; ++gpuId) {
-        // std::cerr << "Enabling peer access: GPUs "
-            // << gpuId << "<->" << << gpuId+1 " ...\n";
-        cudaSetDevice(gpuId);
-        cudaDeviceEnablePeerAccess(gpuId+1, 0); CUERR
-        cudaSetDevice(gpuId+1);
-        cudaDeviceEnablePeerAccess(gpuId, 0); CUERR
+    if(numParts_ > 0) {
+        // for each replicated db of numParts_ parts
+        for(unsigned firstGPU = 0; firstGPU < numGPUs_; firstGPU += numParts_) {
+            part_id lastGPU = firstGPU+numParts_-1;
+            // enable access between consecutive gpus
+            for(part_id gpuId = firstGPU; gpuId < lastGPU; ++gpuId) {
+                // std::cerr << "Enabling peer access: GPUs "
+                    // << gpuId << "<->" << << gpuId+1 " ...\n";
+                cudaSetDevice(gpuId);
+                cudaDeviceEnablePeerAccess(gpuId+1, 0); CUERR
+                cudaSetDevice(gpuId+1);
+                cudaDeviceEnablePeerAccess(gpuId, 0); CUERR
+            }
+        }
     }
 }
 

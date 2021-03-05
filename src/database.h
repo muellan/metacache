@@ -325,7 +325,10 @@ public:
         taxonomyCache_.initialize_caches(targetCount_);
 
 #ifdef GPU_MODE
-        featureStore_.copy_target_lineages_to_gpus(taxonomyCache_.target_lineages());
+        if(num_parts() > 0) {
+            featureStore_.enable_peer_access();
+            featureStore_.copy_target_lineages_to_gpus(taxonomyCache_.target_lineages());
+        }
 #endif
     }
 

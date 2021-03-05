@@ -115,25 +115,30 @@ public:
     gpu_hashmap(gpu_hashmap&&);
     gpu_hashmap(const gpu_hashmap&) = delete;
 
-public:
+private:
     //---------------------------------------------------------------
-    part_id num_parts() const noexcept {
-        return numParts_;
-    }
-    //-----------------------------------------------------
+    /**
+     * @details numGPUs_ is set to all available gpus on construction,
+     *          numParts_ must be smaller than that
+    */
     void num_parts(part_id numParts) noexcept {
         numParts_ = std::min(numParts, numGPUs_);
     }
-    //---------------------------------------------------------------
-    part_id num_gpus() const noexcept {
-        return numGPUs_;
-    }
     //-----------------------------------------------------
+    /**
+     * @details numGPUs_ is set to all available gpus on construction,
+     *          this function can only decrease that number
+    */
     void num_gpus(part_id numGPUs) noexcept {
         if(numGPUs_ > numGPUs) {
             numGPUs_ = numGPUs;
         }
     }
+public:
+    //---------------------------------------------------------------
+    part_id num_parts() const noexcept { return numParts_; }
+    //---------------------------------------------------------------
+    part_id num_gpus() const noexcept { return numGPUs_; }
 
     //---------------------------------------------------------------
     bool add_target_failed(part_id gpuId) const noexcept;
@@ -239,9 +244,10 @@ public:
     void initialize_build_hash_tables(part_id numGPUs);
 
     /****************************************************************
-     * @brief resize vector of gpu hash tables before database loading
+     * @brief set number of db parts and total number of gpus;
+     *        resize vector of gpu hash tables before database loading
      */
-    void resize_query_hash_table_vector(part_id numGPUs);
+    void prepare_for_query_hash_tables(part_id numParts, unsigned replication);
 
     /****************************************************************
      * @brief split sequence into batches and insert into build hash table
@@ -308,7 +314,10 @@ public:
     void copy_target_lineages_to_gpus(const std::vector<ranked_lineage>& lins);
 
     //---------------------------------------------------------------
-    void enable_all_peer_access();
+    /**
+     * @brief enable access between consecutive gpus of each replicated db
+     */
+    void enable_peer_access();
 
 
 private:

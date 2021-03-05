@@ -183,23 +183,12 @@ void database::read(const std::string& filename, int singlePartId,
         numParts = 1;
     }
 
-#ifdef GPU_MODE
-    part_id numGPUs = numParts * replication;
-
-    if(numGPUs > featureStore_.num_gpus())
-        throw std::runtime_error{"Number of GPUs must be greater than number of parts"};
-
-    featureStore_.num_parts(numParts);
-    featureStore_.num_gpus(numGPUs);
-    featureStore_.enable_all_peer_access();
-#endif
-
     // read caches in separate threads
     std::vector<std::future<void>> cacheReaderThreads;
     concurrent_progress readingProgress{};
 
     if(what != scope::metadata_only) {
-        featureStore_.resize_query_hash_table_vector(numParts * replication);
+        featureStore_.prepare_for_query_hash_tables(numParts, replication);
 
         cacheReaderThreads.reserve(numParts * replication);
 
