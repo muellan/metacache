@@ -540,9 +540,10 @@ private:
         std::mutex& retrieveMtx,
         std::mutex& writeMtx
     ) {
+        size_type valuesCount = 0;
         {
             std::lock_guard<std::mutex> lock(retrieveMtx);
-            size_type valuesCount = retrieve_batch(
+            valuesCount = retrieve_batch(
                 d_keys, buffer, hostId, batchSize, maxLocationsPerFeature);
         }
 
