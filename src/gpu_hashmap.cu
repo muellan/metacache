@@ -1105,8 +1105,7 @@ template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numParts)
 {
     part_id numGPUsFound = num_gpus();
-    num_gpus(numParts);
-    num_parts(numParts);
+    config_num_gpus(numParts);
 
     std::cerr << "using " << numGPUs_ << " of " << numGPUsFound << " available CUDA devices\n";
 
@@ -1231,15 +1230,9 @@ template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::prepare_for_query_hash_tables(
     part_id numParts, unsigned replication)
 {
-    part_id numGPUs = numParts * replication;
+    config_num_gpus(numParts, replication);
 
-    if(numGPUs > num_gpus())
-        throw std::runtime_error{"Number of GPUs must be greater than number of parts"};
-
-    num_parts(numParts);
-    num_gpus(numGPUs);
-
-    queryHashTables_.resize(numGPUs);
+    queryHashTables_.resize(num_gpus());
 }
 
 

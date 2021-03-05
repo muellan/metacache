@@ -118,22 +118,19 @@ public:
 private:
     //---------------------------------------------------------------
     /**
-     * @details numGPUs_ is set to all available gpus on construction,
-     *          numParts_ must be smaller than that
-    */
-    void num_parts(part_id numParts) noexcept {
-        numParts_ = std::min(numParts, numGPUs_);
+     * @brief set number of parts and number of used gpus
+     */
+    void config_num_gpus(part_id numParts, unsigned replication = 1)
+    {
+        const size_t numGPUs = size_t(numParts) * replication;
+
+        if(numGPUs > num_gpus())
+            throw std::runtime_error{"Number of GPUs must be greater than number of parts"};
+
+        numParts_ = numParts;
+        numGPUs_ = part_id(numGPUs);
     }
-    //-----------------------------------------------------
-    /**
-     * @details numGPUs_ is set to all available gpus on construction,
-     *          this function can only decrease that number
-    */
-    void num_gpus(part_id numGPUs) noexcept {
-        if(numGPUs_ > numGPUs) {
-            numGPUs_ = numGPUs;
-        }
-    }
+
 public:
     //---------------------------------------------------------------
     part_id num_parts() const noexcept { return numParts_; }
