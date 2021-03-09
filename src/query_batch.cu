@@ -43,13 +43,14 @@ class query_batch<Location>::segmented_sort
 public:
     segmented_sort(
         location_type_equivalent *d_keys, location_type_equivalent *d_keysB,
-        const int *d_segs,
+        const int *d_seg_begins, const int *d_seg_ends,
         int *d_binnedSegIds,
         int *d_segBinCounters,
         cudaStream_t stream)
     :
         sorter_{d_keys, d_keysB,
-            d_segs, d_binnedSegIds, d_segBinCounters,
+            d_seg_begins, d_seg_ends,
+            d_binnedSegIds, d_segBinCounters,
             stream}
     {}
 
@@ -360,6 +361,7 @@ query_batch<Location>::query_batch(
             (location_type_equivalent*)(gpuData_[gpuId].queryResultsTmp_),
             (location_type_equivalent*)(gpuData_[gpuId].queryResults_),
             gpuData_[gpuId].resultOffsets_,
+            gpuData_[gpuId].resultOffsets_+1,
             gpuData_[gpuId].resultCounts_, // reuse for binning
             gpuData_[gpuId].segBinCounters_,
             gpuData_[gpuId].workStream_);

@@ -427,7 +427,7 @@ private:
             bb_segsort_run(
                 reinterpret_cast<location_type_equivalent *>(d_values_),
                 reinterpret_cast<location_type_equivalent *>(d_valuesTmp_),
-                d_offsets_, numSegs, maxLocationsPerFeature,
+                d_offsets_, d_offsets_+1, numSegs, maxLocationsPerFeature,
                 d_binnedSegIds_, d_segBinCounters_,
                 stream_);
 
