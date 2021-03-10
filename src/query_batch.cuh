@@ -102,6 +102,9 @@ public:
             const size_t seqLength1 = distance(first1, last1);
             const size_t seqLength2 = distance(first2, last2);
 
+            // set offset depending on previous number of windows in batch
+            resultBeginOffsets_[numQueries_] = numWindows_*maxResultsPerWindow;
+
             // no kmers in sequence
             if(seqLength1 < kmerSize && seqLength2 < kmerSize) {
                 // batch full, nothing processed
@@ -136,8 +139,8 @@ public:
                 [&] (InputIterator first, InputIterator last) {
                     auto length = distance(first, last);
                     if(length >= kmerSize) {
-                        // mark intermediate window in query
-                        queryIds_[numWindows_] = std::numeric_limits<index_type>::max();
+                        // store window affiliation
+                        queryIds_[numWindows_] = numQueries_;
                         // copy characters and pad for vectorized access
                         std::copy(first, last, sequences_ + sequenceOffsets_[numWindows_]);
                         auto lengthPadded = (length + 3) / 4 * 4;
@@ -157,8 +160,8 @@ public:
                 [&] (InputIterator first, InputIterator last) {
                     auto length = distance(first, last);
                     if(length >= kmerSize) {
-                        // mark intermediate window in query
-                        queryIds_[numWindows_] = std::numeric_limits<index_type>::max();
+                        // store window affiliation
+                        queryIds_[numWindows_] = numQueries_;
                         // copy characters and pad for vectorized access
                         std::copy(first, last, sequences_ + sequenceOffsets_[numWindows_]);
                         auto lengthPadded = (length + 3) / 4 * 4;
@@ -172,9 +175,6 @@ public:
                     }
                 }
             );
-
-            // mark last window in query with query id
-            queryIds_[numWindows_-1] = numQueries_;
 
             maxWindowsInRange_[numQueries_] = rules.maxWindowsInRange;
 
@@ -211,13 +211,9 @@ public:
 
         //---------------------------------------------------------------
         span<const location_type> allhits(index_type id) const noexcept {
-            if(copyAllHits_ && id < num_queries()) {
-                const location_type * begin = query_results()+result_offsets()[id];
-                const location_type * end = query_results()+result_offsets()[id+1];
-
-                // remove padding at the end
-                while((end > begin) && (end-1)->tgt == std::numeric_limits<target_id>::max())
-                    --end;
+            if(copyAllHits_&& id < num_queries()) {
+                location_type * begin = query_results()+result_begin_offsets()[id];
+                location_type * end = query_results()+result_end_offsets()[id];
 
                 return span<const location_type>{begin, size_t(end-begin)};
             }
@@ -247,7 +243,8 @@ public:
         window_id  * max_windows_in_range() const noexcept { return maxWindowsInRange_; };
 
         location_type   * query_results() const noexcept { return queryResults_; }
-        int             * result_offsets() const noexcept { return resultOffsets_; }
+        int             * result_begin_offsets() const noexcept { return resultBeginOffsets_; }
+        int             * result_end_offsets() const noexcept { return resultEndOffsets_; }
         match_candidate * top_candidates() const noexcept { return topCandidates_; }
 
         cudaEvent_t& results_copied_event() noexcept { return resultsCopiedEvent_; }
@@ -277,7 +274,8 @@ public:
         window_id  * maxWindowsInRange_;
         // output
         location_type   * queryResults_;
-        int             * resultOffsets_;
+        int             * resultBeginOffsets_;
+        int             * resultEndOffsets_;
         match_candidate * topCandidates_;
 
         cudaEvent_t resultsCopiedEvent_;
@@ -305,10 +303,11 @@ public:
         window_id       * maxWindowsInRange_;
 
         location_type   * queryResults_;
-        location_type   * queryResultsTmp_;
-        int             * resultOffsets_;
-        int             * resultCounts_;
+        location_type   * queryResultsSorted_;
+        int             * resultBeginOffsets_;
+        int             * resultEndOffsets_;
 
+        int             * binnedSegIds_;
         int             * segBinCounters_;
 
         match_candidate * topCandidates_;
@@ -318,9 +317,6 @@ public:
 
         cudaEvent_t queryFinishedEvent_;
         cudaEvent_t sketchesCopiedEvent_;
-        cudaEvent_t queryIdsCopiedEvent_;
-        cudaEvent_t queryIdsFinishedEvent_;
-        cudaEvent_t offsetsReadyEvent_;
         cudaEvent_t offsetsCopiedEvent_;
         cudaEvent_t allhitsReadyEvent_;
         cudaEvent_t allhitsCopiedEvent_;
@@ -392,18 +388,12 @@ public:
     /** @brief make work stream wait for allhits copy (before starting new query) */
     void wait_for_allhits_copied(part_id gpuId);
 
-private:
-    //---------------------------------------------------------------
-    /** @brief asynchronously compact results in work stream */
-    void compact_results_async(part_id hostId, part_id gpuId);
-public:
     //---------------------------------------------------------------
     /**
-     * @brief asynchronously compact and sort in work stream,
+     * @brief asynchronously sort in work stream,
      *        and copy allhits to host in copy stream if needed
      */
-    void compact_sort_and_copy_allhits_async(part_id hostId, part_id gpuId);
-
+    void sort_and_copy_allhits_async(part_id hostId, part_id gpuId);
     /**
      * @brief asynchronously generate top candidates in work stream
      *        and copy top candidates in copy stream
@@ -433,7 +423,6 @@ private:
     cudaStream_t h2dCopyStream_;
 
     cudaEvent_t queriesCopiedEvent_;
-    cudaEvent_t queryIdsCopiedEvent_;
     cudaEvent_t maxWinCopiedEvent_;
 };
 

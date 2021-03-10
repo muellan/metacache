@@ -256,6 +256,7 @@ public:
             gpu_hahstable_query<threadsPerBlock,maxSketchSize>
                 <<<numBlocks,threadsPerBlock,0,gpuData.workStream_>>>(
                 hashTable_,
+                gpuData.queryIds_,
                 numWindows,
                 gpuData.sequenceOffsets_,
                 gpuData.sequences_,
@@ -264,7 +265,7 @@ public:
                 querySketching.sketchlen,
                 maxLocationsPerFeature,
                 gpuData.queryResults_,
-                gpuData.resultCounts_
+                gpuData.resultEndOffsets_
             );
         }
         else {
@@ -705,6 +706,7 @@ public:
             gpu_hahstable_query<threadsPerBlock,maxSketchSize>
                 <<<numBlocks,threadsPerBlock,0,gpuData.workStream_>>>(
                 hashTable_,
+                gpuData.queryIds_,
                 numWindows,
                 gpuData.sequenceOffsets_,
                 gpuData.sequences_,
@@ -714,7 +716,7 @@ public:
                 locations_,
                 maxLocationsPerFeature,
                 gpuData.queryResults_,
-                gpuData.resultCounts_
+                gpuData.resultEndOffsets_
             );
         }
         else {
@@ -1257,13 +1259,15 @@ void gpu_hashmap<Key,ValueT>::query_hashtables_async(
         if(gpuId < batch.num_gpus()-1)
             batch.copy_queries_to_next_device_async(hostId, gpuId);
 
-        batch.compact_sort_and_copy_allhits_async(hostId, gpuId);
+        batch.sort_and_copy_allhits_async(hostId, gpuId);
 
         batch.generate_and_copy_top_candidates_async(
             hostId, gpuId, lineages_[gpu], lowestRank);
 
         // batch.sync_copy_stream(gpuId); CUERR
     }
+    //TODO remove this debug sync
+    batch.host_data(hostId).wait_for_results();
 }
 
 

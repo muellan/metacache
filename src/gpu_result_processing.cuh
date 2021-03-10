@@ -316,7 +316,8 @@ template<
 __global__
 void generate_top_candidates(
     const uint32_t numSegments,
-    const int * segmentOffsets,
+    const int * segmentBeginOffsets,
+    const int * segmentEndOffsets,
     const Result * locations,
     const window_id * maxWindowsInRange,
     const ranked_lineage * lineages,
@@ -341,10 +342,10 @@ void generate_top_candidates(
         const int tid = threadIdx.x;
 
         // if(tid == 0)
-        //     printf("block %d offsets %d %d\n", bid, segmentOffsets[bid], segmentOffsets[bid+1]);
+        //     printf("block %d offsets %d %d\n", bid, segmentBeginOffsets[bid], segmentEndOffsets[bid]);
 
-        auto begin = locations + segmentOffsets[bid];
-        const auto end = locations + segmentOffsets[bid+1];
+        auto begin = locations + segmentBeginOffsets[bid];
+        const auto end = locations + segmentEndOffsets[bid];
 
         match_candidate top[MAX_CANDIDATES];
 

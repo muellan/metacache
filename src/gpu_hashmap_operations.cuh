@@ -581,8 +581,6 @@ void query_hashtable(
  *
  * @brief for each feature in sketch copy its loctions to the output
  *
- * @details total number of locations is padded to be even
- *
  * @param sketch     pointer to sketch array (offset and size of location buckets)
  * @param sketchSize sketch size
  * @param locations  pointer location bucket storage
@@ -594,16 +592,18 @@ void query_hashtable(
  *
  *****************************************************************************/
 template<
+    int MAX_SKETCH_SIZE,
     class Feature,
     class Location,
     class BucketSizeT>
 __device__ __inline__
-uint32_t copy_loctions(
+void copy_loctions(
     Feature * sketch,
     uint32_t sketchSize,
     const Location * locations,
     BucketSizeT maxLocationsPerFeature,
-    Location * out)
+    Location * out,
+    int * outOffset)
 {
     using location = Location;
     using bucket_size_type = BucketSizeT;
@@ -612,6 +612,25 @@ uint32_t copy_loctions(
 
     uint32_t totalLocations = 0;
 
+    for(uint32_t s = warpLane; s < sketchSize; s += WARPSIZE) {
+        auto bucketOffset = sketch[s];
+        bucket_size_type bucketSize = min(bucket_size_type(bucketOffset), maxLocationsPerFeature);
+        totalLocations += bucketSize;
+    }
+
+    // reduction into first thread
+    for(int i = 1; i < MAX_SKETCH_SIZE; i *= 2) {
+        totalLocations += __shfl_down_sync(0xFFFFFFFF, totalLocations, i);
+    }
+
+    int offset = 0;
+    if(warpLane == 0) {
+        // reserve locations for this query
+        offset = atomicAdd(outOffset, totalLocations);
+    }
+    offset = __shfl_sync(0xFFFFFFFF, offset, 0);
+    out += offset;
+
     for(uint32_t s = 0; s < sketchSize; ++s) {
         auto bucketOffset = sketch[s];
         bucket_size_type bucketSize = min(bucket_size_type(bucketOffset), maxLocationsPerFeature);
@@ -619,19 +638,11 @@ uint32_t copy_loctions(
 
         //copy locations
         for(uint32_t i = warpLane; i < bucketSize; i += WARPSIZE) {
-            out[totalLocations + i] = locations[bucketOffset + i];
+            out[i] = locations[bucketOffset + i];
         }
 
-        totalLocations += bucketSize;
+        out += bucketSize;
     }
-
-    // add padding for aligned processing
-    const uint32_t padding = totalLocations % 2;
-    if(padding && (warpLane == 0)) {
-        out[totalLocations] = location{~0U, ~0U};
-    }
-
-    return totalLocations + padding;
 }
 
 
@@ -651,12 +662,13 @@ template<
     int MAX_SKETCH_SIZE,
     class Hashtable>
 __device__ __inline__
-uint32_t query_bucket_hashtable(
+void query_bucket_hashtable(
     Hashtable& hashtable,
-    feature * sketch,
+    const feature * sketch,
     uint32_t * sizes,
     uint32_t sketchSize,
-    location * out)
+    location * out,
+    int * outOffset)
 {
     using slot = typename Hashtable::value_type;
 
@@ -698,6 +710,14 @@ uint32_t query_bucket_hashtable(
     if(warpLane < MAX_SKETCH_SIZE)
         sizes[warpLane] = numValues;
 
+    int globalOffset = 0;
+    if(warpLane == MAX_SKETCH_SIZE-1) {
+        // reserve locations for this query
+        globalOffset = atomicAdd(outOffset, numValues);
+    }
+    globalOffset = __shfl_sync(0xFFFFFFFF, globalOffset, MAX_SKETCH_SIZE-1);
+    out += globalOffset;
+
     for(int i = groupId; i < sketchSize; i += groupsPerWarp)
     {
         const uint32_t offset = (i != 0) ? sizes[i-1] : 0;
@@ -710,15 +730,6 @@ uint32_t query_bucket_hashtable(
                 sketch[i], reinterpret_cast<slot*>(out + offset), dummy, group);
         }
     }
-
-    // add padding for aligned processing
-    const uint32_t totalLocations = sizes[sketchSize-1];
-    const uint32_t padding = totalLocations % 2;
-    if(padding && (warpLane == 0)) {
-        out[totalLocations] = location{~0U, ~0U};
-    }
-
-    return totalLocations + padding;
 }
 
 
@@ -836,6 +847,7 @@ __global__
 __launch_bounds__(BLOCK_THREADS)
 void gpu_hahstable_query(
     Hashtable hashtable,
+    const uint32_t * readIds,
     uint32_t numQueries,
     const Offset * sequenceOffsets,
     const char * sequences,
@@ -844,8 +856,8 @@ void gpu_hahstable_query(
     uint32_t maxSketchSize,
     const Location * locations,
     BucketSizeT maxLocationsPerFeature,
-    Location * locations_out,
-    int      * locationCounts
+    Location * locationsOut,
+    int      * outOffset
 )
 {
     using location = Location;
@@ -912,22 +924,16 @@ void gpu_hahstable_query(
 
             __syncwarp();
 
-            location * out = locations_out + queryId*maxSketchSize*maxLocationsPerFeature;
-
-            uint32_t numLocations = copy_loctions(
-                sketch[warpId], sketchSize, locations, maxLocationsPerFeature, out);
-
-            if(warpLane == 0) {
-                // store number of results of this query
-                locationCounts[queryId] = numLocations;
-            }
+            copy_loctions<MAX_SKETCH_SIZE>(
+                sketch[warpId], sketchSize, locations, maxLocationsPerFeature,
+                locationsOut, outOffset + readIds[queryId]);
 
             __syncwarp();
         }
         else {
-            if(warpLane == 0) {
-                // store number of results of this query
-                locationCounts[queryId] = 0;
+            if(sketches != nullptr) {
+                if(warpLane < maxSketchSize)
+                    sketches[queryId*maxSketchSize + warpLane] = feature(~0);
             }
         }
     }
@@ -952,6 +958,7 @@ __global__
 __launch_bounds__(BLOCK_THREADS)
 void gpu_hahstable_query(
     Hashtable hashtable,
+    const uint32_t * readIds,
     uint32_t numQueries,
     const Offset * sequenceOffsets,
     const char * sequences,
@@ -959,8 +966,8 @@ void gpu_hahstable_query(
     numk_t kmerSize,
     uint32_t maxSketchSize,
     BucketSizeT maxLocationsPerFeature,
-    Location * locations_out,
-    int      * locationCounts
+    Location * locationsOut,
+    int      * outOffset
 )
 {
     using location = Location;
@@ -1023,15 +1030,9 @@ void gpu_hahstable_query(
             //         sketch[warpId][14],
             //         sketch[warpId][15]);
 
-            location * out = locations_out + queryId*maxSketchSize*maxLocationsPerFeature;
-
-            uint32_t numLocations = query_bucket_hashtable<MAX_SKETCH_SIZE>(
-                hashtable, sketch[warpId], sizes[warpId], sketchSize, out);
-
-            if(warpLane == 0) {
-                //store number of results of this query
-                locationCounts[queryId] = numLocations;
-            }
+            query_bucket_hashtable<MAX_SKETCH_SIZE>(
+                hashtable, sketch[warpId], sizes[warpId], sketchSize,
+                locationsOut, outOffset + readIds[queryId]);
 
             __syncwarp();
         }
@@ -1039,11 +1040,6 @@ void gpu_hahstable_query(
             if(sketches != nullptr) {
                 if(warpLane < maxSketchSize)
                     sketches[queryId*maxSketchSize + warpLane] = feature(~0);
-            }
-
-            if(warpLane == 0) {
-                //store number of results of this query
-                locationCounts[queryId] = 0;
             }
         }
     }
