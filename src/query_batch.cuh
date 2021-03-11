@@ -295,6 +295,20 @@ public:
         query_gpu_data(query_gpu_data&&);
         ~query_gpu_data();
 
+        int* result_begin_offsets() const noexcept {
+            return resultBeginOffsets_[offsetSwitcher_];
+        }
+        int* result_end_offsets() const noexcept {
+            return resultEndOffsets_[offsetSwitcher_];
+        }
+        void sort(int numSegs, int maxSegmentSize, cudaStream_t stream) const {
+            sorters_[offsetSwitcher_].run(numSegs, maxSegmentSize, stream);
+        }
+
+        void switch_offsets() {
+            offsetSwitcher_ = !offsetSwitcher_;
+        }
+
         //---------------------------------------------------------------
         index_type      * queryIds_;
         size_type       * sequenceOffsets_;
@@ -304,8 +318,11 @@ public:
 
         location_type   * queryResults_;
         location_type   * queryResultsSorted_;
-        int             * resultBeginOffsets_;
-        int             * resultEndOffsets_;
+        int             * resultBeginOffsets_[2];
+        int             * resultEndOffsets_[2];
+        bool            offsetSwitcher_;
+
+        std::vector<segmented_sort> sorters_;
 
         int             * binnedSegIds_;
         int             * segBinCounters_;
@@ -404,6 +421,11 @@ public:
         const ranked_lineage * lineages,
         taxon_rank lowestRank);
 
+    //---------------------------------------------------------------
+    /** @brief switch dobule buffers */
+    void switch_buffers() {
+        for(auto& data : gpuData_) data.switch_offsets();
+    }
 
     //---------------------------------------------------------------
 private:
@@ -418,7 +440,6 @@ private:
     std::vector<part_id> gpus_;
     std::vector<query_host_data> hostData_;
     std::vector<query_gpu_data> gpuData_;
-    std::vector<segmented_sort> sorters_;
 
     cudaStream_t h2dCopyStream_;
 

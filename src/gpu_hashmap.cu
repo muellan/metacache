@@ -265,7 +265,7 @@ public:
                 querySketching.sketchlen,
                 maxLocationsPerFeature,
                 gpuData.queryResults_,
-                gpuData.resultEndOffsets_
+                gpuData.result_end_offsets()
             );
         }
         else {
@@ -716,7 +716,7 @@ public:
                 locations_,
                 maxLocationsPerFeature,
                 gpuData.queryResults_,
-                gpuData.resultEndOffsets_
+                gpuData.result_end_offsets()
             );
         }
         else {
@@ -1266,6 +1266,7 @@ void gpu_hashmap<Key,ValueT>::query_hashtables_async(
 
         // batch.sync_copy_stream(gpuId); CUERR
     }
+    batch.switch_buffers();
     //TODO remove this debug sync
     batch.host_data(hostId).wait_for_results();
 }

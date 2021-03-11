@@ -165,7 +165,9 @@ query_batch<Location>::query_gpu_data::query_gpu_data(
     size_type maxCandidatesPerQuery,
     const std::vector<part_id>& gpus,
     part_id gpuId
-)
+) :
+    offsetSwitcher_{false},
+    sorters_{}
 {
     size_t allocatedGpuMem = 0;
 
@@ -197,9 +199,11 @@ query_batch<Location>::query_gpu_data::query_gpu_data(
     cudaMalloc    (&queryResults_, maxQueries*maxResultsPerWindow*sizeof(location_type));
     cudaMalloc    (&queryResultsSorted_, maxQueries*maxResultsPerWindow*sizeof(location_type));
     allocatedGpuMem += 2*maxQueries*maxResultsPerWindow*sizeof(location_type);
-    cudaMalloc    (&resultBeginOffsets_, maxQueries*sizeof(int));
-    cudaMalloc    (&resultEndOffsets_, maxQueries*sizeof(int));
-    allocatedGpuMem += 2*maxQueries*sizeof(int);
+    cudaMalloc    (&resultBeginOffsets_[0], maxQueries*sizeof(int));
+    cudaMalloc    (&resultBeginOffsets_[1], maxQueries*sizeof(int));
+    cudaMalloc    (&resultEndOffsets_[0], maxQueries*sizeof(int));
+    cudaMalloc    (&resultEndOffsets_[1], maxQueries*sizeof(int));
+    allocatedGpuMem += 4*maxQueries*sizeof(int);
     cudaMalloc    (&binnedSegIds_, maxQueries*sizeof(int));
     allocatedGpuMem += maxQueries*sizeof(int);
     cudaMalloc    (&segBinCounters_, (SEGBIN_NUM+1)*sizeof(int));
@@ -223,6 +227,21 @@ query_batch<Location>::query_gpu_data::query_gpu_data(
     cudaEventCreate(&tophitsReadyEvent_);
     cudaEventCreate(&tophitsCopiedEvent_);
     CUERR
+
+    using location_type_equivalent = uint64_t;
+    static_assert(sizeof(location_type) == sizeof(location_type_equivalent), "location_type must be 64 bit");
+
+    for(int i = 0; i < 2; ++i) {
+        sorters_.emplace_back(
+            (location_type_equivalent*)(queryResults_),
+            (location_type_equivalent*)(queryResultsSorted_),
+            resultBeginOffsets_[i],
+            resultEndOffsets_[i],
+            binnedSegIds_,
+            segBinCounters_,
+            workStream_);
+        CUERR
+    }
 }
 //---------------------------------------------------------------
 template<class Location>
@@ -240,10 +259,14 @@ query_batch<Location>::query_gpu_data::query_gpu_data(query_gpu_data&& other)
     other.queryResults_ = nullptr;
     queryResultsSorted_ = other.queryResultsSorted_;
     other.queryResultsSorted_ = nullptr;
-    resultBeginOffsets_ = other.resultBeginOffsets_;
-    other.resultBeginOffsets_ = nullptr;
-    resultEndOffsets_ = other.resultEndOffsets_;
-    other.resultEndOffsets_ = nullptr;
+    resultBeginOffsets_[0] = other.resultBeginOffsets_[0];
+    other.resultBeginOffsets_[0] = nullptr;
+    resultBeginOffsets_[1] = other.resultBeginOffsets_[1];
+    other.resultBeginOffsets_[1] = nullptr;
+    resultEndOffsets_[0] = other.resultEndOffsets_[0];
+    other.resultEndOffsets_[0] = nullptr;
+    resultEndOffsets_[1] = other.resultEndOffsets_[1];
+    other.resultEndOffsets_[1] = nullptr;
     binnedSegIds_ = other.binnedSegIds_;
     other.binnedSegIds_ = nullptr;
     segBinCounters_ = other.segBinCounters_;
@@ -272,6 +295,11 @@ query_batch<Location>::query_gpu_data::query_gpu_data(query_gpu_data&& other)
     other.tophitsReadyEvent_ = 0;
     tophitsCopiedEvent_ = other.tophitsCopiedEvent_;
     other.tophitsCopiedEvent_ = 0;
+
+    sorters_ = std::move(other.sorters_);
+
+    offsetSwitcher_ = other.offsetSwitcher_;
+    other.offsetSwitcher_ = false;
 }
 //---------------------------------------------------------------
 template<class Location>
@@ -283,8 +311,10 @@ query_batch<Location>::query_gpu_data::~query_gpu_data()
     if(sketches_)           cudaFree(sketches_);
     if(queryResults_)       cudaFree(queryResults_);
     if(queryResultsSorted_) cudaFree(queryResultsSorted_);
-    if(resultBeginOffsets_) cudaFree(resultBeginOffsets_);
-    if(resultEndOffsets_)   cudaFree(resultEndOffsets_);
+    if(resultBeginOffsets_[0]) cudaFree(resultBeginOffsets_[0]);
+    if(resultBeginOffsets_[1]) cudaFree(resultBeginOffsets_[1]);
+    if(resultEndOffsets_[0])   cudaFree(resultEndOffsets_[0]);
+    if(resultEndOffsets_[1])   cudaFree(resultEndOffsets_[1]);
     if(binnedSegIds_)       cudaFree(binnedSegIds_);
     if(segBinCounters_)     cudaFree(segBinCounters_);
     if(topCandidates_)      cudaFree(topCandidates_);
@@ -325,8 +355,7 @@ query_batch<Location>::query_batch(
     maxCandidatesPerQuery_{maxCandidatesPerQuery},
     gpus_(numGPUs),
     hostData_{},
-    gpuData_{},
-    sorters_{}
+    gpuData_{}
 {
     cudaStreamCreate(&h2dCopyStream_);
 
@@ -343,22 +372,9 @@ query_batch<Location>::query_batch(
         hostData_.emplace_back(maxQueries, maxSequenceLength, maxResultsPerWindow, maxCandidatesPerQuery, copyAllHits);
     }
 
-    using location_type_equivalent = uint64_t;
-    static_assert(sizeof(location_type) == sizeof(location_type_equivalent), "location_type must be 64 bit");
-
     for(part_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
         gpuData_.emplace_back(maxQueries, maxSequenceLength, maxSketchSize, maxResultsPerWindow, maxCandidatesPerQuery,
                               gpus_, gpuId);
-
-        sorters_.emplace_back(
-            (location_type_equivalent*)(gpuData_[gpuId].queryResults_),
-            (location_type_equivalent*)(gpuData_[gpuId].queryResultsSorted_),
-            gpuData_[gpuId].resultBeginOffsets_,
-            gpuData_[gpuId].resultEndOffsets_,
-            gpuData_[gpuId].binnedSegIds_,
-            gpuData_[gpuId].segBinCounters_,
-            gpuData_[gpuId].workStream_);
-        CUERR
     }
 }
 //---------------------------------------------------------------
@@ -375,7 +391,6 @@ query_batch<Location>::query_batch(query_batch&& other) {
     gpus_ = std::move(other.gpus_);
     hostData_ = std::move(other.hostData_);
     gpuData_ = std::move(other.gpuData_);
-    sorters_ = std::move(other.sorters_);
 
     h2dCopyStream_ = other.h2dCopyStream_;
     other.h2dCopyStream_ = 0;
@@ -418,10 +433,10 @@ void query_batch<Location>::copy_queries_to_device_async(part_id hostId)
     cudaMemcpyAsync(gpuData_[gpuId].sequences_, hostData_[hostId].sequences(),
                     hostData_[hostId].sequence_offsets()[hostData_[hostId].num_windows()]*sizeof(char),
                     cudaMemcpyHostToDevice, h2dCopyStream_);
-    cudaMemcpyAsync(gpuData_[gpuId].resultBeginOffsets_, hostData_[hostId].result_begin_offsets(),
+    cudaMemcpyAsync(gpuData_[gpuId].result_begin_offsets(), hostData_[hostId].result_begin_offsets(),
                     hostData_[hostId].num_queries()*sizeof(int),
                     cudaMemcpyHostToDevice, h2dCopyStream_);
-    cudaMemcpyAsync(gpuData_[gpuId].resultEndOffsets_, gpuData_[gpuId].resultBeginOffsets_,
+    cudaMemcpyAsync(gpuData_[gpuId].result_end_offsets(), gpuData_[gpuId].result_begin_offsets(),
                     hostData_[hostId].num_queries()*sizeof(int),
                     cudaMemcpyDeviceToDevice, h2dCopyStream_);
 
@@ -469,8 +484,8 @@ void query_batch<Location>::copy_queries_to_next_device_async(part_id hostId, pa
                         hostData_[hostId].num_windows()*maxSketchSize_*sizeof(feature_type),
                         gpuData_[gpuId].copyStream_);
 
-    cudaMemcpyPeerAsync(gpuData_[gpuId+1].resultBeginOffsets_, gpus_[gpuId+1],
-                        gpuData_[gpuId].resultBeginOffsets_, gpus_[gpuId],
+    cudaMemcpyPeerAsync(gpuData_[gpuId+1].result_begin_offsets(), gpus_[gpuId+1],
+                        gpuData_[gpuId].result_begin_offsets(), gpus_[gpuId],
                         hostData_[hostId].num_windows()*sizeof(index_type),
                         gpuData_[gpuId].copyStream_);
 
@@ -484,7 +499,7 @@ void query_batch<Location>::copy_queries_to_next_device_async(part_id hostId, pa
     cudaStreamWaitEvent(gpuData_[gpuId+1].copyStream_, gpuData_[gpuId].sketchesCopiedEvent_, 0);
     cudaStreamWaitEvent(gpuData_[gpuId+1].workStream_, gpuData_[gpuId].sketchesCopiedEvent_, 0);
 
-    cudaMemcpyAsync(gpuData_[gpuId+1].resultEndOffsets_, gpuData_[gpuId+1].resultBeginOffsets_,
+    cudaMemcpyAsync(gpuData_[gpuId+1].result_end_offsets(), gpuData_[gpuId+1].result_begin_offsets(),
                     hostData_[hostId].num_queries()*sizeof(int),
                     cudaMemcpyDeviceToDevice, gpuData_[gpuId+1].workStream_);
 }
@@ -522,7 +537,7 @@ void query_batch<Location>::sort_and_copy_allhits_async(
     if(hostData_[hostId].allhitsCopyNeeded()) {
         cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, gpuData_[gpuId].queryFinishedEvent_, 0);
 
-        cudaMemcpyAsync(hostData_[hostId].result_end_offsets(), gpuData_[gpuId].resultEndOffsets_,
+        cudaMemcpyAsync(hostData_[hostId].result_end_offsets(), gpuData_[gpuId].result_end_offsets(),
                         hostData_[hostId].num_queries()*sizeof(int),
                         cudaMemcpyDeviceToHost, gpuData_[gpuId].copyStream_);
 
@@ -532,7 +547,8 @@ void query_batch<Location>::sort_and_copy_allhits_async(
         // CUERR
     }
 
-    sorters_[gpuId].run(hostData_[hostId].num_queries(), hostData_[hostId].largest_segment_size(), gpuData_[gpuId].workStream_);
+    gpuData_[gpuId].sort(
+        hostData_[hostId].num_queries(), hostData_[hostId].largest_segment_size(), gpuData_[gpuId].workStream_);
     // cudaStreamSynchronize(gpuData_[gpuId].workStream_);
     // CUERR
 
@@ -594,8 +610,8 @@ void query_batch<Location>::generate_and_copy_top_candidates_async(
 
         generate_top_candidates<maxCandidates><<<numBlocks,32,0,gpuData_[gpuId].workStream_>>>(
             hostData_[hostId].num_queries(),
-            gpuData_[gpuId].resultBeginOffsets_,
-            gpuData_[gpuId].resultEndOffsets_,
+            gpuData_[gpuId].result_begin_offsets(),
+            gpuData_[gpuId].result_end_offsets(),
             gpuData_[gpuId].queryResultsSorted_,
             gpuData_[gpuId].maxWindowsInRange_,
             lineages,
