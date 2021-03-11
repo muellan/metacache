@@ -542,13 +542,11 @@ void query_batch<Location>::mark_query_finished(part_id gpuId)
 
 //---------------------------------------------------------------
 template<class Location>
-void query_batch<Location>::sort_and_copy_allhits_async(
-    part_id hostId,
-    part_id gpuId)
+void query_batch<Location>::sort_and_copy_allhits_async(part_id hostId, part_id gpuId)
 {
     cudaSetDevice(gpus_[gpuId]);
 
-    if(hostData_[hostId].allhitsCopyNeeded()) {
+    if(hostData_[hostId].allhits_requested()) {
         cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, gpuData_[gpuId].queryFinishedEvent_, 0);
 
         cudaMemcpyAsync(hostData_[hostId].result_end_offsets(), gpuData_[gpuId].result_end_offsets(),
@@ -569,7 +567,7 @@ void query_batch<Location>::sort_and_copy_allhits_async(
     // cudaStreamSynchronize(gpuData_[gpuId].workStream_);
     // CUERR
 
-    if(hostData_[hostId].allhitsCopyNeeded()) {
+    if(hostData_[hostId].allhits_requested()) {
         cudaEventRecord(gpuData_[gpuId].allhitsReadyEvent_, gpuData_[gpuId].workStream_);
         cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, gpuData_[gpuId].allhitsReadyEvent_, 0);
 
