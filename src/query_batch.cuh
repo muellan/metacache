@@ -333,7 +333,7 @@ public:
         cudaStream_t copyStream_;
 
         cudaEvent_t queryFinishedEvent_;
-        cudaEvent_t sketchesCopiedEvent_;
+        cudaEvent_t d2dCopyEvent_;
         cudaEvent_t offsetsCopiedEvent_;
         cudaEvent_t allhitsReadyEvent_;
         cudaEvent_t allhitsCopiedEvent_;
@@ -395,15 +395,9 @@ public:
     /** @brief asynchronously copy queries to device */
     void copy_queries_to_device_async(part_id hostId);
     void copy_queries_to_next_device_async(part_id hostId, part_id gpuId);
-    //-----------------------------------------------------
-    /** @brief synchronize event after copy to device 0 */
-    void wait_for_queries_copied();
     //---------------------------------------------------------------
     /** @brief record event after sketch creation on device 0 */
     void mark_query_finished(part_id gpuId);
-    //---------------------------------------------------------------
-    /** @brief make work stream wait for allhits copy (before starting new query) */
-    void wait_for_allhits_copied(part_id gpuId);
 
     //---------------------------------------------------------------
     /**

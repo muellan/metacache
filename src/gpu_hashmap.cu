@@ -1241,8 +1241,6 @@ void gpu_hashmap<Key,ValueT>::query_hashtables_async(
 
         cudaSetDevice(gpu); CUERR
 
-        batch.wait_for_allhits_copied(gpuId);
-
         if(gpuId == 0)
             batch.copy_queries_to_device_async(hostId);
 
