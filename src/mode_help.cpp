@@ -55,7 +55,7 @@ void main_mode_help(const cmdline_args& args)
             "\n"
             "    Available modes:\n"
             "\n"
-            "    help          shows documentation \n"
+            "    help          shows documentation\n"
             "    build         build new database from reference sequences (usually genomes)\n"
             "    modify        add reference sequences and/or taxonomy to existing database\n"
             "    query         classify read sequences using pre-built database\n"

@@ -9,12 +9,13 @@ USAGE:
 
     Available modes:
 
-    help        shows documentation 
-    query       classify read sequences using pre-built database
-    merge       merge classification results of independent queries
-    build       build new database from reference sequences (usually genomes)
-    modify      add reference sequences and/or taxonomy to existing database
-    info        show database and reference sequence properties
+    help          shows documentation
+    build         build new database from reference sequences (usually genomes)
+    modify        add reference sequences and/or taxonomy to existing database
+    query         classify read sequences using pre-built database
+    build+query   build new database and query directly afterwards
+    merge         merge classification results of independent queries
+    info          show database and reference sequence properties
 
 
 EXAMPLES:

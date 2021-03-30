@@ -525,10 +525,6 @@ build_mode_cli(build_options& opt, error_messages& err)
             " Each part occupies one GPU.\n"
             "default: number of available GPUs"s)
 #endif
-        ,
-        option("-query").set(opt.queryAfterBuild)
-            %("Run interactive query after building database.\n"
-              "default: "s + (opt.queryAfterBuild ? "on" : "off"))
     ),
     catch_unknown(err)
     );

@@ -110,9 +110,6 @@ ADVANCED OPTIONS
                       contains a separate hash table.
                       default: 1
 
-    -query            Run interactive query after building database.
-                      default: off
-
 EXAMPLES
 
     Build database 'mydb' from sequence file 'genomes.fna':

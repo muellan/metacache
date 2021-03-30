@@ -137,8 +137,6 @@ struct build_options
     bool resetParents = false;
 
     info_level infoLevel = info_level::moderate;
-
-    bool queryAfterBuild = false;
 };
 
 
