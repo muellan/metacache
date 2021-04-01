@@ -16,13 +16,21 @@ cd $dir
 target="release"
 metacache="../metacache"
 threads="-threads 8"
+parts="-parts 1"
+
+metacache_build="$metacache build bacteria1 data/bacteria1.fa -taxonomy taxonomy $parts"
+metacach_query="$metacache query bacteria1"
 
 if [ $# -ge 1 ]; then
-  if [ "$1" == "gpu" ]; then
+  if [ "$1" == "build+query" ]; then
+    metacache_build=""
+    metacach_query="$metacache build+query -targets data/bacteria1.fa -taxonomy taxonomy $parts"
+  elif [ "$1" == "gpu" ]; then
     target="gpu_release"
     metacache="../metacache_gpu"
     threads="-threads 3"
-    gpus="-parts 1"
+    metacache_build="$metacache build bacteria1 data/bacteria1.fa -taxonomy taxonomy $parts"
+    metacach_query="$metacache query bacteria1"
   elif [ "$1" == "clean" ]; then
     rm *.meta
     rm *.cache*
@@ -68,7 +76,7 @@ popd
 # make small testing database
 # ---------------------------------------------------------
 if [ ! -e "bacteria1.meta" ]; then
-    $metacache build bacteria1 data/bacteria1.fa -taxonomy taxonomy $gpus
+    $metacache_build
 fi
 
 
@@ -114,7 +122,7 @@ query=data/fmt.fa
 tests=""
 add_formatting_tests $query "-no-summary -no-query-params $threads"
 
-echo -e ${tests} | $metacache query bacteria1 | grep "NC_" > results/fmt_fa.out
+echo -e ${tests} | $metacach_query | grep "NC_" > results/fmt_fa.out
 
 DIFF=$( diff <(sort results/fmt_fa.out) <(sort data/fmt.expected) )
 
@@ -129,7 +137,7 @@ query=data/fmt.fa
 tests=""
 add_formatting_tests $query "-no-summary -no-query-params $threads"
 
-echo -e ${tests} | $metacache query bacteria1 | grep "NC_" > results/fmt_fq.out
+echo -e ${tests} | $metacach_query | grep "NC_" > results/fmt_fq.out
 
 DIFF=$( diff <(sort results/fmt_fq.out) <(sort data/fmt.expected) )
 
@@ -151,7 +159,7 @@ tests_fa="${tests_fa} data/single.fa ${common}\n"
 tests_fa="${tests_fa} data/pairs.fa -pairseq ${common}\n"
 tests_fa="${tests_fa} data/pair.1.fa data/pair.2.fa -pairfiles ${common}\n"
 
-echo -e ${tests_fa} | $metacache query bacteria1 | grep "|\|#" | grep -v "time\|speed\|list\|ignore" | sed "s/\.fa//g" > results/classified_fa.out
+echo -e ${tests_fa} | $metacach_query | grep "|\|#" | grep -v "time\|speed\|list\|ignore" | sed "s/\.fa//g" > results/classified_fa.out
 
 if [ "$gpus" != "" ]; then
   DIFF=$( diff <(sort results/classified_fa.out) <(sort data/classified_gpu.expected) )
@@ -170,7 +178,7 @@ tests_fq="${tests_fq} data/single.fq ${common}\n"
 tests_fq="${tests_fq} data/pairs.fq -pairseq ${common}\n"
 tests_fq="${tests_fq} data/pair.1.fq data/pair.2.fq -pairfiles ${common}\n"
 
-echo -e ${tests_fq} | $metacache query bacteria1 | grep "|\|#" | grep -v "time\|speed\|list\|ignore" | sed "s/\.fq//g" > results/classified_fq.out
+echo -e ${tests_fq} | $metacach_query | grep "|\|#" | grep -v "time\|speed\|list\|ignore" | sed "s/\.fq//g" > results/classified_fq.out
 
 if [ "$gpus" != "" ]; then
   DIFF=$( diff <(sort results/classified_fq.out) <(sort data/classified_gpu.expected) )
