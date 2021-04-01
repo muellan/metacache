@@ -195,7 +195,7 @@ void database::read(const std::string& filename, int singlePartId,
         for(unsigned r = 0; r < replication; ++r) {
             if(singlePartId >= 0) {
                 cacheReaderThreads.emplace_back(std::async(std::launch::async, [&, r]() {
-                    read_cache(filename+".cache"+std::to_string(singlePartId), r+singlePartId, readingProgress);
+                    read_cache(filename+".cache"+std::to_string(singlePartId), r, readingProgress);
                 }));
             }
             else {
