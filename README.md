@@ -6,7 +6,9 @@ MetaCache is a classification system for mapping genomic sequences (short reads,
 
 For an independend comparison to other tools in terms of classification accuracy see the [LEMMI](https://lemmi.ezlab.org) benchmarking site.
 
-The latest version of MetaCache classifies around 60 Million reads (of length 100) per minute against all complete bacterial, viral and archaea genomes from NCBI RefSeq Release 97 running with 88 threads on a workstation with 2 Intel(R) Xeon(R) Gold 6238 CPUs.
+MetaCache's CPU version classifies around 60 Million reads (of length 100) per minute against all complete bacterial, viral and archaea genomes from NCBI RefSeq Release 97 running with 88 threads on a workstation with 2 Intel(R) Xeon(R) Gold 6238 CPUs.
+
+MetaCache's [GPU version](docs/gpu_version.md) classifies around 300 Million reads (of length 100) per minute against all complete bacterial, viral, fungal and archaea genomes from NCBI RefSeq Release 202 running on a workstation with 4 NVIDIA(R) Tesla(R) V100 GPUs (32 GB model).
 
 
 
