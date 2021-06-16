@@ -109,7 +109,7 @@ You can of course combine these options (don't forget the surrounding quotes):
 
 **Note that a database can only be queried with the same variant of MetaCache (regarding data type sizes) that it was built with.**
 
-In rare cases databases built on one platform might not work with MetaCache on other platforms due to bit-endianness and data type width differences. Especially mixing MetaCache executables compiled with 32-bit and 64-bit compilers might be probelematic.
+In rare cases databases built on one platform might not work with MetaCache on other platforms due to bit-endianness and data type width differences. Especially mixing MetaCache executables compiled with 32-bit and 64-bit compilers might be problematic.
 
 
 
