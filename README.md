@@ -1,6 +1,6 @@
 # MetaCache
 
-[![Linux build status](https://travis-ci.org/muellan/metacache.svg?branch=master)](https://travis-ci.org/muellan/metacache) 
+[![Linux build status](https://travis-ci.org/muellan/metacache.svg?branch=master)](https://travis-ci.org/muellan/metacache)
 
 MetaCache is a classification system for mapping genomic sequences (short reads, long reads, contigs, ...) from metagenomic samples to their most likely taxon of origin. MetaCache aims to reduce the memory requirement usually associated with k-mer based methods while retaining their speed. It uses locality sensitive hashing to quickly identify candidate regions within one or multiple reference genomes. A read is then classified based on the similarity to those regions.
 
@@ -15,7 +15,7 @@ The latest version of MetaCache classifies around 60 Million reads (of length 10
 This will download MetaCache, compile it, download the complete bacterial, viral and archaea genomes from the latest NCBI RefSeq release (this can take some time) and build a classification database from them:
 
 ```
-git clone https://github.com/muellan/metacache.git 
+git clone https://github.com/muellan/metacache.git
 cd metacache
 make
 ./metacache-build-refseq
@@ -55,7 +55,7 @@ Visit MetaCache's github [repository].
 
 
 #### Compile
-Run 'make' in the directory containing the Makefile. 
+Run 'make' in the directory containing the Makefile.
 This will compile MetaCache with the default data type settings which support databases with up to 65,535 reference sequences (targets) and k-mer sizes up to 16. This offers a good database space efficiency and is currently sufficient for the complete bacterial, viral and archaea genomes from the NCBI RefSeq.
 
 If you want MetaCache to be able to process gzipped files make sure you have the zlib library installed on your system and compile with:
@@ -121,17 +121,17 @@ In rare cases databases built on one platform might not work with MetaCache on o
 
 
 ## Building Databases
-   
-   
+
+
 #### Building the Default RefSeq Database
-Use the ```metacache-build-refseq``` script to build a MetaCache database based on complete bacterial, viral and archaea genomes from the latest NCBI RefSeq release. Note that the genomes will be downloaded first, which can take some time. 
+Use the ```metacache-build-refseq``` script to build a MetaCache database based on complete bacterial, viral and archaea genomes from the latest NCBI RefSeq release. Note that the genomes will be downloaded first, which can take some time.
 
 ### [Building Custom Databases...](docs/building.md)
 
 
 
 
-## Classification 
+## Classification
 Once a database (e.g. the standard 'refseq'), is built you can classify reads.
 * a single FASTA file containing some reads:
   ```
@@ -179,7 +179,7 @@ or jump directly to a mode's man page with:
 
 
 
-MetaCache Copyright (C) 2016-2020 [André Müller](https://github.com/muellan) & [Robin Kobus](https://github.com/Funatiq)
+MetaCache Copyright (C) 2016-2021 [André Müller](https://github.com/muellan) & [Robin Kobus](https://github.com/Funatiq)
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain conditions. See the file 'LICENSE' for details.
 

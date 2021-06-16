@@ -1,4 +1,4 @@
-MetaCache  Copyright (C) 2016-2020  André Müller & Robin Kobus
+MetaCache  Copyright (C) 2016-2021  André Müller & Robin Kobus
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it
 under certain conditions. See the file 'LICENSE' for details.
@@ -33,7 +33,7 @@ EXAMPLES:
 
     Query paired-end reads in one file (a1,a2,b1,b2,...):
         metacache query refseq paired_reads.fa -pairseq -out results.txt
-    
+
     View documentation for query mode:
         metacache help query
 
