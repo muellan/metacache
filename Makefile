@@ -23,9 +23,10 @@ CUDA_FLAGS    = $(NVCC_FLAGS) $(INCLUDE) $(MACROS) $(DIALECT) $(NVCC_WARNINGS)
 CUDA_LDFLAGS  = $(NVCC_FLAGS) -Xcompiler="-pthread"
 
 # if MC_ZLIB=NO => deactivate zlib support
-ifeq ($(MC_ZLIB),NO)
+ifneq ($(MC_ZLIB),NO)
 LDFLAGS += -lz
 CUDA_LDFLAGS += -lz
+else
 MACROS += -DMC_NO_ZLIB
 endif
 
