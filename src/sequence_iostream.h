@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2019 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2021 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -26,15 +26,15 @@
 #ifndef CHAR_ISTREAM_H
 #define CHAR_ISTREAM_H
 
-#ifdef MC_ZLIB
+#ifndef MC_NO_ZLIB
 #include <zlib.h>
 #else
-#include <stdio.h>
+#include <cstdio>
 #endif
 
-#include <ctype.h>
-#include <string.h>
-#include <stdlib.h>
+#include <cctype>
+#include <cstring>
+#include <cstdlib>
 
 #include <memory>
 #include <string>
@@ -194,7 +194,7 @@ public:
             if(file_) close();
         }
 
-#ifdef MC_ZLIB
+#ifndef MC_NO_ZLIB
         gzFile file_;
 
         Status open(const char *filename) {

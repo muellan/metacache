@@ -12,18 +12,22 @@ DIALECT       = -std=c++14
 WARNINGS      = -Wall -Wextra -Wpedantic
 NVCC_WARNINGS = -Xcompiler="-Wall -Wextra"
 OPTIMIZATION  = -O3
-INCLUDES      = -lz
-#-march native -fomit-frame-pointer
-# CUB = -I<path-to-cub>
-NVCC_FLAGS    = $(CUB) -arch=sm_70 -lineinfo --expt-relaxed-constexpr --extended-lambda
+INCLUDE       = 
 
-CXXFLAGS      = $(INCLUDES) $(MACROS) $(DIALECT) $(WARNINGS)
+NVCC_FLAGS    = $(CUB) -arch=$(CUDA_ARCH) -lineinfo --expt-relaxed-constexpr --extended-lambda
+CXXFLAGS      = $(INCLUDE) $(MACROS) $(DIALECT) $(WARNINGS)
 
-CUDA_FLAGS    = $(NVCC_FLAGS) $(INCLUDES) $(MACROS) $(DIALECT) $(NVCC_WARNINGS)
+LDFLAGS       = -pthread
 
-LDFLAGS       = -pthread $(INCLUDES)
+CUDA_FLAGS    = $(NVCC_FLAGS) $(INCLUDE) $(MACROS) $(DIALECT) $(NVCC_WARNINGS)
+CUDA_LDFLAGS  = $(NVCC_FLAGS) -Xcompiler="-pthread"
 
-CUDA_LDFLAGS  = $(NVCC_FLAGS) $(INCLUDES) -Xcompiler="-pthread"
+# if MC_ZLIB=NO => deactivate zlib support
+ifeq ($(MC_ZLIB),NO)
+LDFLAGS += -lz
+CUDA_LDFLAGS += -lz
+MACROS += -DMC_NO_ZLIB
+endif
 
 
 #--------------------------------------------------------------------
@@ -125,8 +129,6 @@ CUDA_COMPILE      = $(CUDA_COMPILER) $(CUDA_FLAGS) -c $< -o $@
 #--------------------------------------------------------------------
 # main targets
 #--------------------------------------------------------------------
-.PHONY: all clean
-
 release:
 	$(MAKE) release_dummy DIR=$(REL_DIR) ARTIFACT=$(REL_ARTIFACT) MACROS=$(MACROS)
 
@@ -145,7 +147,6 @@ release_dummy: LDFLAGS += -s
 release_dummy: $(REL_DIR) $(REL_ARTIFACT)
 debug_dummy:   $(DBG_DIR) $(DBG_ARTIFACT)
 profile_dummy: $(PRF_DIR) $(PRF_ARTIFACT)
-
 
 gpu_release:
 	$(MAKE) gpu_release_dummy DIR=$(REL_CUDA_DIR) CUDA_ARTIFACT=$(REL_CUDA_ARTIFACT) MACROS="$(MACROS) -DGPU_MODE"
@@ -173,7 +174,11 @@ gpu_debug_dummy:   $(DBG_CUDA_DIR) $(DBG_CUDA_ARTIFACT)
 gpu_profile_dummy: $(PRF_CUDA_DIR) $(PRF_CUDA_ARTIFACT)
 
 
+# phony targets
+.PHONY: all clean gpu cpu
 all: release debug profile
+cpu: release
+gpu: gpu_release
 
 clean :
 	rm -rf build_*

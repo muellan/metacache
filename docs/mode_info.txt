@@ -39,9 +39,11 @@ SUB-MODES
 
     matacache info <database> loc[ations]
        print map (feature -> list of reference locations)
+       Not available in the GPU version.
 
     matacache info <database> featurecounts
        print map (feature -> number of reference locations)
+       Not available in the GPU version.
 
 
 PARAMETERS
