@@ -14,6 +14,7 @@ SYNOPSIS
 DESCRIPTION
 
     Create a new database of reference sequences (usually genomic sequences) and use it to map (other) sequences to their most likely taxon of origin.
+    This mode is mainly recommended for use with the GPU version.
 
 
 REQUIRED PARAMETERS
@@ -94,11 +95,13 @@ ADVANCED OPTIONS
                       family, suborder, order, subclass, class, subphylum,
                       phylum, subkingdom, kingdom, domain
                       default: off
+                      Not available in the GPU version.
 
     -max-ambig-per-feature <#>
                       Maximum number of allowed different reference sequence
                       taxa per feature if option '-remove-ambig-features' is
                       used.
+                      Not available in the GPU version.
 
     -max-load-fac <factor>
                       maximum hash table load factor;
@@ -106,6 +109,7 @@ ADVANCED OPTIONS
                       for speed and vice versa. A lower load factor will improve
                       speed, a larger one will improve memory efficiency.
                       default: 0.800000
+                      Not available in the GPU version.
 
     -parts <#>        Splits the database into multiple parts. Each part
                       contains a separate hash table.

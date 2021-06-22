@@ -275,6 +275,7 @@ ADVANCED: DATABASE MODIFICATION
                       speed and can be used to remove non-discriminative
                       features.
                       default: off
+                      Not available in the GPU version.
 
     -remove-ambig-features <rank>
                       Removes all features that have more distinct reference
@@ -288,11 +289,13 @@ ADVANCED: DATABASE MODIFICATION
                       family, suborder, order, subclass, class, subphylum,
                       phylum, subkingdom, kingdom, domain
                       default: off
+                      Not available in the GPU version.
 
     -max-ambig-per-feature <#>
                       Maximum number of allowed different reference sequence
                       taxa per feature if option '-remove-ambig-features' is
                       used.
+                      Not available in the GPU version.
 
     -max-load-fac <factor>
                       maximum hash table load factor;
@@ -300,6 +303,7 @@ ADVANCED: DATABASE MODIFICATION
                       for speed and vice versa. A lower load factor will improve
                       speed, a larger one will improve memory efficiency.
                       default: 0.800000
+                      Not available in the GPU version.
 
 
 ADVANCED: PERFORMANCE TUNING / TESTING

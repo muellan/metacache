@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2020 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2021 André Müller (muellan@uni-mainz.de)
  *                       & Christian Hundt (hundt@uni-mainz.de)
  *
  * based on an alignment algorithms implementation by Christian Hundt

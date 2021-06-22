@@ -45,7 +45,7 @@ The latest version of MetaCache classifies around 60 Million reads (of length 10
 * [for mode `info`](mode_info.txt): get information about a database
 
 
-MetaCache Copyright (C) 2016-2020 [André Müller](https://github.com/muellan) & [Robin Kobus](https://github.com/Funatiq)
+MetaCache Copyright (C) 2016-2021 [André Müller](https://github.com/muellan) & [Robin Kobus](https://github.com/Funatiq)
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain conditions. See the file 'LICENSE' for details.
 
