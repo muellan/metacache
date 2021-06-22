@@ -533,8 +533,8 @@ extract_accession_string(const string& text, sequence_id_type idtype)
     if(text.empty()) return "";
 
     switch(idtype) {
-        case sequence_id_type::acc:
-            [[fallthrough]]
+        case sequence_id_type::acc: 
+        // [[fallthrough]]
         case sequence_id_type::acc_ver:
             return extract_ncbi_accession_number(text, idtype);
         case sequence_id_type::gi:

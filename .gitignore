@@ -31,9 +31,7 @@
 .project
 .cproject
 .vscode
+.pydevproject
+.tasks
 metacache
-metacache_debug
-metacache_prf
-metacache_gpu
-metacache_gpu_debug
-metacache_gpu_prf
+metacache_*
