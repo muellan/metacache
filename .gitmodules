@@ -6,7 +6,7 @@
 	url = https://github.com/Funatiq/bb_segsort
 [submodule "dep/warpcore"]
 	path = dep/warpcore
-	url = git@gitlab.rlp.net:pararch/warpcore.git
+	url = https://github.com/sleeepyjack/warpcore
 # [submodule "dep/hpc_helpers"]
 # 	path = dep/hpc_helpers
 # 	url = https://gitlab.rlp.net/pararch/hpc_helpers
