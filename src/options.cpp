@@ -1722,9 +1722,6 @@ merge_mode_cli(merge_options& opt, error_messages& err)
     "ADVANCED: CUSTOM QUERY SKETCHING (SUBSAMPLING)" %
         sketching_options_cli(qry.sketching, err)
     ,
-    "ADVANCED: DATABASE MODIFICATION" %
-        database_storage_options_cli(qry.dbconfig, err)
-    ,
     "ADVANCED: PERFORMANCE TUNING / TESTING" %
         performance_options_cli(qry.performance, err)
     ,
