@@ -161,7 +161,7 @@ tests_fa="${tests_fa} data/pair.1.fa data/pair.2.fa -pairfiles ${common}\n"
 
 echo -e ${tests_fa} | $metacach_query | grep "|\|#" | grep -v "time\|speed\|list\|ignore" | sed "s/\.fa//g" > results/classified_fa.out
 
-if [ "$gpus" != "" ]; then
+if [ "$1" == "gpu" ]; then
   DIFF=$( diff <(sort results/classified_fa.out) <(sort data/classified_gpu.expected) )
 else
   DIFF=$( diff <(sort results/classified_fa.out) <(sort data/classified.expected) )
@@ -180,7 +180,7 @@ tests_fq="${tests_fq} data/pair.1.fq data/pair.2.fq -pairfiles ${common}\n"
 
 echo -e ${tests_fq} | $metacach_query | grep "|\|#" | grep -v "time\|speed\|list\|ignore" | sed "s/\.fq//g" > results/classified_fq.out
 
-if [ "$gpus" != "" ]; then
+if [ "$1" == "gpu" ]; then
   DIFF=$( diff <(sort results/classified_fq.out) <(sort data/classified_gpu.expected) )
 else
   DIFF=$( diff <(sort results/classified_fq.out) <(sort data/classified.expected) )
