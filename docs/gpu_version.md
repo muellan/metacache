@@ -2,7 +2,7 @@
 # MetaCache-GPU
 
 
-## Example Installation 
+## Example Installation
 on an Ubuntu system with NVIDIA Quattro GV100 GPUs and CUDA SDK version 11 installed:
 ```
 sudo apt install -y zlib1g zlib1g-dev
@@ -61,10 +61,10 @@ This corresponds to the CPU version compiled with `make MACROS="-DMC_TARGET_ID_T
 
 ## Differences to CPU version
 
-MetaCache-GPU allows to **build** distributed databases across multiple GPUs.
+MetaCache-GPU allows to **build** distributed databases across multiple GPUs. By default, it will use all available GPUs on the system.
 In difference to the [database partitioning](docs/partitioning.md) approach, the reference genomes are automatically distributed across multiple GPUs in a single run. Due to the dynamic distribution scheme and the concurrent execution on the GPUs, two database builds for the same input files will most likely differ. However, this should only have a negligible impact on classification performance.
 
-In order to **query** a multi-GPU database make sure to set the same number of GPUs when using the query mode. 
+By default, the **query** mode will use one GPU per database part. It is also possible to utilize more GPUs by replicating the database (see below), which may increase classification speed.
 
 ### Build+Query Immediate Mode
 Since building databases is significantly faster on the GPU than on the CPU and will often take less than a minute, the [build+query mode](docs/mode_build_query.txt) can be used to build and directly query a database without writing the database to disk.
