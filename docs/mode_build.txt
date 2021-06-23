@@ -80,6 +80,7 @@ ADVANCED OPTIONS
                       speed and can be used to remove non-discriminative
                       features.
                       default: off
+                      Not available in the GPU version.
 
     -remove-ambig-features <rank>
                       Removes all features that have more distinct reference

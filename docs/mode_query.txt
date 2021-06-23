@@ -309,7 +309,7 @@ ADVANCED: DATABASE MODIFICATION
 ADVANCED: PERFORMANCE TUNING / TESTING
 
     -threads <#>      Sets the maximum number of parallel threads to use.default
-                      (on this machine): 4
+                      (on this machine): 8
 
 
     -batch-size <#>   Process <#> many queries (reads or read pairs) per thread

@@ -82,6 +82,7 @@ ADVANCED OPTIONS
                       speed and can be used to remove non-discriminative
                       features.
                       default: off
+                      Not available in the GPU version.
 
     -remove-ambig-features <rank>
                       Removes all features that have more distinct reference
@@ -346,7 +347,7 @@ ADVANCED: GROUND TRUTH BASED EVALUATION
 ADVANCED: PERFORMANCE TUNING / TESTING
 
     -threads <#>      Sets the maximum number of parallel threads to use.default
-                      (on this machine): 88
+                      (on this machine): 8
 
 
     -batch-size <#>   Process <#> many queries (reads or read pairs) per thread

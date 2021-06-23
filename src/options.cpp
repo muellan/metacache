@@ -388,7 +388,8 @@ database_storage_options_cli(database_storage_options& opt, error_messages& err)
         %("Removes all features that have reached the maximum allowed "
           "amount of locations per feature. This can improve querying "
           "speed and can be used to remove non-discriminative features.\n"
-          "default: "s + (opt.removeOverpopulatedFeatures ? "on" : "off"))
+          "default: "s + (opt.removeOverpopulatedFeatures ? "on" : "off") + "\n"
+          "Not available in the GPU version."s)
     )
     ,
     (   option("-remove-ambig-features") &
@@ -403,7 +404,8 @@ database_storage_options_cli(database_storage_options& opt, error_messages& err)
           "of sensitivity. Note that the lower the given taxonomic rank is, "
           "the more pronounced the effect will be.\n"
           "Valid values: "s + taxon_rank_names() + "\n"s +
-          "default: "s + (opt.removeAmbigFeaturesOnRank != taxon_rank::none ? "on" : "off"))
+          "default: "s + (opt.removeAmbigFeaturesOnRank != taxon_rank::none ? "on" : "off") + "\n"
+          "Not available in the GPU version."s)
     ,
     (   option("-max-ambig-per-feature") &
         integer("#", opt.maxTaxaPerFeature)
@@ -411,6 +413,7 @@ database_storage_options_cli(database_storage_options& opt, error_messages& err)
     )
         % "Maximum number of allowed different reference sequence taxa per feature "
           "if option '-remove-ambig-features' is used.\n"
+          "Not available in the GPU version."s
     ,
     (   option("-max-load-fac", "-max-load-factor") &
         number("factor", opt.maxLoadFactor)
@@ -420,7 +423,8 @@ database_storage_options_cli(database_storage_options& opt, error_messages& err)
           "This can be used to trade off larger memory consumption for "
           "speed and vice versa. A lower load factor will improve speed, "
           "a larger one will improve memory efficiency.\n"
-          "default: "s + to_string(defaultDb.max_load_factor())
+          "default: "s + to_string(defaultDb.max_load_factor()) + "\n"
+          "Not available in the GPU version."s
     )
     );
 }
@@ -1631,6 +1635,7 @@ string build_query_mode_docs() {
         "\n"
         "    Create a new database of reference sequences (usually genomic sequences)"
         " and use it to map (other) sequences to their most likely taxon of origin.\n"
+        "    This mode is mainly recommended for use with the GPU version.\n"
         "\n\n";
 
     docs += clipp::documentation(cli, cli_doc_formatting()).str();
@@ -1964,9 +1969,11 @@ string info_mode_docs() {
         "\n"
         "    matacache info <database> loc[ations]\n"
         "       print map (feature -> list of reference locations)\n"
+        "       Not available in the GPU version.\n"
         "\n"
         "    matacache info <database> featurecounts\n"
         "       print map (feature -> number of reference locations)\n"
+        "       Not available in the GPU version.\n"
 
         "\n\n";
 

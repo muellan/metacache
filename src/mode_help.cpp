@@ -79,7 +79,7 @@ void main_mode_help(const cmdline_args& args)
             "\n"
             "    Query paired-end reads in one file (a1,a2,b1,b2,...):\n"
             "        metacache query refseq paired_reads.fa -pairseq -out results.txt\n"
-            "    \n"
+            "\n"
             "    View documentation for query mode:\n"
             "        metacache help query\n"
             "\n"
