@@ -31,7 +31,7 @@ If you don't have enough GPU memory, you can use [database partitioning](docs/pa
   * CUDA >= 11
   * CUDA 10.2 and a self-provided version of [CUB](https://github.com/NVlabs/cub) (you also need to set the include path for CUB by supplying `INCLUDE=*your_cub_path*` when calling make)
 
-* Hashtable library [warpcore](https://github.com/sleeepyjack/warpcore) and sorting library [bb_segsort](https://github.com/Funatiq/bb_segsort). Both repositories are included as submodules and need to be checked out in addition to MetaCache itself. You can do so by calling
+* Hashtable library [warpcore (github)](https://github.com/sleeepyjack/warpcore) [(HIPC '20 paper)](https://ieeexplore.ieee.org/document/9406635) and sorting library [bb_segsort (github)](https://github.com/Funatiq/bb_segsort). Both repositories are included as submodules and need to be checked out in addition to MetaCache itself. You can do so by calling
   ```git submodule update --init --recursive```
 
 * Support for gzipped FASTA/FASTQ files requires the zlib compression library to be installed on your system.
