@@ -75,7 +75,7 @@ public:
 
     string str() const {
         string s;
-        for(const auto msg : messages_) {
+        for(const auto& msg : messages_) {
             if(!msg.empty()) s += msg + '\n';
         }
         return s;
@@ -453,7 +453,7 @@ void augment_taxonomy_options(taxonomy_options& opt)
     opt.mappingPostFiles.push_back(opt.path + "nucl_gss.accession2taxid");
 
     //find additional maps by file extension ".accession2taxid"
-    for(const auto f : files_in_directory(opt.path)) {
+    for(const auto& f : files_in_directory(opt.path)) {
         if(f.find(".accession2taxid") != string::npos) {
             if(std::find(opt.mappingPostFiles.begin(),
                          opt.mappingPostFiles.end(), f)

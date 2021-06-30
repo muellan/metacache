@@ -232,7 +232,7 @@ public:
     {}
 
     database& operator = (const database&) = delete;
-    database& operator = (database&&)      = default;
+    database& operator = (database&&)      = delete;
 
 
     //---------------------------------------------------------------
