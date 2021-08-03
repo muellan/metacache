@@ -366,7 +366,6 @@ uint32_t unique_sketch(
 /**************************************************************************//**
  *
  * @brief use one warp to generate min-hasher sketch from sequence;
- *        maximum allowed sequence length is 128 characters
  *
  * @details smallest *unique* hash values of *one* hash function
  *
@@ -389,16 +388,19 @@ uint32_t warp_make_sketch(
     const uint32_t maxSketchSize)
 {
     using offset_type = Offset;
+    const int warpLane = threadIdx.x % WARPSIZE;
 
     uint32_t sketchSize = 0;
 
     const offset_type sequenceLength = sequenceEnd - sequenceBegin;
 
-    // only process non-empty queries
-    if(sequenceLength) {
-        constexpr int itemsPerThread = 4; // 32*4=128 items
-        feature items[itemsPerThread];
+    // skip empty queries
+    if(!sequenceLength) return sketchSize;
 
+    constexpr int itemsPerThread = 4; // 32*4=128 items
+    feature items[itemsPerThread];
+
+    if(sequenceLength <= 128) {
         warp_kmerize(sequenceBegin, sequenceLength, kmerSize, items);
 
         warp_sort_128(items);
@@ -406,6 +408,41 @@ uint32_t warp_make_sketch(
         sketchSize = unique_sketch<itemsPerThread>(items, sketch, maxSketchSize);
 
         __syncwarp();
+    }
+    else {
+        // set stride so that maxSketchSize items remain free to store previous sketch
+        uint32_t paddedSketchSize = (maxSketchSize+3)/4*4;
+        offset_type stride = 4*WARPSIZE - paddedSketchSize;
+        offset_type maxLength = stride + kmerSize - 1;
+
+        if(warpLane < paddedSketchSize)
+            sketch[warpLane] = feature(~0);
+        __syncwarp();
+
+        for(; sequenceBegin < sequenceEnd; sequenceBegin += stride) {
+            const offset_type sequenceLength = std::min(sequenceEnd - sequenceBegin, long(maxLength));
+
+            // only process non-empty queries
+            if(sequenceLength >= kmerSize) {
+                // limited length leads to unused items in hindmost threads
+                warp_kmerize(sequenceBegin, sequenceLength, kmerSize, items);
+
+                // load previous sketch in hindmost threads
+                if(warpLane-int(WARPSIZE-paddedSketchSize/4) >= 0) {
+                    int pos = warpLane-(WARPSIZE-paddedSketchSize/4);
+                    items[0] = sketch[4*pos];
+                    items[1] = sketch[4*pos+1];
+                    items[2] = sketch[4*pos+2];
+                    items[3] = sketch[4*pos+3];
+                }
+
+                warp_sort_128(items);
+
+                sketchSize = unique_sketch<itemsPerThread>(items, sketch, maxSketchSize);
+            }
+
+            __syncwarp();
+        }
     }
 
     return sketchSize;
@@ -693,7 +730,7 @@ uint32_t query_bucket_hashtable(
  *
  * @brief insert batch of sequences into bucket list hashtable
  *
- * @details each warp processes one sequence (window) of at most 128 characters
+ * @details each warp processes one sequence (window)
  *
  *****************************************************************************/
 template<
@@ -710,7 +747,7 @@ void insert_features(
     const target_id * targetIds,
     const window_id * winOffsets,
     const char      * sequence,
-    const Offset     * sequenceOffsets,
+    const Offset    * sequenceOffsets,
     numk_t kmerSize,
     uint32_t maxSketchSize,
     uint32_t windowSize,
@@ -750,6 +787,28 @@ void insert_features(
             const window_id winOffset = winOffsets[tgt]+win ;
             const uint64_t loc = (uint64_t(targetId) << 32) + winOffset;
 
+            // const int warpLane = threadIdx.x % WARPSIZE;
+            // if(warpLane == 0)
+            //     printf("tgt %d win %d features %u %u %u %u %u %u %u %u "
+            //                                   "%u %u %u %u %u %u %u %u\n",
+            //         tgt, win,
+            //         sketch[warpId][0],
+            //         sketch[warpId][1],
+            //         sketch[warpId][2],
+            //         sketch[warpId][3],
+            //         sketch[warpId][4],
+            //         sketch[warpId][5],
+            //         sketch[warpId][6],
+            //         sketch[warpId][7],
+            //         sketch[warpId][8],
+            //         sketch[warpId][9],
+            //         sketch[warpId][10],
+            //         sketch[warpId][11],
+            //         sketch[warpId][12],
+            //         sketch[warpId][13],
+            //         sketch[warpId][14],
+            //         sketch[warpId][15]);
+
             insert_into_hashtable(
                 hashtable, sketch[warpId], sketchSize, loc);
 
@@ -763,7 +822,7 @@ void insert_features(
  *
  * @brief query batch of sequences against hashtable
  *
- * @details each warp processes one sequence (window) of at most 128 characters
+ * @details each warp processes one sequence (window)
  *
  *****************************************************************************/
 template<
@@ -830,8 +889,10 @@ void gpu_hahstable_query(
 
         // only process non-empty queries
         if(sketchSize) {
-            // if(warpLane == 0) {
-            //     printf("query %d features %llu %llu %llu %llu %llu %llu %llu %llu ...\n", queryId,
+            // if(warpLane == 0)
+            //     printf("query %d features %llu %llu %llu %llu %llu %llu %llu %llu "
+            //                              "%llu %llu %llu %llu %llu %llu %llu %llu\n",
+            //         queryId,
             //         sketch[warpId][0],
             //         sketch[warpId][1],
             //         sketch[warpId][2],
@@ -839,7 +900,15 @@ void gpu_hahstable_query(
             //         sketch[warpId][4],
             //         sketch[warpId][5],
             //         sketch[warpId][6],
-            //         sketch[warpId][7]);
+            //         sketch[warpId][7],
+            //         sketch[warpId][8],
+            //         sketch[warpId][9],
+            //         sketch[warpId][10],
+            //         sketch[warpId][11],
+            //         sketch[warpId][12],
+            //         sketch[warpId][13],
+            //         sketch[warpId][14],
+            //         sketch[warpId][15]);
 
             query_hashtable(hashtable, sketch[warpId], sketchSize);
 
@@ -871,7 +940,7 @@ void gpu_hahstable_query(
  *
  * @brief query batch of sequences against bucket list hashtable
  *
- * @details each warp processes one sequence (window) of at most 128 characters
+ * @details each warp processes one sequence (window)
  *
  *****************************************************************************/
 template<
@@ -937,8 +1006,10 @@ void gpu_hahstable_query(
 
         // only process non-empty queries
         if(sketchSize) {
-            // if(warpLane == 0) {
-            //     printf("query %d features %llu %llu %llu %llu %llu %llu %llu %llu ...\n", queryId,
+            // if(warpLane == 0)
+            //     printf("query %d features %llu %llu %llu %llu %llu %llu %llu %llu "
+            //                              "%llu %llu %llu %llu %llu %llu %llu %llu\n",
+            //         queryId,
             //         sketch[warpId][0],
             //         sketch[warpId][1],
             //         sketch[warpId][2],
@@ -946,7 +1017,15 @@ void gpu_hahstable_query(
             //         sketch[warpId][4],
             //         sketch[warpId][5],
             //         sketch[warpId][6],
-            //         sketch[warpId][7]);
+            //         sketch[warpId][7],
+            //         sketch[warpId][8],
+            //         sketch[warpId][9],
+            //         sketch[warpId][10],
+            //         sketch[warpId][11],
+            //         sketch[warpId][12],
+            //         sketch[warpId][13],
+            //         sketch[warpId][14],
+            //         sketch[warpId][15]);
 
             location * out = locations_out + queryId*maxSketchSize*maxLocationsPerFeature;
 

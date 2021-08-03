@@ -201,8 +201,7 @@ public:
 
         constexpr int maxSketchSize = 16;
 
-        // max 32*4 characters per warp, so max window size is 128
-        if(targetSketcher.window_size() <= 128 && targetSketcher.sketch_size() <= maxSketchSize) {
+        if(targetSketcher.sketch_size() <= maxSketchSize) {
             constexpr int warpsPerBlock = 2;
             constexpr int threadsPerBlock = 32*warpsPerBlock;
 
@@ -221,7 +220,6 @@ public:
                 targetSketcher.window_stride());
         }
         else {
-            std::cerr << "Max window size is 128!\n";
             std::cerr << "Max sketch size is " << maxSketchSize << "\n";
         }
 
@@ -253,8 +251,7 @@ public:
     {
         constexpr int maxSketchSize = 16;
 
-        // max 32*4 characters per warp, so max window size is 128
-        if(querySketcher.window_size() <= 128 && querySketcher.sketch_size() <= maxSketchSize) {
+        if(querySketcher.sketch_size() <= maxSketchSize) {
             constexpr int warpsPerBlock = 2;
             constexpr int threadsPerBlock = 32*warpsPerBlock;
 
@@ -276,7 +273,6 @@ public:
             );
         }
         else {
-            std::cerr << "Max window size is 128!\n";
             std::cerr << "Max sketch size is " << maxSketchSize << "\n";
         }
     }
@@ -706,8 +702,7 @@ public:
     {
         constexpr int maxSketchSize = 16;
 
-        // max 32*4 characters per warp, so max window size is 128
-        if(querySketcher.window_size() <= 128 && querySketcher.sketch_size() <= maxSketchSize) {
+        if(querySketcher.sketch_size() <= maxSketchSize) {
             constexpr int warpsPerBlock = 2;
             constexpr int threadsPerBlock = 32*warpsPerBlock;
 
@@ -730,7 +725,6 @@ public:
             );
         }
         else {
-            std::cerr << "Max window size is 128!\n";
             std::cerr << "Max sketch size is " << maxSketchSize << "\n";
         }
     }
