@@ -200,6 +200,9 @@ public:
         if(abs(maxLoadFactor_ - lf) > 0.00001f) {
             maxLoadFactor_ = lf;
         }
+
+        for(auto& hashTable : hashTables_)
+            hashTable.max_load_factor(maxLoadFactor_);
     }
     //-----------------------------------------------------
     float max_load_factor() const noexcept {
@@ -578,6 +581,9 @@ public:
     //---------------------------------------------------------------
     void prepare_for_query_hash_tables(part_id numParts, unsigned) {
         hashTables_.resize(numParts);
+
+        for(auto& hashTable : hashTables_)
+            hashTable.max_load_factor(maxLoadFactor_);
     }
 
     //---------------------------------------------------------------
