@@ -12,7 +12,7 @@ DIALECT       = -std=c++14
 WARNINGS      = -Wall -Wextra -Wpedantic
 NVCC_WARNINGS = -Xcompiler="-Wall -Wextra"
 OPTIMIZATION  = -O3
-INCLUDE       = 
+INCLUDE       =
 
 NVCC_FLAGS    = $(CUB) -arch=$(CUDA_ARCH) -lineinfo --expt-relaxed-constexpr --extended-lambda
 CXXFLAGS      = $(INCLUDE) $(MACROS) $(DIALECT) $(WARNINGS)

@@ -97,7 +97,7 @@ struct sequence_query
 
             auto tophits = db.query_host(query.seq1, query.seq2, rules, targetMatches);
 
-            update(resultsBuffer, query, targetMatches.locations(), tophits);
+            update(resultsBuffer, query, targetMatches.locations(), std::move(tophits));
         }
     }
 #else

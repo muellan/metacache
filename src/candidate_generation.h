@@ -145,6 +145,10 @@ public:
     /****************************************************************
      */
     best_distinct_matches_in_contiguous_window_ranges() = default;
+    best_distinct_matches_in_contiguous_window_ranges(
+        const best_distinct_matches_in_contiguous_window_ranges&) = delete;
+    best_distinct_matches_in_contiguous_window_ranges(
+        best_distinct_matches_in_contiguous_window_ranges&&) = default;
 
     /****************************************************************
      * @brief copy candidates from span

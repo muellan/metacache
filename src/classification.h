@@ -94,8 +94,8 @@ void map_queries_to_targets(
  *
  *****************************************************************************/
 void map_candidates_to_targets(
-    const std::vector<std::string>& queryHeaders,
-    const std::vector<classification_candidates>&,
+    std::vector<std::string>&&,
+    std::vector<classification_candidates>&&,
     const database&, const query_options&,
     classification_results&);
 

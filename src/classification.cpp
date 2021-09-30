@@ -142,8 +142,9 @@ ground_truth(const taxonomy_cache& taxonomy, const string& header)
  *****************************************************************************/
 struct classification
 {
-    classification(classification_candidates cand):
-        candidates{std::move(cand)}, best{nullptr}, groundTruth{nullptr}
+    classification(classification_candidates&& cand):
+        candidates{std::move(cand)},
+                   best{nullptr}, groundTruth{nullptr}
     {}
 
     classification(const span<match_candidate>& cand):
@@ -205,9 +206,9 @@ classify(const taxonomy_cache& taxonomy, const classification_options& opt,
 classification
 make_classification(const taxonomy_cache& taxonomy,
                     const classification_options& opt,
-                    const classification_candidates& candidates)
+                    classification_candidates&& candidates)
 {
-    classification cls { candidates };
+    classification cls { std::move(candidates) };
 
     cls.best = classify(taxonomy, opt, cls.candidates);
 
@@ -730,15 +731,15 @@ void map_queries_to_targets_default(
     const auto makeBatchBuffer = [] { return mappings_buffer(); };
 
     //updates buffer with the database answer of a single query
-    const auto processQuery = [&](
+    const auto processQuery = [&] (
         mappings_buffer& buf,
         const sequence_query& query,
         const auto& allhits,
-        const auto& tophits)
+        auto&& tophits)
     {
         if(query.empty()) return;
 
-        auto cls = make_classification(db.taxo_cache(), opt.classify, tophits);
+        auto cls = make_classification(db.taxo_cache(), opt.classify, std::forward<decltype(tophits)>(tophits));
 
         if(opt.output.analysis.showHitsPerTargetList || opt.classify.covPercentile > 0) {
             //insert all candidates with at least 'hitsMin' hits into
@@ -774,7 +775,7 @@ void map_queries_to_targets_default(
         }
         if(opt.classify.covPercentile > 0) {
             //move mappings to global map
-            queryMappingsQueue.enqueue(buf.queryMappings);
+            queryMappingsQueue.enqueue(std::move(buf.queryMappings));
             buf.queryMappings.clear();
         }
         else {
@@ -853,8 +854,8 @@ void map_queries_to_targets(const vector<string>& infiles,
  *        try to map candidates to a taxon with the lowest possible rank
  *
  *****************************************************************************/
-void map_candidates_to_targets(const vector<string>& queryHeaders,
-                               const vector<classification_candidates>& queryCandidates,
+void map_candidates_to_targets(vector<string>&& queryHeaders,
+                               vector<classification_candidates>&& queryCandidates,
                                const database& db, const query_options& opt,
                                classification_results& results)
 {
@@ -868,7 +869,7 @@ void map_candidates_to_targets(const vector<string>& queryHeaders,
     for(size_t i = 0; i < queryHeaders.size(); ++i) {
         sequence_query query{i+1, std::move(queryHeaders[i]), {}};
 
-        classification cls { queryCandidates[i] };
+        classification cls { std::move(queryCandidates[i]) };
         cls.best = classify(db.taxo_cache(), opt.classify, cls.candidates);
 
         if(opt.make_tax_counts() && cls.best) {
