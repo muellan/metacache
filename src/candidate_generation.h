@@ -165,6 +165,9 @@ public:
     :
         top_{}
     {
+        if(rules.maxCandidates < std::numeric_limits<std::size_t>::max())
+            top_.reserve(rules.maxCandidates+1);
+
         for_all_contiguous_window_ranges(matches, rules.maxWindowsInRange,
             [&,this] (match_candidate& cand) {
                 return insert(cand, taxonomy, rules);
