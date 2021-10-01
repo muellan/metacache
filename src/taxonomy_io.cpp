@@ -69,24 +69,22 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
     auto taxonNames = std::map<taxon_id,string>{};
 
     std::ifstream is{taxNamesFile};
+    // each line consists of taxonId, name, uniqueName and category
+    // field terminator is "\t|\t"
+    // row terminator is "\t|\n"
     if(is.good()) {
         if(showInfo) cout << "Reading taxon names ... " << std::flush;
         taxon_id lastId = 0;
         taxon_id taxonId = 0;
+        string name;
         string category;
 
         while(is.good()) {
             is >> taxonId;
             if(taxonId != lastId) {
-                forward(is, '|');
-                string name;
-                is >> name;
-                string word;
-                while(is.good()) {
-                    is >> word;
-                    if(word.find('|') != string::npos) break;
-                    name += " " + word;
-                };
+                is.ignore(3);
+                getline(is, name, '\t');
+                is.ignore(2);
                 forward(is, '|');
                 is >> category;
                 if(category.find("scientific") != string::npos) {
@@ -103,13 +101,16 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
              << taxNamesFile
              << "; continuing with ids only." << std::endl;
     }
-
-    taxonomy tax;
+    is.close();
 
     //read merged taxa
-    is.close();
-    is.open(mergeTaxFile);
+    taxonomy tax;
     auto mergedTaxa = std::map<taxon_id,taxon_id>{};
+
+    is.open(mergeTaxFile);
+    // each line consists of oldId and newId
+    // field terminator is "\t|\t"
+    // row terminator is "\t|\n"
     if(is.good()) {
         if(showInfo) cout << "Reading taxonomic node mergers ... " << std::flush;
         taxon_id oldId;
@@ -126,26 +127,25 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
         }
         if(showInfo) cout << "done." << std::endl;
     }
+    is.close();
 
     //read taxonomic structure
-    is.close();
     is.open(taxNodesFile);
+    // each line consists of taxonId, parentId, rank, ...
+    // field terminator is "\t|\t"
+    // row terminator is "\t|\n"
     if(is.good()) {
         if(showInfo) cout << "Reading taxonomic tree ... " << std::flush;
         taxon_id taxonId;
         taxon_id parentId;
         string rankName;
-        string rankNameExt;
 
         while(is.good()) {
             is >> taxonId;
-            forward(is, '|');
+            is.ignore(3);
             is >> parentId;
-            forward(is, '|');
-            is >> rankName;
-            is >> rankNameExt;
-            if(rankNameExt != "|")
-                rankName += ' ' + rankNameExt;
+            is.ignore(3);
+            getline(is, rankName, '\t');
             forward(is, '\n');
 
             //get taxon name
