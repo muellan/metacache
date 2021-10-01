@@ -1102,7 +1102,7 @@ gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numParts)
+void gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numParts, const sketcher&)
 {
     part_id numGPUsFound = num_gpus();
     config_num_gpus(numParts);

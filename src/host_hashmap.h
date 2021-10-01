@@ -150,6 +150,7 @@ public:
         maxLoadFactor_(default_max_load_factor()),
         maxLocationsPerFeature_{max_supported_locations_per_feature()},
         hashTables_{},
+        sketchers_{},
         inserters_{}
     {}
 
@@ -158,6 +159,7 @@ public:
         maxLoadFactor_{other.maxLoadFactor_},
         maxLocationsPerFeature_{other.maxLocationsPerFeature_},
         hashTables_{std::move(other.hashTables_)},
+        sketchers_{std::move(other.sketchers_)},
         inserters_{std::move(other.inserters_)}
     {}
 
@@ -175,9 +177,10 @@ public:
 
 
     //---------------------------------------------------------------
-    void initialize_build_hash_tables(part_id numParts) {
+    void initialize_build_hash_tables(part_id numParts, const sketcher& targetSketcher) {
         hashTables_.resize(numParts);
         inserters_.resize(numParts);
+        sketchers_.resize(numParts, targetSketcher);
 
         for(auto& hashTable : hashTables_)
             hashTable.max_load_factor(maxLoadFactor_);
@@ -465,19 +468,19 @@ public:
      */
     window_id add_target(part_id part,
                          const sequence& seq, target_id tgt,
-                         const sketcher& targetSketcher)
+                         const sketcher&)
     {
         if(!inserters_[part]) make_sketch_inserter(part);
 
         window_id win = 0;
-        targetSketcher.for_each_sketch(seq,
-            [&, this] (auto&& sk) {
+        sketchers_[part].for_each_sketch(seq,
+            [&, this] (const auto& sk) {
                 if(inserters_[part]->valid()) {
                     //insert sketch into batch
                     auto& sketch = inserters_[part]->next_item();
                     sketch.tgt = tgt;
                     sketch.win = win;
-                    sketch.sk = std::move(sk);
+                    sketch.sk = sk;
                 }
                 ++win;
             });
@@ -557,11 +560,11 @@ private:
 public:
     //---------------------------------------------------------------
     classification_candidates
-    query_host(const sequence& query1, const sequence& query2,
-               const sketcher& querySketcher,
-               const taxonomy_cache& taxonomy,
-               const candidate_generation_rules& rules,
-               matches_sorter& sorter) const
+    query_host_hashmap(const sequence& query1, const sequence& query2,
+                       const sketcher& querySketcher,
+                       const taxonomy_cache& taxonomy,
+                       const candidate_generation_rules& rules,
+                       matches_sorter& sorter) const
     {
         sketch allWindowSketch = sketch_all_windows(query1, query2, querySketcher);
 
@@ -605,6 +608,7 @@ private:
 
     std::vector<hash_table> hashTables_;
 
+    std::vector<sketcher> sketchers_;
     std::vector<std::unique_ptr<batch_executor<window_sketch>>> inserters_;
 };
 

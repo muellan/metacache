@@ -125,6 +125,7 @@ public:
     //---------------------------------------------------------------
     explicit
     single_function_unique_min_hasher(hasher hash = hasher{}):
+        sketch{},
         hash_(std::move(hash)), k_(16), sketchSize_(16),
         windowSize_(127), windowStride_(127-k_+1)
     {}
@@ -194,7 +195,7 @@ public:
         using std::begin;
         using std::end;
         for_each_sketch(begin(s), end(s),
-                               std::forward<Consumer>(consume));
+                        std::forward<Consumer>(consume));
     }
 
     //-----------------------------------------------------
@@ -215,7 +216,8 @@ public:
                 const auto s = std::min(sketchSize_, sketch_size_type(n - k_ + 1));
                 if(s < 1) return;
 
-                auto sketch = sketch_type(s, feature_type(~0));
+                sketch.clear();
+                sketch.resize(s, feature_type(~0));
 
                 for_each_unambiguous_canonical_kmer_2bit<kmer_type>(k_, first, last,
                     [&] (kmer_type kmer) {
@@ -240,7 +242,7 @@ public:
                     }
                 }
 
-                consume(std::move(sketch));
+                consume(sketch);
             });
     }
 
@@ -278,6 +280,7 @@ public:
 
 private:
     //---------------------------------------------------------------
+    mutable sketch_type sketch;
     hasher hash_;
     kmer_size_type k_;
     sketch_size_type sketchSize_;

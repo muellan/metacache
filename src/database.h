@@ -317,7 +317,7 @@ public:
 
     //---------------------------------------------------------------
     void initialize_hash_table(part_id numParts) {
-        featureStore_.initialize_build_hash_tables(numParts);
+        featureStore_.initialize_build_hash_tables(numParts, targetSketcher_);
     }
 
     //---------------------------------------------------------------
@@ -403,10 +403,11 @@ public:
     classification_candidates
     query_host(const sequence& query1, const sequence& query2,
                const candidate_generation_rules& rules,
+               const sketcher& query_sketcher,
                matches_sorter& sorter) const
     {
-        return featureStore_.query_host(
-            query1, query2, querySketcher_, taxonomyCache_, rules, sorter);
+        return featureStore_.query_host_hashmap(
+            query1, query2, query_sketcher, taxonomyCache_, rules, sorter);
     }
 #else
     void

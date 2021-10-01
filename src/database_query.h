@@ -89,13 +89,14 @@ struct sequence_query
         const database& db,
         const classification_options& opt,
         const std::vector<sequence_query>& batch,
+        const sketcher& querySketcher,
         database::matches_sorter& targetMatches,
         Buffer& resultsBuffer, BufferUpdate& update)
     {
         for(const auto& query : batch) {
             auto rules = make_candidate_generation_rules(db.target_sketcher(), opt, query);
 
-            auto tophits = db.query_host(query.seq1, query.seq2, rules, targetMatches);
+            auto tophits = db.query_host(query.seq1, query.seq2, rules, querySketcher, targetMatches);
 
             update(resultsBuffer, query, targetMatches.locations(), std::move(tophits));
         }
@@ -204,6 +205,10 @@ query_id query_batched(
     std::mutex finalizeMtx;
 
 #ifndef GPU_MODE
+    std::vector<sketcher> sketchers(opt.performance.numThreads -
+                                    (opt.performance.numThreads > 1),
+                                    db.query_sketcher());
+
     std::vector<database::matches_sorter> targetMatches(opt.performance.numThreads -
                                                         (opt.performance.numThreads > 1));
 #else
@@ -257,7 +262,7 @@ query_id query_batched(
             auto resultsBuffer = getBuffer();
 
 #ifndef GPU_MODE
-            query_host(db, opt.classify, batch, targetMatches[id], resultsBuffer, update);
+            query_host(db, opt.classify, batch, sketchers[id], targetMatches[id], resultsBuffer, update);
 #else
             // query batch to gpu and wait for results
             query_gpu(db, opt.classify, batch, copyAllHits,

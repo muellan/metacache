@@ -238,7 +238,7 @@ public:
     /****************************************************************
      * @brief allocate gpu hash tables for database building
      */
-    void initialize_build_hash_tables(part_id numGPUs);
+    void initialize_build_hash_tables(part_id numGPUs, const sketcher& targetSketcher);
 
     /****************************************************************
      * @brief set number of db parts and total number of gpus;
