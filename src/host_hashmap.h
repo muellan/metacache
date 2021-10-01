@@ -520,9 +520,15 @@ private:
 
 
     //---------------------------------------------------------------
+    /**
+     * @brief accumulate matches from first db part,
+     *        keep sketches in case of multiple db parts
+     */
     sketch
-    sketch_all_windows(const sequence& query1, const sequence& query2,
-                       const sketcher& querySketcher) const
+    accumulate_matches(const sequence& query1, const sequence& query2,
+                       const sketcher& querySketcher,
+                       matches_sorter& res,
+                       bool keepSketches) const
     {
         using std::begin;
         using std::end;
@@ -530,19 +536,41 @@ private:
         sketch allWindowSketch;
 
         querySketcher.for_each_sketch(begin(query1), end(query1),
-            [this, &allWindowSketch] (const auto& sk) {
-                allWindowSketch.insert(allWindowSketch.end(), sk.begin(), sk.end());
+            [&, this] (const auto& sk) {
+                for(auto f : sk) {
+                    auto locs = hashTables_[0].find(f);
+                    if(locs != hashTables_[0].end() && locs->size() > 0) {
+                        res.locs_.insert(res.locs_.end(), locs->begin(), locs->end());
+                        res.offsets_.emplace_back(res.locs_.size());
+                    }
+                }
+
+                if(keepSketches)
+                    allWindowSketch.insert(allWindowSketch.end(), sk.begin(), sk.end());
             });
 
         querySketcher.for_each_sketch(begin(query2), end(query2),
-            [this, &allWindowSketch] (const auto& sk) {
-                allWindowSketch.insert(allWindowSketch.end(), sk.begin(), sk.end());
+            [&, this] (const auto& sk) {
+                for(auto f : sk) {
+                    auto locs = hashTables_[0].find(f);
+                    if(locs != hashTables_[0].end() && locs->size() > 0) {
+                        res.locs_.insert(res.locs_.end(), locs->begin(), locs->end());
+                        res.offsets_.emplace_back(res.locs_.size());
+                    }
+                }
+
+                if(keepSketches)
+                    allWindowSketch.insert(allWindowSketch.end(), sk.begin(), sk.end());
             });
 
         return allWindowSketch;
     }
 
+
     //---------------------------------------------------------------
+    /**
+     * @brief accumulate matches from other db parts
+     */
     void
     accumulate_matches(part_id part,
                        const sketch& allWindowSketch,
@@ -566,11 +594,15 @@ public:
                        const candidate_generation_rules& rules,
                        matches_sorter& sorter) const
     {
-        sketch allWindowSketch = sketch_all_windows(query1, query2, querySketcher);
-
         sorter.clear();
+        sorter.next();
 
-        for(part_id part = 0; part < num_parts(); ++part) {
+        sketch allWindowSketch = accumulate_matches(
+            query1, query2, querySketcher, sorter, num_parts() > 1);
+
+        sorter.sort();
+
+        for(part_id part = 1; part < num_parts(); ++part) {
             sorter.next();
 
             accumulate_matches(part, allWindowSketch, sorter);
