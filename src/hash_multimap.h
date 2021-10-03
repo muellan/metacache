@@ -1135,7 +1135,7 @@ private:
                 if(!bucket.empty()) {
                     keyBuffer.emplace_back(bucket.key());
                     sizeBuffer.emplace_back(bucket.size());
-                    std::copy(bucket.begin(), bucket.end(), std::back_inserter(valBuffer));
+                    valBuffer.insert(valBuffer.end(), bucket.begin(), bucket.end());
 
                     if(keyBuffer.size() == batchSize) {
                         // store batch
