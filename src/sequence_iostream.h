@@ -327,6 +327,14 @@ public:
             lastChar_ = 0;
     }
 
+    void peek_char()
+    {
+        if(validate_buffer())
+            lastChar_ = buf_[begin_];
+        else
+            lastChar_ = 0;
+    }
+
     void append_line(char_sequence& str) {
         append_line_impl(str);
     }

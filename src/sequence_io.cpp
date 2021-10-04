@@ -183,26 +183,27 @@ void sequence_reader::read_next(header_type* header,
     if (!stream_.good()) return;  // end of file or error
 
     // read first character of next line
-    stream_.read_char();
+    stream_.peek_char();
     // read sequence
     while (stream_.good() && stream_.last_char() != '>' && stream_.last_char() != '+') {
         // skip empty lines
         if (stream_.last_char() == '\n') {
             stream_.read_char();
+            stream_.peek_char();
             continue;
         }
         // append first character of next line
         if(data) {
-            // append first character of next line
-            data->push_back(stream_.last_char());
-            // append rest of line
+            // append line inlcuding peeked char
             stream_.append_line(*data);
         }
         else {
             stream_.skip_line();
         }
-        stream_.read_char();
+        stream_.peek_char();
     }
+    stream_.read_char();
+
     if (!stream_.good()) return;  // end of file or error
 
     // check for 3rd FASTQ line
