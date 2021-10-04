@@ -51,10 +51,11 @@ class query_batch
     class segmented_sort;
 
 public:
-    using index_type     = uint32_t;
-    using size_type      = uint32_t;
-    using location_type  = Location;
-    using feature_type   = typename sketcher::feature_type;
+    using index_type      = uint32_t;
+    using size_type       = uint32_t;
+    using location_type   = Location;
+    using match_locations = typename std::vector<location_type>;
+    using feature_type    = typename sketcher::feature_type;
 
     using taxon_rank     = taxonomy::rank;
     using ranked_lineage = taxonomy::ranked_lineage;

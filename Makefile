@@ -63,6 +63,7 @@ HEADERS = \
           src/options.h \
           src/printing.h \
           src/query_batch.cuh \
+          src/query_handler.h \
           src/querying.h \
           src/sequence_batch.cuh \
           src/sequence_io.h \

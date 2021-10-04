@@ -34,6 +34,7 @@
 
 #ifndef GPU_MODE
     #include "host_hashmap.h"
+    #include "query_handler.h"
 #else
     #include "gpu_hashmap.cuh"
     #include "query_batch.cuh"
@@ -191,20 +192,16 @@ private:
     /// @brief "heart of the database": maps features to target locations
 #ifndef GPU_MODE
     using feature_store = host_hashmap<location>;
+    using result_handler = query_handler<location>;
 #else
     using feature_store = gpu_hashmap<feature, location>; //key, value
+    using result_handler = query_batch<location>;
 #endif
 
 public:
     //---------------------------------------------------------------
     using feature_count_type = typename feature_store::feature_count_type;
-
-#ifndef GPU_MODE
-    using matches_sorter     = typename feature_store::matches_sorter;
-    using match_locations    = typename feature_store::match_locations;
-#else
-    using match_locations    = std::vector<location>;
-#endif
+    using match_locations    = typename result_handler::match_locations;
 
 
     //---------------------------------------------------------------
@@ -403,11 +400,10 @@ public:
     classification_candidates
     query_host(const sequence& query1, const sequence& query2,
                const candidate_generation_rules& rules,
-               const sketcher& query_sketcher,
-               matches_sorter& sorter) const
+               query_handler<location>& queryHandler) const
     {
         return featureStore_.query_host_hashmap(
-            query1, query2, query_sketcher, taxonomyCache_, rules, sorter);
+            query1, query2, queryHandler, taxonomyCache_, rules);
     }
 #else
     void

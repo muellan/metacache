@@ -638,7 +638,7 @@ void redo_classification_batched(
     std::vector<std::future<void>> threads;
     std::mutex mtx;
 
-    for(int threadId = 0; threadId < opt.performance.numThreads; ++threadId) {
+    for(unsigned threadId = 0; threadId < opt.performance.numThreads; ++threadId) {
         threads.emplace_back(std::async(std::launch::async, [&, threadId] {
 
             query_mappings mappings;

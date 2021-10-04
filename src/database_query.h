@@ -31,7 +31,9 @@
 #include "options.h"
 #include "sequence_io.h"
 
-#ifdef GPU_MODE
+#ifndef GPU_MODE
+    #include "query_handler.h"
+#else
     #include "query_batch.cuh"
 #endif
 
@@ -89,16 +91,15 @@ struct sequence_query
         const database& db,
         const classification_options& opt,
         const std::vector<sequence_query>& batch,
-        const sketcher& querySketcher,
-        database::matches_sorter& targetMatches,
+        query_handler<location>& queryHandler,
         Buffer& resultsBuffer, BufferUpdate& update)
     {
         for(const auto& query : batch) {
             auto rules = make_candidate_generation_rules(db.target_sketcher(), opt, query);
 
-            auto tophits = db.query_host(query.seq1, query.seq2, rules, querySketcher, targetMatches);
+            auto tophits = db.query_host(query.seq1, query.seq2, rules, queryHandler);
 
-            update(resultsBuffer, query, targetMatches.locations(), std::move(tophits));
+            update(resultsBuffer, query, queryHandler.matchesSorter.locations(), std::move(tophits));
         }
     }
 #else
@@ -204,13 +205,15 @@ query_id query_batched(
 
     std::mutex finalizeMtx;
 
-#ifndef GPU_MODE
-    std::vector<sketcher> sketchers(opt.performance.numThreads -
-                                    (opt.performance.numThreads > 1),
-                                    db.query_sketcher());
+    const unsigned numWorkers = opt.performance.numThreads - (opt.performance.numThreads > 1);
 
-    std::vector<database::matches_sorter> targetMatches(opt.performance.numThreads -
-                                                        (opt.performance.numThreads > 1));
+#ifndef GPU_MODE
+    std::vector<query_handler<location>> queryHandlers;
+    queryHandlers.reserve(numWorkers);
+
+    for(unsigned i = 0; i < numWorkers; ++i) {
+        queryHandlers.emplace_back(db.query_sketcher());
+    }
 #else
     bool copyAllHits = opt.output.analysis.showAllHits;
 
@@ -227,14 +230,14 @@ query_id query_batched(
             db.query_sketcher().sketch_size()*db.max_locations_per_feature(),
             opt.classify.maxNumCandidatesPerQuery,
             copyAllHits,
-            (opt.performance.numThreads - (opt.performance.numThreads > 1)),
+            numWorkers,
             db.num_parts(),
             rep);
 #endif
 
     // get executor that runs classification in batches
     batch_processing_options<sequence_query> execOpt;
-    execOpt.concurrency(1, opt.performance.numThreads - (opt.performance.numThreads > 1));
+    execOpt.concurrency(1, numWorkers);
     execOpt.batch_size(opt.performance.batchSize);
     execOpt.queue_size(opt.performance.numThreads + 8);
     execOpt.on_error(handleErrors);
@@ -262,7 +265,7 @@ query_id query_batched(
             auto resultsBuffer = getBuffer();
 
 #ifndef GPU_MODE
-            query_host(db, opt.classify, batch, sketchers[id], targetMatches[id], resultsBuffer, update);
+            query_host(db, opt.classify, batch, queryHandlers[id], resultsBuffer, update);
 #else
             // query batch to gpu and wait for results
             query_gpu(db, opt.classify, batch, copyAllHits,

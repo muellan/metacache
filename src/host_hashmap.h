@@ -25,6 +25,7 @@
 #include "batch_processing.h"
 #include "config.h"
 #include "hash_multimap.h"
+#include "query_handler.h"
 #include "stat_combined.h"
 #include "taxonomy.h"
 
@@ -43,7 +44,6 @@ class host_hashmap
 public:
     //---------------------------------------------------------------
     using location         = ValueT;
-    using match_locations  = std::vector<location>;
     using bucket_size_type = mc::loclist_size_t;
 
     using sketch  = typename sketcher::sketch_type;  //range of features
@@ -80,68 +80,6 @@ public:
     //---------------------------------------------------------------
     using feature_count_type = typename hash_table::size_type;
 
-
-    //---------------------------------------------------------------
-    /** @brief used for query result storage/accumulation
-     */
-    class matches_sorter {
-        friend class host_hashmap;
-
-    public:
-        void sort() {
-            merge_sort(locs_, offsets_, temp_);
-        }
-
-        void clear() {
-            locs_.clear();
-            offsets_.clear();
-        }
-
-        void next() {
-            offsets_.clear();
-            offsets_.emplace_back(locs_.size());
-        }
-
-        bool empty() const noexcept { return locs_.empty(); }
-        auto size()  const noexcept { return locs_.size(); }
-
-        auto begin() const noexcept { return locs_.begin(); }
-        auto end()   const noexcept { return locs_.end(); }
-
-        const match_locations&
-        locations() const noexcept { return locs_; }
-
-    private:
-        static void
-        merge_sort(match_locations& inout,
-                   std::vector<size_t>& offsets,
-                   match_locations& temp)
-        {
-            if(offsets.size() < 3) return;
-            temp.resize(inout.size());
-
-            int numChunks = offsets.size()-1;
-            for(int s = 1; s < numChunks; s *= 2) {
-                for(int i = 0; i < numChunks; i += 2*s) {
-                    auto begin = offsets[i];
-                    auto mid = i + s <= numChunks ? offsets[i + s] : offsets[numChunks];
-                    auto end = i + 2*s <= numChunks ? offsets[i + 2*s] : offsets[numChunks];
-                    std::merge(inout.begin()+begin, inout.begin()+mid,
-                               inout.begin()+mid, inout.begin()+end,
-                               temp.begin()+begin);
-                }
-                std::swap(inout, temp);
-            }
-            if(numChunks % 2) {
-                std::copy(inout.begin()+offsets.front(), inout.begin()+offsets.back(), temp.begin()+offsets.front());
-                std::swap(inout, temp);
-            }
-        }
-
-        match_locations locs_; // match locations from hashmap
-        std::vector<std::size_t> offsets_;  // bucket sizes for merge sort
-        match_locations temp_; // temp buffer for merge sort
-    };
 
 public:
     //---------------------------------------------------------------
@@ -526,8 +464,7 @@ private:
      */
     sketch
     accumulate_matches(const sequence& query1, const sequence& query2,
-                       const sketcher& querySketcher,
-                       matches_sorter& res,
+                       query_handler<location>& queryHandler,
                        bool keepSketches) const
     {
         using std::begin;
@@ -535,13 +472,15 @@ private:
 
         sketch allWindowSketch;
 
-        querySketcher.for_each_sketch(begin(query1), end(query1),
+        const auto& sketcher = queryHandler.querySketcher;
+        auto& sorter = queryHandler.matchesSorter;
+
+        sketcher.for_each_sketch(begin(query1), end(query1),
             [&, this] (const auto& sk) {
                 for(auto f : sk) {
                     auto locs = hashTables_[0].find(f);
                     if(locs != hashTables_[0].end() && locs->size() > 0) {
-                        res.locs_.insert(res.locs_.end(), locs->begin(), locs->end());
-                        res.offsets_.emplace_back(res.locs_.size());
+                        sorter.append(locs->begin(), locs->end());
                     }
                 }
 
@@ -549,13 +488,12 @@ private:
                     allWindowSketch.insert(allWindowSketch.end(), sk.begin(), sk.end());
             });
 
-        querySketcher.for_each_sketch(begin(query2), end(query2),
+        sketcher.for_each_sketch(begin(query2), end(query2),
             [&, this] (const auto& sk) {
                 for(auto f : sk) {
                     auto locs = hashTables_[0].find(f);
                     if(locs != hashTables_[0].end() && locs->size() > 0) {
-                        res.locs_.insert(res.locs_.end(), locs->begin(), locs->end());
-                        res.offsets_.emplace_back(res.locs_.size());
+                        sorter.append(locs->begin(), locs->end());
                     }
                 }
 
@@ -573,14 +511,15 @@ private:
      */
     void
     accumulate_matches(part_id part,
-                       const sketch& allWindowSketch,
-                       matches_sorter& res) const
+                       query_handler<location>& queryHandler,
+                       const sketch& allWindowSketch) const
     {
+        auto& sorter = queryHandler.matchesSorter;
+
         for(auto f : allWindowSketch) {
             auto locs = hashTables_[part].find(f);
             if(locs != hashTables_[part].end() && locs->size() > 0) {
-                res.locs_.insert(res.locs_.end(), locs->begin(), locs->end());
-                res.offsets_.emplace_back(res.locs_.size());
+                sorter.append(locs->begin(), locs->end());
             }
         }
     }
@@ -589,28 +528,32 @@ public:
     //---------------------------------------------------------------
     classification_candidates
     query_host_hashmap(const sequence& query1, const sequence& query2,
-                       const sketcher& querySketcher,
+                       query_handler<location>& queryHandler,
                        const taxonomy_cache& taxonomy,
-                       const candidate_generation_rules& rules,
-                       matches_sorter& sorter) const
+                       const candidate_generation_rules& rules) const
     {
+        auto& sorter = queryHandler.matchesSorter;
+
         sorter.clear();
+
+        // accumulate and sort matches from first db part
         sorter.next();
 
         sketch allWindowSketch = accumulate_matches(
-            query1, query2, querySketcher, sorter, num_parts() > 1);
+            query1, query2, queryHandler, num_parts() > 1);
 
         sorter.sort();
 
+        // accumulate and sort matches from other db parts
         for(part_id part = 1; part < num_parts(); ++part) {
             sorter.next();
 
-            accumulate_matches(part, allWindowSketch, sorter);
+            accumulate_matches(part, queryHandler, allWindowSketch);
 
             sorter.sort();
         }
 
-        return classification_candidates{taxonomy, sorter.locations(), rules};
+        return classification_candidates{taxonomy, queryHandler.matchesSorter.locations(), rules};
     }
 
     //---------------------------------------------------------------

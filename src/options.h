@@ -238,10 +238,10 @@ struct taxon_print_style {
 struct performance_tuning_options
 {
 #ifndef GPU_MODE
-    int numThreads = std::thread::hardware_concurrency();
+    unsigned numThreads = std::thread::hardware_concurrency();
     std::size_t batchSize = 4096;
 #else
-    int numThreads = std::min(int(std::thread::hardware_concurrency()), 8);
+    unsigned numThreads = std::min(std::thread::hardware_concurrency(), 8U);
     std::size_t batchSize = 8192;
 #endif
     //limits number of reads per sequence source (file)
