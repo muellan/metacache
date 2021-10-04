@@ -19,10 +19,11 @@
  *
  *****************************************************************************/
 
-#ifndef MC_QUERY_BATCH_H_
-#define MC_QUERY_BATCH_H_
+#ifndef MC_QUERY_HANDLER_H_
+#define MC_QUERY_HANDLER_H_
 
 
+#include "config.h"
 
 
 namespace mc {
@@ -118,8 +119,17 @@ struct query_handler {
         matchesSorter{}
     {}
 
+    void clear() {
+        matchesSorter.clear();
+        classificationCandidates.clear();
+    }
+
+    auto allhits() { return span<const location>(matchesSorter.locations()); }
+    auto tophits() { return classificationCandidates.view(); }
+
     sketcher querySketcher;
     sorter matchesSorter;
+    classification_candidates classificationCandidates;
 };
 
 

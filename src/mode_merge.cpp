@@ -259,7 +259,7 @@ void merge_result_files(const vector<string>& infiles,
     }
     clear_current_line(cerr);
 
-    map_candidates_to_targets(std::move(queryHeaders), std::move(queryCandidates), db, opt, results);
+    map_candidates_to_targets(std::move(queryHeaders), queryCandidates, db, opt, results);
 }
 
 

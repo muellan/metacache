@@ -26,6 +26,7 @@
 
 #include "config.h"
 #include "options.h"
+#include "span.h"
 #include "taxonomy.h"
 
 #include <cstdint>
@@ -33,23 +34,6 @@
 
 
 namespace mc {
-
-
-template<class Value>
-struct span {
-    using value_type = Value;
-
-    value_type * begin() const noexcept { return begin_; }
-
-    value_type * end() const noexcept { return end_; }
-
-    size_t size() const noexcept { return end_ - begin_; }
-
-    bool empty() const noexcept { return begin_ == end_; }
-
-    value_type * begin_ = nullptr;
-    value_type * end_   = nullptr;
-};
 
 
 /*************************************************************************//**

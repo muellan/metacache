@@ -208,29 +208,29 @@ public:
         }
 
         //---------------------------------------------------------------
-        span<location_type> allhits(index_type id) const noexcept {
+        span<const location_type> allhits(index_type id) const noexcept {
             if(id < num_queries()) {
-                location_type * begin = query_results()+result_offsets()[id];
-                location_type * end = query_results()+result_offsets()[id+1];
+                const location_type * begin = query_results()+result_offsets()[id];
+                const location_type * end = query_results()+result_offsets()[id+1];
 
                 // remove padding at the end
                 while((end > begin) && (end-1)->tgt == std::numeric_limits<target_id>::max())
                     --end;
 
-                return span<location_type>{begin, end};
+                return span<const location_type>{begin, size_t(end-begin)};
             }
             else
-                return span<location_type>{};
+                return span<const location_type>{};
         }
         //---------------------------------------------------------------
-        span<match_candidate> top_candidates(index_type id) const noexcept {
+        span<const match_candidate> top_candidates(index_type id) const noexcept {
             if(id < num_queries())
-                return span<match_candidate>{
+                return span<const match_candidate>{
                     top_candidates()+id*maxCandidatesPerQuery_,
-                    top_candidates()+(id+1)*maxCandidatesPerQuery_
+                    maxCandidatesPerQuery_
                 };
             else
-                return span<match_candidate>{};
+                return span<const match_candidate>{};
         }
 
         //---------------------------------------------------------------

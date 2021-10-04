@@ -69,6 +69,7 @@ HEADERS = \
           src/sequence_io.h \
           src/sequence_iostream.h \
           src/sequence_view.h \
+          src/span.h \
           src/stat_combined.cuh \
           src/stat_combined.h \
           src/stat_confusion.h \

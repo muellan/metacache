@@ -143,17 +143,9 @@ public:
 
 
     /****************************************************************
-     */
-    best_distinct_matches_in_contiguous_window_ranges() = default;
-    best_distinct_matches_in_contiguous_window_ranges(
-        const best_distinct_matches_in_contiguous_window_ranges&) = delete;
-    best_distinct_matches_in_contiguous_window_ranges(
-        best_distinct_matches_in_contiguous_window_ranges&&) = default;
-
-    /****************************************************************
      * @brief copy candidates from span
      */
-    best_distinct_matches_in_contiguous_window_ranges(const span<match_candidate>& cand) {
+    void assign(const span<const match_candidate>& cand) {
         top_.assign(cand.begin(), cand.end());
     }
 
@@ -162,12 +154,10 @@ public:
      * @pre matches must be sorted by taxon (first) and window (second)
      */
     template<class Locations>
-    best_distinct_matches_in_contiguous_window_ranges(
+    void insert(
         const taxonomy_cache& taxonomy,
         const Locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
-    :
-        top_{}
     {
         if(rules.maxCandidates < std::numeric_limits<std::size_t>::max())
             top_.reserve(rules.maxCandidates+1);
@@ -248,11 +238,14 @@ public:
     bool empty()     const noexcept { return top_.empty(); }
     size_type size() const noexcept { return top_.size(); }
 
+    void clear() { top_.clear(); }
+
     const match_candidate&
     operator [] (size_type i) const noexcept { return top_[i]; }
 
     iterator erase(const_iterator pos) { return top_.erase(pos); }
 
+    auto view() const noexcept { return span<const match_candidate>(top_); }
 
 private:
     candidates_list top_;

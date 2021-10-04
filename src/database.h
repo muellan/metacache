@@ -397,12 +397,12 @@ public:
 
     //---------------------------------------------------------------
 #ifndef GPU_MODE
-    classification_candidates
+    void
     query_host(const sequence& query1, const sequence& query2,
                const candidate_generation_rules& rules,
                query_handler<location>& queryHandler) const
     {
-        return featureStore_.query_host_hashmap(
+        featureStore_.query_host_hashmap(
             query1, query2, queryHandler, taxonomyCache_, rules);
     }
 #else

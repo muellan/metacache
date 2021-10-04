@@ -97,9 +97,9 @@ struct sequence_query
         for(const auto& query : batch) {
             auto rules = make_candidate_generation_rules(db.target_sketcher(), opt, query);
 
-            auto tophits = db.query_host(query.seq1, query.seq2, rules, queryHandler);
+            db.query_host(query.seq1, query.seq2, rules, queryHandler);
 
-            update(resultsBuffer, query, queryHandler.matchesSorter.locations(), std::move(tophits));
+            update(resultsBuffer, query, queryHandler.allhits(), queryHandler.tophits());
         }
     }
 #else
@@ -136,14 +136,14 @@ struct sequence_query
             queryBatch.host_data(hostId).wait_for_results();
 
             for(size_t s = 0; s < queryBatch.host_data(hostId).num_queries(); ++s) {
-                span<location> allhits = copyAllHits ? queryBatch.host_data(hostId).allhits(s) : span<location>();
+                span<const location> allhits = copyAllHits ? queryBatch.host_data(hostId).allhits(s) : span<const location>();
 
                 // std::cout << s << ". targetMatches:    ";
                 // for(const auto& m : allhits)
                 //     std::cout << m.tgt << ':' << m.win << ' ';
                 // std::cout << '\n';
 
-                span<match_candidate> tophits = queryBatch.host_data(hostId).top_candidates(s);
+                span<const match_candidate> tophits = queryBatch.host_data(hostId).top_candidates(s);
 
                 // std::cout << s << ". top hits: ";
                 // for(const auto& t : tophits) {

@@ -34,6 +34,7 @@
 #include "database_query.h"
 #include "sequence_io.h"
 #include "sequence_view.h"
+#include "span.h"
 
 #include <algorithm>
 #include <iterator>
@@ -137,23 +138,13 @@ ground_truth(const taxonomy_cache& taxonomy, const string& header)
 
 /*************************************************************************//**
  *
- * @brief classification cadidates + derived best classification
+ * @brief classification and ground truth of a read
  *
  *****************************************************************************/
 struct classification
 {
-    classification(classification_candidates&& cand):
-        candidates{std::move(cand)},
-                   best{nullptr}, groundTruth{nullptr}
-    {}
-
-    classification(const span<match_candidate>& cand):
-        candidates{cand}, best{nullptr}, groundTruth{nullptr}
-    {}
-
-    classification_candidates candidates;
-    const taxon* best;
-    const taxon* groundTruth;
+    const taxon* best        = nullptr;
+    const taxon* groundTruth = nullptr;
 };
 
 
@@ -165,7 +156,7 @@ struct classification
  *****************************************************************************/
 const taxon*
 classify(const taxonomy_cache& taxonomy, const classification_options& opt,
-         const classification_candidates& cand)
+         const span<const match_candidate>& cand)
 {
     if(cand.empty() || !cand[0].tax) return nullptr;
 
@@ -206,30 +197,11 @@ classify(const taxonomy_cache& taxonomy, const classification_options& opt,
 classification
 make_classification(const taxonomy_cache& taxonomy,
                     const classification_options& opt,
-                    classification_candidates&& candidates)
+                    const span<const match_candidate>& candidates)
 {
-    classification cls { std::move(candidates) };
+    classification cls;
 
-    cls.best = classify(taxonomy, opt, cls.candidates);
-
-    return cls;
-}
-
-
-
-/*************************************************************************//**
- *
- * @brief classify using top candidates
- *
- *****************************************************************************/
-classification
-make_classification(const taxonomy_cache& taxonomy,
-                    const classification_options& opt,
-                    const span<match_candidate>& candidates)
-{
-    classification cls { candidates };
-
-    cls.best = classify(taxonomy, opt, cls.candidates);
+    cls.best = classify(taxonomy, opt, candidates);
 
     return cls;
 }
@@ -244,16 +216,17 @@ make_classification(const taxonomy_cache& taxonomy,
 void
 update_classification(const taxonomy_cache& taxonomy,
                       const classification_options& opt,
+                      classification_candidates& candidates,
                       classification& cls,
                       const matches_per_target& tgtMatches)
 {
-    for(auto it = cls.candidates.begin(); it != cls.candidates.end();) {
+    for(auto it = candidates.begin(); it != candidates.end();) {
         if(tgtMatches.find(it->tgt) == tgtMatches.end())
-            it = cls.candidates.erase(it);
+            it = candidates.erase(it);
         else
             ++it;
     }
-    cls.best = classify(taxonomy, opt, cls.candidates);
+    cls.best = classify(taxonomy, opt, candidates.view());
 }
 
 
@@ -413,7 +386,7 @@ void show_alignment(std::ostream& os,
                     const sketcher& targetSketcher,
                     const classification_output_options& opt,
                     const sequence_query& query,
-                    const classification_candidates& tophits)
+                    const span<const match_candidate>& tophits)
 {
     //try to align to top target
     const taxon* tgtTax = tophits[0].tax;
@@ -494,14 +467,14 @@ void show_query_mapping_header(std::ostream& os,
  *        [query id], query_header, classification [, [top|all]hits list]
  *
  *****************************************************************************/
-template<class Locations>
 void show_query_mapping(
     std::ostream& os,
     const database& db,
     const classification_output_options& opt,
     const sequence_query& query,
     const classification& cls,
-    const Locations& allhits)
+    const span<const match_candidate>& candidates,
+    const span<const location>& allhits)
 {
     const auto& fmt = opt.format;
 
@@ -535,18 +508,18 @@ void show_query_mapping(
         os << colsep;
     }
     if(opt.analysis.showTopHits) {
-        show_candidates(os, db.taxo_cache(), cls.candidates, fmt.lowestRank);
+        show_candidates(os, db.taxo_cache(), candidates, fmt.lowestRank);
         os << colsep;
     }
     if(opt.analysis.showLocations) {
-        show_candidate_ranges(os, db.target_sketcher(), cls.candidates);
+        show_candidate_ranges(os, db.target_sketcher(), candidates);
         os << colsep;
     }
 
     show_taxon(os, db.taxo_cache(), fmt, cls.best);
 
     if(opt.analysis.showAlignment && cls.best) {
-        show_alignment(os, db.target_sketcher(), opt, query, cls.candidates);
+        show_alignment(os, db.target_sketcher(), opt, query, candidates);
     }
 
     os << '\n';
@@ -615,6 +588,7 @@ void filter_targets_by_coverage(
 struct query_mapping
 {
     sequence_query query;
+    classification_candidates candidates;
     classification cls;
     // matches_per_location allhits;
 };
@@ -650,11 +624,12 @@ void redo_classification_batched(
 
                     for(auto& mapping : mappings) {
                         // classify using only targets left in tgtMatches
-                        update_classification(db.taxo_cache(), opt.classify, mapping.cls, tgtMatches);
+                        update_classification(db.taxo_cache(), opt.classify, mapping.candidates, mapping.cls, tgtMatches);
 
                         evaluate_classification(db.taxo_cache(), opt.output.evaluate, mapping.query, mapping.cls, results.statistics);
 
-                        show_query_mapping(bufout, db, opt.output, mapping.query, mapping.cls, match_locations{});
+                        show_query_mapping(bufout, db, opt.output, mapping.query, mapping.cls,
+                                           mapping.candidates.view(), {});
 
                         if(opt.make_tax_counts() && mapping.cls.best) {
                             ++taxCounts[mapping.cls.best];
@@ -734,17 +709,17 @@ void map_queries_to_targets_default(
     const auto processQuery = [&] (
         mappings_buffer& buf,
         const sequence_query& query,
-        const auto& allhits,
-        auto&& tophits)
+        const span<const location>& allhits,
+        const span<const match_candidate>& tophits)
     {
         if(query.empty()) return;
 
-        auto cls = make_classification(db.taxo_cache(), opt.classify, std::forward<decltype(tophits)>(tophits));
+        auto cls = make_classification(db.taxo_cache(), opt.classify, tophits);
 
         if(opt.output.analysis.showHitsPerTargetList || opt.classify.covPercentile > 0) {
             //insert all candidates with at least 'hitsMin' hits into
             //target -> match list
-            buf.hitsPerTarget.insert(query.id, cls.candidates,
+            buf.hitsPerTarget.insert(query.id, tophits,
                                      opt.classify.hitsMin);
         }
 
@@ -752,8 +727,12 @@ void map_queries_to_targets_default(
             sequence_query qinfo;
             qinfo.id = query.id;
             qinfo.header = query.header;
+
+            classification_candidates cands;
+            cands.assign(tophits);
             //save query mapping for post processing
-            buf.queryMappings.emplace_back(query_mapping{std::move(qinfo), std::move(cls)});
+            buf.queryMappings.emplace_back(
+                query_mapping{std::move(qinfo), std::move(cands), {}});
         }
         else {
             //use classification as is
@@ -763,7 +742,7 @@ void map_queries_to_targets_default(
 
             evaluate_classification(db.taxo_cache(), opt.output.evaluate, query, cls, results.statistics);
 
-            show_query_mapping(buf.out, db, opt.output, query, cls, allhits);
+            show_query_mapping(buf.out, db, opt.output, query, cls, tophits, allhits);
         }
     };
 
@@ -855,7 +834,7 @@ void map_queries_to_targets(const vector<string>& infiles,
  *
  *****************************************************************************/
 void map_candidates_to_targets(vector<string>&& queryHeaders,
-                               vector<classification_candidates>&& queryCandidates,
+                               const vector<classification_candidates>& queryCandidates,
                                const database& db, const query_options& opt,
                                classification_results& results)
 {
@@ -869,8 +848,9 @@ void map_candidates_to_targets(vector<string>&& queryHeaders,
     for(size_t i = 0; i < queryHeaders.size(); ++i) {
         sequence_query query{i+1, std::move(queryHeaders[i]), {}};
 
-        classification cls { std::move(queryCandidates[i]) };
-        cls.best = classify(db.taxo_cache(), opt.classify, cls.candidates);
+        const auto candidates = queryCandidates[i].view();
+
+        auto cls = make_classification(db.taxo_cache(), opt.classify, candidates);
 
         if(opt.make_tax_counts() && cls.best) {
             ++allTaxCounts[cls.best];
@@ -878,7 +858,7 @@ void map_candidates_to_targets(vector<string>&& queryHeaders,
 
         evaluate_classification(db.taxo_cache(), opt.output.evaluate, query, cls, results.statistics);
 
-        show_query_mapping(results.perReadOut, db, opt.output, query, cls, match_locations{});
+        show_query_mapping(results.perReadOut, db, opt.output, query, cls, candidates, {});
     }
 
     const auto& analysis = opt.output.analysis;

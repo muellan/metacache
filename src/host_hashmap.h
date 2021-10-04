@@ -526,15 +526,15 @@ private:
 
 public:
     //---------------------------------------------------------------
-    classification_candidates
+    void
     query_host_hashmap(const sequence& query1, const sequence& query2,
                        query_handler<location>& queryHandler,
                        const taxonomy_cache& taxonomy,
                        const candidate_generation_rules& rules) const
     {
-        auto& sorter = queryHandler.matchesSorter;
+        queryHandler.clear();
 
-        sorter.clear();
+        auto& sorter = queryHandler.matchesSorter;
 
         // accumulate and sort matches from first db part
         sorter.next();
@@ -553,7 +553,8 @@ public:
             sorter.sort();
         }
 
-        return classification_candidates{taxonomy, queryHandler.matchesSorter.locations(), rules};
+        queryHandler.classificationCandidates.insert(
+            taxonomy, queryHandler.matchesSorter.locations(), rules);
     }
 
     //---------------------------------------------------------------

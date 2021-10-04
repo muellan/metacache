@@ -266,10 +266,10 @@ void show_taxon(std::ostream& os,
 //-------------------------------------------------------------------
 void show_candidates(std::ostream& os,
                      const taxonomy_cache& taxonomy,
-                     const classification_candidates& cand,
+                     const span<const match_candidate>& cand,
                      taxon_rank lowest)
 {
-    using size_t = classification_candidates::size_type;
+    using size_t = span<match_candidate>::size_type;
 
     if(lowest == taxon_rank::Sequence) {
         for(size_t i = 0; i < cand.size() && cand[i].hits > 0; ++i) {
@@ -296,10 +296,9 @@ void show_candidates(std::ostream& os,
 
 
 //-------------------------------------------------------------------
-template<class Locations>
 void show_matches(std::ostream& os,
                   const taxonomy_cache& taxonomy,
-                  const Locations& matches,
+                  const span<const location>& matches,
                   taxon_rank lowest)
 {
     if(matches.empty()) return;
@@ -349,24 +348,12 @@ void show_matches(std::ostream& os,
     }
 }
 
-template void show_matches<match_locations>(
-    std::ostream& os,
-    const taxonomy_cache& taxonomy,
-    const match_locations& matches,
-    taxon_rank lowest);
-
-template void show_matches<span<location>>(
-    std::ostream& os,
-    const taxonomy_cache& taxonomy,
-    const span<location>& matches,
-    taxon_rank lowest);
-
 
 
 //-------------------------------------------------------------------
 void show_candidate_ranges(std::ostream& os,
                            const sketcher& targetSketcher,
-                           const classification_candidates& cand)
+                           const span<const match_candidate>& cand)
 {
     const auto w = targetSketcher.window_stride();
 

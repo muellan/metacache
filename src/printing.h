@@ -77,7 +77,7 @@ void show_taxon_header(std::ostream&,
  *****************************************************************************/
 void show_candidates(std::ostream&,
                      const taxonomy_cache&,
-                     const classification_candidates&,
+                     const span<const match_candidate>&,
                      taxon_rank lowest = taxon_rank::Sequence);
 
 
@@ -86,10 +86,9 @@ void show_candidates(std::ostream&,
  * @brief prints target.window hit matches
  *
  *****************************************************************************/
-template<class Locations>
 void show_matches(std::ostream&,
                   const taxonomy_cache& taxonomy,
-                  const Locations&,
+                  const span<const location>&,
                   taxon_rank lowest = taxon_rank::Sequence);
 
 
@@ -100,7 +99,7 @@ void show_matches(std::ostream&,
  *****************************************************************************/
 void show_candidate_ranges(std::ostream&,
                            const sketcher&,
-                           const classification_candidates&);
+                           const span<const match_candidate>&);
 
 
 /*************************************************************************//**
