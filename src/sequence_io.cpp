@@ -186,7 +186,11 @@ void sequence_reader::read_next(header_type* header,
     stream_.read_char();
     // read sequence
     while (stream_.good() && stream_.last_char() != '>' && stream_.last_char() != '+') {
-        if (stream_.last_char() == '\n') continue; // skip empty lines
+        // skip empty lines
+        if (stream_.last_char() == '\n') {
+            stream_.read_char();
+            continue;
+        }
         // append first character of next line
         if(data) {
             // append first character of next line
@@ -533,7 +537,7 @@ extract_accession_string(const string& text, sequence_id_type idtype)
     if(text.empty()) return "";
 
     switch(idtype) {
-        case sequence_id_type::acc: 
+        case sequence_id_type::acc:
         // [[fallthrough]]
         case sequence_id_type::acc_ver:
             return extract_ncbi_accession_number(text, idtype);
