@@ -113,14 +113,14 @@ public:
         consume_{std::move(consume)}
     {
         for(auto& handler : producerBatches_)
-            handler.batch_.resize(32);
+            handler.batch_.resize(param_.batch_size());
 
         // fill batch storage queue with initial batches
         // we want to re-use the individual batches and all their members
         // => minimize/avoid batch-resizing during processing
         for(std::size_t i = 0; i < param_.queue_size(); ++i) {
             batch_type batch;
-            batch.resize(32);
+            batch.resize(param_.batch_size());
             storageQueue_.enqueue(std::move(batch));
         }
 
