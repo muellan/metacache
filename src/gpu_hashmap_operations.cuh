@@ -593,7 +593,7 @@ uint32_t copy_loctions(
     // add padding for aligned processing
     const uint32_t padding = totalLocations % 2;
     if(padding && (warpLane == 0)) {
-        out[totalLocations] = location{~0, ~0};
+        out[totalLocations] = location{~0U, ~0U};
     }
 
     return totalLocations + padding;
@@ -680,7 +680,7 @@ uint32_t query_bucket_hashtable(
     const uint32_t totalLocations = sizes[sketchSize-1];
     const uint32_t padding = totalLocations % 2;
     if(padding && (warpLane == 0)) {
-        out[totalLocations] = location{~0, ~0};
+        out[totalLocations] = location{~0U, ~0U};
     }
 
     return totalLocations + padding;
