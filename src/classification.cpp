@@ -138,19 +138,6 @@ ground_truth(const taxonomy_cache& taxonomy, const string& header)
 
 /*************************************************************************//**
  *
- * @brief classification and ground truth of a read
- *
- *****************************************************************************/
-struct classification
-{
-    const taxon* best        = nullptr;
-    const taxon* groundTruth = nullptr;
-};
-
-
-
-/*************************************************************************//**
- *
  * @brief  classify using top matches/candidates
  *
  *****************************************************************************/
@@ -191,38 +178,39 @@ classify(const taxonomy_cache& taxonomy, const classification_options& opt,
 
 /*************************************************************************//**
  *
- * @brief classify using top candidates
+ * @brief classification and ground truth of a read
  *
  *****************************************************************************/
-classification
-make_classification(const taxonomy_cache& taxonomy,
-                    const classification_options& opt,
-                    const span<const match_candidate>& candidates)
+struct classification
 {
-    classification cls;
-
-    cls.best = classify(taxonomy, opt, candidates);
-
-    return cls;
-}
+    const taxon* best        = nullptr;
+    const taxon* groundTruth = nullptr;
+};
 
 
 
 /*************************************************************************//**
  *
- * @brief remove candidates not found in tgtMatches
+ * @brief classify using top candidates
  *
  *****************************************************************************/
-void
-update_candidates(classification_candidates& candidates,
-                  const matches_per_target& tgtMatches)
+classification
+make_classification(
+    const sequence_query& query,
+    const span<const match_candidate>& candidates,
+    const taxonomy_cache& taxonomy,
+    const classification_options& optClassify,
+    bool makeGroundTruth)
 {
-    for(auto it = candidates.begin(); it != candidates.end();) {
-        if(tgtMatches.find(it->tgt) == tgtMatches.end())
-            it = candidates.erase(it);
-        else
-            ++it;
+    classification cls;
+
+    cls.best = classify(taxonomy, optClassify, candidates);
+
+    if(makeGroundTruth) {
+        cls.groundTruth = ground_truth(taxonomy, query.header);
     }
+
+    return cls;
 }
 
 
@@ -267,16 +255,11 @@ void update_coverage_statistics(const taxonomy_cache& taxonomy,
  *
  *****************************************************************************/
 void evaluate_classification(
+    const classification& cls,
     const taxonomy_cache& taxonomy,
     const classification_evaluation_options& opt,
-    const sequence_query& query,
-    classification& cls,
     classification_statistics& statistics)
 {
-    if(opt.precision || opt.determineGroundTruth) {
-        cls.groundTruth = ground_truth(taxonomy, query.header);
-    }
-
     if(opt.precision) {
         auto lca = taxonomy.cached_ranked_lca(cls.best, cls.groundTruth);
         auto lowestCorrectRank = lca ? lca->rank() : taxon_rank::none;
@@ -525,6 +508,39 @@ void show_query_mapping(
 
 /*************************************************************************//**
  *
+ * @brief create and evaluate final classification,
+ *        store output into buffer
+ *
+ *****************************************************************************/
+void classify_and_evaluate(
+    const sequence_query& query,
+    const span<const match_candidate>& tophits,
+    const span<const location>& allhits,
+    const database& db,
+    const query_options& opt,
+    taxon_count_map& taxCounts,
+    classification_statistics& statistics,
+    std::ostream& bufout)
+{
+    const auto& optEval = opt.output.evaluate;
+    const bool makeGroundTruth = optEval.precision || optEval.determineGroundTruth;
+
+    auto cls = make_classification(query, tophits, db.taxo_cache(),
+                                   opt.classify, makeGroundTruth);
+
+    if(opt.make_tax_counts() && cls.best) {
+        ++taxCounts[cls.best];
+    }
+
+    evaluate_classification(cls, db.taxo_cache(), opt.output.evaluate, statistics);
+
+    show_query_mapping(bufout, db, opt.output, query, cls, tophits, allhits);
+}
+
+
+
+/*************************************************************************//**
+ *
  * @brief merge tax counts into global counts and write to output stream
  *
  *****************************************************************************/
@@ -614,6 +630,25 @@ struct query_mapping
 using query_mappings = std::vector<query_mapping>;
 
 
+
+/*************************************************************************//**
+ *
+ * @brief remove candidates not found in tgtMatches
+ *
+ *****************************************************************************/
+void
+update_candidates(classification_candidates& candidates,
+                  const matches_per_target& tgtMatches)
+{
+    for(auto it = candidates.begin(); it != candidates.end();) {
+        if(tgtMatches.find(it->tgt) == tgtMatches.end())
+            it = candidates.erase(it);
+        else
+            ++it;
+    }
+}
+
+
 /*************************************************************************//**
  *
  * @brief redo the classification of all reads using only targets in tgtMatches
@@ -644,16 +679,9 @@ void redo_classification_batched(
                         // classify using only targets left in tgtMatches
                         update_candidates(mapping.candidates, tgtMatches);
 
-                        auto cls = make_classification(db.taxo_cache(), opt.classify, mapping.candidates.view());
-
-                        evaluate_classification(db.taxo_cache(), opt.output.evaluate, mapping.query, cls, results.statistics);
-
-                        show_query_mapping(bufout, db, opt.output, mapping.query, cls,
-                                           mapping.candidates.view(), {});
-
-                        if(opt.make_tax_counts() && cls.best) {
-                            ++taxCounts[cls.best];
-                        }
+                        classify_and_evaluate(
+                            mapping.query, mapping.candidates.view(), {},
+                            db, opt, taxCounts, results.statistics, bufout);
                     }
 
                     std::lock_guard<std::mutex> lock(mtx);
@@ -746,16 +774,9 @@ void map_queries_to_targets_default(
             buf.queryMappings.emplace_back(query_mapping{std::move(qinfo), std::move(cands)});
         }
         else {
-            // create and evaluate final classification
-            auto cls = make_classification(db.taxo_cache(), opt.classify, tophits);
-
-            if(opt.make_tax_counts() && cls.best) {
-                ++buf.taxCounts[cls.best];
-            }
-
-            evaluate_classification(db.taxo_cache(), opt.output.evaluate, query, cls, results.statistics);
-
-            show_query_mapping(buf.out, db, opt.output, query, cls, tophits, allhits);
+            classify_and_evaluate(
+                query, tophits, allhits,
+                db, opt, buf.taxCounts, results.statistics, buf.out);
         }
     };
 
@@ -855,17 +876,9 @@ void map_candidates_to_targets(vector<string>&& queryHeaders,
     for(size_t i = 0; i < queryHeaders.size(); ++i) {
         sequence_query query{i+1, std::move(queryHeaders[i]), {}};
 
-        const auto candidates = queryCandidates[i].view();
-
-        auto cls = make_classification(db.taxo_cache(), opt.classify, candidates);
-
-        if(opt.make_tax_counts() && cls.best) {
-            ++allTaxCounts[cls.best];
-        }
-
-        evaluate_classification(db.taxo_cache(), opt.output.evaluate, query, cls, results.statistics);
-
-        show_query_mapping(results.perReadOut, db, opt.output, query, cls, candidates, {});
+        classify_and_evaluate(
+            query, queryCandidates[i].view(), {},
+            db, opt, allTaxCounts, results.statistics, results.perReadOut);
     }
 
     const auto& analysis = opt.output.analysis;
