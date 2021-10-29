@@ -42,6 +42,24 @@ struct query_options;
 
 /*************************************************************************//**
  *
+ * @brief Compare taxa by rank in descending order; root > ... > species.
+ *        If ranks are equal, compare using sequence ids.
+ *
+ *****************************************************************************/
+struct rank_higher {
+    bool operator() (const taxon* lhs, const taxon* rhs) const noexcept {
+        if(lhs->rank() > rhs->rank()) return true;
+        if(lhs->rank() < rhs->rank()) return false;
+        return lhs->id() < rhs->id();
+    }
+};
+
+using taxon_count_map = std::map<const taxon*, float, rank_higher>;
+// using taxon_count_map = std::unordered_map<const taxon*, query_id>;
+
+
+/*************************************************************************//**
+ *
  * @brief classification result target
  *
  *****************************************************************************/
@@ -72,6 +90,7 @@ struct classification_results
     std::ostream& status;
     timer time;
     classification_statistics statistics;
+    taxon_count_map taxCounts; //global taxon -> read count
 };
 
 
@@ -98,24 +117,6 @@ void map_candidates_to_targets(
     const std::vector<classification_candidates>&,
     const database&, const query_options&,
     classification_results&);
-
-
-/*************************************************************************//**
- *
- * @brief Compare taxa by rank in descending order; root > ... > species.
- *        If ranks are equal, compare using sequence ids.
- *
- *****************************************************************************/
-struct rank_higher {
-    bool operator() (const taxon* lhs, const taxon* rhs) const noexcept {
-        if(lhs->rank() > rhs->rank()) return true;
-        if(lhs->rank() < rhs->rank()) return false;
-        return lhs->id() < rhs->id();
-    }
-};
-
-using taxon_count_map = std::map<const taxon*, float, rank_higher>;
-// using taxon_count_map = std::unordered_map<const taxon*, query_id>;
 
 
 } // namespace mc

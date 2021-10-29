@@ -210,15 +210,12 @@ make_classification(const taxonomy_cache& taxonomy,
 
 /*************************************************************************//**
  *
- * @brief classify using only matches in tgtMatches
+ * @brief remove candidates not found in tgtMatches
  *
  *****************************************************************************/
 void
-update_classification(const taxonomy_cache& taxonomy,
-                      const classification_options& opt,
-                      classification_candidates& candidates,
-                      classification& cls,
-                      const matches_per_target& tgtMatches)
+update_candidates(classification_candidates& candidates,
+                  const matches_per_target& tgtMatches)
 {
     for(auto it = candidates.begin(); it != candidates.end();) {
         if(tgtMatches.find(it->tgt) == tgtMatches.end())
@@ -226,7 +223,6 @@ update_classification(const taxonomy_cache& taxonomy,
         else
             ++it;
     }
-    cls.best = classify(taxonomy, opt, candidates.view());
 }
 
 
@@ -529,6 +525,28 @@ void show_query_mapping(
 
 /*************************************************************************//**
  *
+ * @brief merge tax counts into global counts and write to output stream
+ *
+ *****************************************************************************/
+void publish_results(
+    const taxon_count_map& taxCounts,
+    const std::ostringstream& bufout,
+    const query_options& opt,
+    classification_results& results)
+{
+    if(opt.make_tax_counts()) {
+        // add batch (taxon->read count) to global counts
+        for(const auto& taxCount : taxCounts)
+            results.taxCounts[taxCount.first] += taxCount.second;
+    }
+    // write output buffer to output stream
+    results.perReadOut << bufout.str();
+}
+
+
+
+/*************************************************************************//**
+ *
  * @brief filter out targets which have a coverage percentage below a percentile
  *        of all coverage percentages
  *
@@ -589,7 +607,7 @@ struct query_mapping
 {
     sequence_query query;
     classification_candidates candidates;
-    classification cls;
+    // classification cls;
     // matches_per_location allhits;
 };
 
@@ -604,9 +622,9 @@ using query_mappings = std::vector<query_mapping>;
 void redo_classification_batched(
     moodycamel::ConcurrentQueue<query_mappings>& queryMappingsQueue,
     const matches_per_target& tgtMatches,
-    const database& db, const query_options& opt,
-    classification_results& results,
-    taxon_count_map& allTaxCounts)
+    const database& db,
+    const query_options& opt,
+    classification_results& results)
 {
     //parallel
     std::vector<std::future<void>> threads;
@@ -624,24 +642,22 @@ void redo_classification_batched(
 
                     for(auto& mapping : mappings) {
                         // classify using only targets left in tgtMatches
-                        update_classification(db.taxo_cache(), opt.classify, mapping.candidates, mapping.cls, tgtMatches);
+                        update_candidates(mapping.candidates, tgtMatches);
 
-                        evaluate_classification(db.taxo_cache(), opt.output.evaluate, mapping.query, mapping.cls, results.statistics);
+                        auto cls = make_classification(db.taxo_cache(), opt.classify, mapping.candidates.view());
 
-                        show_query_mapping(bufout, db, opt.output, mapping.query, mapping.cls,
+                        evaluate_classification(db.taxo_cache(), opt.output.evaluate, mapping.query, cls, results.statistics);
+
+                        show_query_mapping(bufout, db, opt.output, mapping.query, cls,
                                            mapping.candidates.view(), {});
 
-                        if(opt.make_tax_counts() && mapping.cls.best) {
-                            ++taxCounts[mapping.cls.best];
+                        if(opt.make_tax_counts() && cls.best) {
+                            ++taxCounts[cls.best];
                         }
                     }
+
                     std::lock_guard<std::mutex> lock(mtx);
-                    if(opt.make_tax_counts()) {
-                        //add batch (taxon->read count) to global counts
-                        for(const auto& taxCount : taxCounts)
-                            allTaxCounts[taxCount.first] += taxCount.second;
-                    }
-                    results.perReadOut << bufout.str();
+                    publish_results(taxCounts, bufout, opt, results);
                 }
             }
         }));
@@ -687,9 +703,6 @@ void map_queries_to_targets_default(
 
     moodycamel::ConcurrentQueue<query_mappings> queryMappingsQueue;
 
-    //global taxon -> read count
-    taxon_count_map allTaxCounts;
-
     if(opt.output.evaluate.precision || opt.output.evaluate.determineGroundTruth) {
         //groundtruth may be outside of target lineages
         //cache lineages of *all* taxa
@@ -714,8 +727,6 @@ void map_queries_to_targets_default(
     {
         if(query.empty()) return;
 
-        auto cls = make_classification(db.taxo_cache(), opt.classify, tophits);
-
         if(opt.output.analysis.showHitsPerTargetList || opt.classify.covPercentile > 0) {
             //insert all candidates with at least 'hitsMin' hits into
             //target -> match list
@@ -724,18 +735,20 @@ void map_queries_to_targets_default(
         }
 
         if(opt.classify.covPercentile > 0) {
+            // copy id and header, sequence strings are not needed
             sequence_query qinfo;
             qinfo.id = query.id;
             qinfo.header = query.header;
-
+            // copy candidates
             classification_candidates cands;
             cands.assign(tophits);
-            //save query mapping for post processing
-            buf.queryMappings.emplace_back(
-                query_mapping{std::move(qinfo), std::move(cands), {}});
+            // save query mapping for post processing
+            buf.queryMappings.emplace_back(query_mapping{std::move(qinfo), std::move(cands)});
         }
         else {
-            //use classification as is
+            // create and evaluate final classification
+            auto cls = make_classification(db.taxo_cache(), opt.classify, tophits);
+
             if(opt.make_tax_counts() && cls.best) {
                 ++buf.taxCounts[cls.best];
             }
@@ -758,13 +771,7 @@ void map_queries_to_targets_default(
             buf.queryMappings.clear();
         }
         else {
-            if(opt.make_tax_counts()) {
-                //add batch (taxon->read count) to global counts
-                for(const auto& taxCount : buf.taxCounts)
-                    allTaxCounts[taxCount.first] += taxCount.second;
-            }
-            //write output buffer to output stream when batch is finished
-            results.perReadOut << buf.out.str();
+            publish_results(buf.taxCounts, buf.out, opt, results);
         }
     };
 
@@ -782,7 +789,7 @@ void map_queries_to_targets_default(
     if(opt.classify.covPercentile > 0) {
         filter_targets_by_coverage(db.taxo_cache(), tgtMatches, opt.classify.covPercentile);
 
-        redo_classification_batched(queryMappingsQueue, tgtMatches, db, opt, results, allTaxCounts);
+        redo_classification_batched(queryMappingsQueue, tgtMatches, db, opt, results);
     }
 
     const auto& analysis = opt.output.analysis;
@@ -793,16 +800,16 @@ void map_queries_to_targets_default(
     }
 
     if(analysis.showTaxAbundances) {
-        show_abundances(results.perTaxonOut, allTaxCounts,
+        show_abundances(results.perTaxonOut, results.taxCounts,
                         results.statistics, fmt);
     }
 
     if(analysis.showAbundanceEstimatesOnRank != taxonomy::rank::none) {
-        estimate_abundance(db.taxo_cache(), allTaxCounts, analysis.showAbundanceEstimatesOnRank);
+        estimate_abundance(db.taxo_cache(), results.taxCounts, analysis.showAbundanceEstimatesOnRank);
 
         show_abundance_estimates(results.perTaxonOut,
                                  analysis.showAbundanceEstimatesOnRank,
-                                 allTaxCounts, results.statistics, fmt);
+                                 results.taxCounts, results.statistics, fmt);
     }
 }
 
