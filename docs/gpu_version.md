@@ -86,7 +86,6 @@ The command line options of the GPU version are similar to the CPU version with 
 
 * `-kmerlen` kmer length is limited to 16 (default: 16).
 * `-sketchlen` sketch length is limited to 16 (default: 16).
-* `-winlen` window length is limited to 127 (default: 127).
 * `-winstride` window stride has to be a multiple of 4 (default: 112).
 * `-remove-overpopulated-features` is *not* supported.
 * `-remove-ambig-features` is *not* supported.
