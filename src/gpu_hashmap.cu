@@ -1238,7 +1238,6 @@ void gpu_hashmap<Key,ValueT>::query_hashtables_async(
     query_batch<value_type>& batch,
     part_id hostId,
     const sketcher& querySketcher,
-    bool copyAllHits,
     taxon_rank lowestRank) const
 {
     for(part_id gpuId = 0; gpuId < batch.num_gpus(); ++gpuId)
@@ -1265,7 +1264,7 @@ void gpu_hashmap<Key,ValueT>::query_hashtables_async(
         if(gpuId < batch.num_gpus()-1)
             batch.copy_queries_to_next_device_async(hostId, gpuId);
 
-        batch.compact_sort_and_copy_allhits_async(hostId, gpuId, copyAllHits);
+        batch.compact_sort_and_copy_allhits_async(hostId, gpuId);
 
         batch.generate_and_copy_top_candidates_async(
             hostId, gpuId, lineages_[gpu], lowestRank);
@@ -1281,16 +1280,15 @@ void gpu_hashmap<Key,ValueT>::query_async(
     query_batch<value_type>& batch,
     part_id hostId,
     const sketcher& querySketcher,
-    bool copyAllHits,
     taxon_rank lowestRank) const
 {
     if(!buildHashTables_.empty()) {
         query_hashtables_async(
-            buildHashTables_, batch, hostId, querySketcher, copyAllHits, lowestRank);
+            buildHashTables_, batch, hostId, querySketcher, lowestRank);
     }
     else if(!queryHashTables_.empty()) {
         query_hashtables_async(
-            queryHashTables_, batch, hostId, querySketcher, copyAllHits, lowestRank);
+            queryHashTables_, batch, hostId, querySketcher, lowestRank);
     }
 }
 

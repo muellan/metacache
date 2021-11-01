@@ -209,7 +209,7 @@ public:
 
         //---------------------------------------------------------------
         span<const location_type> allhits(index_type id) const noexcept {
-            if(id < num_queries()) {
+            if(copyAllHits_ && id < num_queries()) {
                 const location_type * begin = query_results()+result_offsets()[id];
                 const location_type * end = query_results()+result_offsets()[id+1];
 
@@ -237,6 +237,7 @@ public:
         index_type num_queries() const noexcept { return numQueries_; }
         index_type num_windows() const noexcept { return numWindows_; }
         size_type  largest_segment_size() const noexcept { return largestSegmentSize_; }
+        bool       allhitsCopyNeeded() const noexcept { return copyAllHits_; }
 
         index_type * query_ids() const noexcept { return queryIds_; };
         size_type  * sequence_offsets() const noexcept { return sequenceOffsets_; };
@@ -265,6 +266,7 @@ public:
         size_type largestSegmentSize_;
 
         size_type  maxCandidatesPerQuery_;
+        bool       copyAllHits_;
 
         // input
         index_type * queryIds_;
@@ -398,10 +400,7 @@ public:
      * @brief asynchronously compact and sort in work stream,
      *        and copy allhits to host in copy stream if needed
      */
-    void compact_sort_and_copy_allhits_async(
-        part_id hostId,
-        part_id gpuId,
-        bool copyAllHits);
+    void compact_sort_and_copy_allhits_async(part_id hostId, part_id gpuId);
 
     /**
      * @brief asynchronously generate top candidates in work stream

@@ -109,7 +109,6 @@ struct sequence_query
         const database& db,
         const classification_options& opt,
         const std::vector<sequence_query>& sequenceBatch,
-        bool copyAllHits,
         query_batch<location>& queryBatch,
         part_id hostId,
         Buffer& batchBuffer, BufferUpdate& update,
@@ -126,41 +125,19 @@ struct sequence_query
             }
         }
 
-        // std::cerr << "host id " << hostId << ": " << queryBatch.host_data(hostId).num_windows() << " windows\n";
-
         if(queryBatch.host_data(hostId).num_windows() > 0)
         {
             {
                 std::lock_guard<std::mutex> lock(scheduleMtx);
-
-                db.query_gpu_async(queryBatch, hostId, copyAllHits, opt.lowestRank);
+                db.query_gpu_async(queryBatch, hostId, opt.lowestRank);
             }
             queryBatch.host_data(hostId).wait_for_results();
 
             for(size_t s = 0; s < queryBatch.host_data(hostId).num_queries(); ++s) {
-                span<const location> allhits = copyAllHits ? queryBatch.host_data(hostId).allhits(s) : span<const location>();
-
-                // std::cout << s << ". targetMatches:    ";
-                // for(const auto& m : allhits)
-                //     std::cout << m.tgt << ':' << m.win << ' ';
-                // std::cout << '\n';
-
-                span<const match_candidate> tophits = queryBatch.host_data(hostId).top_candidates(s);
-
-                // std::cout << s << ". top hits: ";
-                // for(const auto& t : tophits) {
-                //     if(t.hits > 0) {
-                //         if(t.tax)
-                //             std::cout << t.tax->id() << ':' << t.hits << ' ';
-                //         else
-                //             std::cout << "notax:"  << t.hits << ' ';
-                //     }
-                // }
-                // std::cout << '\n';
-
-                update(batchBuffer, sequenceBatch[s], allhits, tophits);
+                update(batchBuffer, sequenceBatch[s],
+                       queryBatch.host_data(hostId).allhits(s),
+                       queryBatch.host_data(hostId).top_candidates(s));
             }
-            // std::cout << '\n';
 
             queryBatch.host_data(hostId).clear();
         }
@@ -217,8 +194,6 @@ query_id query_batched(
         queryHandlers.emplace_back(db.query_sketcher());
     }
 #else
-    bool copyAllHits = opt.output.analysis.showAllHits;
-
     std::vector<std::mutex> scheduleMtxs(opt.performance.replication);
 
     std::vector<query_batch<location>> queryBatches;
@@ -231,7 +206,7 @@ query_id query_batched(
             db.query_sketcher().sketch_size(),
             db.query_sketcher().sketch_size()*db.max_locations_per_feature(),
             opt.classify.maxNumCandidatesPerQuery,
-            copyAllHits,
+            opt.output.analysis.showAllHits,
             numWorkers,
             db.num_parts(),
             rep);
@@ -270,7 +245,7 @@ query_id query_batched(
             query_host(db, opt.classify, batch, queryHandlers[id], resultsBuffer, update);
 #else
             // query batch to gpu and wait for results
-            query_gpu(db, opt.classify, batch, copyAllHits,
+            query_gpu(db, opt.classify, batch,
                       queryBatches[id%opt.performance.replication], id/opt.performance.replication,
                       resultsBuffer, update, scheduleMtxs[id%opt.performance.replication]);
 #endif

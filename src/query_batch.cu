@@ -74,7 +74,8 @@ query_batch<Location>::query_host_data::query_host_data(
     numQueries_{0},
     numWindows_{0},
     largestSegmentSize_{0},
-    maxCandidatesPerQuery_{maxCandidatesPerQuery}
+    maxCandidatesPerQuery_{maxCandidatesPerQuery},
+    copyAllHits_{copyAllHits}
 {
     cudaMallocHost(&queryIds_, maxQueries*sizeof(index_type));
     cudaMallocHost(&sequenceOffsets_, (maxQueries+1)*sizeof(size_type));
@@ -82,7 +83,7 @@ query_batch<Location>::query_host_data::query_host_data(
     cudaMallocHost(&sequences_, maxSequenceLength*sizeof(char));
     cudaMallocHost(&maxWindowsInRange_, maxQueries*sizeof(window_id));
     CUERR
-    if(copyAllHits)
+    if(copyAllHits_)
         cudaMallocHost(&queryResults_, maxQueries*maxResultsPerWindow*sizeof(location_type));
     else
         queryResults_ = nullptr;
@@ -119,6 +120,7 @@ query_batch<Location>::query_host_data::query_host_data(query_host_data&& other)
     numWindows_  = other.numWindows_;
     largestSegmentSize_ = other.largestSegmentSize_;
     maxCandidatesPerQuery_  = other.maxCandidatesPerQuery_;
+    copyAllHits_ = other.copyAllHits_;
 
     queryIds_       = other.queryIds_;
     other.queryIds_ = nullptr;
@@ -576,8 +578,7 @@ void query_batch<Location>::compact_results_async(part_id hostId, part_id gpuId)
 template<class Location>
 void query_batch<Location>::compact_sort_and_copy_allhits_async(
     part_id hostId,
-    part_id gpuId,
-    bool copyAllHits)
+    part_id gpuId)
 {
     cudaSetDevice(gpus_[gpuId]);
 
@@ -585,7 +586,7 @@ void query_batch<Location>::compact_sort_and_copy_allhits_async(
     // cudaStreamSynchronize(gpuData_[gpuId].workStream_);
     // CUERR
 
-    if(copyAllHits) {
+    if(hostData_[hostId].allhitsCopyNeeded()) {
         cudaEventRecord(gpuData_[gpuId].offsetsReadyEvent_, gpuData_[gpuId].workStream_);
         cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, gpuData_[gpuId].offsetsReadyEvent_, 0);
 
@@ -603,7 +604,7 @@ void query_batch<Location>::compact_sort_and_copy_allhits_async(
     // cudaStreamSynchronize(gpuData_[gpuId].workStream_);
     // CUERR
 
-    if(copyAllHits) {
+    if(hostData_[hostId].allhitsCopyNeeded()) {
         cudaEventRecord(gpuData_[gpuId].allhitsReadyEvent_, gpuData_[gpuId].workStream_);
         cudaStreamWaitEvent(gpuData_[gpuId].copyStream_, gpuData_[gpuId].allhitsReadyEvent_, 0);
 

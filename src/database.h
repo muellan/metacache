@@ -409,14 +409,12 @@ public:
     void
     query_gpu_async(query_batch<location>& queryBatch,
                     part_id hostId,
-                    bool copyAllHits,
                     taxon_rank lowestRank) const
     {
         featureStore_.query_async(
             queryBatch,
             hostId,
             query_sketcher(),
-            copyAllHits,
             lowestRank);
     }
 #endif

@@ -278,7 +278,6 @@ private:
         query_batch<value_type>& batch,
         part_id hostId,
         const sketcher& querySketcher,
-        bool copyAllHits,
         taxon_rank lowestRank) const;
 
 public:
@@ -287,7 +286,6 @@ public:
         query_batch<value_type>& batch,
         part_id hostId,
         const sketcher& querySketcher,
-        bool copyAllHits,
         taxon_rank lowestRank) const;
 
 
