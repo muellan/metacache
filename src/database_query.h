@@ -95,7 +95,8 @@ struct sequence_query
         Buffer& resultsBuffer, BufferUpdate& update)
     {
         for(const auto& query : batch) {
-            auto rules = make_candidate_generation_rules(db.target_sketcher(), opt, query);
+            auto rules = make_candidate_generation_rules(
+                query, opt, db.target_sketcher().window_stride());
 
             db.query_host(query.seq1, query.seq2, rules, queryHandler);
 
@@ -115,7 +116,8 @@ struct sequence_query
         std::mutex& scheduleMtx)
     {
         for(const auto& query : sequenceBatch) {
-            auto rules = make_candidate_generation_rules(db.target_sketcher(), opt, query);
+            auto rules = make_candidate_generation_rules(
+                query, opt, db.target_sketcher().window_stride());
 
             if(!queryBatch.add_paired_read(hostId, query.seq1, query.seq2,
                                            db.query_sketcher(), rules))
