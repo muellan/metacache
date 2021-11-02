@@ -77,7 +77,7 @@ void show_taxon_header(std::ostream&,
  *****************************************************************************/
 void show_candidates(std::ostream&,
                      const taxonomy_cache&,
-                     const span<const match_candidate>&,
+                     const span<const match_candidate>,
                      taxon_rank lowest = taxon_rank::Sequence);
 
 
@@ -88,7 +88,7 @@ void show_candidates(std::ostream&,
  *****************************************************************************/
 void show_matches(std::ostream&,
                   const taxonomy_cache& taxonomy,
-                  const span<const location>&,
+                  const span<const location>,
                   taxon_rank lowest = taxon_rank::Sequence);
 
 
@@ -99,7 +99,7 @@ void show_matches(std::ostream&,
  *****************************************************************************/
 void show_candidate_ranges(std::ostream&,
                            const sketcher&,
-                           const span<const match_candidate>&);
+                           const span<const match_candidate>);
 
 
 /*************************************************************************//**

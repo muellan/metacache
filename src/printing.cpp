@@ -266,7 +266,7 @@ void show_taxon(std::ostream& os,
 //-------------------------------------------------------------------
 void show_candidates(std::ostream& os,
                      const taxonomy_cache& taxonomy,
-                     const span<const match_candidate>& cand,
+                     const span<const match_candidate> cand,
                      taxon_rank lowest)
 {
     using size_t = span<match_candidate>::size_type;
@@ -298,7 +298,7 @@ void show_candidates(std::ostream& os,
 //-------------------------------------------------------------------
 void show_matches(std::ostream& os,
                   const taxonomy_cache& taxonomy,
-                  const span<const location>& matches,
+                  const span<const location> matches,
                   taxon_rank lowest)
 {
     if(matches.empty()) return;
@@ -353,7 +353,7 @@ void show_matches(std::ostream& os,
 //-------------------------------------------------------------------
 void show_candidate_ranges(std::ostream& os,
                            const sketcher& targetSketcher,
-                           const span<const match_candidate>& cand)
+                           const span<const match_candidate> cand)
 {
     const auto w = targetSketcher.window_stride();
 

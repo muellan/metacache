@@ -145,7 +145,7 @@ public:
     /****************************************************************
      * @brief copy candidates from span
      */
-    void assign(const span<const match_candidate>& cand) {
+    void assign(const span<const match_candidate> cand) {
         top_.assign(cand.begin(), cand.end());
     }
 

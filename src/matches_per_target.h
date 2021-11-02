@@ -104,7 +104,7 @@ public:
 
     //---------------------------------------------------------------
     void insert(query_id qid,
-                const span<const match_candidate>& candidates,
+                const span<const match_candidate> candidates,
                 match_count_type minHitsPerCandidate = 0)
     {
         for(const auto& cand : candidates) {

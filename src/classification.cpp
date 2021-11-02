@@ -143,7 +143,7 @@ ground_truth(const taxonomy_cache& taxonomy, const string& header)
  *****************************************************************************/
 const taxon*
 classify(const taxonomy_cache& taxonomy, const classification_options& opt,
-         const span<const match_candidate>& cand)
+         const span<const match_candidate> cand)
 {
     if(cand.empty() || !cand[0].tax) return nullptr;
 
@@ -197,7 +197,7 @@ struct classification
 classification
 make_classification(
     const sequence_query& query,
-    const span<const match_candidate>& candidates,
+    const span<const match_candidate> candidates,
     const taxonomy_cache& taxonomy,
     const classification_options& optClassify,
     bool makeGroundTruth)
@@ -365,7 +365,7 @@ void show_alignment(std::ostream& os,
                     const sketcher& targetSketcher,
                     const classification_output_options& opt,
                     const sequence_query& query,
-                    const span<const match_candidate>& tophits)
+                    const span<const match_candidate> tophits)
 {
     //try to align to top target
     const taxon* tgtTax = tophits[0].tax;
@@ -452,8 +452,8 @@ void show_query_mapping(
     const classification_output_options& opt,
     const sequence_query& query,
     const classification& cls,
-    const span<const match_candidate>& candidates,
-    const span<const location>& allhits)
+    const span<const match_candidate> candidates,
+    const span<const location> allhits)
 {
     const auto& fmt = opt.format;
 
@@ -514,8 +514,8 @@ void show_query_mapping(
  *****************************************************************************/
 void classify_and_evaluate(
     const sequence_query& query,
-    const span<const match_candidate>& tophits,
-    const span<const location>& allhits,
+    const span<const match_candidate> tophits,
+    const span<const location> allhits,
     const database& db,
     const query_options& opt,
     taxon_count_map& taxCounts,
@@ -750,8 +750,8 @@ void map_queries_to_targets_default(
     const auto processQuery = [&] (
         mappings_buffer& buf,
         const sequence_query& query,
-        const span<const location>& allhits,
-        const span<const match_candidate>& tophits)
+        const span<const location> allhits,
+        const span<const match_candidate> tophits)
     {
         if(query.empty()) return;
 
