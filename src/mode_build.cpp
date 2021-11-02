@@ -99,14 +99,7 @@ void main_mode_build(const cmdline_args& args)
              << "' from reference sequences." << endl;
     }
 
-    //configure sketching scheme
-    auto sketcher = database::sketcher{};
-    sketcher.kmer_size(opt.sketching.kmerlen);
-    sketcher.sketch_size(opt.sketching.sketchlen);
-    sketcher.window_size(opt.sketching.winlen);
-    sketcher.window_stride(opt.sketching.winstride);
-
-    auto db = database{sketcher};
+    auto db = database{opt.sketching};
 
     add_to_database_and_save(db, opt);
 }

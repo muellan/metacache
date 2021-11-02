@@ -206,14 +206,14 @@ public:
 
     //---------------------------------------------------------------
     explicit
-    database(sketcher targetSketcher = sketcher{}) :
-        database{targetSketcher, targetSketcher}
+    database(sketching_opt targetSketching = sketching_opt{}) :
+        database{targetSketching, targetSketching}
     {}
     //-----------------------------------------------------
     explicit
-    database(sketcher targetSketcher, sketcher querySketcher) :
-        targetSketcher_{std::move(targetSketcher)},
-        querySketcher_{std::move(querySketcher)},
+    database(sketching_opt targetSketching, sketching_opt querySketching) :
+        targetSketchingOptions_{std::move(targetSketching)},
+        querySketchingOptions_{std::move(querySketching)},
         targetCount_{0},
         featureStore_{},
         taxonomyCache_{}
@@ -221,8 +221,8 @@ public:
 
     database(const database&) = delete;
     database(database&& other) :
-        targetSketcher_{std::move(other.targetSketcher_)},
-        querySketcher_{std::move(other.querySketcher_)},
+        targetSketchingOptions_{std::move(other.targetSketchingOptions_)},
+        querySketchingOptions_{std::move(other.querySketchingOptions_)},
         targetCount_{other.targetCount_.load()},
         featureStore_{std::move(other.featureStore_)},
         taxonomyCache_{std::move(other.taxonomyCache_)}
@@ -237,29 +237,29 @@ public:
      * @return const ref to the object that transforms target sequence
      *         snippets into a collection of features
      */
-    const sketcher&
-    target_sketcher() const noexcept {
-        return targetSketcher_;
+    const sketching_opt&
+    target_sketching() const noexcept {
+        return targetSketchingOptions_;
     }
     //-----------------------------------------------------
     /**
      * @return const ref to the object that transforms query sequence
      *         snippets into a collection of features
      */
-    const sketcher&
-    query_sketcher() const noexcept {
-        return querySketcher_;
+    const sketching_opt&
+    query_sketching() const noexcept {
+        return querySketchingOptions_;
     }
     //-----------------------------------------------------
     /**
      * @brief sets the object that transforms query sequence
      *        snippets into a collection of features
      */
-    void query_sketcher(const sketcher& s) {
-        querySketcher_ = s;
+    void query_sketching(const sketching_opt& s) {
+        querySketchingOptions_ = s;
     }
-    void query_sketcher(sketcher&& s) {
-        querySketcher_ = std::move(s);
+    void query_sketching(sketching_opt&& s) {
+        querySketchingOptions_ = std::move(s);
     }
 
 
@@ -314,7 +314,7 @@ public:
 
     //---------------------------------------------------------------
     void initialize_hash_table(part_id numParts) {
-        featureStore_.initialize_build_hash_tables(numParts, targetSketcher_);
+        featureStore_.initialize_build_hash_tables(numParts);
     }
 
     //---------------------------------------------------------------
@@ -340,7 +340,7 @@ public:
 
     //---------------------------------------------------------------
     void wait_until_add_target_complete(part_id partId) {
-        featureStore_.wait_until_add_target_complete(partId, targetSketcher_);
+        featureStore_.wait_until_add_target_complete(partId, targetSketchingOptions_);
     }
 
 
@@ -399,11 +399,11 @@ public:
 #ifndef GPU_MODE
     void
     query_host(const sequence& query1, const sequence& query2,
-               const candidate_generation_rules& rules,
-               query_handler<location>& queryHandler) const
+               query_handler<location>& queryHandler,
+               const candidate_generation_rules& rules) const
     {
         featureStore_.query_host_hashmap(
-            query1, query2, queryHandler, taxonomyCache_, rules);
+            query1, query2, queryHandler, taxonomyCache_, query_sketching(), rules);
     }
 #else
     void
@@ -414,7 +414,7 @@ public:
         featureStore_.query_async(
             queryBatch,
             hostId,
-            query_sketcher(),
+            query_sketching(),
             lowestRank);
     }
 #endif
@@ -503,8 +503,8 @@ public:
 
 private:
     //---------------------------------------------------------------
-    sketcher targetSketcher_;
-    sketcher querySketcher_;
+    sketching_opt targetSketchingOptions_;
+    sketching_opt querySketchingOptions_;
     std::atomic<std::uint64_t> targetCount_;
     mutable feature_store featureStore_;
     taxonomy_cache taxonomyCache_;

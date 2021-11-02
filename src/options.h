@@ -66,25 +66,6 @@ struct taxonomy_options
 
 
 /*************************************************************************//**
- * @brief sequence sketching parameters
- *****************************************************************************/
-struct sketching_options
-{
-    int kmerlen = 16;
-
-    // number of features (kmer hashes) in a sketch of ONE window
-    int sketchlen = 16;
-
-    // number of characters in one window
-    int winlen = 127;
-
-    // difference between two successive window start positions
-    int winstride = -1;  // < 0 : automatic: winstride = (winlen - (kmerlen-1))
-};
-
-
-
-/*************************************************************************//**
  * @brief
  *****************************************************************************/
 struct database_storage_options
@@ -123,7 +104,7 @@ struct build_options
     int dbpart = -1;
     std::vector<std::string> infiles;
 
-    sketching_options sketching;
+    sketching_opt sketching;
     database_storage_options dbconfig;
 
 #ifndef GPU_MODE
@@ -419,8 +400,8 @@ struct query_options
 
     database_storage_options dbconfig;
 
-    // query sketching options (all set to -1 : use value from database)
-    sketching_options sketching {-1,-1,-1,-1};
+    // query sketching options (all set to 0 : use value from database)
+    sketching_opt sketching {0,0,0,0};
 
     performance_tuning_options performance;
 

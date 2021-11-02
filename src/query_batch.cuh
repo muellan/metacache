@@ -87,7 +87,7 @@ public:
         bool add_paired_read(
             InputIterator first1, InputIterator last1,
             InputIterator first2, InputIterator last2,
-            const sketcher& querySketcher,
+            const sketching_opt& querySketching,
             const candidate_generation_rules& rules,
             index_type maxWindows,
             uint32_t maxSequenceLength,
@@ -95,9 +95,9 @@ public:
         ) {
             using std::distance;
 
-            const numk_t kmerSize = querySketcher.kmer_size();
-            const size_t windowSize = querySketcher.window_size();
-            const size_t windowStride = querySketcher.window_stride();
+            const numk_t kmerSize = querySketching.kmerlen;
+            const size_t windowSize = querySketching.winlen;
+            const size_t windowStride = querySketching.winstride;
 
             const size_t seqLength1 = distance(first1, last1);
             const size_t seqLength2 = distance(first2, last2);
@@ -188,7 +188,7 @@ public:
         template<class Sequence>
         bool add_paired_read(
             Sequence seq1, Sequence seq2,
-            const sketcher& querySketcher,
+            const sketching_opt& querySketching,
             const candidate_generation_rules& rules,
             index_type maxWindows,
             uint32_t maxSequenceLength,
@@ -200,7 +200,7 @@ public:
             return add_paired_read(
                 begin(seq1), end(seq1),
                 begin(seq2), end(seq2),
-                querySketcher,
+                querySketching,
                 rules,
                 maxWindows,
                 maxSequenceLength,

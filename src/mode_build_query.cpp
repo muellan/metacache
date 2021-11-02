@@ -90,14 +90,7 @@ void main_mode_build_query(const cmdline_args& args)
         cout << "Building new database from reference sequences." << endl;
     }
 
-    //configure sketching scheme
-    auto sketcher = database::sketcher{};
-    sketcher.kmer_size(opt.build.sketching.kmerlen);
-    sketcher.sketch_size(opt.build.sketching.sketchlen);
-    sketcher.window_size(opt.build.sketching.winlen);
-    sketcher.window_stride(opt.build.sketching.winstride);
-
-    auto db = database{sketcher};
+    auto db = database{opt.build.sketching};
 
     add_to_database_and_query(db, opt);
 }

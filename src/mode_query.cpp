@@ -89,23 +89,21 @@ read_database(const query_options& opt)
              << dbopt.maxLocationsPerFeature << '\n';
     }
 
-    const sketching_options& skopt = opt.sketching;
+    const sketching_opt& skopt = opt.sketching;
     //use a different sketching scheme for querying?
     if((skopt.sketchlen > 0) || (skopt.winlen > 0) || (skopt.winstride > 0)) {
-        auto s = db.query_sketcher();
-        if(skopt.sketchlen > 0) s.sketch_size(skopt.sketchlen);
-        if(skopt.winlen > 0)    s.window_size(skopt.winlen);
+        auto s = db.query_sketching();
+        if(skopt.sketchlen > 0) s.sketchlen = skopt.sketchlen;
+        if(skopt.winlen > 0)    s.winlen = skopt.winlen;
         // if no custom window stride requested => set to w-k+1
-        auto winstride = skopt.winstride;
-        if(winstride < 0) winstride = s.window_size() - s.kmer_size() + 1;
-        s.window_stride(winstride);
+        if(skopt.winstride == 0) s.winstride = s.winlen - s.kmerlen + 1;
 
         cerr << "custom query sketching settings:"
-             << " -winlen "    << s.window_size()
-             << " -winstride " << s.window_stride()
-             << " -sketchlen " << s.sketch_size() << '\n';
+             << " -winlen "    << s.winlen
+             << " -winstride " << s.winstride
+             << " -sketchlen " << s.sketchlen << '\n';
 
-        db.query_sketcher(std::move(s));
+        db.query_sketching(std::move(s));
     }
 
     return db;

@@ -362,7 +362,7 @@ void estimate_abundance(const taxonomy_cache& taxonomy, taxon_count_map& allTaxC
  *
  *****************************************************************************/
 void show_alignment(std::ostream& os,
-                    const sketcher& targetSketcher,
+                    const sketching_opt& targetSketching,
                     const classification_output_options& opt,
                     const sequence_query& query,
                     const span<const match_candidate> tophits)
@@ -380,13 +380,13 @@ void show_alignment(std::ostream& os,
                 auto tgtSequ = reader.next().data;
                 auto subject = make_view_from_window_range(
                                tgtSequ, tophits[0].pos,
-                               targetSketcher.window_size(),
-                               targetSketcher.window_stride());
+                               targetSketching.winlen,
+                               targetSketching.winstride);
 
                 auto align = make_semi_global_alignment(query, subject);
 
                 //print alignment to top candidate
-                const auto w = targetSketcher.window_stride();
+                const auto w = targetSketching.winstride;
                 const auto& comment = opt.format.tokens.comment;
                 os  << '\n'
                     << comment << "  score  " << align.score
@@ -491,14 +491,14 @@ void show_query_mapping(
         os << colsep;
     }
     if(opt.analysis.showLocations) {
-        show_candidate_ranges(os, db.target_sketcher(), candidates);
+        show_candidate_ranges(os, db.target_sketching(), candidates);
         os << colsep;
     }
 
     show_taxon(os, db.taxo_cache(), fmt, cls.best);
 
     if(opt.analysis.showAlignment && cls.best) {
-        show_alignment(os, db.target_sketcher(), opt, query, candidates);
+        show_alignment(os, db.target_sketching(), opt, query, candidates);
     }
 
     os << '\n';

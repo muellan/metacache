@@ -55,7 +55,7 @@ bool database::add_target(part_id dbPart,
     const auto taxid = taxon_id_of_target(targetId);
 
     // sketch sequence -> insert features
-    source.windows = featureStore_.add_target(dbPart, seq, targetId, targetSketcher_);
+    source.windows = featureStore_.add_target(dbPart, seq, targetId, targetSketchingOptions_);
 
     if(parentTaxid < 1) parentTaxid = 0;
     const taxon* newtax = nullptr;
@@ -126,8 +126,8 @@ part_id database::read_meta(const std::string& filename, std::future<void>& taxo
     clear();
 
     //sketching parameters
-    read_binary(is, targetSketcher_);
-    read_binary(is, querySketcher_);
+    read_binary(is, targetSketchingOptions_);
+    read_binary(is, querySketchingOptions_);
 
     //target insertion parameters
     uint64_t maxLocationsPerFeature = 0;
@@ -249,8 +249,8 @@ void database::write_meta(const std::string& filename) const
     write_binary(os, uint8_t(taxonomy::num_ranks));
 
     //sketching parameters
-    write_binary(os, targetSketcher_);
-    write_binary(os, querySketcher_);
+    write_binary(os, targetSketchingOptions_);
+    write_binary(os, querySketchingOptions_);
 
     //target insertion parameters
     write_binary(os, uint64_t(max_locations_per_feature()));

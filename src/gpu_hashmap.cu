@@ -187,7 +187,7 @@ public:
     //---------------------------------------------------------------
     void insert_async(
         sequence_batch<policy::Host>& seqBatchHost,
-        const sketcher& targetSketcher
+        const sketching_opt& targetSketching
     ) {
         // wait for previous insert of current batch to finish
         cudaStreamWaitEvent(copyStream_, seqBatches_[currentSeqBatch_].event(), 0); CUERR
@@ -201,7 +201,7 @@ public:
 
         constexpr int maxSketchSize = 16;
 
-        if(targetSketcher.sketch_size() <= maxSketchSize) {
+        if(targetSketching.sketchlen <= maxSketchSize) {
             constexpr int warpsPerBlock = 2;
             constexpr int threadsPerBlock = 32*warpsPerBlock;
 
@@ -214,10 +214,7 @@ public:
                 seqBatches_[currentSeqBatch_].window_offsets(),
                 seqBatches_[currentSeqBatch_].sequence(),
                 seqBatches_[currentSeqBatch_].sequence_offsets(),
-                targetSketcher.kmer_size(),
-                targetSketcher.sketch_size(),
-                targetSketcher.window_size(),
-                targetSketcher.window_stride());
+                targetSketching);
         }
         else {
             std::cerr << "Max sketch size is " << maxSketchSize << "\n";
@@ -246,12 +243,12 @@ public:
     void query_async(
         uint32_t numWindows,
         const typename query_batch<location_type>::query_gpu_data& gpuData,
-        const sketcher& querySketcher,
+        const sketching_opt& querySketching,
         bucket_size_type maxLocationsPerFeature) const
     {
         constexpr int maxSketchSize = 16;
 
-        if(querySketcher.sketch_size() <= maxSketchSize) {
+        if(querySketching.sketchlen <= maxSketchSize) {
             constexpr int warpsPerBlock = 2;
             constexpr int threadsPerBlock = 32*warpsPerBlock;
 
@@ -263,10 +260,8 @@ public:
                 gpuData.sequenceOffsets_,
                 gpuData.sequences_,
                 gpuData.sketches_,
-                querySketcher.kmer_size(),
-                querySketcher.sketch_size(),
-                querySketcher.window_size(),
-                querySketcher.window_stride(),
+                querySketching.kmerlen,
+                querySketching.sketchlen,
                 maxLocationsPerFeature,
                 gpuData.queryResults_,
                 gpuData.resultCounts_
@@ -697,12 +692,12 @@ public:
     void query_async(
         uint32_t numWindows,
         const typename query_batch<location_type>::query_gpu_data& gpuData,
-        const sketcher& querySketcher,
+        const sketching_opt& querySketching,
         bucket_size_type maxLocationsPerFeature) const
     {
         constexpr int maxSketchSize = 16;
 
-        if(querySketcher.sketch_size() <= maxSketchSize) {
+        if(querySketching.sketchlen <= maxSketchSize) {
             constexpr int warpsPerBlock = 2;
             constexpr int threadsPerBlock = 32*warpsPerBlock;
 
@@ -714,10 +709,8 @@ public:
                 gpuData.sequenceOffsets_,
                 gpuData.sequences_,
                 gpuData.sketches_,
-                querySketcher.kmer_size(),
-                querySketcher.sketch_size(),
-                querySketcher.window_size(),
-                querySketcher.window_stride(),
+                querySketching.kmerlen,
+                querySketching.sketchlen,
                 locations_,
                 maxLocationsPerFeature,
                 gpuData.queryResults_,
@@ -1096,7 +1089,7 @@ gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
 
 //---------------------------------------------------------------
 template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numParts, const sketcher&)
+void gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numParts)
 {
     part_id numGPUsFound = num_gpus();
     config_num_gpus(numParts);
@@ -1141,12 +1134,12 @@ void gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numParts, con
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 window_id gpu_hashmap<Key,ValueT>::add_target(
-    part_id gpuId, const sequence& seq, target_id tgt, const sketcher& targetSketcher)
+    part_id gpuId, const sequence& seq, target_id tgt, const sketching_opt& targetSketching)
 {
     using std::begin;
     using std::end;
 
-    return add_target(gpuId, begin(seq), end(seq), tgt, targetSketcher);
+    return add_target(gpuId, begin(seq), end(seq), tgt, targetSketching);
 }
 //-----------------------------------------------------
 template<class Key, class ValueT>
@@ -1155,7 +1148,7 @@ window_id gpu_hashmap<Key,ValueT>::add_target(
     sequence::const_iterator first,
     sequence::const_iterator last,
     target_id tgt,
-    const sketcher& targetSketcher)
+    const sketching_opt& targetSketching)
 {
     // std::cerr << "add target " << tgt << " to gpu " << gpuId << "\n";
 
@@ -1164,17 +1157,17 @@ window_id gpu_hashmap<Key,ValueT>::add_target(
     window_id totalWindows = 0;
 
     for(window_id processedWindows = 0;
-        distance(first, last) >= targetSketcher.kmer_size();
-        first += processedWindows*targetSketcher.window_stride())
+        distance(first, last) >= targetSketching.kmerlen;
+        first += processedWindows*targetSketching.winstride)
     {
         //fill sequence batch
         processedWindows = insertBuffers_[gpuId].current_seq_batch().add_target(
-            first, last, tgt, totalWindows, targetSketcher);
+            first, last, tgt, totalWindows, targetSketching);
 
         // if no windows were processed batch must be full
         if(!processedWindows && insertBuffers_[gpuId].current_seq_batch().num_targets()) {
             // std::cerr << "gpu " << gpuId << " insert\n";
-            insert(gpuId, insertBuffers_[gpuId].current_seq_batch(), targetSketcher);
+            insert(gpuId, insertBuffers_[gpuId].current_seq_batch(), targetSketching);
             insertBuffers_[gpuId].switch_seq_batch();
             insertBuffers_[gpuId].current_seq_batch().clear();
             if(!(buildHashTables_[gpuId]->valid())) break;
@@ -1192,26 +1185,26 @@ template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::insert(
     part_id gpuId,
     sequence_batch<policy::Host>& seqBatchHost,
-    const sketcher& targetSketcher)
+    const sketching_opt& targetSketching)
 {
     cudaSetDevice(gpuId); CUERR
     buildHashTables_[gpuId]->validate();
 
     if(buildHashTables_[gpuId]->valid()) {
         buildHashTables_[gpuId]->insert_async(
-            seqBatchHost, targetSketcher);
+            seqBatchHost, targetSketching);
     }
 }
 //-----------------------------------------------------
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::wait_until_add_target_complete(
-    part_id gpuId, const sketcher& targetSketcher)
+    part_id gpuId, const sketching_opt& targetSketching)
 {
     if(gpuId < numGPUs_) {
         cudaSetDevice(gpuId); CUERR
 
         if(insertBuffers_[gpuId].current_seq_batch().num_targets()) {
-            insert(gpuId, insertBuffers_[gpuId].current_seq_batch(), targetSketcher);
+            insert(gpuId, insertBuffers_[gpuId].current_seq_batch(), targetSketching);
         }
 
         buildHashTables_[gpuId]->wait_until_insert_finished();
@@ -1237,7 +1230,7 @@ void gpu_hashmap<Key,ValueT>::query_hashtables_async(
     const std::vector<Hashtable>& hashtables,
     query_batch<value_type>& batch,
     part_id hostId,
-    const sketcher& querySketcher,
+    const sketching_opt& querySketching,
     taxon_rank lowestRank) const
 {
     for(part_id gpuId = 0; gpuId < batch.num_gpus(); ++gpuId)
@@ -1254,7 +1247,7 @@ void gpu_hashmap<Key,ValueT>::query_hashtables_async(
         hashtables[gpu]->query_async(
             batch.host_data(hostId).num_windows(),
             batch.gpu_data(gpuId),
-            querySketcher,
+            querySketching,
             maxLocationsPerFeature_);
 
         batch.mark_query_finished(gpuId);
@@ -1279,16 +1272,16 @@ template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::query_async(
     query_batch<value_type>& batch,
     part_id hostId,
-    const sketcher& querySketcher,
+    const sketching_opt& querySketching,
     taxon_rank lowestRank) const
 {
     if(!buildHashTables_.empty()) {
         query_hashtables_async(
-            buildHashTables_, batch, hostId, querySketcher, lowestRank);
+            buildHashTables_, batch, hostId, querySketching, lowestRank);
     }
     else if(!queryHashTables_.empty()) {
         query_hashtables_async(
-            queryHashTables_, batch, hostId, querySketcher, lowestRank);
+            queryHashTables_, batch, hostId, querySketching, lowestRank);
     }
 }
 

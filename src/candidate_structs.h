@@ -138,7 +138,7 @@ candidate_generation_rules
 make_candidate_generation_rules(
     const Query& query,
     const classification_options& opt,
-    const sketcher::window_size_type targetWindowStride)
+    const sketching_opt::window_size_type targetWindowStride)
 {
     candidate_generation_rules rules;
 

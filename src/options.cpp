@@ -318,7 +318,7 @@ taxonomy_cli(taxonomy_options& opt, error_messages& err)
 //-------------------------------------------------------------------
 /// @brief shared command-line options for sequence sketching
 clipp::group
-sketching_options_cli(sketching_options& opt, error_messages& err)
+sketching_options_cli(sketching_opt& opt, error_messages& err)
 {
     using namespace clipp;
     return (
@@ -546,7 +546,7 @@ void process_build_options(build_options& opt)
         opt.dbconfig.maxLocationsPerFeature = database::max_supported_locations_per_feature();
 
     auto& sk = opt.sketching;
-    if(sk.winstride < 0) sk.winstride = sk.winlen - sk.kmerlen + 1;
+    if(sk.winstride == 0) sk.winstride = sk.winlen - sk.kmerlen + 1;
 }
 
 
@@ -702,12 +702,7 @@ get_modify_options(const cmdline_args& args, modify_options opt)
     // use settings from database file as defaults
     auto db = make_database(opt.dbfile, opt.dbpart, database::scope::metadata_only);
 
-    const auto& ts = db.target_sketcher();
-    auto& sk = opt.sketching;
-    sk.kmerlen   = ts.kmer_size();
-    sk.sketchlen = ts.sketch_size();
-    sk.winlen    = ts.window_size();
-    sk.winstride = ts.window_stride();
+    opt.sketching = db.target_sketching();
 
     opt.dbconfig.maxLoadFactor = db.max_load_factor();
     opt.dbconfig.maxLocationsPerFeature = db.max_locations_per_feature();

@@ -115,10 +115,10 @@ public:
 
 
     //---------------------------------------------------------------
-    void initialize_build_hash_tables(part_id numParts, const sketcher& targetSketcher) {
+    void initialize_build_hash_tables(part_id numParts) {
         hashTables_.resize(numParts);
         inserters_.resize(numParts);
-        sketchers_.resize(numParts, targetSketcher);
+        sketchers_.resize(numParts);
 
         for(auto& hashTable : hashTables_)
             hashTable.max_load_factor(maxLoadFactor_);
@@ -375,7 +375,7 @@ public:
 
 
     //---------------------------------------------------------------
-    void wait_until_add_target_complete(part_id part, const sketcher&) {
+    void wait_until_add_target_complete(part_id part, const sketching_opt&) {
         destroy_inserter(part);
     }
 
@@ -406,12 +406,12 @@ public:
      */
     window_id add_target(part_id part,
                          const sequence& seq, target_id tgt,
-                         const sketcher&)
+                         const sketching_opt& opt)
     {
         if(!inserters_[part]) make_sketch_inserter(part);
 
         window_id win = 0;
-        sketchers_[part].for_each_sketch(seq,
+        sketchers_[part].for_each_sketch(seq, opt,
             [&, this] (const auto& sk) {
                 if(inserters_[part]->valid()) {
                     //insert sketch into batch
@@ -465,6 +465,7 @@ private:
     sketch
     accumulate_matches(const sequence& query1, const sequence& query2,
                        query_handler<location>& queryHandler,
+                       const sketching_opt& opt,
                        bool keepSketches) const
     {
         using std::begin;
@@ -472,10 +473,10 @@ private:
 
         sketch allWindowSketch;
 
-        const auto& sketcher = queryHandler.querySketcher;
+        auto& sketcher = queryHandler.querySketcher;
         auto& sorter = queryHandler.matchesSorter;
 
-        sketcher.for_each_sketch(begin(query1), end(query1),
+        sketcher.for_each_sketch(begin(query1), end(query1), opt,
             [&, this] (const auto& sk) {
                 for(auto f : sk) {
                     auto locs = hashTables_[0].find(f);
@@ -488,7 +489,7 @@ private:
                     allWindowSketch.insert(allWindowSketch.end(), sk.begin(), sk.end());
             });
 
-        sketcher.for_each_sketch(begin(query2), end(query2),
+        sketcher.for_each_sketch(begin(query2), end(query2), opt,
             [&, this] (const auto& sk) {
                 for(auto f : sk) {
                     auto locs = hashTables_[0].find(f);
@@ -530,6 +531,7 @@ public:
     query_host_hashmap(const sequence& query1, const sequence& query2,
                        query_handler<location>& queryHandler,
                        const taxonomy_cache& taxonomy,
+                       const sketching_opt& opt,
                        const candidate_generation_rules& rules) const
     {
         queryHandler.clear();
@@ -540,7 +542,7 @@ public:
         sorter.next();
 
         sketch allWindowSketch = accumulate_matches(
-            query1, query2, queryHandler, num_parts() > 1);
+            query1, query2, queryHandler, opt, num_parts() > 1);
 
         sorter.sort();
 

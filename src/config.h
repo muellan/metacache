@@ -103,6 +103,8 @@ using query_id = std::uint_least64_t;
  */
 using sketching_hash = same_size_hash<kmer_type>;
 
+using sketching_opt = sketching_options<kmer_type>;
+
 using sketcher = single_function_unique_min_hasher<kmer_type,sketching_hash>;
 
 using sketch_size_type = typename sketcher::sketch_type::size_type;

@@ -352,14 +352,14 @@ void show_matches(std::ostream& os,
 
 //-------------------------------------------------------------------
 void show_candidate_ranges(std::ostream& os,
-                           const sketcher& targetSketcher,
+                           const sketching_opt& targetSketching,
                            const span<const match_candidate> cand)
 {
-    const auto w = targetSketcher.window_stride();
+    const auto w = targetSketching.winstride;
 
     for(const auto& c : cand) {
         os << '[' << (w * c.pos.beg)
-           << ',' << (w * c.pos.end + targetSketcher.window_size()) << "] ";
+           << ',' << (w * c.pos.end + targetSketching.winlen) << "] ";
     }
 }
 
@@ -375,7 +375,7 @@ void show_matches_per_targets(std::ostream& os,
        << "--- list of hits for each reference sequence ---\n"
        << opt.tokens.comment
        << "window start position within sequence = window_index * window_stride(="
-       << db.target_sketcher().window_stride() << ")\n";
+       << db.target_sketching().winstride << ")\n";
 
     os << opt.tokens.comment << "TABLE_LAYOUT: "
        << " sequence " << opt.tokens.column
@@ -611,15 +611,15 @@ void print_static_properties(const database& db)
         << "------------------------------------------------\n"
         << "window id type       " << type_name<window_id>() << " " << (sizeof(window_id)*CHAR_BIT) << " bits\n"
         << "window limit         " << std::uint64_t(db.max_windows_per_target()) << '\n'
-        << "window length        " << db.target_sketcher().window_size() << '\n'
-        << "window stride        " << db.target_sketcher().window_stride() << '\n'
+        << "window length        " << db.target_sketching().winlen << '\n'
+        << "window stride        " << db.target_sketching().winstride << '\n'
         << "------------------------------------------------\n"
         << "sketcher type        " << type_name<database::sketcher>() << '\n'
         << "feature type         " << type_name<feature_t>() << " " << (sizeof(feature_t)*CHAR_BIT) << " bits\n"
         << "feature hash         " << type_name<database::feature_hash>() << '\n'
-        << "kmer size            " << std::uint64_t(db.target_sketcher().kmer_size()) << '\n'
-        << "kmer limit           " << std::uint64_t(db.target_sketcher().max_kmer_size()) << '\n'
-        << "sketch size          " << db.target_sketcher().sketch_size() << '\n'
+        << "kmer size            " << std::uint64_t(db.target_sketching().kmerlen) << '\n'
+        << "kmer limit           " << std::uint64_t(db.target_sketching().max_kmer_size()) << '\n'
+        << "sketch size          " << db.target_sketching().sketchlen << '\n'
         << "------------------------------------------------\n"
         << "bucket size type     " << type_name<bkt_sz_t>() << " " << (sizeof(bkt_sz_t)*CHAR_BIT) << " bits\n"
         << "max. locations       " << std::uint64_t(db.max_locations_per_feature()) << '\n'

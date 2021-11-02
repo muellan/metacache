@@ -114,11 +114,6 @@ struct query_handler {
     using sorter = matches_sorter<location>;
     using match_locations = typename sorter::match_locations;
 
-    explicit query_handler(const sketcher& querySketcher_) :
-        querySketcher{querySketcher_},
-        matchesSorter{}
-    {}
-
     void clear() {
         matchesSorter.clear();
         classificationCandidates.clear();

@@ -86,27 +86,16 @@ for_each_window(const Sequence& s,
 
 
 /*************************************************************************//**
- *
- * @brief default min-hasher that uses the 'sketch_size' lexicographically
- *
- *        smallest *unique* hash values of *one* hash function
- *
+ * @brief sequence sketching parameters
  *****************************************************************************/
-template<class KmerT, class Hash = same_size_hash<KmerT>>
-class single_function_unique_min_hasher
+template<class KmerT>
+struct sketching_options
 {
-public:
+    using kmer_type        = KmerT;
     //---------------------------------------------------------------
-    using kmer_type    = KmerT;
-    using hasher       = Hash;
-    using feature_type = typename std::result_of<hasher(kmer_type)>::type;
-    using sketch_type  = std::vector<feature_type>;
-    //-----------------------------------------------------
     using kmer_size_type   = numk_t;
-    using sketch_size_type = typename sketch_type::size_type;
-    using window_size_type = std::uint64_t;
-
-
+    using sketch_size_type = std::uint32_t;
+    using window_size_type = std::uint32_t;
     //---------------------------------------------------------------
     static constexpr std::uint8_t max_kmer_size() noexcept {
         return max_word_size<kmer_type,2>::value;
@@ -123,78 +112,89 @@ public:
 
 
     //---------------------------------------------------------------
+    friend void
+    write_binary(std::ostream& os, const sketching_options<kmer_type>& h)
+    {
+        write_binary(os, std::uint64_t(h.kmerlen));
+        write_binary(os, std::uint64_t(h.sketchlen));
+        write_binary(os, std::uint64_t(h.winlen));
+        write_binary(os, std::uint64_t(h.winstride));
+    }
+
+    //---------------------------------------------------------------
+    friend void
+    read_binary(std::istream& is, sketching_options<kmer_type>& h)
+    {
+        std::uint64_t n = 0;
+        read_binary(is, n);
+        h.kmerlen = (n <= max_kmer_size()) ? n : max_kmer_size();
+
+        n = 0;
+        read_binary(is, n);
+        h.sketchlen = (n <= max_sketch_size()) ? n : max_sketch_size();
+
+        n = 0;
+        read_binary(is, n);
+        h.winlen = (n <= max_window_size()) ? n : max_window_size();
+
+        n = 0;
+        read_binary(is, n);
+        h.winstride = (n <= max_window_size()) ? n : max_window_size();
+    }
+
+
+    //---------------------------------------------------------------
+    kmer_size_type kmerlen = 16;
+
+    // number of features (kmer hashes) in a sketch of ONE window
+    sketch_size_type sketchlen = 16;
+
+    // number of characters in one window
+    window_size_type winlen = 127;
+
+    // difference between two successive window start positions
+    window_size_type winstride = 0;  // = 0 : automatic: winstride = (winlen - (kmerlen-1))
+};
+
+
+
+/*************************************************************************//**
+ *
+ * @brief default min-hasher that uses the 'sketch_size' lexicographically
+ *
+ *        smallest *unique* hash values of *one* hash function
+ *
+ *****************************************************************************/
+template<class KmerT, class Hash = same_size_hash<KmerT>>
+class single_function_unique_min_hasher
+{
+public:
+    //---------------------------------------------------------------
+    using kmer_type    = KmerT;
+    using hasher       = Hash;
+    using feature_type = typename std::result_of<hasher(kmer_type)>::type;
+    //---------------------------------------------------------------
+    using sketch_type      = std::vector<feature_type>;
+
+
+    //---------------------------------------------------------------
     explicit
     single_function_unique_min_hasher(hasher hash = hasher{}):
         sketch{},
-        hash_(std::move(hash)), k_(16), sketchSize_(16),
-        windowSize_(127), windowStride_(127-k_+1)
+        hash_(std::move(hash))
     {}
 
-
-    //---------------------------------------------------------------
-    kmer_size_type
-    kmer_size() const noexcept {
-        return k_;
-    }
-    //-----------------------------------------------------
-    void
-    kmer_size(kmer_size_type k) noexcept {
-        if(k < 1) k = 1;
-        if(k > max_kmer_size()) k = max_kmer_size();
-        k_ = k;
-    }
-
-    //---------------------------------------------------------------
-    sketch_size_type
-    sketch_size() const noexcept {
-        return sketchSize_;
-    }
-    //-----------------------------------------------------
-    void
-    sketch_size(sketch_size_type s) noexcept {
-        if(s < 1) s = 1;
-        if(s > max_sketch_size()) s = max_sketch_size();
-        sketchSize_ = s;
-    }
-
-    //---------------------------------------------------------------
-    /** @return size of windows that are fed to the sketcher */
-    window_size_type
-    window_size() const noexcept {
-        return windowSize_;
-    }
-    //-----------------------------------------------------
-    /** @brief set size of windows that are fed to the sketcher */
-    void
-    window_size(window_size_type s) {
-        if(s < 1) s = 1;
-        if(s > max_window_size()) s = max_window_size();
-        windowSize_ = s;
-    }
-
-    //---------------------------------------------------------------
-    /** @return window stride for sketching */
-    window_size_type
-    window_stride() const noexcept {
-        return windowStride_;
-    }
-    //-----------------------------------------------------
-    /** @brief set window stride for sketching */
-    void window_stride(window_size_type s) {
-        if(s < 1) s = 1;
-        if(s > max_window_stride()) s = max_window_stride();
-        windowStride_ = s;
-    }
 
     //---------------------------------------------------------------
     template<class Sequence, class Consumer>
     void
     for_each_sketch(const Sequence& s,
-                    Consumer&& consume) const
+                    const sketching_options<kmer_type>& opt,
+                    Consumer&& consume)
     {
         using std::begin;
         using std::end;
-        for_each_sketch(begin(s), end(s),
+        for_each_sketch(begin(s), end(s), opt,
                         std::forward<Consumer>(consume));
     }
 
@@ -202,24 +202,27 @@ public:
     template<class InputIterator, class Consumer>
     void
     for_each_sketch(InputIterator first, InputIterator last,
-                    Consumer&& consume) const
+                    const sketching_options<kmer_type>& opt,
+                    Consumer&& consume)
     {
-        for_each_window(first, last, windowSize_, windowStride_,
+        using sketch_size_type = typename sketching_options<kmer_type>::sketch_size_type;
+
+        for_each_window(first, last, opt.winlen, opt.winstride,
             [&] (InputIterator first, InputIterator last) {
                 using std::distance;
                 using std::begin;
                 using std::end;
 
                 const auto n = distance(first,last);
-                if(n < k_) return;
+                if(n < opt.kmerlen) return;
 
-                const auto s = std::min(sketchSize_, sketch_size_type(n - k_ + 1));
+                const auto s = std::min(opt.sketchlen, sketch_size_type(n - opt.kmerlen + 1));
                 if(s < 1) return;
 
                 sketch.clear();
                 sketch.resize(s, feature_type(~0));
 
-                for_each_unambiguous_canonical_kmer_2bit<kmer_type>(k_, first, last,
+                for_each_unambiguous_canonical_kmer_2bit<kmer_type>(opt.kmerlen, first, last,
                     [&] (kmer_type kmer) {
                         auto h = hash_(kmer);
                         if(h < sketch.back()) {
@@ -246,46 +249,11 @@ public:
             });
     }
 
-    //---------------------------------------------------------------
-    friend void
-    write_binary(std::ostream& os, const single_function_unique_min_hasher& h)
-    {
-        write_binary(os, std::uint64_t(h.k_));
-        write_binary(os, std::uint64_t(h.sketchSize_));
-        write_binary(os, std::uint64_t(h.windowSize_));
-        write_binary(os, std::uint64_t(h.windowStride_));
-    }
-
-    //---------------------------------------------------------------
-    friend void
-    read_binary(std::istream& is, single_function_unique_min_hasher& h)
-    {
-        std::uint64_t n = 0;
-        read_binary(is, n);
-        h.k_ = (n <= max_kmer_size()) ? n : max_kmer_size();
-
-        n = 0;
-        read_binary(is, n);
-        h.sketchSize_ = (n <= max_sketch_size()) ? n : max_sketch_size();
-
-        n = 0;
-        read_binary(is, n);
-        h.windowSize_ = (n <= max_window_size()) ? n : max_window_size();
-
-        n = 0;
-        read_binary(is, n);
-        h.windowStride_ = (n <= max_window_size()) ? n : max_window_size();
-    }
-
 
 private:
     //---------------------------------------------------------------
-    mutable sketch_type sketch;
+    sketch_type sketch;
     hasher hash_;
-    kmer_size_type k_;
-    sketch_size_type sketchSize_;
-    window_size_type windowSize_;
-    window_size_type windowStride_;
 };
 
 

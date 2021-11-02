@@ -748,14 +748,16 @@ void insert_features(
     const window_id * winOffsets,
     const char      * sequence,
     const Offset    * sequenceOffsets,
-    numk_t kmerSize,
-    uint32_t maxSketchSize,
-    uint32_t windowSize,
-    uint32_t windowStride
+    const sketching_opt targetSketching
 )
 {
     using index_type = IndexT;
     using offset_type = Offset;
+
+    const auto& kmerSize = targetSketching.kmerlen;
+    const auto& maxSketchSize = targetSketching.sketchlen;
+    const auto& windowSize = targetSketching.winlen;
+    const auto& windowStride = targetSketching.winstride;
 
     constexpr int warpsPerBlock = BLOCK_THREADS / WARPSIZE;
 
@@ -842,8 +844,6 @@ void gpu_hahstable_query(
     feature * sketches,
     numk_t kmerSize,
     uint32_t maxSketchSize,
-    uint32_t windowSize,
-    uint32_t windowStride,
     const Location * locations,
     BucketSizeT maxLocationsPerFeature,
     Location * locations_out,
@@ -960,8 +960,6 @@ void gpu_hahstable_query(
     feature * sketches,
     numk_t kmerSize,
     uint32_t maxSketchSize,
-    uint32_t windowSize,
-    uint32_t windowStride,
     BucketSizeT maxLocationsPerFeature,
     Location * locations_out,
     int      * locationCounts

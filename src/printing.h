@@ -98,7 +98,7 @@ void show_matches(std::ostream&,
  *
  *****************************************************************************/
 void show_candidate_ranges(std::ostream&,
-                           const sketcher&,
+                           const sketching_opt&,
                            const span<const match_candidate>);
 
 

@@ -238,7 +238,7 @@ public:
     /****************************************************************
      * @brief allocate gpu hash tables for database building
      */
-    void initialize_build_hash_tables(part_id numGPUs, const sketcher& targetSketcher);
+    void initialize_build_hash_tables(part_id numGPUs);
 
     /****************************************************************
      * @brief set number of db parts and total number of gpus;
@@ -253,22 +253,22 @@ public:
         part_id gpuId,
         const sequence& seq,
         target_id tgt,
-        const sketcher& targetSketcher);
+        const sketching_opt& targetSketching);
     //-----------------------------------------------------
     window_id add_target(
         part_id gpuId,
         sequence::const_iterator first,
         sequence::const_iterator last,
         target_id tgt,
-        const sketcher& targetSketcher);
+        const sketching_opt& targetSketching);
 
     //---------------------------------------------------------------
     void insert(
         part_id gpuId, sequence_batch<policy::Host>& seqBatchHost,
-        const sketcher& targetSketcher);
+        const sketching_opt& targetSketching);
 
     //-----------------------------------------------------
-    void wait_until_add_target_complete(part_id gpuId, const sketcher& targetSketcher);
+    void wait_until_add_target_complete(part_id gpuId, const sketching_opt& targetSketching);
 
 private:
     //---------------------------------------------------------------
@@ -277,7 +277,7 @@ private:
         const std::vector<Hashtable>& hashtables,
         query_batch<value_type>& batch,
         part_id hostId,
-        const sketcher& querySketcher,
+        const sketching_opt& querySketching,
         taxon_rank lowestRank) const;
 
 public:
@@ -285,7 +285,7 @@ public:
     void query_async(
         query_batch<value_type>& batch,
         part_id hostId,
-        const sketcher& querySketcher,
+        const sketching_opt& querySketching,
         taxon_rank lowestRank) const;
 
 

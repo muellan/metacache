@@ -135,13 +135,13 @@ public:
     add_target(
         InputIterator first, InputIterator last,
         target_id tgt, window_id win,
-        const sketcher& targetSketcher
+        const sketching_opt& targetSketching
     ) {
         using std::distance;
 
-        const numk_t kmerSize     = targetSketcher.kmer_size();
-        const size_t windowSize   = targetSketcher.window_size();
-        const size_t windowStride = targetSketcher.window_stride();
+        const numk_t kmerSize     = targetSketching.kmerlen;
+        const size_t windowSize   = targetSketching.winlen;
+        const size_t windowStride = targetSketching.winstride;
 
         window_id processedWindows = 0;
 

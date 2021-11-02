@@ -96,9 +96,9 @@ struct sequence_query
     {
         for(const auto& query : batch) {
             auto rules = make_candidate_generation_rules(
-                query, opt, db.target_sketcher().window_stride());
+                query, opt, db.target_sketching().winstride);
 
-            db.query_host(query.seq1, query.seq2, rules, queryHandler);
+            db.query_host(query.seq1, query.seq2, queryHandler, rules);
 
             update(resultsBuffer, query, queryHandler.allhits(), queryHandler.tophits());
         }
@@ -116,10 +116,10 @@ struct sequence_query
     {
         for(const auto& query : sequenceBatch) {
             auto rules = make_candidate_generation_rules(
-                query, opt, db.target_sketcher().window_stride());
+                query, opt, db.target_sketching().winstride);
 
             if(!queryBatch.add_paired_read(hostId, query.seq1, query.seq2,
-                                           db.query_sketcher(), rules))
+                                           db.query_sketching(), rules))
             {
                 std::cerr << "query batch is too small for a single read!" << std::endl;
             }
@@ -188,11 +188,8 @@ query_id query_batched(
 
 #ifndef GPU_MODE
     std::vector<query_handler<location>> queryHandlers;
-    queryHandlers.reserve(numWorkers);
+    queryHandlers.resize(numWorkers);
 
-    for(unsigned i = 0; i < numWorkers; ++i) {
-        queryHandlers.emplace_back(db.query_sketcher());
-    }
 #else
     std::vector<std::mutex> scheduleMtxs(opt.performance.replication);
 
@@ -202,9 +199,9 @@ query_id query_batched(
     for(unsigned rep = 0; rep < opt.performance.replication; ++rep)
         queryBatches.emplace_back(
             opt.performance.batchSize,
-            opt.performance.batchSize*db.query_sketcher().window_size(),
-            db.query_sketcher().sketch_size(),
-            db.query_sketcher().sketch_size()*db.max_locations_per_feature(),
+            opt.performance.batchSize*db.query_sketching().winlen,
+            db.query_sketching().sketchlen,
+            db.query_sketching().sketchlen*db.max_locations_per_feature(),
             opt.classify.maxNumCandidatesPerQuery,
             opt.output.analysis.showAllHits,
             numWorkers,
@@ -223,8 +220,8 @@ query_id query_batched(
         using std::end;
         using std::distance;
 
-        const numk_t kmerSize = db.query_sketcher().kmer_size();
-        const size_t windowStride = db.query_sketcher().window_stride();
+        const numk_t kmerSize = db.query_sketching().kmerlen;
+        const size_t windowStride = db.query_sketching().winstride;
 
         const size_t seqLength1 = distance(begin(query.seq1), end(query.seq1));
         const size_t seqLength2 = distance(begin(query.seq2), end(query.seq2));

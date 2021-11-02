@@ -222,7 +222,7 @@ void adapt_options_to_database(classification_options& opt, const database& db)
 {
     //deduce hit threshold from database?
     if(opt.hitsMin < 1) {
-        auto sks = db.target_sketcher().sketch_size();
+        auto sks = db.target_sketching().sketchlen;
         if(sks >= 6) {
             opt.hitsMin = static_cast<int>(sks / 3.0);
         } else if (sks >= 4) {
