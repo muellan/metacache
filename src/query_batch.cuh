@@ -116,8 +116,10 @@ public:
                 return true;
             }
 
-            const window_id windowsInSeq1 = (seqLength1-kmerSize + windowStride) / windowStride;
-            const window_id windowsInSeq2 = (seqLength2-kmerSize + windowStride) / windowStride;
+            const window_id windowsInSeq1 = (seqLength1 >= kmerSize) ?
+                                            (seqLength1-kmerSize + windowStride) / windowStride : 0;
+            const window_id windowsInSeq2 = (seqLength2 >= kmerSize) ?
+                                            (seqLength2-kmerSize + windowStride) / windowStride : 0;
 
             // batch full, nothing processed
             if(numWindows_ + windowsInSeq1 + windowsInSeq2 > maxWindows) return false;

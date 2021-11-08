@@ -226,8 +226,10 @@ query_id query_batched(
         const size_t seqLength1 = distance(begin(query.seq1), end(query.seq1));
         const size_t seqLength2 = distance(begin(query.seq2), end(query.seq2));
 
-        const window_id numWindows1 = (seqLength1-kmerSize + windowStride) / windowStride;
-        const window_id numWindows2 = (seqLength2-kmerSize + windowStride) / windowStride;
+        const window_id numWindows1 = (seqLength1 >= kmerSize) ?
+                                      (seqLength1-kmerSize + windowStride) / windowStride : 0;
+        const window_id numWindows2 = (seqLength2 >= kmerSize) ?
+                                      (seqLength2-kmerSize + windowStride) / windowStride : 0;
 
         return std::max(window_id(1), numWindows1 + numWindows2);
     });
