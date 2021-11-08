@@ -98,7 +98,7 @@ public:
     {
         std::swap(data_, other.data_);
         std::swap(capacity_, other.capacity_);
-        other.size_ = 0;
+        std::swap(size_, other.size_);
         return *this;
     }
 

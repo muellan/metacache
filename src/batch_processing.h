@@ -234,14 +234,14 @@ private:
         auto& handler = producerBatches_[producerId];
 
         if(handler.workCount_ > 0) {
-            std::size_t lastSize = param_.measureWorkItem_(handler.batch_[handler.workCount_-1]);
+            const std::size_t lastSize = param_.measureWorkItem_(handler.batch_[handler.workCount_-1]);
             handler.workSize_ += lastSize;
 
             if(handler.workSize_ >= param_.batch_size()) {
                 WorkItem lastItem;
                 // if batch too big, remove last item
                 if(handler.workSize_ > param_.batch_size())
-                    std::swap(lastItem, handler.batch_[--handler.workCount_]);
+                    lastItem = std::move(handler.batch_[--handler.workCount_]);
 
                 handler.batch_.resize(handler.workCount_);
 
@@ -254,7 +254,7 @@ private:
 
                 // reinsert last item
                 if(handler.workSize_ > param_.batch_size()) {
-                    std::swap(lastItem, handler.batch_.front());
+                    handler.batch_.front() = std::move(lastItem);
                     handler.workSize_ = lastSize;
                     handler.workCount_ = 1;
                 }
