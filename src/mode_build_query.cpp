@@ -56,10 +56,11 @@ void add_to_database_and_query(database& db, build_query_options& opt)
 
     db.initialize_taxonomy_caches();
 
+    adapt_options_to_database(opt.query, db);
+
     if(!opt.query.infiles.empty()) {
         cerr << "Classifying query sequences.\n";
 
-        adapt_options_to_database(opt.query.classify, db);
         process_input_files(db, opt.query);
     }
     else {

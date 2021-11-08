@@ -89,23 +89,6 @@ read_database(const query_options& opt)
              << dbopt.maxLocationsPerFeature << '\n';
     }
 
-    const sketching_opt& skopt = opt.sketching;
-    //use a different sketching scheme for querying?
-    if((skopt.sketchlen > 0) || (skopt.winlen > 0) || (skopt.winstride > 0)) {
-        auto s = db.query_sketching();
-        if(skopt.sketchlen > 0) s.sketchlen = skopt.sketchlen;
-        if(skopt.winlen > 0)    s.winlen = skopt.winlen;
-        // if no custom window stride requested => set to w-k+1
-        if(skopt.winstride == 0) s.winstride = s.winlen - s.kmerlen + 1;
-
-        cerr << "custom query sketching settings:"
-             << " -winlen "    << s.winlen
-             << " -winstride " << s.winstride
-             << " -sketchlen " << s.sketchlen << '\n';
-
-        db.query_sketching(std::move(s));
-    }
-
     return db;
 }
 
@@ -126,11 +109,11 @@ void main_mode_query(const cmdline_args& args)
     auto opt = get_query_options(args);
 
     auto db = read_database(opt);
+    adapt_options_to_database(opt, db);
 
     if(!opt.infiles.empty()) {
         cerr << "Classifying query sequences.\n";
 
-        adapt_options_to_database(opt.classify, db);
         process_input_files(db, opt);
     }
     else {

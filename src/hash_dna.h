@@ -144,16 +144,14 @@ struct sketching_options
 
 
     //---------------------------------------------------------------
-    kmer_size_type kmerlen = 16;
-
+    // number of characters in substring
+    kmer_size_type kmerlen;
     // number of features (kmer hashes) in a sketch of ONE window
-    sketch_size_type sketchlen = 16;
-
+    sketch_size_type sketchlen;
     // number of characters in one window
-    window_size_type winlen = 127;
-
+    window_size_type winlen;
     // difference between two successive window start positions
-    window_size_type winstride = 0;  // = 0 : automatic: winstride = (winlen - (kmerlen-1))
+    window_size_type winstride;
 };
 
 

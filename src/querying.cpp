@@ -218,17 +218,44 @@ void process_input_files(const database& db,
  *        or command line options
  *
  *****************************************************************************/
-void adapt_options_to_database(classification_options& opt, const database& db)
+void adapt_options_to_database(query_options& opt, const database& db)
 {
+    sketching_opt& skopt = opt.sketching;
+
+    //use sketching scheme from database?
+    const auto& dbsk = db.target_sketching();
+
+    skopt.kmerlen = dbsk.kmerlen;
+    if(skopt.sketchlen < 1)
+        skopt.sketchlen = dbsk.sketchlen;
+    if(skopt.winlen < 1)
+        skopt.winlen = dbsk.winlen;
+    // if no custom window stride requested => set to w-k+1
+    if(skopt.winstride < 1)
+        skopt.winstride = skopt.winlen - skopt.kmerlen + 1;
+
+    if((skopt.sketchlen != dbsk.sketchlen) ||
+       (skopt.winlen    != dbsk.winlen)    ||
+       (skopt.winstride != dbsk.winstride))
+    {
+        cerr << "custom query sketching settings:"
+             << " -sketchlen " << skopt.sketchlen
+             << " -winlen "    << skopt.winlen
+             << " -winstride " << skopt.winstride
+             << '\n';
+    }
+
+    classification_options& clopt = opt.classify;
+
     //deduce hit threshold from database?
-    if(opt.hitsMin < 1) {
+    if(clopt.hitsMin < 1) {
         auto sks = db.target_sketching().sketchlen;
         if(sks >= 6) {
-            opt.hitsMin = static_cast<int>(sks / 3.0);
+            clopt.hitsMin = static_cast<int>(sks / 3.0);
         } else if (sks >= 4) {
-            opt.hitsMin = 2;
+            clopt.hitsMin = 2;
         } else {
-            opt.hitsMin = 1;
+            clopt.hitsMin = 1;
         }
     }
 }
@@ -274,7 +301,7 @@ void run_interactive_query_mode(const database& db,
             //read command line options (use initial ones as defaults)
             try {
                 auto opt = get_query_options(args, initOpt);
-                adapt_options_to_database(opt.classify, db);
+                adapt_options_to_database(opt, db);
                 process_input_files(db, opt);
             }
             catch(std::exception& e) {

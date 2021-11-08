@@ -49,7 +49,7 @@ void process_input_files(const database& db,
  *        or command line options
  *
  *****************************************************************************/
-void adapt_options_to_database(classification_options& opt, const database& db);
+void adapt_options_to_database(query_options& opt, const database& db);
 
 
 

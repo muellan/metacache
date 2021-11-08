@@ -127,7 +127,8 @@ part_id database::read_meta(const std::string& filename, std::future<void>& taxo
 
     //sketching parameters
     read_binary(is, targetSketchingOptions_);
-    read_binary(is, querySketchingOptions_);
+    //TODO: remove this and change db version
+    read_binary(is, targetSketchingOptions_);
 
     //target insertion parameters
     uint64_t maxLocationsPerFeature = 0;
@@ -250,7 +251,8 @@ void database::write_meta(const std::string& filename) const
 
     //sketching parameters
     write_binary(os, targetSketchingOptions_);
-    write_binary(os, querySketchingOptions_);
+    //TODO: remove this and change db version
+    write_binary(os, targetSketchingOptions_);
 
     //target insertion parameters
     write_binary(os, uint64_t(max_locations_per_feature()));

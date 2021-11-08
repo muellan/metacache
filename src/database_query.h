@@ -89,16 +89,16 @@ struct sequence_query
     template<class Buffer, class BufferUpdate>
     void query_host(
         const database& db,
-        const classification_options& opt,
+        const query_options& opt,
         const std::vector<sequence_query>& batch,
         query_handler<location>& queryHandler,
         Buffer& resultsBuffer, BufferUpdate& update)
     {
         for(const auto& query : batch) {
             auto rules = make_candidate_generation_rules(
-                query, opt, db.target_sketching().winstride);
+                query, opt.classify, db.target_sketching().winstride);
 
-            db.query_host(query.seq1, query.seq2, queryHandler, rules);
+            db.query_host(query.seq1, query.seq2, queryHandler, opt.sketching, rules);
 
             update(resultsBuffer, query, queryHandler.allhits(), queryHandler.tophits());
         }
@@ -107,7 +107,7 @@ struct sequence_query
     template<class Buffer, class BufferUpdate>
     void query_gpu(
         const database& db,
-        const classification_options& opt,
+        const query_options& opt,
         const std::vector<sequence_query>& sequenceBatch,
         query_batch<location>& queryBatch,
         part_id hostId,
@@ -116,10 +116,10 @@ struct sequence_query
     {
         for(const auto& query : sequenceBatch) {
             auto rules = make_candidate_generation_rules(
-                query, opt, db.target_sketching().winstride);
+                query, opt.classify, db.target_sketching().winstride);
 
             if(!queryBatch.add_paired_read(hostId, query.seq1, query.seq2,
-                                           db.query_sketching(), rules))
+                                           opt.sketching, rules))
             {
                 std::cerr << "query batch is too small for a single read!" << std::endl;
             }
@@ -129,7 +129,7 @@ struct sequence_query
         {
             {
                 std::lock_guard<std::mutex> lock(scheduleMtx);
-                db.query_gpu_async(queryBatch, hostId, opt.lowestRank);
+                db.query_gpu_async(queryBatch, hostId, opt.sketching, opt.classify.lowestRank);
             }
             queryBatch.host_data(hostId).wait_for_results();
 
@@ -199,9 +199,9 @@ query_id query_batched(
     for(unsigned rep = 0; rep < opt.performance.replication; ++rep)
         queryBatches.emplace_back(
             opt.performance.batchSize,
-            opt.performance.batchSize*db.query_sketching().winlen,
-            db.query_sketching().sketchlen,
-            db.query_sketching().sketchlen*db.max_locations_per_feature(),
+            opt.performance.batchSize*opt.sketching.winlen,
+            opt.sketching.sketchlen,
+            opt.sketching.sketchlen*db.max_locations_per_feature(),
             opt.classify.maxNumCandidatesPerQuery,
             opt.output.analysis.showAllHits,
             numWorkers,
@@ -220,8 +220,8 @@ query_id query_batched(
         using std::end;
         using std::distance;
 
-        const numk_t kmerSize = db.query_sketching().kmerlen;
-        const size_t windowStride = db.query_sketching().winstride;
+        const numk_t kmerSize = opt.sketching.kmerlen;
+        const size_t windowStride = opt.sketching.winstride;
 
         const size_t seqLength1 = distance(begin(query.seq1), end(query.seq1));
         const size_t seqLength2 = distance(begin(query.seq2), end(query.seq2));
@@ -239,10 +239,10 @@ query_id query_batched(
             auto resultsBuffer = getBuffer();
 
 #ifndef GPU_MODE
-            query_host(db, opt.classify, batch, queryHandlers[id], resultsBuffer, update);
+            query_host(db, opt, batch, queryHandlers[id], resultsBuffer, update);
 #else
             // query batch to gpu and wait for results
-            query_gpu(db, opt.classify, batch,
+            query_gpu(db, opt, batch,
                       queryBatches[id%opt.performance.replication], id/opt.performance.replication,
                       resultsBuffer, update, scheduleMtxs[id%opt.performance.replication]);
 #endif

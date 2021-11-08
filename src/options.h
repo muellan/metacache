@@ -104,7 +104,7 @@ struct build_options
     int dbpart = -1;
     std::vector<std::string> infiles;
 
-    sketching_opt sketching;
+    sketching_opt sketching{16, 16, 127, 0};
     database_storage_options dbconfig;
 
 #ifndef GPU_MODE

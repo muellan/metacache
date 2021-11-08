@@ -207,13 +207,7 @@ public:
     //---------------------------------------------------------------
     explicit
     database(sketching_opt targetSketching = sketching_opt{}) :
-        database{targetSketching, targetSketching}
-    {}
-    //-----------------------------------------------------
-    explicit
-    database(sketching_opt targetSketching, sketching_opt querySketching) :
         targetSketchingOptions_{std::move(targetSketching)},
-        querySketchingOptions_{std::move(querySketching)},
         targetCount_{0},
         featureStore_{},
         taxonomyCache_{}
@@ -222,7 +216,6 @@ public:
     database(const database&) = delete;
     database(database&& other) :
         targetSketchingOptions_{std::move(other.targetSketchingOptions_)},
-        querySketchingOptions_{std::move(other.querySketchingOptions_)},
         targetCount_{other.targetCount_.load()},
         featureStore_{std::move(other.featureStore_)},
         taxonomyCache_{std::move(other.taxonomyCache_)}
@@ -240,26 +233,6 @@ public:
     const sketching_opt&
     target_sketching() const noexcept {
         return targetSketchingOptions_;
-    }
-    //-----------------------------------------------------
-    /**
-     * @return const ref to the object that transforms query sequence
-     *         snippets into a collection of features
-     */
-    const sketching_opt&
-    query_sketching() const noexcept {
-        return querySketchingOptions_;
-    }
-    //-----------------------------------------------------
-    /**
-     * @brief sets the object that transforms query sequence
-     *        snippets into a collection of features
-     */
-    void query_sketching(const sketching_opt& s) {
-        querySketchingOptions_ = s;
-    }
-    void query_sketching(sketching_opt&& s) {
-        querySketchingOptions_ = std::move(s);
     }
 
 
@@ -400,21 +373,23 @@ public:
     void
     query_host(const sequence& query1, const sequence& query2,
                query_handler<location>& queryHandler,
+               const sketching_opt querySketching,
                const candidate_generation_rules& rules) const
     {
         featureStore_.query_host_hashmap(
-            query1, query2, queryHandler, taxonomyCache_, query_sketching(), rules);
+            query1, query2, queryHandler, taxonomyCache_, querySketching, rules);
     }
 #else
     void
     query_gpu_async(query_batch<location>& queryBatch,
                     part_id hostId,
+                    const sketching_opt querySketching,
                     taxon_rank lowestRank) const
     {
         featureStore_.query_async(
             queryBatch,
             hostId,
-            query_sketching(),
+            querySketching,
             lowestRank);
     }
 #endif
@@ -504,7 +479,6 @@ public:
 private:
     //---------------------------------------------------------------
     sketching_opt targetSketchingOptions_;
-    sketching_opt querySketchingOptions_;
     std::atomic<std::uint64_t> targetCount_;
     mutable feature_store featureStore_;
     taxonomy_cache taxonomyCache_;
