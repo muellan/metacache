@@ -44,8 +44,8 @@ function download_specific_lib {
     if [ -e "assembly_summary.txt" ]; then
 
       if [ $FILTER -ge 0 ]; then
-        #only complete genomes
-        awk -F "\t" '$12=="Complete Genome" && $11=="latest"{print $20}' assembly_summary.txt > ftpdirpaths
+        #only complete genomes with valid ftp paths
+        awk -F "\t" '$12=="Complete Genome" && $11=="latest" && $20!="na"{print $20}' assembly_summary.txt > ftpdirpaths
       fi
       if [ $FILTER -ge 1 ]; then
         awk -F "\t" '$11=="latest"{print $20}' assembly_summary.txt > ftpdirpaths
@@ -62,13 +62,13 @@ function download_specific_lib {
       rm -f ftpfilepaths*
 
       touch complete.flag
-      
+
       echo "complete."
 
     else
       echo "ERROR: Couldn't find assembly_summary text file!"
     fi
-  else 
+  else
     echo "Download of $DBASE already complete."
   fi
 
