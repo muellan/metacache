@@ -85,23 +85,23 @@ which will remove the zlib dependency and disables support for gzipped input fil
 
 ### Custom Configurations
 
-If you run 'make' without additional parameters MetaCache will be compiled with the default data type settings which support databases with up to 65,535 reference sequences (targets) and k-mer sizes up to 16. This offers a good database space efficiency and is currently sufficient for the complete bacterial, viral and archaea genomes from the NCBI RefSeq.
+If you run 'make' without additional parameters MetaCache will be compiled with the default data type settings which support databases with up to 4,2 billion reference sequences (targets) and k-mer sizes up to 16. These are the minimum requirements for the complete bacterial, viral and archaea genomes from the latest NCBI RefSeq releases. 
 
-Using the following compilation options you can compile MetaCache with support for more targets and greater k-mer lengths.
+Using the following compilation options you can compile MetaCache with support for more (or less) targets and greater k-mer lengths. 
 
 #### number of referece sequences (targets)
 
-* support for up to 65,535 targets (default):
-  ```
-  make MACROS="-DMC_TARGET_ID_TYPE=uint16_t"
-  ```
-
-* support for up to 4,294,967,295 targets (needs more memory):
+* support for up to 4,294,967,295 targets (default):
   ```
   make MACROS="-DMC_TARGET_ID_TYPE=uint32_t"
   ```
 
-* support for more than 4,294,967,295 targets (needs even more memory)
+* support for up to 65,535 targets (needs less memory):
+  ```
+  make MACROS="-DMC_TARGET_ID_TYPE=uint16_t"
+  ```
+
+* support for more than 4,294,967,295 targets (needs more memory)
   ```
   make MACROS="-DMC_TARGET_ID_TYPE=uint64_t"
   ```

@@ -54,11 +54,7 @@ namespace mc {
 #if !defined GPU_MODE && defined MC_TARGET_ID_TYPE
     using target_id = MC_TARGET_ID_TYPE ;
 #else
-    #ifdef GPU_MODE
-        using target_id = std::uint32_t;
-    #else
-        using target_id = std::uint16_t;
-    #endif
+    using target_id = std::uint32_t;
 #endif
 
 
