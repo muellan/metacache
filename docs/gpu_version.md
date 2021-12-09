@@ -53,8 +53,6 @@ If you don't supply additional parameters MetaCache will be compiled with the de
 * targets with a length of up to 4,294,967,295 windows (which corresponds to approximately 485.3 billion nucleotides with the default window size of 112)
 * kmers with a lengths of up to 16
 
-This corresponds to the CPU version compiled with `make MACROS="-DMC_TARGET_ID_TYPE=uint32_t"`
-
 **A database built by the GPU version can be queried by the corresponding CPU version and vice versa. The only restriction is the available (GPU) memory.**
 
 
