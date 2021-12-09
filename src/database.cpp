@@ -43,6 +43,8 @@ bool database::add_target(part_id dbPart,
     // reached hard limit for number of targets
     // in case of multi concurrent increments
     if(targetCount >= max_target_count()) {
+        targetCount_--;
+        featureStore_.wait_until_add_target_complete(dbPart, targetSketchingOptions_);
         throw target_limit_exceeded_error{};
     }
 

@@ -331,10 +331,10 @@ void add_targets_to_database(database& db,
     execOpt.on_error([&] (std::exception& e) {
         if(dynamic_cast<database::target_limit_exceeded_error*>(&e)) {
             cout << endl;
-            cerr << "Reached maximum number of targets per database ("
+            cerr << "! Reached maximum number of targets per database ("
                  << db.max_target_count() << ").\n"
-                 << "See 'README.md' on how to compile MetaCache with "
-                 << "support for databases with more reference targets.\n";
+                 << "! See 'README.md' on how to compile MetaCache with "
+                 << "support for databases with more reference targets.\n\n";
         }
         else if(infoLvl == info_level::verbose) {
             cout << "FAIL: " << e.what() << endl;
