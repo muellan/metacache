@@ -128,27 +128,33 @@ public:
         consumers_.reserve(param_.num_consumers());
         for(int consumerId = 0; consumerId < param_.num_consumers(); ++consumerId) {
             consumers_.emplace_back(std::async(std::launch::async, [&,consumerId] {
-                batch_type batch;
-                while(valid() || workQueue_.size_approx() > 0) {
-                    if(workQueue_.try_dequeue(batch)) {
-                        if(consume_(consumerId, batch)) {
-                            // batch processed completely
-                            // put batch storage back
-                            storageQueue_.enqueue(std::move(batch));
+                try {
+                    batch_type batch;
+                    while(valid() || workQueue_.size_approx() > 0) {
+                        if(workQueue_.try_dequeue(batch)) {
+                            if(consume_(consumerId, batch)) {
+                                // batch processed completely
+                                // put batch storage back
+                                storageQueue_.enqueue(std::move(batch));
+                            }
+                            else {
+                                // work remaining in batch
+                                // put batch back
+                                workQueue_.enqueue(std::move(batch));
+                                keepWorking_.fetch_sub(1);
+                                break;
+                            }
                         }
                         else {
-                            // work remaining in batch
-                            // put batch back
-                            workQueue_.enqueue(std::move(batch));
-                            keepWorking_.fetch_sub(1);
-                            break;
+                            std::this_thread::sleep_for(std::chrono::milliseconds{1});
                         }
                     }
-                    else {
-                        std::this_thread::sleep_for(std::chrono::milliseconds{1});
-                    }
+                    param_.finalize_(consumerId);
                 }
-                param_.finalize_(consumerId);
+                catch(std::exception& e) {
+                    invalidate();
+                    throw;
+                }
             }));
         }
     }
