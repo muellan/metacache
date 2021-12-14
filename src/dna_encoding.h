@@ -227,20 +227,6 @@ make_canonical_2bit(UInt s, numk_t k) noexcept
     return s < revcom ? s : revcom;
 }
 
-//-------------------------------------------------------------------
-template<class UInt>
-HOSTDEVICEQUALIFIER INLINEQUALIFIER
-constexpr UInt
-make_canonical_2bit(UInt s) noexcept
-{
-    static_assert(std::is_integral<UInt>::value &&
-                  std::is_unsigned<UInt>::value,
-                  "only unsigned integer types are supported");
-
-    auto revcom = make_reverse_complement_2bit(s, numk_t(sizeof(UInt) * 4));
-    return s < revcom ? s : revcom;
-}
-
 
 
 /*************************************************************************//**

@@ -153,7 +153,7 @@ void warp_kmerize(
         // get lowest bits
         kmer_type kmer = kmer_type(seq) & kmerMask;
 
-        kmer = make_canonical_2bit(kmer);
+        kmer = make_canonical_2bit(kmer, kmerSize);
 
         // check for ambiguous base
         bool pred = !(ambig & ambigMask);
