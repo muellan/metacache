@@ -168,6 +168,7 @@ void read_results(const results_source& res,
     ifs.seekg(res.resultsBegin);
     if(!ifs.good()) throw io_format_error("could not process file " + res.filename);
 
+    // preallocate
     queryCandidates.resize(res.numQueries);
     queryHeaders.resize(res.numQueries);
 
@@ -177,6 +178,12 @@ void read_results(const results_source& res,
             size_t queryId;
             ifs >> queryId;
             if(queryId > 0) queryId--;
+
+            // if results are incomplete, queryIds can exceed preallocation
+            if(queryId+1 > res.numQueries) {
+                queryCandidates.resize(queryId+1);
+                queryHeaders.resize(queryId+1);
+            }
 
             forward(ifs, '|');
             // if we don't have a query header yet -> read from file
@@ -208,7 +215,7 @@ void read_results(const results_source& res,
                 if(tax) {
                     queryCandidates[queryId].insert(match_candidate{tax, hits}, taxonomy, rules);
                 } else {
-                    cerr << "Query " << queryId+1 << ": taxid not found. Skipping hit.\n";
+                    cerr << "Query " << queryId+1 << ": taxid " << taxid << " not found. Skipping hit.\n";
                 }
                 nextChar = ifs.get();
             }
@@ -376,14 +383,14 @@ void main_mode_merge(const cmdline_args& args)
                                      opt.taxonomy.mergeFile,
                                      opt.infoLevel) );
 
+        db.taxo_cache().update_cached_lineages(taxon_rank::none);
+
         if(opt.infoLevel != info_level::silent) {
             cerr << "Applied taxonomy to database.\n";
         }
     }
 
-    //TODO parallelize?
-    // ranks cache would need to be updated at species level before
-    // running the result processing concurrently
+    //TODO parallelize result processing?
 
     if(opt.infiles.size() >= 2) {
         cerr << "Merging result files.\n";

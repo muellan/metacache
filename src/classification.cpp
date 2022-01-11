@@ -157,13 +157,23 @@ classify(const taxonomy_cache& taxonomy, const classification_options& opt,
     const float threshold = cand[0].hits > opt.hitsMin
                           ? (cand[0].hits - opt.hitsMin) * opt.hitsDiffFraction
                           : 0;
+
+    const ranked_lineage& topRanks =
+        (cand[0].tgt < taxonomy.target_taxon_count()) ?
+        taxonomy.cached_ranks(cand[0].tgt) :
+        taxonomy.cached_ranks(cand[0].tax);
+
     // check 2nd, 3rd, ...
     for(auto i = cand.begin()+1; i != cand.end(); ++i) {
         // include all candidates with hits above threshold
         if(i->hits > threshold) {
+            const ranked_lineage& candRanks =
+                (i->tgt < taxonomy.target_taxon_count()) ?
+                taxonomy.cached_ranks(i->tgt) :
+                taxonomy.cached_ranks(i->tax);
             // include candidate in lca
             // lca lives on lineage of first cand, its rank can only increase
-            lca = taxonomy.cached_ranked_lca(cand[0].tgt, i->tgt, lca->rank());
+            lca = taxonomy.ranked_lca(topRanks, candRanks, lca->rank());
             // exit early if lca rank already too high
             if(!lca || lca->rank() > opt.highestRank)
                 return nullptr;

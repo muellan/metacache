@@ -61,6 +61,7 @@ void for_all_contiguous_window_ranges(
     //first entry in list
     hit_count hits = 1;
     match_candidate curBest;
+    curBest.tax     = nullptr;
     curBest.tgt     = fst->tgt;
     curBest.hits    = hits;
     curBest.pos.beg = fst->win;
@@ -96,6 +97,7 @@ void for_all_contiguous_window_ranges(
             //reset to new target
             fst = lst;
             hits = 1;
+            curBest.tax     = nullptr;
             curBest.tgt     = fst->tgt;
             curBest.hits    = hits;
             curBest.pos.beg = fst->win;
@@ -179,10 +181,12 @@ public:
         // early exit
         if(top_.size() == rules.maxCandidates && top_.back().hits >= cand.hits) return true;
 
-        if(rules.mergeBelow > taxon_rank::Sequence)
-            cand.tax = taxonomy.lowest_ranked_ancestor(cand.tgt, rules.mergeBelow);
-        else
-            cand.tax = taxonomy.cached_taxon_of_target(cand.tgt);
+        if(!cand.tax) {
+            if(rules.mergeBelow > taxon_rank::Sequence)
+                cand.tax = taxonomy.lowest_ranked_ancestor(cand.tgt, rules.mergeBelow);
+            else
+                cand.tax = taxonomy.cached_taxon_of_target(cand.tgt);
+        }
 
         if(!cand.tax) return true;
 

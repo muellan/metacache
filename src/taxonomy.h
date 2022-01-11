@@ -956,13 +956,6 @@ public:
     ranked_lineages_of_targets& operator = (const ranked_lineages_of_targets&) = delete;
     ranked_lineages_of_targets& operator = (ranked_lineages_of_targets&&) = delete;
 
-
-    //---------------------------------------------------------------
-    size_t target_count() const noexcept {
-        return lins_.size();
-    }
-
-
     //---------------------------------------------------------------
     void mark_outdated() {
         outdated_ = true;
@@ -1088,10 +1081,6 @@ public:
         return taxa_.taxa_empty();
     }
 
-    //---------------------------------------------------------------
-    std::uint64_t target_count() const noexcept {
-        return targetLineages_.target_count();
-    }
 
     //---------------------------------------------------------------
     const std::vector<ranked_lineage>& target_lineages() const {
@@ -1187,6 +1176,10 @@ public:
         return taxa_.non_target_taxa();
     }
     //-----------------------------------------------------
+    std::uint64_t
+    target_taxon_count() const noexcept {
+        return taxa_.target_taxon_count();
+    }
     taxon_range target_taxa() const {
         return taxa_.target_taxa();
     }
@@ -1337,8 +1330,8 @@ public:
     }
     //-----------------------------------------------------
     const taxon*
-    cached_ranked_lca(target_id ta, target_id tb, taxon_rank lowest) const {
-        return ranked_lca(targetLineages_[ta], targetLineages_[tb], lowest);
+    cached_ranked_lca(target_id ta, target_id tb) const {
+        return ranked_lca(targetLineages_[ta], targetLineages_[tb]);
     }
 
 

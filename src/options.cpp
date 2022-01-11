@@ -1740,11 +1740,11 @@ get_merge_options(const cmdline_args& args, merge_options opt)
         raise_default_error(err, "merge", merge_mode_usage());
     }
 
+    augment_taxonomy_options(opt.taxonomy);
     replace_directories_with_contained_files(opt.infiles);
     std::sort(opt.infiles.begin(), opt.infiles.end());
 
     auto& qo = opt.query;
-    qo = get_query_options(args, {});
 
     if(qo.classify.hitsMin == 0) {
         qo.classify.hitsMin = 5;
