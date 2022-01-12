@@ -1006,10 +1006,9 @@ public:
     /**
      * @brief  rebuild cache for given target count
      */
-    void reset(target_id numTargets = 0) {
-        if(numTargets == 0) numTargets = lins_.size();
+    void reset() {
         clear();
-        update(numTargets);
+        update(taxa_.target_taxon_count());
     }
 
     //-----------------------------------------------------
@@ -1394,14 +1393,14 @@ public:
 
 
     //---------------------------------------------------------------
-    void initialize_caches(std::uint64_t targetCount) {
+    void initialize_caches() {
         auto thread = std::async(std::launch::async, [&] {
             for(const auto& t : target_taxa()) {
                 name2tax_.insert({t.name(), &t});
             }
         });
 
-        targetLineages_.reset(targetCount);
+        targetLineages_.reset();
         taxonLineages_.init_from_targets(targetLineages_.lineages());
 
         thread.get();
