@@ -177,7 +177,7 @@ public:
 
     //-----------------------------------------------------
     using sketch  = typename sketcher::sketch_type;  //range of features
-    using feature = typename sketch::value_type;
+    using feature = typename sketcher::feature_type;
 
 
 private:
@@ -292,7 +292,7 @@ public:
 
     //---------------------------------------------------------------
     void initialize_taxonomy_caches() {
-        taxonomyCache_.initialize_caches(targetCount_);
+        taxonomyCache_.initialize_caches();
 
 #ifdef GPU_MODE
         if(num_parts() > 0) {

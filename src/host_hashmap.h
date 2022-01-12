@@ -47,7 +47,7 @@ public:
     using bucket_size_type = mc::loclist_size_t;
 
     using sketch  = typename sketcher::sketch_type;  //range of features
-    using feature = typename sketch::value_type;
+    using feature = typename sketcher::feature_type;
 
 private:
     //-----------------------------------------------------
