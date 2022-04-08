@@ -97,7 +97,7 @@ void show_query_parameters(std::ostream& os, const query_options& opt)
            << "will be generated after the read mapping.\n";
     }
 
-    if(analysis.showHitsPerTargetList) {
+    if(analysis.showTaxAbundances) {
         os << comment << "A list of absolute and relative abundances per taxon "
            << "will be generated after the read mapping.\n";
     }
