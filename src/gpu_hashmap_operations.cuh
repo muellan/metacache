@@ -128,15 +128,15 @@ void warp_kmerize(
 
     uint32_t ambigStore = __shfl_down_sync(0xFFFFFFFF, ambig, subWarpSize);
     // bounds checking: last subwarp adds ~0
-    ambigStore = (warpLane < WARPSIZE - subWarpSize) ? ambigStore : uint32_t(~0);
+    ambigStore = (warpLane < WARPSIZE - subWarpSize) ? ambigStore : (uint32_t(~0) >> 16);
     ambigStore = (ambig << 16) | ambigStore;
 
     // letters stored from high to low bits
     // thread i uses characters [charsPerThread*i, charsPerThread*(i+1)+kmerSize-1]
     // shift to low bits,
     // so each thread uses lowest kmerSize+charsPerThread-1 characters
-    seqStore >>= 2*charsPerThread*lane + 2;
-    ambigStore >>= charsPerThread*lane + 1;
+    seqStore >>= 2*charsPerThread*lane + 2 * (17 - kmerSize);
+    ambigStore >>= charsPerThread*lane + 1 * (17 - kmerSize);
 
     // mask get lowest kmerSize characters
     constexpr uint8_t kmerBits = sizeof(kmer_type)*CHAR_BIT;
@@ -372,7 +372,7 @@ uint32_t unique_sketch(
  * @param sequenceBegin pointer to sequence begin
  * @param sequenceEnd   pointer to sequence end
  * @param kmerSize      size of kemrs to be extracted
- * @param sketch        pointer to sketch array
+ * @param sketch        pointer to sketch storage
  * @param maxSketchSize maximum allowed sketch size
  *
  * @return number of features in sketch
@@ -451,12 +451,10 @@ uint32_t warp_make_sketch(
 
 /**************************************************************************//**
  *
- * @brief use one warp to generate min-hasher sketch from sequence
+ * @brief use one warp to load sketch from memory
  *
- * @details smallest *unique* hash values of *one* hash function
- *
- * @param kmerSize       size of kemrs to be extracted
- * @param sketch         pointer to sketch array
+ * @param sketches       pointer to sketch in memory
+ * @param sketch         pointer to sketch storage
  * @param maxSketchSize  maximum allowed sketch size
  *
  * @return number of features in sketch
