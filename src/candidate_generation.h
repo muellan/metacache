@@ -270,22 +270,26 @@ class distinct_matches_in_contiguous_window_ranges
 
 public:
     using size_type      = std::size_t;
+    using iterator       = candidates_list::iterator;
     using const_iterator = candidates_list::const_iterator;
 
 
-    distinct_matches_in_contiguous_window_ranges() = default;
+    /****************************************************************
+     * @brief copy candidates from span
+     */
+    void assign(const span<const match_candidate> cand) {
+        cand_.assign(cand.begin(), cand.end());
+    }
 
 
     /****************************************************************
      * @pre matches must be sorted by taxon (first) and window (second)
      */
     template<class Locations>
-    distinct_matches_in_contiguous_window_ranges(
+    void insert(
         const taxonomy_cache& taxonomy,
         const Locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
-    :
-        cand_{}
     {
         for_all_contiguous_window_ranges(matches, rules.maxWindowsInRange,
             [&,this] (match_candidate& cand) {
@@ -295,7 +299,7 @@ public:
 
 
     /****************************************************************
-     * @brief insert candidate and keep list sorted
+     * @brief insert candidate
      */
     bool insert(match_candidate cand,
                 const taxonomy_cache& taxonomy,
@@ -315,9 +319,14 @@ public:
 
     size_type size()  const noexcept { return cand_.size(); }
 
+    void clear() { cand_.clear(); }
+
     const match_candidate&
     operator [] (size_type i) const noexcept { return cand_[i]; }
 
+    iterator erase(const_iterator pos) { return cand_.erase(pos); }
+
+    auto view() const noexcept { return span<const match_candidate>(cand_); }
 
 private:
     candidates_list cand_;
