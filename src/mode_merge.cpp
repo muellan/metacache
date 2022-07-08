@@ -236,7 +236,8 @@ void read_results(const results_source& res,
 void merge_result_files(const vector<string>& infiles,
                         const database& db,
 						const query_options& opt,
-                        classification_results& results)
+                        classification_results& results,
+                        info_level infoLvl)
 {
     vector<string> queryHeaders;
     vector<classification_candidates> queryCandidates;
@@ -250,8 +251,10 @@ void merge_result_files(const vector<string>& infiles,
 
     const auto& comment = opt.output.format.tokens.comment;
 
-    cerr << " max canddidates: " << rules.maxCandidates << '\n';
-    cerr << " number of files: " << infiles.size() << '\n';
+    if(infoLvl == info_level::verbose) {
+        cerr << " Max canddidates: " << rules.maxCandidates << '\n';
+        cerr << " Number of files: " << infiles.size() << '\n';
+    }
 
     results.perReadOut << comment << "Merging " << infiles.size() << " files:\n";
     for(const auto& filename : infiles) {
@@ -261,10 +264,16 @@ void merge_result_files(const vector<string>& infiles,
     for(size_t i = 0; i < infiles.size(); ++i) {
         show_progress_indicator(cerr, infiles.size() > 1 ? i/float(infiles.size()) : -1);
 
+        if(infoLvl == info_level::verbose) {
+            cerr << "Merging " << infiles[i] << endl;
+        }
+
         read_results(get_results_file_properties(infiles[i]),
                      db.taxo_cache(), rules, queryHeaders, queryCandidates);
     }
     clear_current_line(cerr);
+
+    cerr << "Completed merge. Starting classification.\n";
 
     map_candidates_to_targets(std::move(queryHeaders), queryCandidates, db, opt, results);
 }
@@ -279,7 +288,8 @@ void merge_result_files(const vector<string>& infiles,
 void process_result_files(const vector<string>& infiles,
                           const database& db, const query_options& opt,
                           const string& queryMappingsFilename,
-                          const string& abundanceFilename)
+                          const string& abundanceFilename,
+                         info_level infoLvl)
 {
     std::ostream* perReadOut   = &cout;
     std::ostream* perTargetOut = &cout;
@@ -324,7 +334,7 @@ void process_result_files(const vector<string>& infiles,
     results.flush_all_streams();
 
     results.time.start();
-    merge_result_files(infiles, db, opt, results);
+    merge_result_files(infiles, db, opt, results, infoLvl);
     results.time.stop();
 
     clear_current_line(results.status);
@@ -345,7 +355,8 @@ void process_result_files(const vector<string>& infiles,
  *****************************************************************************/
 void process_result_files(const vector<string>& infiles,
                          const database& db,
-                         const query_options& opt)
+                         const query_options& opt,
+                         info_level infoLvl)
 {
     if(infiles.empty()) return;
 
@@ -360,7 +371,8 @@ void process_result_files(const vector<string>& infiles,
     //process all input files at once
     process_result_files(infiles, db, opt,
                          opt.queryMappingsFile,
-                         opt.output.analysis.abundanceFile);
+                         opt.output.analysis.abundanceFile,
+                         infoLvl);
 }
 
 
@@ -395,7 +407,7 @@ void main_mode_merge(const cmdline_args& args)
     if(opt.infiles.size() >= 2) {
         cerr << "Merging result files.\n";
 
-        process_result_files(opt.infiles, db, opt.query);
+        process_result_files(opt.infiles, db, opt.query, opt.infoLevel);
     }
     else {
         throw std::invalid_argument{
