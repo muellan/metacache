@@ -1683,10 +1683,18 @@ merge_mode_cli(merge_options& opt, error_messages& err)
             % "directory with taxonomic hierarchy data (see NCBI's taxonomic data files)"
     )
     ,
+    "MERGING RESULTS OUTPUT" %
+    (   option("-out") &
+        value("file", qry.queryMappingsFile)
+            .if_missing([&]{ err += "Output filename missing after '-out'!"; })
+        % "Redirect output to file <file>.\n"
+          "If not specified, output will be written to stdout."
+    )
+    ,
     "CLASSIFICATION" %
         classification_params_cli(qry.classify, err)
     ,
-    "GENERAL OUTPUT" % (
+    "GENERAL OUTPUT FORMATTING" % (
         info_level_cli(opt.infoLevel, err)
         ,
         option("-no-summary", "-nosummary").set(qry.output.showSummary,false)

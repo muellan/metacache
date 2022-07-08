@@ -41,6 +41,12 @@ REQUIRED PARAMETERS
                       taxonomic data files)
 
 
+MERGING RESULTS OUTPUT
+
+    <file>            Redirect output to file <file>.
+                      If not specified, output will be written to stdout.
+
+
 CLASSIFICATION
 
     -lowest <rank>    Do not classify on ranks below <rank>
@@ -85,7 +91,7 @@ CLASSIFICATION
                       default: off
 
 
-GENERAL OUTPUT
+GENERAL OUTPUT FORMATTING
 
     -silent|-verbose  information level during build:
                       silent => none / verbose => most detailed
