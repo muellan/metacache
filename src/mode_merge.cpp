@@ -198,8 +198,10 @@ void read_results(const results_source& res,
             forward(ifs, '\t');
 
             // get tophits
-            char nextChar = ifs.peek();
-            while(nextChar != '\t') {
+            for(char nextChar = ifs.peek();
+                ifs.good() && nextChar != '\t'; // '\t' marks end of tophits
+                nextChar = ifs.get())           // consume ',' between tophits or '\t' at the end
+            {
                 taxon_id taxid;
                 ifs >> taxid;
                 if(ifs.fail()) {
@@ -217,13 +219,15 @@ void read_results(const results_source& res,
                 } else {
                     cerr << "Query " << queryId+1 << ": taxid " << taxid << " not found. Skipping hit.\n";
                 }
-                nextChar = ifs.get();
             }
             // should be at end of tophits
         }
         forward(ifs, '\n');
         lineBegin = ifs.peek();
     }
+
+    if(!ifs.eof())
+        cerr <<  "Did not reach EOF in " + res.filename + ". Something went wrong.\n";
 }
 
 
