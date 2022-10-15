@@ -535,7 +535,7 @@ void insert_into_hashtable(
  * @brief query the hash table with each feature in sketch;
  *        write the result back into sketch in place of the feature
  *
- * @param hashtable  hashtable where sketch is inserted
+ * @param hashtable  hashtable which is queried
  * @param sketch     pointer to sketch array (keys to query)
  * @param sketchSize sketch size
  *
@@ -587,6 +587,7 @@ void query_hashtable(
  * @param maxLocationsPerFeature
  *                   maximum number of locations per feature to copy
  * @param out        pointer to output array
+ * @param outOffset  pointer to output offset
  *
  * @return total number of locations copied for sketch
  *
@@ -651,11 +652,12 @@ void copy_loctions(
  * @brief query the hash table with each feature in sketch;
  *        for each feature copy its loctions to the output
  *
- * @param hashtable  hashtable where sketch is inserted
+ * @param hashtable  hashtable which is queried
  * @param sketch     pointer to sketch array (keys to query)
  * @param sizes      pointer to sizes array (sizes of location buckets)
  * @param sketchSize sketch size
  * @param out        pointer to output array
+ * @param outOffset  pointer to output offset
  *
  *****************************************************************************/
 template<
