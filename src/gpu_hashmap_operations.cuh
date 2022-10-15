@@ -930,12 +930,6 @@ void gpu_hahstable_query(
 
             __syncwarp();
         }
-        else {
-            if(sketches != nullptr) {
-                if(warpLane < maxSketchSize)
-                    sketches[queryId*maxSketchSize + warpLane] = feature(~0);
-            }
-        }
     }
 }
 
@@ -1035,12 +1029,6 @@ void gpu_hahstable_query(
                 locationsOut, outOffset + readIds[queryId]);
 
             __syncwarp();
-        }
-        else {
-            if(sketches != nullptr) {
-                if(warpLane < maxSketchSize)
-                    sketches[queryId*maxSketchSize + warpLane] = feature(~0);
-            }
         }
     }
 }
