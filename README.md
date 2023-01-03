@@ -65,7 +65,7 @@ If you don't have enough RAM, you can use [database partitioning](docs/partition
 
 
 ### GPU Version Requirements
-The GPU version requires a CUDA-capable device of the Pascal generation or newer and either CUDA >= 11 or CUDA 10.2 and a self-provided version of [CUB](https://github.com/NVlabs/cub).
+The GPU version requires a CUDA-capable device of the Pascal generation or newer and CUDA >= 11.
 
 See [here](docs/gpu_version.md) for more.
 
@@ -85,9 +85,9 @@ which will remove the zlib dependency and disables support for gzipped input fil
 
 ### Custom Configurations
 
-If you run 'make' without additional parameters MetaCache will be compiled with the default data type settings which support databases with up to 4,2 billion reference sequences (targets) and k-mer sizes up to 16. These are the minimum requirements for the complete bacterial, viral and archaea genomes from the latest NCBI RefSeq releases. 
+If you run 'make' without additional parameters MetaCache will be compiled with the default data type settings which support databases with up to 4,2 billion reference sequences (targets) and k-mer sizes up to 16. These are the minimum requirements for the complete bacterial, viral and archaea genomes from the latest NCBI RefSeq releases.
 
-Using the following compilation options you can compile MetaCache with support for more (or less) targets and greater k-mer lengths. 
+Using the following compilation options you can compile MetaCache with support for more (or less) targets and greater k-mer lengths.
 
 #### number of referece sequences (targets)
 
