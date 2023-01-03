@@ -134,13 +134,13 @@ CUDA_COMPILE      = $(CUDA_COMPILER) $(CUDA_FLAGS) -c $< -o $@
 # main targets
 #--------------------------------------------------------------------
 release:
-	$(MAKE) release_dummy DIR=$(REL_DIR) ARTIFACT=$(REL_ARTIFACT) MACROS=$(MACROS)
+	$(MAKE) release_dummy DIR=$(REL_DIR) ARTIFACT=$(REL_ARTIFACT) MACROS="$(MACROS)"
 
 debug:
-	$(MAKE) debug_dummy DIR=$(DBG_DIR) ARTIFACT=$(DBG_ARTIFACT) MACROS=$(MACROS)
+	$(MAKE) debug_dummy DIR=$(DBG_DIR) ARTIFACT=$(DBG_ARTIFACT) MACROS="$(MACROS)"
 
 profile:
-	$(MAKE) profile_dummy DIR=$(PRF_DIR) ARTIFACT=$(PRF_ARTIFACT) MACROS=$(MACROS)
+	$(MAKE) profile_dummy DIR=$(PRF_DIR) ARTIFACT=$(PRF_ARTIFACT) MACROS="$(MACROS)"
 
 release_dummy: CXXFLAGS += $(OPTIMIZATION)
 debug_dummy:   CXXFLAGS += -O0 -g
