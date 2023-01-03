@@ -14,8 +14,9 @@ NVCC_WARNINGS = -Xcompiler="-Wall -Wextra"
 OPTIMIZATION  = -O3
 INCLUDE       =
 
+CUDA_ARCH     ?= native
 NVCC_FLAGS    = -arch=$(CUDA_ARCH) -lineinfo --expt-relaxed-constexpr --extended-lambda
-CXXFLAGS      = $(INCLUDE) $(MACROS) $(DIALECT) $(WARNINGS)
+CXXFLAGS      = $(INCLUDE) $(MACROS) $(DIALECT) $(WARNINGS) -I$(CUDA_HOME)/include
 
 LDFLAGS       = -pthread
 
