@@ -26,8 +26,6 @@
 
 #include "../dep/bb_segsort/src/bb_segsort_keys.cuh"
 
-#include <cub/device/device_scan.cuh>
-
 
 namespace mc {
 
