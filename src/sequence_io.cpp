@@ -468,7 +468,7 @@ void sequence_pair_reader::index_offset(index_type index)
  *
  *****************************************************************************/
 const std::regex
-accession_regex("(^|[^[:alnum:]])(([A-Z][_A-Z]{1,6}[0-9]{5,})(\\.[0-9]+)?)",
+accession_regex("(^|[^[:alnum:]])(([A-Z][_A-Z]{1,9}[0-9]{5,})(\\.[0-9]+)?)",
                 std::regex::optimize);
 
 
