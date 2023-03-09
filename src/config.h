@@ -61,7 +61,7 @@ namespace mc {
 /********************************************************************
  * @brief limits max. number of windows per target (reference sequence)
  */
-#if !defined GPU_MODE && MC_WINDOW_ID_TYPE
+#if !defined GPU_MODE && defined MC_WINDOW_ID_TYPE
     using window_id = MC_WINDOW_ID_TYPE ;
 #else
     using window_id = std::uint32_t;
