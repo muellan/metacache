@@ -977,7 +977,7 @@ public:
         lins_.resize(numTargets);
         const target_id numNewTargets = numTargets - oldSize;
 
-        const unsigned numThreads = std::min(4U, numNewTargets / (1U << 10));
+        const unsigned numThreads = std::min(4U, static_cast<unsigned>(numNewTargets / (1U << 10)));
         const target_id targetsPerThread = numThreads ? numNewTargets / numThreads : 0;
         const target_id targetsRemaining = numThreads ? numNewTargets % numThreads : numNewTargets;
 
