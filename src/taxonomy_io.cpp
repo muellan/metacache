@@ -237,9 +237,11 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
                 string header;
                 getline(is, header);
                 std::istringstream hs(header);
-                //get rid of comment chars
-                hs >> header;
                 while(hs >> header) {
+                    // handle comment chars
+                    if (header.size() == 1 && header[0] == '#') {
+                        hs >> header;
+                    }
                     if(header == "taxid") {
                         taxcol = col;
                     }

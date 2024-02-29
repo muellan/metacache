@@ -367,10 +367,16 @@ void add_targets_to_database(database& db,
                 }
 
                 try {
-                    const auto fileId = extract_accession_string(
+                    const auto fileAccession = extract_accession_string(
                                             filename, sequence_id_type::acc_ver);
 
-                    const taxon_id fileTaxId = find_taxon_id(sequ2taxid, fileId);
+                    const taxon_id fileTaxId = find_taxon_id(sequ2taxid, fileAccession);
+
+                    if(infoLvl == info_level::verbose) {
+                        std::lock_guard<std::mutex> lock(outputMtx);
+                        cout << "    accession '" << fileAccession
+                             << "' -> taxid " << fileTaxId << endl;
+                    }
 
                     sequence_reader reader{filename};
 
