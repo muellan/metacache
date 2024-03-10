@@ -1129,40 +1129,30 @@ public:
 
 
     /****************************************************************
-     * @brief concurrency-safe taxon name lookup
-     */
-    bool contains_name(const taxon_name& sid) {
-        std::shared_lock<std::shared_timed_mutex> lock(name2taxMtx);
-        return name2tax_.find(sid) != name2tax_.end();
-    }
-    /****************************************************************
-     * @brief concurrency-safe taxon name insert
-     */
-    void insert_name(taxon_name sid, const taxon* tax) {
-        std::unique_lock<std::shared_timed_mutex> lock(name2taxMtx);
-        name2tax_.insert({std::move(sid), tax});
-    }
-
-
-    /****************************************************************
      * @brief  concurrency-safe taxon emplacement
      */
-    const taxon*
-    emplace_target_taxon(taxon_id taxid, taxon_id parentTaxid,
-                         taxon_name sid, file_source source)
+    std::pair<const taxon*,bool>
+    emplace_target_taxon (
+        taxon_id taxid, taxon_id parentTaxid,
+        taxon_name sid, file_source const& source)
     {
-        std::lock_guard<std::mutex> lock(taxaMtx);
+        std::lock_guard<std::mutex> lock (taxaMtx_);
 
-        auto nit = taxa_.emplace_target_taxon(
-            taxid, parentTaxid, std::move(sid),
-            std::move(source));
+        bool duplicate = name2tax_.find(sid) != name2tax_.end();
+        if (duplicate) { sid += "!"; }
+
+        auto nit = taxa_.emplace_target_taxon(taxid, parentTaxid, sid,
+                                              std::move(source));
 
         // should never happen
-        if(nit.second == false) {
+        if (nit.second == false) {
             throw std::runtime_error{"target taxon could not be created"};
         }
 
-        return &(*(nit.first));
+        const taxon* newTax = &(*(nit.first));
+        name2tax_.emplace(sid, newTax);
+
+        return std::pair<const taxon*,bool>{newTax, duplicate};
     }
 
 
@@ -1439,9 +1429,7 @@ private:
     mutable ranked_lineages_cache taxonLineages_;
     mutable ranked_lineages_of_targets targetLineages_;
     std::map<taxon_name,const taxon*> name2tax_;
-
-    std::shared_timed_mutex name2taxMtx;
-    std::mutex taxaMtx;
+    mutable std::mutex taxaMtx_;
 };
 
 

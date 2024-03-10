@@ -50,23 +50,26 @@ bool database::add_target(part_id dbPart,
 
     if(seq.empty()) return false;
 
-    // don't allow non-unique sequence ids
-    if(taxonomyCache_.contains_name(sid)) return false;
+    if(parentTaxid < 1) parentTaxid = 0;
 
     const auto targetId = target_id(targetCount);
     const auto taxid = taxon_id_of_target(targetId);
 
     // sketch sequence -> insert features
-    source.windows = featureStore_.add_target(dbPart, seq, targetId, targetSketchingOptions_);
+    source.windows = featureStore_.add_target(dbPart, seq, targetId,
+                                              targetSketchingOptions_);
 
-    if(parentTaxid < 1) parentTaxid = 0;
-    const taxon* newtax = nullptr;
     // insert sequence metadata as a new taxon
-    newtax = taxonomyCache_.emplace_target_taxon(
-        taxid, parentTaxid, sid, std::move(source));
+    auto result = taxonomyCache_.emplace_target_taxon(taxid, parentTaxid, sid, source);
 
-    // allows lookup via sequence id (e.g. NCBI accession number)
-    taxonomyCache_.insert_name(std::move(sid), newtax);
+    // duplicate sequence id
+    if (result.second) {
+        std::cerr << "Warning: duplicate sequence id! '" << sid
+                  << "' already in database - '"
+                  << source.filename << "/" << source.index
+                  << "' inserted as '" << result.first->name() << "'\n" ;
+        return false;
+    }
 
     return true;
 }
