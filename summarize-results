@@ -1,11 +1,29 @@
-#!/usr/bin/python
+##!/usr/bin/python3
+
+# Copyright 2016-2021, André Müller <muellan@uni-mainz.de>
+#
+# This file is part of the MetaCache taxonomic sequence classification tool.
+#
+# MetaCache is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# MetaCache is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with MetaCache.  If not, see <http://www.gnu.org/licenses/>.
 
 import glob
 import re
 import sys
 
 if len(sys.argv) < 3:
-    print "usage: " + sys.argv[0] + " <input file pattern> <rank>"
+    print("summarize classification results with ground truth")
+    print("usage: " + sys.argv[0] + " <input file pattern> <rank>")
     exit()
 
 inpattern = sys.argv[1]
@@ -37,9 +55,9 @@ for fname in fnames:
 if pad > 6:
     pad = pad - 6
 
-print "Results on rank " + rank + ":"
-print "filename" + (" " * pad) \
-    + sep + "uncl" + sep + "clas" + sep + "prec" + sep + "sens"
+print("Results on rank " + rank + ":")
+print("filename" + (" " * pad) \
+    + sep + "uncl" + sep + "clas" + sep + "prec" + sep + "sens")
 
 
 for fname in fnames:
@@ -95,11 +113,11 @@ for fname in fnames:
                 if not parse_rank(line, sens):
                     section = 7
 
-            # print str(section) + " -> " + line
+            # print(str(section) + " -> " + line)
 
     if section > 5:
-        print fname + "   " \
+        print(fname + "   " \
             + sep + str(round(float(uncl),2)) \
             + sep + str(round(float(clas[rank]),2)) \
             + sep + str(round(float(prec[rank]),2)) \
-            + sep + str(round(float(sens[rank]),2))
+            + sep + str(round(float(sens[rank]),2)))
