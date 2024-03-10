@@ -9,7 +9,7 @@ For an independend comparison to other tools in terms of classification accuracy
 **MetaCache's CPU version** classifies around 60 Million reads (of length 100) per minute against all complete bacterial, viral and archaea genomes from NCBI RefSeq Release 97 running with 88 threads on a workstation with 2 Intel(R) Xeon(R) Gold 6238 CPUs.
 
 **MetaCache's [GPU version](docs/gpu_version.md)** classifies around 300 Million reads (of length 100) per minute against all complete bacterial, viral, fungal and archaea genomes from NCBI RefSeq Release 202 running on a workstation with 4 NVIDIA(R) Tesla(R) V100 GPUs (32 GB model).
-[**MetaCache-GPU**](https://arxiv.org/abs/2106.08150) will be presented at ICPP '21.
+[**MetaCache-GPU**](https://arxiv.org/abs/2106.08150) was presented at ICPP '21.
 
 
 
@@ -21,7 +21,7 @@ on a Debian/Ubuntu system:
 sudo apt install -y zlib1g zlib1g-dev
 git clone https://github.com/muellan/metacache.git
 cd metacache
-make
+make -j
 ./metacache-build-refseq
 ```
 This will
