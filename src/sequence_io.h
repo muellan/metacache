@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2021 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2024 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -35,14 +35,12 @@
 #include <string>
 
 
-
 namespace mc {
-
 
 
 /*************************************************************************//**
  *
- * @brief polymorphic file reader for (pairs of) bio-sequences
+ * @brief file reader for bio-sequences
  *        NOT concurrency safe
  *
  *****************************************************************************/
@@ -67,11 +65,11 @@ public:
         data_type   qualities;  // quality scores (FASTQ)
     };
 
-    sequence_reader() : stream_{}, index_{0} {};
+    sequence_reader () : stream_{}, index_{0} {};
 
-    sequence_reader(const std::string& filename);
+    sequence_reader (const std::string& filename);
 
-    sequence_reader(const sequence_reader&) = delete;
+    sequence_reader (const sequence_reader&) = delete;
     sequence_reader& operator = (const sequence_reader&) = delete;
     sequence_reader& operator = (sequence_reader&& other) {
         std::swap(other.stream_, stream_);
@@ -81,40 +79,40 @@ public:
 
 
     /** @brief read & return next sequence */
-    sequence next();
+    sequence next ();
 
     /** @brief read next header only */
-    header_type next_header();
+    header_type next_header ();
 
     /** @brief read next sequence data only */
-    data_type next_data();
+    data_type next_data ();
 
 
     /** @brief read next sequence re-using external storage */
-    void next(sequence&);
+    void next (sequence&);
 
     /** @brief read next header only, re-uses external storage */
-    index_type next_header(header_type&);
+    index_type next_header (header_type&);
 
     /** @brief read next sequence data only, re-uses external storage */
-    index_type next_data(data_type&);
+    index_type next_data (data_type&);
 
     /** @brief read next sequence data & header, re-uses external storage */
-    index_type next_header_and_data(header_type&, data_type&);
+    index_type next_header_and_data (header_type&, data_type&);
 
     /** @brief skip n sequences */
-    void skip(index_type n);
+    void skip (index_type n);
 
-    bool has_next() const noexcept { return stream_.good(); }
+    bool has_next () const noexcept { return stream_.good(); }
 
-    index_type index() const noexcept { return index_; }
+    index_type index () const noexcept { return index_; }
 
-    void index_offset(index_type index) { index_ = index; }
+    void index_offset (index_type index) { index_ = index; }
 
 private:
-    void read_next(header_type*, data_type*, qualities_type*);
+    void read_next (header_type*, data_type*, qualities_type*);
 
-    void skip_next();
+    void skip_next ();
 
     char_istream stream_;
     index_type index_;
@@ -149,44 +147,44 @@ public:
      *         if filename1 == filename2 : read consecutive pairs in one file
      *         else : read from 2 files in lockstep
      */
-    sequence_pair_reader(const std::string& filename1,
-                         const std::string& filename2);
+    sequence_pair_reader (const std::string& filename1,
+                          const std::string& filename2);
 
-    sequence_pair_reader(const sequence_pair_reader&) = delete;
+    sequence_pair_reader (const sequence_pair_reader&) = delete;
     sequence_pair_reader& operator = (const sequence_pair_reader&) = delete;
     sequence_pair_reader& operator = (sequence_pair_reader&&) = delete;
 
 
     /** @brief read & return next sequence */
-    sequence_pair next();
+    sequence_pair next ();
 
     /** @brief read next header only */
-    header_type next_header();
+    header_type next_header ();
 
     /** @brief read next sequence re-using external storage */
-    void next(sequence_pair&);
+    void next (sequence_pair&);
 
     /** @brief read next header only, re-uses external storage */
-    index_type next_header(sequence::header_type&);
+    index_type next_header (sequence::header_type&);
 
     /** @brief read next sequence data only, re-uses external storage */
-    index_type next_data(sequence::data_type&, sequence::data_type&);
+    index_type next_data (sequence::data_type&, sequence::data_type&);
 
     /** @brief read next header from 1st sequence and data from both sequences
                re-using external storage */
-    index_type next_header_and_data(sequence::header_type&,
-                                    sequence::data_type&,
-                                    sequence::data_type&);
+    index_type next_header_and_data (sequence::header_type&,
+                                     sequence::data_type&,
+                                     sequence::data_type&);
 
 
     /** @brief skip n sequences */
-    void skip(index_type n);
+    void skip (index_type n);
 
-    bool has_next() const noexcept;
+    bool has_next () const noexcept;
 
-    index_type index() const noexcept;
+    index_type index () const noexcept;
 
-    void index_offset(index_type index);
+    void index_offset (index_type index);
 
 
 private:
@@ -216,8 +214,8 @@ enum class sequence_id_type {
  *        sequence_id_type::any order: acc_ver > acc > gi
  *
  *****************************************************************************/
-std::string extract_accession_string(const std::string&,
-                                     sequence_id_type idtype);
+std::string extract_accession_string (const std::string&,
+                                      sequence_id_type idtype);
 
 
 
@@ -226,7 +224,7 @@ std::string extract_accession_string(const std::string&,
  * @brief extracts the numeric part from a taxid identifier
  *
  *****************************************************************************/
-std::int_least64_t extract_taxon_id(const std::string&);
+std::int_least64_t extract_taxon_id (const std::string&);
 
 
 

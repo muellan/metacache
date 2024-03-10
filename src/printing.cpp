@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2021 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2024 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -23,7 +23,6 @@
 
 #include "printing.h"
 
-#include "candidate_generation.h"
 #include "classification.h"
 #include "classification_statistics.h"
 #include "database.h"
@@ -39,7 +38,7 @@
 namespace mc {
 
 //-----------------------------------------------------------------------------
-void show_query_parameters(std::ostream& os, const query_options& opt)
+void show_query_parameters (std::ostream& os, const query_options& opt)
 {
     const auto& analysis = opt.output.analysis;
     const auto& fmt = opt.output.format;
@@ -123,9 +122,9 @@ void show_query_parameters(std::ostream& os, const query_options& opt)
 
 
 //-------------------------------------------------------------------
-void show_taxon_header(std::ostream& os,
-                       const classification_output_formatting& opt,
-                       const std::string& prefix)
+void show_taxon_header (std::ostream& os,
+                        const classification_output_formatting& opt,
+                        const std::string& prefix)
 {
     const auto rmax = opt.showLineage ? opt.highestRank : opt.lowestRank;
     const auto& style = opt.taxonStyle;
@@ -171,12 +170,12 @@ void show_taxon_header(std::ostream& os,
 
 
 //-------------------------------------------------------------------
-void print_taxon(std::ostream& os,
-                 const std::string& taxName,
-                 taxon_id id,
-                 taxon_rank rank,
-                 taxon_print_style style,
-                 const formatting_tokens& fmt)
+void print_taxon (std::ostream& os,
+                  const std::string& taxName,
+                  taxon_id id,
+                  taxon_rank rank,
+                  taxon_print_style style,
+                  const formatting_tokens& fmt)
 {
     if (style.showRankName) {
         if (rank == taxon_rank::none) {
@@ -200,10 +199,10 @@ void print_taxon(std::ostream& os,
 
 
 //-------------------------------------------------------------------
-void show_lineage(std::ostream& os,
-                  const ranked_lineage& lineage,
-                  taxon_print_style style, taxon_rank lowest, taxon_rank highest,
-                  const formatting_tokens& fmt)
+void show_lineage (std::ostream& os,
+                   const ranked_lineage& lineage,
+                   taxon_print_style style, taxon_rank lowest, taxon_rank highest,
+                   const formatting_tokens& fmt)
 {
     if (lowest == taxon_rank::none) return;
     if (highest == taxon_rank::none) highest = taxon_rank::root;
@@ -226,10 +225,10 @@ void show_lineage(std::ostream& os,
 
 
 //-------------------------------------------------------------------
-void show_blank_lineage(std::ostream& os,
-                        taxon_print_style style,
-                        taxon_rank lowest, taxon_rank highest,
-                        const formatting_tokens& fmt)
+void show_blank_lineage (std::ostream& os,
+                         taxon_print_style style,
+                         taxon_rank lowest, taxon_rank highest,
+                         const formatting_tokens& fmt)
 {
     for (auto r = lowest; r <= highest; ++r) {
         print_taxon(os, fmt.none, taxonomy::none_id(), taxon_rank::none, style, fmt);
@@ -240,10 +239,10 @@ void show_blank_lineage(std::ostream& os,
 
 
 //-------------------------------------------------------------------
-void show_taxon(std::ostream& os,
-                const taxonomy_cache& taxonomy,
-                const classification_output_formatting& opt,
-                const taxon* tax)
+void show_taxon (std::ostream& os,
+                 const taxonomy_cache& taxonomy,
+                 const classification_output_formatting& opt,
+                 const taxon* tax)
 {
     if (!tax || tax->rank() > opt.highestRank) {
         if (opt.collapseUnclassifiedLineages) {
@@ -273,10 +272,10 @@ void show_taxon(std::ostream& os,
 
 
 //-------------------------------------------------------------------
-void show_candidates(std::ostream& os,
-                     const taxonomy_cache& taxonomy,
-                     const span<const match_candidate> cand,
-                     taxon_rank lowest)
+void show_candidates (std::ostream& os,
+                      const taxonomy_cache& taxonomy,
+                      const span<const match_candidate> cand,
+                      taxon_rank lowest)
 {
     using size_t = span<match_candidate>::size_type;
 
@@ -305,10 +304,10 @@ void show_candidates(std::ostream& os,
 
 
 //-------------------------------------------------------------------
-void show_matches(std::ostream& os,
-                  const taxonomy_cache& taxonomy,
-                  const span<const location> matches,
-                  taxon_rank lowest)
+void show_matches (std::ostream& os,
+                   const taxonomy_cache& taxonomy,
+                   const span<const location> matches,
+                   taxon_rank lowest)
 {
     if (matches.empty()) return;
 
@@ -360,9 +359,9 @@ void show_matches(std::ostream& os,
 
 
 //-------------------------------------------------------------------
-void show_candidate_ranges(std::ostream& os,
-                           const sketching_opt& targetSketching,
-                           const span<const match_candidate> cand)
+void show_candidate_ranges (std::ostream& os,
+                            const sketching_opt& targetSketching,
+                            const span<const match_candidate> cand)
 {
     const auto w = targetSketching.winstride;
 
@@ -375,10 +374,10 @@ void show_candidate_ranges(std::ostream& os,
 
 
 //-------------------------------------------------------------------
-void show_matches_per_targets(std::ostream& os,
-                              const database& db,
-                              const matches_per_target& tgtMatches,
-                              const classification_output_formatting& opt)
+void show_matches_per_targets (std::ostream& os,
+                               const database& db,
+                               const matches_per_target& tgtMatches,
+                               const classification_output_formatting& opt)
 {
     os << opt.tokens.comment
        << "--- list of hits for each reference sequence ---\n"
@@ -414,10 +413,10 @@ void show_matches_per_targets(std::ostream& os,
 
 
 //-------------------------------------------------------------------
-void show_abundance_table(std::ostream& os,
-                          const taxon_count_map& allTaxCounts,
-                          const classification_statistics& statistics,
-                          const classification_output_formatting&  opt)
+void show_abundance_table (std::ostream& os,
+                           const taxon_count_map& allTaxCounts,
+                           const classification_statistics& statistics,
+                           const classification_output_formatting&  opt)
 {
     os << opt.tokens.comment
        << "rank" << opt.tokens.rankSuffix
@@ -449,10 +448,10 @@ void show_abundance_table(std::ostream& os,
 
 
 //-------------------------------------------------------------------
-void show_abundances(std::ostream& os,
-                     const taxon_count_map& allTaxCounts,
-                     const classification_statistics& statistics,
-                     const classification_output_formatting& opt)
+void show_abundances (std::ostream& os,
+                      const taxon_count_map& allTaxCounts,
+                      const classification_statistics& statistics,
+                      const classification_output_formatting& opt)
 {
     os << opt.tokens.comment
        << "query summary: number of queries mapped per taxon\n";
@@ -462,11 +461,11 @@ void show_abundances(std::ostream& os,
 
 
 //-------------------------------------------------------------------
-void show_abundance_estimates(std::ostream& os,
-                              taxon_rank onRank,
-                              const taxon_count_map& allTaxCounts,
-                              const classification_statistics& statistics,
-                              const classification_output_formatting& opt)
+void show_abundance_estimates (std::ostream& os,
+                               taxon_rank onRank,
+                               const taxon_count_map& allTaxCounts,
+                               const classification_statistics& statistics,
+                               const classification_output_formatting& opt)
 {
     os << opt.tokens.comment
        << "estimated abundance (number of queries) per "
@@ -478,9 +477,9 @@ void show_abundance_estimates(std::ostream& os,
 
 
 //-------------------------------------------------------------------
-void show_taxon_statistics(std::ostream& os,
-                           const classification_statistics& stats,
-                           const std::string& prefix)
+void show_taxon_statistics (std::ostream& os,
+                            const classification_statistics& stats,
+                            const std::string& prefix)
 {
     constexpr taxon_rank ranks[] {
           taxon_rank::Sequence,
@@ -578,8 +577,8 @@ void show_taxon_statistics(std::ostream& os,
  * @brief show summary and statistics of classification
  *
  *****************************************************************************/
-void show_summary(const query_options& opt,
-                  const classification_results& results)
+void show_summary (const query_options& opt,
+                   const classification_results& results)
 {
     const auto& statistics = results.statistics;
     const auto numQueries = (opt.pairing == pairing_mode::none)
@@ -602,7 +601,7 @@ void show_summary(const query_options& opt,
 
 
 //-------------------------------------------------------------------
-void print_static_properties(const database& db)
+void print_static_properties (const database& db)
 {
     using target_id = database::target_id;
     using window_id = database::window_id;
@@ -640,7 +639,7 @@ void print_static_properties(const database& db)
 
 
 //-----------------------------------------------------------------------------
-void print_content_properties(const database& db)
+void print_content_properties (const database& db)
 {
     if (db.target_count() > 0) {
 

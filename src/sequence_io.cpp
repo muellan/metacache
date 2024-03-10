@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2021 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2024 André Müller (muellan@uni-mainz.de)
  *                       & Robin Kobus  (kobus@uni-mainz.de)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -18,16 +18,12 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Original FASTA / FASTQ reader code taken from Kraken written by
- * Derrick Wood <dwood@cs.jhu.edu>
- *
  *****************************************************************************/
 
 #include "sequence_io.h"
 #include "io_error.h"
 #include "string_utils.h"
 
-#include <stdexcept>
 #include <regex>
 
 
@@ -38,7 +34,7 @@ using std::string;
 
 
 //-----------------------------------------------------------------------------
-sequence_reader::sequence_reader(const std::string& filename) :
+sequence_reader::sequence_reader (const std::string& filename) :
     stream_{},
     index_{0}
 {
@@ -63,7 +59,7 @@ sequence_reader::sequence_reader(const std::string& filename) :
 
 //-------------------------------------------------------------------
 sequence_reader::sequence
-sequence_reader::next()
+sequence_reader::next ()
 {
     sequence seq;
     next(seq);
@@ -73,7 +69,7 @@ sequence_reader::next()
 
 
 //-------------------------------------------------------------------
-void sequence_reader::next(sequence& seq)
+void sequence_reader::next (sequence& seq)
 {
     if (!has_next()) return;
 
@@ -86,7 +82,7 @@ void sequence_reader::next(sequence& seq)
 
 //-------------------------------------------------------------------
 sequence_reader::header_type
-sequence_reader::next_header()
+sequence_reader::next_header ()
 {
     if (!has_next()) return header_type{};
 
@@ -100,7 +96,7 @@ sequence_reader::next_header()
 
 //-------------------------------------------------------------------
 sequence_reader::data_type
-sequence_reader::next_data()
+sequence_reader::next_data ()
 {
     if (!has_next()) return data_type{};
 
@@ -114,7 +110,7 @@ sequence_reader::next_data()
 
 //-------------------------------------------------------------------
 sequence_reader::index_type
-sequence_reader::next_data(sequence::data_type& data)
+sequence_reader::next_data (sequence::data_type& data)
 {
     if (!has_next()) {
         data.clear();
@@ -130,8 +126,8 @@ sequence_reader::next_data(sequence::data_type& data)
 
 //-------------------------------------------------------------------
 sequence_reader::index_type
-sequence_reader::next_header_and_data(sequence::header_type& header,
-                                      sequence::data_type& data)
+sequence_reader::next_header_and_data (sequence::header_type& header,
+                                       sequence::data_type& data)
 {
     if (!has_next()) {
         header.clear();
@@ -147,7 +143,7 @@ sequence_reader::next_header_and_data(sequence::header_type& header,
 
 
 //-------------------------------------------------------------------
-void sequence_reader::skip(index_type skip)
+void sequence_reader::skip (index_type skip)
 {
     if (skip < 1) return;
 
@@ -160,9 +156,9 @@ void sequence_reader::skip(index_type skip)
 
 
 //-------------------------------------------------------------------
-void sequence_reader::read_next(header_type* header,
-                                data_type* data,
-                                qualities_type* qualities)
+void sequence_reader::read_next (header_type* header,
+                                 data_type* data,
+                                 qualities_type* qualities)
 {
     if (header) header->clear();
     if (data) data->clear();
@@ -233,7 +229,7 @@ void sequence_reader::read_next(header_type* header,
 
 
 //-------------------------------------------------------------------
-void sequence_reader::skip_next()
+void sequence_reader::skip_next ()
 {
     read_next(nullptr, nullptr, nullptr);
 }
@@ -246,8 +242,8 @@ void sequence_reader::skip_next()
 //-----------------------------------------------------------------------------
 // P A I R    R E A D E R
 //-----------------------------------------------------------------------------
-sequence_pair_reader::sequence_pair_reader(const std::string& filename1,
-                                           const std::string& filename2)
+sequence_pair_reader::sequence_pair_reader (const std::string& filename1,
+                                            const std::string& filename2)
 :
     reader1_{},
     reader2_{},
@@ -271,7 +267,7 @@ sequence_pair_reader::sequence_pair_reader(const std::string& filename1,
 
 
 //-------------------------------------------------------------------
-bool sequence_pair_reader::has_next() const noexcept
+bool sequence_pair_reader::has_next () const noexcept
 {
     if (!reader1_.has_next()) return false;
     if (pairing_ != pairing_mode::files) return true;
@@ -283,7 +279,7 @@ bool sequence_pair_reader::has_next() const noexcept
 
 //-------------------------------------------------------------------
 sequence_pair_reader::sequence_pair
-sequence_pair_reader::next()
+sequence_pair_reader::next ()
 {
     sequence_pair seq;
     next(seq);
@@ -293,7 +289,7 @@ sequence_pair_reader::next()
 
 
 //-------------------------------------------------------------------
-void sequence_pair_reader::next(sequence_pair& seq)
+void sequence_pair_reader::next (sequence_pair& seq)
 {
     if (!has_next()) return;
 
@@ -325,7 +321,7 @@ void sequence_pair_reader::next(sequence_pair& seq)
 
 //-------------------------------------------------------------------
 sequence_pair_reader::header_type
-sequence_pair_reader::next_header()
+sequence_pair_reader::next_header ()
 {
     if (!has_next()) return header_type{};
 
@@ -353,8 +349,8 @@ sequence_pair_reader::next_header()
 
 //-------------------------------------------------------------------
 sequence_pair_reader::index_type
-sequence_pair_reader::next_data(sequence::data_type& data1,
-                                sequence::data_type& data2)
+sequence_pair_reader::next_data (sequence::data_type& data1,
+                                 sequence::data_type& data2)
 {
     if (!has_next()) return index();
 
@@ -382,9 +378,9 @@ sequence_pair_reader::next_data(sequence::data_type& data1,
 
 //-------------------------------------------------------------------
 sequence_pair_reader::index_type
-sequence_pair_reader::next_header_and_data(sequence::header_type& header1,
-                                           sequence::data_type& data1,
-                                           sequence::data_type& data2)
+sequence_pair_reader::next_header_and_data (sequence::header_type& header1,
+                                            sequence::data_type& data1,
+                                            sequence::data_type& data2)
 {
     if (!has_next()) return index();
 
@@ -411,7 +407,7 @@ sequence_pair_reader::next_header_and_data(sequence::header_type& header1,
 
 
 //-------------------------------------------------------------------
-void sequence_pair_reader::skip(index_type skip)
+void sequence_pair_reader::skip (index_type skip)
 {
     if (skip < 1) return;
 
@@ -437,7 +433,7 @@ void sequence_pair_reader::skip(index_type skip)
 
 
 //-------------------------------------------------------------------
-sequence_pair_reader::index_type sequence_pair_reader::index() const noexcept
+sequence_pair_reader::index_type sequence_pair_reader::index () const noexcept
 {
     return reader1_.index();
 }
@@ -445,7 +441,7 @@ sequence_pair_reader::index_type sequence_pair_reader::index() const noexcept
 
 
 //-------------------------------------------------------------------
-void sequence_pair_reader::index_offset(index_type index)
+void sequence_pair_reader::index_offset (index_type index)
 {
     reader1_.index_offset(index);
     if (pairing_ == pairing_mode::files)
@@ -479,8 +475,8 @@ accession_regex("(^|[^[:alnum:]])(([A-Z][_A-Z]{1,9}[0-9]{5,})(\\.[0-9]+)?)",
  *
  *****************************************************************************/
 string
-extract_ncbi_accession_number(const string& text,
-                              sequence_id_type idtype = sequence_id_type::any)
+extract_ncbi_accession_number (const string& text,
+                               sequence_id_type idtype = sequence_id_type::any)
 {
     if (text.empty()) return "";
 
@@ -510,7 +506,7 @@ extract_ncbi_accession_number(const string& text,
  *
  *****************************************************************************/
 string
-extract_genbank_identifier(const string& text)
+extract_genbank_identifier (const string& text)
 {
     if (text.empty()) return "";
 
@@ -533,7 +529,7 @@ extract_genbank_identifier(const string& text)
 
 //-------------------------------------------------------------------
 string
-extract_accession_string(const string& text, sequence_id_type idtype)
+extract_accession_string (const string& text, sequence_id_type idtype)
 {
     if (text.empty()) return "";
 
@@ -559,7 +555,7 @@ extract_accession_string(const string& text, sequence_id_type idtype)
 
 //-------------------------------------------------------------------
 std::int_least64_t
-extract_taxon_id(const string& text)
+extract_taxon_id (const string& text)
 {
     if (text.empty()) return 0;
 
