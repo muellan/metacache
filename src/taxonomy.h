@@ -1138,8 +1138,12 @@ public:
     {
         std::lock_guard<std::mutex> lock (taxaMtx_);
 
-        bool duplicate = name2tax_.find(sid) != name2tax_.end();
-        if (duplicate) { sid += "!"; }
+        int dupl = 0;
+        while (name2tax_.find(sid) != name2tax_.end()) {
+            ++dupl;
+            sid += "!" + std::to_string(dupl); 
+        }
+        bool duplicate = dupl > 0;
 
         auto nit = taxa_.emplace_target_taxon(taxid, parentTaxid, sid,
                                               std::move(source));
