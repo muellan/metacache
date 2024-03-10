@@ -23,6 +23,12 @@
 #ifndef MC_SPAN_H_
 #define MC_SPAN_H_
 
+
+#include <type_traits>
+#include <cstddef>
+#include <vector>
+
+
 namespace mc {
 
 

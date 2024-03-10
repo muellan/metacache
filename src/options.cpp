@@ -124,7 +124,7 @@ void sanitize_database_name(string& name, int& partId)
                 partId = std::stoi(name.substr(pos+6));
             }
             catch(std::invalid_argument& e) {
-                std::cerr << "No id found after '.cache'. Using whole database.";
+                std::cerr << "No id found after '.cache'. Using whole database.\n";
             }
             name.erase(pos);
         }

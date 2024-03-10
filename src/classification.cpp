@@ -25,7 +25,6 @@
 
 #include "alignment.h"
 #include "candidate_generation.h"
-#include "cmdline_utility.h"
 #include "database.h"
 #include "dna_encoding.h"
 #include "matches_per_target.h"
@@ -38,9 +37,7 @@
 
 #include <algorithm>
 #include <iterator>
-#include <memory>
 #include <sstream>
-#include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -49,10 +46,7 @@ namespace mc {
 
 using std::vector;
 using std::string;
-using std::cout;
 using std::cerr;
-using std::endl;
-using std::flush;
 
 
 /*************************************************************************//**

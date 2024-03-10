@@ -36,13 +36,9 @@
 #include "timer.h"
 
 #include <algorithm>
-#include <chrono>
 #include <cstdint>
 #include <iostream>
 #include <map>
-#include <memory>
-#include <stdexcept>
-#include <thread>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -284,18 +280,19 @@ bool add_targets_to_database(
             if(parentTaxId == taxonomy::none_id())
                 parentTaxId = extract_taxon_id(seq.header);
 
-            if(infoLvl == info_level::verbose) {
-                cout << "[" << seqId;
-                if(parentTaxId > 0) cout << ":" << parentTaxId;
-                cout << "] ";
-            }
-
             // try to add to database
             bool added = db.add_target(
                 dbPart, seq.data, seqId, parentTaxId, seq.fileSource);
 
-            if(infoLvl == info_level::verbose && !added) {
-                cout << seqId << " not added to database" << endl;
+            if(infoLvl == info_level::verbose) {
+                cout << "        [" << seqId;
+                if(parentTaxId > 0) cout << ":" << parentTaxId;
+                cout << "]  " << seq.data.size() << " bp";
+                if (added) {
+                    cout << endl;
+                } else {
+                    cout << "  --  not added to database!" << endl;
+                }
             }
 
             seq.data.clear();
@@ -374,7 +371,7 @@ void add_targets_to_database(database& db,
 
                     if(infoLvl == info_level::verbose) {
                         std::lock_guard<std::mutex> lock(outputMtx);
-                        cout << "    accession '" << fileAccession
+                        cout << "      accession '" << fileAccession
                              << "' -> taxid " << fileTaxId << endl;
                     }
 

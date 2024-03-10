@@ -121,7 +121,7 @@ struct sequence_query
             if(!queryBatch.add_paired_read(hostId, query.seq1, query.seq2,
                                            opt.sketching, rules))
             {
-                std::cerr << "query batch is too small for a single read!" << std::endl;
+                std::cerr << "query batch is too small for a single read!\n";
             }
         }
 

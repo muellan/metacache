@@ -26,15 +26,12 @@
 #include "querying.h"
 
 #include <iostream>
-#include <stdexcept>
 
 
 namespace mc {
 
 using std::cout;
 using std::cerr;
-using std::endl;
-using std::flush;
 
 
 /*************************************************************************//**
@@ -60,7 +57,7 @@ read_database(const query_options& opt)
         db.read(opt.dbfile, opt.dbpart, opt.performance.replication);
     }
     catch(const file_access_error& e) {
-        cerr << "FAIL" << endl;
+        cerr << "FAIL\n";
         throw;
     }
 
@@ -74,7 +71,7 @@ read_database(const query_options& opt)
         maxlpf = std::min(maxlpf, db.max_locations_per_feature() - 1);
         if(maxlpf > 0) { //always keep buckets with size 1
             cerr << "\nRemoving features with more than "
-                 << maxlpf << " locations... " << std::flush;
+                 << maxlpf << " locations...\n";
 
             auto rem = db.remove_features_with_more_locations_than(maxlpf);
 

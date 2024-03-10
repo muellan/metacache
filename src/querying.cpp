@@ -24,7 +24,6 @@
 #include "querying.h"
 
 #include "classification.h"
-#include "classification_statistics.h"
 #include "cmdline_utility.h"
 #include "config.h"
 #include "filesys_utility.h"
@@ -45,7 +44,6 @@ using std::string;
 using std::cout;
 using std::cerr;
 using std::endl;
-using std::flush;
 
 
 

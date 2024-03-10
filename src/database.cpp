@@ -228,7 +228,7 @@ void database::read(const std::string& filename, int singlePartId,
 //-------------------------------------------------------------------
 void database::write_meta(const std::string& filename) const
 {
-    std::cerr << "Writing database metadata to file '" << filename << "' ... ";
+    std::cerr << "Writing database metadata to file '" << filename << "' ...\n";
 
     using std::uint64_t;
     using std::uint8_t;
@@ -266,14 +266,14 @@ void database::write_meta(const std::string& filename) const
     //taxon & target metadata
     write_binary(os, taxonomyCache_);
 
-    std::cerr << "done." << std::endl;
+    std::cerr << "done.\n";
 }
 
 
 //-------------------------------------------------------------------
 void database::write_cache(const std::string& filename, part_id partId) const
 {
-    std::cerr << "Writing database part to file '" << filename << "' ... ";
+    std::cerr << "Writing database part to file '" << filename << "' ...\n";
 
     using std::uint64_t;
     using std::uint8_t;
@@ -287,7 +287,7 @@ void database::write_cache(const std::string& filename, part_id partId) const
     //hash table
     write_binary(os, featureStore_, partId);
 
-    std::cerr << "done." << std::endl;
+    std::cerr << "done.\n";
 }
 
 
@@ -331,16 +331,15 @@ make_database(const std::string& filename, int dbPart, database::scope what, inf
     const bool showInfo = info != info_level::silent;
 
     if(showInfo) {
-        std::cerr << "Reading database from file '"
-                  << filename << "' ... " << std::flush;
+        std::cerr << "Reading database from file '" << filename << "' ...\n";
     }
     try {
         unsigned replication = 1;
         db.read(filename, dbPart, replication, what);
-        if(showInfo) std::cerr << "done." << std::endl;
+        // if(showInfo) std::cerr << "done.\n";
     }
     catch(const file_access_error& e) {
-        std::cerr << "FAIL" << std::endl;
+        std::cerr << "FAIL\n";
         throw file_access_error{"Could not read database file '" + filename + "'"};
     }
 

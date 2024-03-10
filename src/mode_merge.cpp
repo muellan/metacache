@@ -269,7 +269,7 @@ void merge_result_files(const vector<string>& infiles,
         show_progress_indicator(cerr, infiles.size() > 1 ? i/float(infiles.size()) : -1);
 
         if(infoLvl == info_level::verbose) {
-            cerr << "Merging " << infiles[i] << endl;
+            cerr << "Merging " << infiles[i] << '\n';
         }
 
         read_results(get_results_file_properties(infiles[i]),
