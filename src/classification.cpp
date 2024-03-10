@@ -146,6 +146,7 @@ classify(const taxonomy_cache& taxonomy, const classification_options& opt,
 
     // begin lca with first candidate
     const taxon* lca = cand[0].tax;
+    if (!lca) return nullptr;
 
     // include any candidate in classification that is above threshold
     const float threshold = cand[0].hits > opt.hitsMin
@@ -169,13 +170,12 @@ classify(const taxonomy_cache& taxonomy, const classification_options& opt,
             // lca lives on lineage of first cand, its rank can only increase
             lca = taxonomy.ranked_lca(topRanks, candRanks, lca->rank());
             // exit early if lca rank already too high
-            if(!lca || lca->rank() > opt.highestRank)
-                return nullptr;
+            if (!lca || lca->rank() > opt.highestRank) return nullptr;
         } else {
             break;
         }
     }
-    return (lca->rank() <= opt.highestRank) ? lca : nullptr;
+    return (lca && lca->rank() <= opt.highestRank) ? lca : nullptr;
 }
 
 
