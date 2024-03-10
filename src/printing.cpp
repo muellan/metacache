@@ -63,6 +63,15 @@ void show_query_parameters(std::ostream& os, const query_options& opt)
         os << comment << "Per-Read mappings will not be shown.\n";
     }
 
+    if(opt.minReadLength > 0) {
+        os << comment << "Only reads with a minimum length of "
+           << opt.minReadLength << " bp will be mapped.\n";
+    }
+    if(opt.maxReadLength < std::numeric_limits<std::size_t>::max()) {
+        os << comment << "Only reads with a maximum length of "
+           << opt.maxReadLength << " bp will be mapped.\n";
+    }
+
     os << comment
        << "Classification will be constrained to ranks from '"
        << taxonomy::rank_name(opt.classify.lowestRank) << "' to '"

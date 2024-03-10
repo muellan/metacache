@@ -255,6 +255,9 @@ query_id query_batched(
             return true;
         }};
 
+    std::size_t discardedCount = 0;
+    std::size_t totalReadCount = 0;
+
     // read sequences from file
     try {
         sequence_pair_reader reader{filename1, filename2};
@@ -266,6 +269,17 @@ query_id query_batched(
             // get (ref to) next query sequence storage and fill it
             auto& query = executor.next_item();
             query.id = reader.next_header_and_data(query.header, query.seq1, query.seq2);
+            ++totalReadCount;
+
+            // read length filter
+            while (query.seq1.size() < opt.minReadLength ||
+                   query.seq1.size() > opt.maxReadLength)
+            {
+                ++discardedCount;
+                if (!reader.has_next()) break;
+                query.id = reader.next_header_and_data(query.header, query.seq1, query.seq2);
+                ++totalReadCount;
+            }
 
             --queryLimit;
         }
@@ -274,6 +288,17 @@ query_id query_batched(
     }
     catch(std::exception& e) {
         handleErrors(e);
+    }
+
+    if (discardedCount > 0) {
+        std::size_t readsUsedCount =  totalReadCount - discardedCount;
+        std::cerr << "\nRead length filter ("
+                << opt.minReadLength << " - " << opt.maxReadLength << ") active\n"
+                << "total:     " << totalReadCount << "\n"
+                << "discarded: " << discardedCount << " ("
+                << (100.0 * double(discardedCount)/double(totalReadCount)) << "%)\n"
+                << "used:      " << readsUsedCount << " ("
+                << (100.0 * double(readsUsedCount)/double(totalReadCount)) << "%)\n";
     }
 
     return idOffset;

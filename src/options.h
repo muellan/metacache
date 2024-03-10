@@ -400,6 +400,9 @@ struct query_options
 
     database_storage_options dbconfig;
 
+    std::size_t minReadLength = 0;
+    std::size_t maxReadLength = std::numeric_limits<std::size_t>::max();
+
     // query sketching options (all set to 0 : use value from database)
     sketching_opt sketching {0,0,0,0};
 

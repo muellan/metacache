@@ -1151,6 +1151,20 @@ query_mode_cli(query_options& opt, error_messages& err)
               "default: sum of lengths of the individual reads"
     )
     ,
+    "READ FILTERS" % (
+        ( option("-min-readlen") & integer("#", opt.minReadLength)
+                .if_missing([&]{ err += "Number missing after '-min-readlen'!"; }))
+            % "Minimum length of reads (in bp). "
+              "Reads shorter than the given number will not be classified.\n"
+              "default: no limit"
+        ,
+        ( option("-max-readlen") & integer("#", opt.maxReadLength)
+                .if_missing([&]{ err += "Number missing after '-max-readlen'!"; }))
+            % "Maximum length of reads (in bp). "
+              "Reads longer than the given number will not be classified.\n"
+              "default: no limit"
+    )
+    ,
     "CLASSIFICATION" %
         classification_params_cli(opt.classify, err)
     ,

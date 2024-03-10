@@ -64,6 +64,17 @@ PAIRED-END READ HANDLING
                       default: sum of lengths of the individual reads
 
 
+READ FILTERS
+
+    -min-readlen <#>  Minimum length of reads (in bp). Reads shorter than the
+                      given number will not be classified.
+                      default: no limit
+
+    -max-readlen <#>  Maximum length of reads (in bp). Reads longer than the
+                      given number will not be classified.
+                      default: no limit
+
+
 CLASSIFICATION
 
     -lowest <rank>    Do not classify on ranks below <rank>
@@ -309,7 +320,7 @@ ADVANCED: DATABASE MODIFICATION
 ADVANCED: PERFORMANCE TUNING / TESTING
 
     -threads <#>      Sets the maximum number of parallel threads to use.default
-                      (on this machine): 8
+                      (on this machine): 32
 
 
     -batch-size <#>   Process <#> many queries (reads or read pairs) per thread
@@ -318,7 +329,7 @@ ADVANCED: PERFORMANCE TUNING / TESTING
 
     -query-limit <#>  Classify at max. <#> queries (reads or read pairs) per
                       input file.
-                      default: 9223372036854775807
+                      default: no limit
 
 
 EXAMPLES
