@@ -37,26 +37,26 @@ int main(int argc, char** argv)
     using namespace mc;
 
     std::string modestr;
-    if(argc > 1) { modestr = argv[1]; }
+    if (argc > 1) { modestr = argv[1]; }
 
     try {
 
-        if(modestr == "build") {
+        if (modestr == "build") {
             main_mode_build(make_args_list(argv+2, argv+argc));
         }
-        else if(modestr == "modify") {
+        else if (modestr == "modify") {
             main_mode_modify(make_args_list(argv+2, argv+argc));
         }
-        else if(modestr == "query") {
+        else if (modestr == "query") {
             main_mode_query(make_args_list(argv+2, argv+argc));
         }
-        else if(modestr == "build+query") {
+        else if (modestr == "build+query") {
             main_mode_build_query(make_args_list(argv+2, argv+argc));
         }
-        else if(modestr == "merge") {
+        else if (modestr == "merge") {
             main_mode_merge(make_args_list(argv+2, argv+argc));
         }
-        else if(modestr == "info") {
+        else if (modestr == "info") {
             main_mode_info(make_args_list(argv+2, argv+argc));
         }
         else {

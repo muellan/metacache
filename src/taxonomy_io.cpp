@@ -72,29 +72,29 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
     // each line consists of taxonId, name, uniqueName and category
     // field terminator is "\t|\t"
     // row terminator is "\t|\n"
-    if(is.good()) {
-        if(showInfo) cout << "Reading taxon names ... " << std::flush;
+    if (is.good()) {
+        if (showInfo) cout << "Reading taxon names ... " << std::flush;
         taxon_id lastId = 0;
         taxon_id taxonId = 0;
         string name;
         string category;
 
-        while(is.good()) {
+        while (is.good()) {
             is >> taxonId;
-            if(taxonId != lastId) {
+            if (taxonId != lastId) {
                 is.ignore(3);
                 getline(is, name, '\t');
                 is.ignore(2);
                 forward(is, '|');
                 is >> category;
-                if(category.find("scientific") != string::npos) {
+                if (category.find("scientific") != string::npos) {
                     lastId = taxonId;
                     taxonNames.insert({taxonId,std::move(name)});
                 }
             }
             forward(is, '\n');
         }
-        if(showInfo) cout << "done." << std::endl;
+        if (showInfo) cout << "done." << std::endl;
     }
     else {
         cerr << "Could not read taxon names file "
@@ -111,12 +111,12 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
     // each line consists of oldId and newId
     // field terminator is "\t|\t"
     // row terminator is "\t|\n"
-    if(is.good()) {
-        if(showInfo) cout << "Reading taxonomic node mergers ... " << std::flush;
+    if (is.good()) {
+        if (showInfo) cout << "Reading taxonomic node mergers ... " << std::flush;
         taxon_id oldId;
         taxon_id newId;
 
-        while(is.good()) {
+        while (is.good()) {
             is >> oldId;
             forward(is, '|');
             is >> newId;
@@ -125,7 +125,7 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
 
             tax.emplace_non_target_taxon(oldId, newId, "", "");
         }
-        if(showInfo) cout << "done." << std::endl;
+        if (showInfo) cout << "done." << std::endl;
     }
     is.close();
 
@@ -134,13 +134,13 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
     // each line consists of taxonId, parentId, rank, ...
     // field terminator is "\t|\t"
     // row terminator is "\t|\n"
-    if(is.good()) {
-        if(showInfo) cout << "Reading taxonomic tree ... " << std::flush;
+    if (is.good()) {
+        if (showInfo) cout << "Reading taxonomic tree ... " << std::flush;
         taxon_id taxonId;
         taxon_id parentId;
         string rankName;
 
-        while(is.good()) {
+        while (is.good()) {
             is >> taxonId;
             is.ignore(3);
             is >> parentId;
@@ -152,20 +152,20 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
             auto it = taxonNames.find(taxonId);
             auto taxonName = (it != taxonNames.end())
                              ? it->second : string("--");
-            if(taxonName.empty()) {
+            if (taxonName.empty()) {
                 taxonName = "<" + std::to_string(taxonId) + ">";
             }
 
             //replace ids with new ids according to mergers
             //TODO this is stupid, handle mergers properly
             auto mi = mergedTaxa.find(taxonId);
-            if(mi != mergedTaxa.end()) taxonId = mi->second;
+            if (mi != mergedTaxa.end()) taxonId = mi->second;
             mi = mergedTaxa.find(parentId);
-            if(mi != mergedTaxa.end()) parentId = mi->second;
+            if (mi != mergedTaxa.end()) parentId = mi->second;
 
             tax.emplace_non_target_taxon(taxonId, parentId, taxonName, rankName);
         }
-        if(showInfo) cout << tax.non_target_taxon_count() << " taxa read." << std::endl;
+        if (showInfo) cout << tax.non_target_taxon_count() << " taxa read." << std::endl;
     }
     else {
         cerr << "Could not read taxonomic nodes file "
@@ -192,8 +192,8 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
     const bool showInfo = infoLvl != info_level::silent;
 
     std::ifstream is{mappingFile};
-    if(is.good()) {
-        if(showInfo) {
+    if (is.good()) {
+        if (showInfo) {
             cout << "Reading sequence to taxon mappings from " << mappingFile
                  << std::endl;
         }
@@ -205,7 +205,7 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
         //update progress indicator every 128K lines
         size_t step = 0;
         size_t statStep = 1UL << 17;
-        if(showProgress) show_progress_indicator(cout, 0);
+        if (showProgress) show_progress_indicator(cout, 0);
 
 
         //read first line(s) and determine the columns which hold
@@ -213,11 +213,11 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
         int headerRow = 0;
         {
             string line;
-            for(int i = 0; i < 10; ++i, ++headerRow) {
+            for (int i = 0; i < 10; ++i, ++headerRow) {
                 getline(is, line);
-                if(line[0] != '#') break;
+                if (line[0] != '#') break;
             }
-            if(headerRow > 0) --headerRow;
+            if (headerRow > 0) --headerRow;
         }
 
         //reopen and forward to header row
@@ -225,10 +225,10 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
         is.open(mappingFile);
         {
             string line;
-            for(int i = 0; i < headerRow; ++i) getline(is, line);
+            for (int i = 0; i < headerRow; ++i) getline(is, line);
         }
 
-        if(is.good()) {
+        if (is.good()) {
             //process header row
             int keycol = 0;
             int taxcol = 0;
@@ -237,12 +237,12 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
                 string header;
                 getline(is, header);
                 std::istringstream hs(header);
-                while(hs >> header) {
+                while (hs >> header) {
                     // handle comment chars
                     if (header.size() == 1 && header[0] == '#') {
                         hs >> header;
                     }
-                    if(header == "taxid") {
+                    if (header == "taxid") {
                         taxcol = col;
                     }
                     else if (header == "accession.version" ||
@@ -254,7 +254,7 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
                 }
             }
             //taxid column assignment not found
-            if(taxcol < 1) {
+            if (taxcol < 1) {
                 //reopen file and use 1st column as key and 2nd column as taxid
                 is.close();
                 is.open(mappingFile);
@@ -263,23 +263,23 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
 
             string key;
             taxon_id taxonId;
-            while(is.good()) {
+            while (is.good()) {
                 //forward to column with key
-                for(int i = 0; i < keycol; ++i) forward(is, '\t');
+                for (int i = 0; i < keycol; ++i) forward(is, '\t');
                 is >> key;
                 //forward to column with taxid
-                for(int i = 0; i < taxcol; ++i) forward(is, '\t');
+                for (int i = 0; i < taxcol; ++i) forward(is, '\t');
                 is >> taxonId;
                 forward(is, '\n');
 
                 map.insert({key, taxonId});
 
-                if(showProgress && !(++step % statStep)) {
+                if (showProgress && !(++step % statStep)) {
                     auto pos = is.tellg();
                     show_progress_indicator(cout, pos / float(fsize));
                 }
             }
-            if(showProgress) clear_current_line(cout);
+            if (showProgress) clear_current_line(cout);
         }
     }
 }
@@ -300,13 +300,13 @@ make_sequence_to_taxon_id_map(const std::vector<string>& localMappingFilenames,
 
     auto map = std::map<string,taxon_id>{};
 
-    for(const auto& dir : indirs) {
-        for(const auto& file : localMappingFilenames) {
+    for (const auto& dir : indirs) {
+        for (const auto& file : localMappingFilenames) {
             read_sequence_to_taxon_id_mapping(dir + "/" + file, map, infoLvl);
         }
     }
 
-    for(const auto& file : globalMappingFilenames) {
+    for (const auto& file : globalMappingFilenames) {
         read_sequence_to_taxon_id_mapping(file, map, infoLvl);
     }
 

@@ -124,7 +124,7 @@ private:
     {
         const size_t numGPUs = size_t(numParts) * replication;
 
-        if(numGPUs > num_gpus())
+        if (numGPUs > num_gpus())
             throw std::runtime_error{"Number of GPUs must be greater than number of parts"};
 
         numParts_ = numParts;
@@ -174,8 +174,8 @@ public:
     //-----------------------------------------------------
     void max_locations_per_feature(bucket_size_type n)
     {
-        if(n < 1) n = 1;
-        if(n >= max_supported_locations_per_feature()) {
+        if (n < 1) n = 1;
+        if (n >= max_supported_locations_per_feature()) {
             n = max_supported_locations_per_feature();
         }
         maxLocationsPerFeature_ = n;
@@ -208,11 +208,11 @@ public:
     }
     //-----------------------------------------------------
     void max_load_factor(float lf) {
-        if(lf > 1.0f) lf = 1.0f;
-        if(lf < 0.1f) lf = 0.1f;
+        if (lf > 1.0f) lf = 1.0f;
+        if (lf < 0.1f) lf = 0.1f;
 
         using std::abs;
-        if(abs(maxLoadFactor_ - lf) > 0.00001f) {
+        if (abs(maxLoadFactor_ - lf) > 0.00001f) {
             maxLoadFactor_ = lf;
         }
     }

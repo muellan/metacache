@@ -75,7 +75,7 @@ public:
     //-----------------------------------------------------
     void
     push(argument_type x) {
-        if(x > max_) max_ = x;
+        if (x > max_) max_ = x;
         moments_.push(x);
     }
 
@@ -83,7 +83,7 @@ public:
     //---------------------------------------------------------------
     void
     merge(const statistics_accumulator& other) {
-        if(other.max_ > max_) max_ = other.max_;
+        if (other.max_ > max_) max_ = other.max_;
         moments_.merge(other.moments_);
     }
 

@@ -116,14 +116,14 @@ public:
     void clear() noexcept { resize(0); }
 
     void reserve(size_type newCapacity) {
-        if(capacity_ < newCapacity) {
+        if (capacity_ < newCapacity) {
             capacity_ = round_up_32(newCapacity);
             data_ = (char_type*)realloc(data_, capacity_*sizeof(char_type));
         }
     }
 
     void reserve_exactly(size_type newCapacity) {
-        if(capacity_ < newCapacity) {
+        if (capacity_ < newCapacity) {
             capacity_ = newCapacity;
             data_ = (char_type*)realloc(data_, capacity_*sizeof(char_type));
         }
@@ -191,14 +191,14 @@ public:
             other.file_ = NULL;
         }
         ~filehandle() {
-            if(file_) close();
+            if (file_) close();
         }
 
 #ifndef MC_NO_ZLIB
         gzFile file_;
 
         Status open(const char *filename) {
-            if(file_) close();
+            if (file_) close();
             file_ = gzopen(filename, "r");
             if (file_ == Z_NULL)
                 return Status::err;
@@ -214,7 +214,7 @@ public:
         FILE* file_;
 
         Status open(const char *filename) {
-            if(file_) close();
+            if (file_) close();
             file_ = fopen(filename, "r");
             if (file_ == NULL)
                 return Status::err;
@@ -225,7 +225,7 @@ public:
         }
         int read(void *buffer, size_t size) {
             size_t readSize = fread(buffer, 1, size, file_);
-            if(ferror(file_))
+            if (ferror(file_))
                 return -1;
             else
                 return readSize;
@@ -298,7 +298,7 @@ private:
     bool buffer_empty() const noexcept { return begin_ >= end_; }
 
     bool validate_buffer() {
-        if(status_ != Status::no_err) return false;
+        if (status_ != Status::no_err) return false;
 
         if (buffer_empty()) {
             begin_ = 0;
@@ -321,7 +321,7 @@ private:
 public:
     void read_char()
     {
-        if(validate_buffer())
+        if (validate_buffer())
             lastChar_ = buf_[(begin_++)];
         else
             lastChar_ = 0;
@@ -329,7 +329,7 @@ public:
 
     void peek_char()
     {
-        if(validate_buffer())
+        if (validate_buffer())
             lastChar_ = buf_[begin_];
         else
             lastChar_ = 0;
@@ -349,7 +349,7 @@ private:
     {
         bool gotany = false;
         for (;;) {
-            if(!validate_buffer()) break;
+            if (!validate_buffer()) break;
 
             // find line seperator
             unsigned char *sep = (unsigned char*)memchr(buf_.get() + begin_, '\n', end_ - begin_);
@@ -377,7 +377,7 @@ private:
 public:
     void skip_line() {
         for (;;) {
-            if(!validate_buffer()) break;
+            if (!validate_buffer()) break;
 
             // find line seperator
             unsigned char *sep = (unsigned char*)memchr(buf_.get() + begin_, '\n', end_ - begin_);

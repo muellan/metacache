@@ -116,11 +116,11 @@ raw_moment_2(InputIterator begin, InputIterator end)
 
     const auto n = fp_t(distance(begin,end));
 
-    if(n < fp_t(1)) return fp_t(0);
+    if (n < fp_t(1)) return fp_t(0);
 
     auto s2 = fp_t(0);
 
-    for(; begin != end; ++begin) {
+    for (; begin != end; ++begin) {
         s2 += (*begin) * (*begin);
     }
 
@@ -138,12 +138,12 @@ variance(InputIterator begin, InputIterator end)
 
     const auto n = fp_t(distance(begin,end));
 
-    if(n < fp_t(1)) return fp_t(0);
+    if (n < fp_t(1)) return fp_t(0);
 
     auto s = fp_t(0);
     auto s2 = fp_t(0);
 
-    for(; begin != end; ++begin) {
+    for (; begin != end; ++begin) {
         s += *begin;
         s2 += (*begin) * (*begin);
     }
@@ -186,11 +186,11 @@ raw_moment_3(InputIterator begin, InputIterator end)
 
     const auto n = fp_t(distance(begin,end));
 
-    if(n < fp_t(1)) return fp_t(0);
+    if (n < fp_t(1)) return fp_t(0);
 
     auto s3 = fp_t(0);
 
-    for(; begin != end; ++begin) {
+    for (; begin != end; ++begin) {
         s3 += (*begin) * (*begin) * (*begin);
     }
 
@@ -208,13 +208,13 @@ central_moment_3(InputIterator begin, InputIterator end)
 
     const auto n = fp_t(distance(begin,end));
 
-    if(n < fp_t(1)) return fp_t(0);
+    if (n < fp_t(1)) return fp_t(0);
 
     auto s = fp_t(0);
     auto s2 = fp_t(0);
     auto s3 = fp_t(0);
 
-    for(; begin != end; ++begin) {
+    for (; begin != end; ++begin) {
         const auto x = *begin;
         s += x;
         x *= x;
@@ -237,13 +237,13 @@ skewness(InputIterator begin, InputIterator end)
 
     const auto n = fp_t(distance(begin,end));
 
-    if(n < fp_t(1)) return fp_t(0);
+    if (n < fp_t(1)) return fp_t(0);
 
     auto s = fp_t(0);
     auto s2 = fp_t(0);
     auto s3 = fp_t(0);
 
-    for(; begin != end; ++begin) {
+    for (; begin != end; ++begin) {
         const auto x = *begin;
         s += x;
         x *= x;
@@ -279,11 +279,11 @@ raw_moment_4(InputIterator begin, InputIterator end)
 
     const auto n = fp_t(distance(begin,end));
 
-    if(n < fp_t(1)) return fp_t(0);
+    if (n < fp_t(1)) return fp_t(0);
 
     auto s4 = fp_t(0);
 
-    for(; begin != end; ++begin) {
+    for (; begin != end; ++begin) {
         s4 += (*begin) * (*begin) * (*begin) * (*begin);
     }
 
@@ -300,14 +300,14 @@ central_moment_4(InputIterator begin, InputIterator end)
 
     const auto n = fp_t(distance(begin,end));
 
-    if(n < fp_t(1)) return fp_t(0);
+    if (n < fp_t(1)) return fp_t(0);
 
     auto s = fp_t(0);
     auto s2 = fp_t(0);
     auto s3 = fp_t(0);
     auto s4 = fp_t(0);
 
-    for(; begin != end; ++begin) {
+    for (; begin != end; ++begin) {
         const auto x = *begin;
         s += x;
         x *= x;
@@ -333,14 +333,14 @@ kurtosis(InputIterator begin, InputIterator end)
 
     const auto n = fp_t(distance(begin,end));
 
-    if(n < fp_t(1)) return fp_t(0);
+    if (n < fp_t(1)) return fp_t(0);
 
     auto s = fp_t(0);
     auto s2 = fp_t(0);
     auto s3 = fp_t(0);
     auto s4 = fp_t(0);
 
-    for(; begin != end; ++begin) {
+    for (; begin != end; ++begin) {
         const auto x = *begin;
         s += x;
         x *= x;
@@ -830,7 +830,7 @@ public:
     //-----------------------------------------------------
     result_type
     central_moment_3() const {
-        if(size() < 2) return result_type(0);
+        if (size() < 2) return result_type(0);
 
         auto n2 = n() * n();
 
@@ -845,7 +845,7 @@ public:
     skewness() const {
         using std::pow;
 
-        if(size() < 2) return result_type(0);
+        if (size() < 2) return result_type(0);
 
         auto n2 = n() * n();
         auto s2 = sum() * sum();
@@ -984,7 +984,7 @@ public:
     //-----------------------------------------------------
     result_type
     central_moment_4() const {
-        if(size() < 2) return result_type(0);
+        if (size() < 2) return result_type(0);
 
         auto n2 = n()*n();
         auto s2 = sum() * sum();

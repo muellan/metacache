@@ -86,43 +86,43 @@ get_results_file_properties(const string& filename)
     res.filename = filename;
 
     std::ifstream ifs(filename);
-    if(!ifs.good()) throw io_error("could not open file " + filename);
+    if (!ifs.good()) throw io_error("could not open file " + filename);
 
     string line;
 
     //check classification rank
-    while(ifs.good()) {
+    while (ifs.good()) {
         getline(ifs, line);
-        if(line[0] != '#') {
+        if (line[0] != '#') {
             throw io_format_error("classificaion ranks not found in file " + filename);
         }
-        if(line.compare(0,16,"# Classification") == 0) {
+        if (line.compare(0,16,"# Classification") == 0) {
             auto pos = line.find("sequence");
-            if(pos != string::npos)
+            if (pos != string::npos)
                 throw io_format_error("cannot merge results on sequence level");
             break;
         }
     }
 
     //get layout
-    while(ifs.good()) {
+    while (ifs.good()) {
         getline(ifs, line);
-        if(line[0] != '#') {
+        if (line[0] != '#') {
             throw io_format_error("TABLE_LAYOUT not found in file " + filename);
         }
-        if(line.compare(0,15,"# TABLE_LAYOUT:") == 0) {
+        if (line.compare(0,15,"# TABLE_LAYOUT:") == 0) {
             std::stringstream lineStream(line.substr(15));
             string column;
             lineStream >> column;
-            if(column != "query_id") {
+            if (column != "query_id") {
                 throw io_format_error("no query_id in file " + filename);
             }
             int col = 0;
-            while(lineStream.good()) {
+            while (lineStream.good()) {
                 forward(lineStream, '|');
                 lineStream >> column;
                 ++col;
-                if(column == "top_hits") {
+                if (column == "top_hits") {
                     res.tophitsColumn = col;
                     break;
                 }
@@ -130,19 +130,19 @@ get_results_file_properties(const string& filename)
             break;
         }
     }
-    if(res.tophitsColumn < 1)
+    if (res.tophitsColumn < 1)
         throw io_format_error("no top_hits in file " + filename);
 
     char lineBegin = ifs.peek();
     //skip comments
-    while(ifs.good() && lineBegin == '#') {
+    while (ifs.good() && lineBegin == '#') {
         forward(ifs, '\n');
         lineBegin = ifs.peek();
     }
     //count query results
     res.resultsBegin = ifs.tellg();
-    while(ifs.good()) {
-        if(lineBegin != '#') ++res.numQueries;
+    while (ifs.good()) {
+        if (lineBegin != '#') ++res.numQueries;
         forward(ifs, '\n');
         lineBegin = ifs.peek();
     }
@@ -164,47 +164,47 @@ void read_results(const results_source& res,
                   vector<classification_candidates>& queryCandidates)
 {
     std::ifstream ifs(res.filename);
-    if(!ifs.good()) throw io_error("could not re-open file " + res.filename);
+    if (!ifs.good()) throw io_error("could not re-open file " + res.filename);
     ifs.seekg(res.resultsBegin);
-    if(!ifs.good()) throw io_format_error("could not process file " + res.filename);
+    if (!ifs.good()) throw io_format_error("could not process file " + res.filename);
 
     // preallocate
     queryCandidates.resize(res.numQueries);
     queryHeaders.resize(res.numQueries);
 
     char lineBegin = ifs.peek();
-    while(ifs.good()) {
-        if(lineBegin != '#') {
+    while (ifs.good()) {
+        if (lineBegin != '#') {
             size_t queryId;
             ifs >> queryId;
-            if(queryId > 0) queryId--;
+            if (queryId > 0) queryId--;
 
             // if results are incomplete, queryIds can exceed preallocation
-            if(queryId+1 > res.numQueries) {
+            if (queryId+1 > res.numQueries) {
                 queryCandidates.resize(queryId+1);
                 queryHeaders.resize(queryId+1);
             }
 
             forward(ifs, '|');
             // if we don't have a query header yet -> read from file
-            if(queryHeaders[queryId].empty()) {
+            if (queryHeaders[queryId].empty()) {
                 string header;
                 ifs >> header;
-                if(!header.empty()) queryHeaders[queryId] = std::move(header);
+                if (!header.empty()) queryHeaders[queryId] = std::move(header);
             }
 
             // skip to tophits
-            for(int i = 1; i < res.tophitsColumn; ++i) forward(ifs, '|');
+            for (int i = 1; i < res.tophitsColumn; ++i) forward(ifs, '|');
             forward(ifs, '\t');
 
             // get tophits
-            for(char nextChar = ifs.peek();
+            for (char nextChar = ifs.peek();
                 ifs.good() && nextChar != '\t'; // '\t' marks end of tophits
                 nextChar = ifs.get())           // consume ',' between tophits or '\t' at the end
             {
                 taxon_id taxid;
                 ifs >> taxid;
-                if(ifs.fail()) {
+                if (ifs.fail()) {
                     cerr << "Query " << queryId+1 << ": Could not read taxid.\n";
                     ifs.clear();
                 }
@@ -214,7 +214,7 @@ void read_results(const results_source& res,
                 ifs >> hits;
 
                 const taxon* tax = taxonomy.taxon_with_id(taxid);
-                if(tax) {
+                if (tax) {
                     queryCandidates[queryId].insert(match_candidate{tax, hits}, taxonomy, rules);
                 } else {
                     cerr << "Query " << queryId+1 << ": taxid " << taxid << " not found. Skipping hit.\n";
@@ -226,7 +226,7 @@ void read_results(const results_source& res,
         lineBegin = ifs.peek();
     }
 
-    if(!ifs.eof())
+    if (!ifs.eof())
         cerr <<  "Did not reach EOF in " + res.filename + ". Something went wrong.\n";
 }
 
@@ -249,26 +249,26 @@ void merge_result_files(const vector<string>& infiles,
     candidate_generation_rules rules;
 
     rules.mergeBelow    = opt.classify.lowestRank;
-    if(opt.classify.maxNumCandidatesPerQuery > 0)
+    if (opt.classify.maxNumCandidatesPerQuery > 0)
         rules.maxCandidates = opt.classify.maxNumCandidatesPerQuery;
     //else default to 2
 
     const auto& comment = opt.output.format.tokens.comment;
 
-    if(infoLvl == info_level::verbose) {
+    if (infoLvl == info_level::verbose) {
         cerr << " Max canddidates: " << rules.maxCandidates << '\n';
         cerr << " Number of files: " << infiles.size() << '\n';
     }
 
     results.perReadOut << comment << "Merging " << infiles.size() << " files:\n";
-    for(const auto& filename : infiles) {
+    for (const auto& filename : infiles) {
         results.perReadOut << comment << filename << '\n';
     }
 
-    for(size_t i = 0; i < infiles.size(); ++i) {
+    for (size_t i = 0; i < infiles.size(); ++i) {
         show_progress_indicator(cerr, infiles.size() > 1 ? i/float(infiles.size()) : -1);
 
-        if(infoLvl == info_level::verbose) {
+        if (infoLvl == info_level::verbose) {
             cerr << "Merging " << infiles[i] << '\n';
         }
 
@@ -301,10 +301,10 @@ void process_result_files(const vector<string>& infiles,
     std::ostream* status       = &cerr;
 
     std::ofstream mapFile;
-    if(!queryMappingsFilename.empty()) {
+    if (!queryMappingsFilename.empty()) {
         mapFile.open(queryMappingsFilename, std::ios::out);
 
-        if(mapFile.good()) {
+        if (mapFile.good()) {
             cout << "Per-Read mappings will be written to file: " << queryMappingsFilename << endl;
             perReadOut = &mapFile;
             //default: auxiliary output same as mappings output
@@ -317,10 +317,10 @@ void process_result_files(const vector<string>& infiles,
     }
 
     std::ofstream abundanceFile;
-    if(!abundanceFilename.empty()) {
+    if (!abundanceFilename.empty()) {
         abundanceFile.open(abundanceFilename, std::ios::out);
 
-        if(abundanceFile.good()) {
+        if (abundanceFile.good()) {
             cout << "Per-Taxon mappings will be written to file: " << abundanceFilename << endl;
             perTaxonOut = &abundanceFile;
         }
@@ -331,7 +331,7 @@ void process_result_files(const vector<string>& infiles,
 
     classification_results results {*perReadOut,*perTargetOut,*perTaxonOut,*status};
 
-    if(opt.output.showQueryParams) {
+    if (opt.output.showQueryParams) {
         show_query_parameters(results.perReadOut, opt);
     }
 
@@ -344,7 +344,7 @@ void process_result_files(const vector<string>& infiles,
     clear_current_line(results.status);
     results.status.flush();
 
-    if(opt.output.showSummary) show_summary(opt, results);
+    if (opt.output.showSummary) show_summary(opt, results);
 
     results.flush_all_streams();
 }
@@ -362,12 +362,12 @@ void process_result_files(const vector<string>& infiles,
                          const query_options& opt,
                          info_level infoLvl)
 {
-    if(infiles.empty()) return;
+    if (infiles.empty()) return;
 
     bool noneReadable = std::none_of(infiles.begin(), infiles.end(),
                        [](const auto& f) { return file_readable(f); });
 
-    if(noneReadable) {
+    if (noneReadable) {
         throw std::runtime_error{
             "None of the query sequence files could be opened"};
     }
@@ -392,7 +392,7 @@ void main_mode_merge(const cmdline_args& args)
 
     database db;
 
-    if(!opt.taxonomy.path.empty()) {
+    if (!opt.taxonomy.path.empty()) {
         db.taxo_cache().reset_taxa_above_sequence_level(
             make_taxonomic_hierarchy(opt.taxonomy.nodesFile,
                                      opt.taxonomy.namesFile,
@@ -401,14 +401,14 @@ void main_mode_merge(const cmdline_args& args)
 
         db.taxo_cache().update_cached_lineages(taxon_rank::none);
 
-        if(opt.infoLevel != info_level::silent) {
+        if (opt.infoLevel != info_level::silent) {
             cerr << "Applied taxonomy to database.\n";
         }
     }
 
     //TODO parallelize result processing?
 
-    if(opt.infiles.size() >= 2) {
+    if (opt.infiles.size() >= 2) {
         cerr << "Merging result files.\n";
 
         process_result_files(opt.infiles, db, opt.query, opt.infoLevel);

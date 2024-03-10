@@ -90,7 +90,7 @@ public:
         result_type sum3)
     {
         *size_() += n;
-        if(max > *max_()) *max_() = max;
+        if (max > *max_()) *max_() = max;
         *sum_()  += sum;
         *sum2_() += sum2;
         *sum3_() += sum3;
@@ -152,7 +152,7 @@ public:
     result_type skewness() const noexcept {
         using std::pow;
 
-        if(size() < 2) return result_type(0);
+        if (size() < 2) return result_type(0);
 
         auto n2 = n() * n();
         auto s2 = sum() * sum();

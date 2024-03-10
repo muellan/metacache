@@ -61,8 +61,8 @@ public:
 
         friend bool
         operator < (const cover_candidate& a, const cover_candidate& b) noexcept {
-            if(a.pos < b.pos) return true;
-            if(a.pos > b.pos) return false;
+            if (a.pos < b.pos) return true;
+            if (a.pos > b.pos) return false;
             return (a.qid < b.qid);
         }
 
@@ -107,9 +107,9 @@ public:
                 const span<const match_candidate> candidates,
                 match_count_type minHitsPerCandidate = 0)
     {
-        for(const auto& cand : candidates) {
+        for (const auto& cand : candidates) {
             // insert valid candidates into map
-            if(cand.tax && cand.hits >= minHitsPerCandidate) {
+            if (cand.tax && cand.hits >= minHitsPerCandidate) {
                 hitsPerTarget_[cand.tgt].emplace_back(qid, cand.pos, cand.hits);
             }
         }
@@ -118,7 +118,7 @@ public:
     //---------------------------------------------------------------
     void merge(matches_per_target&& other)
     {
-        for(auto& mapping : other) {
+        for (auto& mapping : other) {
 
             auto& source = mapping.second;
             auto& target = hitsPerTarget_[mapping.first];
@@ -132,7 +132,7 @@ public:
     //---------------------------------------------------------------
     void sort_match_lists()
     {
-        for(auto& mapping : hitsPerTarget_) {
+        for (auto& mapping : hitsPerTarget_) {
             std::sort(mapping.second.begin(), mapping.second.end());
         }
     }

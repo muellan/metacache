@@ -64,10 +64,10 @@ void process_input_files(const vector<string>& infiles,
     std::ostream* status       = &cerr;
 
     std::ofstream mapFile;
-    if(!queryMappingsFilename.empty()) {
+    if (!queryMappingsFilename.empty()) {
         mapFile.open(queryMappingsFilename, std::ios::out);
 
-        if(mapFile.good()) {
+        if (mapFile.good()) {
             cout << "Per-Read mappings will be written to file: " << queryMappingsFilename << endl;
             perReadOut = &mapFile;
             //default: auxiliary output same as mappings output
@@ -80,10 +80,10 @@ void process_input_files(const vector<string>& infiles,
     }
 
     std::ofstream targetMappingsFile;
-    if(!targetsFilename.empty()) {
+    if (!targetsFilename.empty()) {
         targetMappingsFile.open(targetsFilename, std::ios::out);
 
-        if(targetMappingsFile.good()) {
+        if (targetMappingsFile.good()) {
             cout << "Per-Target mappings will be written to file: " << targetsFilename << endl;
             perTargetOut = &targetMappingsFile;
         }
@@ -93,10 +93,10 @@ void process_input_files(const vector<string>& infiles,
     }
 
     std::ofstream abundanceFile;
-    if(!abundanceFilename.empty()) {
+    if (!abundanceFilename.empty()) {
         abundanceFile.open(abundanceFilename, std::ios::out);
 
-        if(abundanceFile.good()) {
+        if (abundanceFile.good()) {
             cout << "Per-Taxon mappings will be written to file: " << abundanceFilename << endl;
             perTaxonOut = &abundanceFile;
         }
@@ -107,7 +107,7 @@ void process_input_files(const vector<string>& infiles,
 
     classification_results results {*perReadOut,*perTargetOut,*perTaxonOut,*status};
 
-    if(opt.output.showQueryParams) {
+    if (opt.output.showQueryParams) {
         show_query_parameters(results.perReadOut, opt);
     }
 
@@ -120,7 +120,7 @@ void process_input_files(const vector<string>& infiles,
     clear_current_line(results.status);
     results.status.flush();
 
-    if(opt.output.showSummary) show_summary(opt, results);
+    if (opt.output.showSummary) show_summary(opt, results);
 
     results.flush_all_streams();
 }
@@ -138,16 +138,16 @@ void process_input_files(const database& db,
 {
     const auto& infiles = opt.infiles;
 
-    if(infiles.empty()) {
+    if (infiles.empty()) {
         cerr << "No input filenames provided!\n";
         return;
     }
     else {
         bool noneReadable = std::none_of(infiles.begin(), infiles.end(),
                            [](const auto& f) { return file_readable(f); });
-        if(noneReadable) {
+        if (noneReadable) {
             string msg = "None of the following query sequence files could be opened:";
-            for(const auto& f : infiles) { msg += "\n    " + f; }
+            for (const auto& f : infiles) { msg += "\n    " + f; }
             throw std::runtime_error{std::move(msg)};
         }
     }
@@ -155,18 +155,18 @@ void process_input_files(const database& db,
     //process files / file pairs separately
     const auto& ano = opt.output.analysis;
 
-    if(opt.splitOutputPerInput) {
+    if (opt.splitOutputPerInput) {
         string queryMappingsFile;
         string targetMappingsFile;
         string abundanceFile;
         const size_t stride = (opt.pairing == pairing_mode::files) &&
                               (infiles.size() > 1) ? 2 : 1;
 
-        for(std::size_t i = 0; i < infiles.size(); i += stride) {
+        for (std::size_t i = 0; i < infiles.size(); i += stride) {
             string suffix;
             vector<string> input;
 
-            if(stride == 2) {
+            if (stride == 2) {
                 //process each input file pair separately
                 const auto& f1 = infiles[i];
                 const auto& f2 = infiles[i+1];
@@ -182,15 +182,15 @@ void process_input_files(const database& db,
                 input = vector<string>{f};
             }
 
-            if(!opt.queryMappingsFile.empty()) {
+            if (!opt.queryMappingsFile.empty()) {
                 queryMappingsFile = opt.queryMappingsFile + suffix;
             }
-            if(!ano.targetMappingsFile.empty() &&
+            if (!ano.targetMappingsFile.empty() &&
                 ano.targetMappingsFile != opt.queryMappingsFile)
             {
                 targetMappingsFile = ano.targetMappingsFile + suffix;
             }
-            if(!ano.abundanceFile.empty() &&
+            if (!ano.abundanceFile.empty() &&
                 ano.abundanceFile != opt.queryMappingsFile)
             {
                 abundanceFile = ano.abundanceFile + suffix;
@@ -224,15 +224,15 @@ void adapt_options_to_database(query_options& opt, const database& db)
     const auto& dbsk = db.target_sketching();
 
     skopt.kmerlen = dbsk.kmerlen;
-    if(skopt.sketchlen < 1)
+    if (skopt.sketchlen < 1)
         skopt.sketchlen = dbsk.sketchlen;
-    if(skopt.winlen < 1)
+    if (skopt.winlen < 1)
         skopt.winlen = dbsk.winlen;
     // if no custom window stride requested => set to w-k+1
-    if(skopt.winstride < 1)
+    if (skopt.winstride < 1)
         skopt.winstride = skopt.winlen - skopt.kmerlen + 1;
 
-    if((skopt.sketchlen != dbsk.sketchlen) ||
+    if ((skopt.sketchlen != dbsk.sketchlen) ||
        (skopt.winlen    != dbsk.winlen)    ||
        (skopt.winstride != dbsk.winstride))
     {
@@ -246,9 +246,9 @@ void adapt_options_to_database(query_options& opt, const database& db)
     classification_options& clopt = opt.classify;
 
     //deduce hit threshold from database?
-    if(clopt.hitsMin < 1) {
+    if (clopt.hitsMin < 1) {
         auto sks = db.target_sketching().sketchlen;
-        if(sks >= 6) {
+        if (sks >= 6) {
             clopt.hitsMin = static_cast<int>(sks / 3.0);
         } else if (sks >= 4) {
             clopt.hitsMin = 2;
@@ -277,16 +277,16 @@ void run_interactive_query_mode(const database& db,
             " - Enter an empty line or press Ctrl-D to quit MetaCache.\n"
             << endl;
 
-    while(true) {
+    while (true) {
         cout << "$> " << std::flush;
 
         string input;
         std::getline(std::cin, input);
-        if(input.empty() || input.find(":q") == 0) {
+        if (input.empty() || input.find(":q") == 0) {
             cout << "Terminate." << endl;
             return;
         }
-        else if(input.find("#") == 0)
+        else if (input.find("#") == 0)
         {
             //comment line, do nothing
         }
@@ -294,7 +294,7 @@ void run_interactive_query_mode(const database& db,
             //tokenize input into whitespace-separated words and build args list
             vector<string> args {initOpt.dbfile};
             std::istringstream iss(input);
-            while(iss >> input) { args.push_back(input); }
+            while (iss >> input) { args.push_back(input); }
 
             //read command line options (use initial ones as defaults)
             try {
@@ -303,7 +303,7 @@ void run_interactive_query_mode(const database& db,
                 process_input_files(db, opt);
             }
             catch(std::exception& e) {
-                if(initOpt.output.showErrors) cerr << e.what() << '\n';
+                if (initOpt.output.showErrors) cerr << e.what() << '\n';
             }
         }
     }

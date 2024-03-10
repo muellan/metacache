@@ -50,8 +50,8 @@ reverse_complement(char_sequence& str)
 {
     std::reverse(str.begin(), str.end());
 
-    for(auto& c : str) {
-        switch(c) {
+    for (auto& c : str) {
+        switch (c) {
             case 'A': c = 'T'; break;
             case 'a': c = 't'; break;
             case 'C': c = 'G'; break;
@@ -288,11 +288,11 @@ for_each_kmer_2bit(numk_t k,
     ambigMsk >>= (sizeof(ambigMsk) * CHAR_BIT) - k;
 
     ++last;
-    for(auto ssend = next(first); ssend != last; ++first, ++ssend) {
+    for (auto ssend = next(first); ssend != last; ++first, ++ssend) {
         //encode next letter
         kmer <<= 2;
         ambig <<= 1;
-        switch(*first) {
+        switch (*first) {
             case 'A': case 'a': break;
             case 'C': case 'c': kmer |= 1; break;
             case 'G': case 'g': kmer |= 2; break;
@@ -301,7 +301,7 @@ for_each_kmer_2bit(numk_t k,
         }
         --k;
         //make sure we load k letters at the beginning
-        if(k == 0) {
+        if (k == 0) {
             kmer  &= kmerMsk;   //stamp out 2*k lower bits
             ambig &= ambigMsk;  //stamp out k lower bits
 
@@ -353,7 +353,7 @@ for_each_unambiguous_kmer_2bit(
 {
     for_each_kmer_2bit<UInt>(k, first, last,
         [&] (UInt kmer, half_size_t<UInt> ambig) {
-            if(!ambig) consume(kmer);
+            if (!ambig) consume(kmer);
         });
 }
 
@@ -426,7 +426,7 @@ for_each_unambiguous_canonical_kmer_2bit(
 {
     for_each_kmer_2bit<UInt>(k, first, last,
         [&] (UInt kmer, half_size_t<UInt> ambig) {
-            if(!ambig) consume(make_canonical_2bit(kmer, k));
+            if (!ambig) consume(make_canonical_2bit(kmer, k));
         });
 }
 

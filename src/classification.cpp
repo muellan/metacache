@@ -60,7 +60,7 @@ make_view_from_window_range(const Sequence& s, const window_range& range,
                             int size, int stride)
 {
     auto end = s.begin() + (stride * range.end) + size;
-    if(end > s.end()) end = s.end();
+    if (end > s.end()) end = s.end();
 
     return make_view(s.begin() + (stride * range.beg), end);
 }
@@ -91,7 +91,7 @@ make_semi_global_alignment(const sequence_query& query,
     scorer = alignr.score;
 
     //align paired read as well
-    if(!query.seq2.empty()) {
+    if (!query.seq2.empty()) {
         score += align_semi_global_score(query.seq2, subject, scheme);
         auto query2r = make_reverse_complement(query.seq2);
         scorer += align_semi_global_score(query2r, subject, scheme);
@@ -112,18 +112,18 @@ ground_truth(const taxonomy_cache& taxonomy, const string& header)
     //try to extract query id and find the corresponding target in database
     const taxon* tax = nullptr;
     tax = taxonomy.taxon_with_name(extract_accession_string(header, sequence_id_type::acc_ver));
-    if(tax) return taxonomy.cached_next_ranked_ancestor(tax);
+    if (tax) return taxonomy.cached_next_ranked_ancestor(tax);
 
     tax = taxonomy.taxon_with_similar_name(extract_accession_string(header, sequence_id_type::acc));
-    if(tax) return taxonomy.cached_next_ranked_ancestor(tax);
+    if (tax) return taxonomy.cached_next_ranked_ancestor(tax);
 
     //try to extract id from header
     tax = taxonomy.taxon_with_id(extract_taxon_id(header));
-    if(tax) return taxonomy.cached_next_ranked_ancestor(tax);
+    if (tax) return taxonomy.cached_next_ranked_ancestor(tax);
 
     //try to find entire header as sequence identifier
     tax = taxonomy.taxon_with_name(header);
-    if(tax) return taxonomy.cached_next_ranked_ancestor(tax);
+    if (tax) return taxonomy.cached_next_ranked_ancestor(tax);
 
     return nullptr;
 }
@@ -139,10 +139,10 @@ const taxon*
 classify(const taxonomy_cache& taxonomy, const classification_options& opt,
          const span<const match_candidate> cand)
 {
-    if(cand.empty() || !cand[0].tax) return nullptr;
+    if (cand.empty() || !cand[0].tax) return nullptr;
 
     //hits below threshold => considered not classifiable
-    if(cand[0].hits < opt.hitsMin) return nullptr;
+    if (cand[0].hits < opt.hitsMin) return nullptr;
 
     // begin lca with first candidate
     const taxon* lca = cand[0].tax;
@@ -159,9 +159,9 @@ classify(const taxonomy_cache& taxonomy, const classification_options& opt,
         taxonomy.cached_ranks(cand[0].tax);
 
     // check 2nd, 3rd, ...
-    for(auto i = cand.begin()+1; i != cand.end(); ++i) {
+    for (auto i = cand.begin()+1; i != cand.end(); ++i) {
         // include all candidates with hits above threshold
-        if(i->hits > threshold) {
+        if (i->hits > threshold) {
             const ranked_lineage& candRanks =
                 (i->tgt < taxonomy.target_taxon_count()) ?
                 taxonomy.cached_ranks(i->tgt) :
@@ -210,7 +210,7 @@ make_classification(
 
     cls.best = classify(taxonomy, optClassify, candidates);
 
-    if(makeGroundTruth) {
+    if (makeGroundTruth) {
         cls.groundTruth = ground_truth(taxonomy, query.header);
     }
 
@@ -228,20 +228,20 @@ void update_coverage_statistics(const taxonomy_cache& taxonomy,
                                 const classification& cls,
                                 classification_statistics& stats)
 {
-    if(!cls.groundTruth) return;
+    if (!cls.groundTruth) return;
     //check if taxa are covered in DB
-    for(const taxon* tax : taxonomy.cached_ranks(cls.groundTruth)) {
-        if(tax) {
+    for (const taxon* tax : taxonomy.cached_ranks(cls.groundTruth)) {
+        if (tax) {
             auto r = tax->rank();
-            if(taxonomy.covers(*tax)) {
-                if(!cls.best || r < cls.best->rank()) { //unclassified on rank
+            if (taxonomy.covers(*tax)) {
+                if (!cls.best || r < cls.best->rank()) { //unclassified on rank
                     stats.count_coverage_false_neg(r);
                 } else { //classified on rank
                     stats.count_coverage_true_pos(r);
                 }
             }
             else {
-                if(!cls.best || r < cls.best->rank()) { //unclassified on rank
+                if (!cls.best || r < cls.best->rank()) { //unclassified on rank
                     stats.count_coverage_true_neg(r);
                 } else { //classified on rank
                     stats.count_coverage_false_pos(r);
@@ -264,7 +264,7 @@ void evaluate_classification(
     const classification_evaluation_options& opt,
     classification_statistics& statistics)
 {
-    if(opt.precision) {
+    if (opt.precision) {
         auto lca = taxonomy.cached_ranked_lca(cls.best, cls.groundTruth);
         auto lowestCorrectRank = lca ? lca->rank() : taxon_rank::none;
 
@@ -274,7 +274,7 @@ void evaluate_classification(
             lowestCorrectRank);
 
         // check if taxa of assigned target are covered
-        if(opt.taxonCoverage) {
+        if (opt.taxonCoverage) {
             update_coverage_statistics(taxonomy, cls, statistics);
         }
 
@@ -291,17 +291,17 @@ void evaluate_classification(
  *
  *****************************************************************************/
 void estimate_abundance(const taxonomy_cache& taxonomy, taxon_count_map& allTaxCounts, const taxon_rank rank) {
-    if(rank != taxon_rank::Sequence) {
+    if (rank != taxon_rank::Sequence) {
         //prune taxon below estimation rank
         taxon t{0,0,"",rank-1};
         auto begin = allTaxCounts.lower_bound(&t);
-        for(auto taxCount = begin; taxCount != allTaxCounts.end();) {
+        for (auto taxCount = begin; taxCount != allTaxCounts.end();) {
             auto lineage = taxonomy.cached_ranks(taxCount->first);
             const taxon* ancestor = nullptr;
             unsigned index = static_cast<unsigned>(rank);
-            while(!ancestor && index < lineage.size())
+            while (!ancestor && index < lineage.size())
                 ancestor = lineage[index++];
-            if(ancestor) {
+            if (ancestor) {
                 allTaxCounts[ancestor] += taxCount->second;
                 taxCount = allTaxCounts.erase(taxCount);
             } else {
@@ -315,20 +315,20 @@ void estimate_abundance(const taxonomy_cache& taxonomy, taxon_count_map& allTaxC
     taxWeights.reserve(allTaxCounts.size());
 
     //initialize weigths for fast lookup
-    for(const auto& taxCount : allTaxCounts) {
+    for (const auto& taxCount : allTaxCounts) {
         taxWeights[taxCount.first] = 0;
     }
 
     //for every taxon find its parent and add to their count
     //traverse allTaxCounts from leafs to root
-    for(auto taxCount = allTaxCounts.rbegin(); taxCount != allTaxCounts.rend(); ++taxCount) {
+    for (auto taxCount = allTaxCounts.rbegin(); taxCount != allTaxCounts.rend(); ++taxCount) {
         //find closest parent
         auto lineage = taxonomy.cached_ranks(taxCount->first);
         const taxon* parent = nullptr;
         auto index = static_cast<std::uint8_t>(taxCount->first->rank()+1);
-        while(index < lineage.size()) {
+        while (index < lineage.size()) {
             parent = lineage[index++];
-            if(parent && taxWeights.count(parent)) {
+            if (parent && taxWeights.count(parent)) {
                 //add own count to parent
                 taxWeights[parent] += taxWeights[taxCount->first] + taxCount->second;
                 //link from parent to child
@@ -340,13 +340,13 @@ void estimate_abundance(const taxonomy_cache& taxonomy, taxon_count_map& allTaxC
 
     //distribute counts to children and erase parents
     //traverse allTaxCounts from root to leafs
-    for(auto taxCount = allTaxCounts.begin(); taxCount != allTaxCounts.end();) {
+    for (auto taxCount = allTaxCounts.begin(); taxCount != allTaxCounts.end();) {
         auto children = taxChildren.find(taxCount->first);
-        if(children != taxChildren.end()) {
+        if (children != taxChildren.end()) {
             query_id sumChildren = taxWeights[taxCount->first];
 
             //distribute proportionally
-            for(const auto& child : children->second) {
+            for (const auto& child : children->second) {
                 allTaxCounts[child] += taxCount->second * (allTaxCounts[child]+taxWeights[child]) / sumChildren;
             }
             taxCount = allTaxCounts.erase(taxCount);
@@ -373,14 +373,14 @@ void show_alignment(std::ostream& os,
 {
     //try to align to top target
     const taxon* tgtTax = tophits[0].tax;
-    if(tgtTax && tgtTax->rank() == taxon_rank::Sequence) {
+    if (tgtTax && tgtTax->rank() == taxon_rank::Sequence) {
         const auto& src = tgtTax->source();
         try {
             //load candidate file and forward to sequence
             sequence_reader reader{src.filename};
             reader.skip(src.index-1);
 
-            if(reader.has_next()) {
+            if (reader.has_next()) {
                 auto tgtSequ = reader.next().data;
                 auto subject = make_view_from_window_range(
                                tgtSequ, tophits[0].pos,
@@ -403,7 +403,7 @@ void show_alignment(std::ostream& os,
             }
         }
         catch(std::exception& e) {
-            if(opt.showErrors) cerr << e.what() << '\n';
+            if (opt.showErrors) cerr << e.what() << '\n';
         }
     }
 }
@@ -418,24 +418,24 @@ void show_alignment(std::ostream& os,
 void show_query_mapping_header(std::ostream& os,
                                const classification_output_options& opt)
 {
-    if(opt.format.mapViewMode == map_view_mode::none) return;
+    if (opt.format.mapViewMode == map_view_mode::none) return;
 
     const auto& colsep = opt.format.tokens.column;
 
     os << opt.format.tokens.comment << "TABLE_LAYOUT: ";
 
-    if(opt.format.showQueryIds) os << "query_id" << colsep;
+    if (opt.format.showQueryIds) os << "query_id" << colsep;
 
     os << "query_header" << colsep;
 
-    if(opt.evaluate.showGroundTruth) {
+    if (opt.evaluate.showGroundTruth) {
         show_taxon_header(os, opt.format, "truth_");
         os << colsep;
     }
 
-    if(opt.analysis.showAllHits) os << "all_hits" << colsep;
-    if(opt.analysis.showTopHits) os << "top_hits" << colsep;
-    if(opt.analysis.showLocations) os << "candidate_locations" << colsep;
+    if (opt.analysis.showAllHits) os << "all_hits" << colsep;
+    if (opt.analysis.showTopHits) os << "top_hits" << colsep;
+    if (opt.analysis.showLocations) os << "candidate_locations" << colsep;
 
     show_taxon_header(os, opt.format);
 
@@ -461,7 +461,7 @@ void show_query_mapping(
 {
     const auto& fmt = opt.format;
 
-    if(fmt.mapViewMode == map_view_mode::none ||
+    if (fmt.mapViewMode == map_view_mode::none ||
         (fmt.mapViewMode == map_view_mode::mapped_only && !cls.best))
     {
         return;
@@ -469,11 +469,11 @@ void show_query_mapping(
 
     const auto& colsep = fmt.tokens.column;
 
-    if(fmt.showQueryIds) os << query.id << colsep;
+    if (fmt.showQueryIds) os << query.id << colsep;
 
     //print query header (first contiguous string only)
     auto l = query.header.find(' ');
-    if(l != string::npos) {
+    if (l != string::npos) {
         auto oit = std::ostream_iterator<char>{os, ""};
         std::copy(query.header.begin(), query.header.begin() + l, oit);
     }
@@ -482,26 +482,26 @@ void show_query_mapping(
     }
     os << colsep;
 
-    if(opt.evaluate.showGroundTruth) {
+    if (opt.evaluate.showGroundTruth) {
         show_taxon(os, db.taxo_cache(), opt.format, cls.groundTruth);
         os << colsep;
     }
-    if(opt.analysis.showAllHits) {
+    if (opt.analysis.showAllHits) {
         show_matches(os, db.taxo_cache(), allhits, fmt.lowestRank);
         os << colsep;
     }
-    if(opt.analysis.showTopHits) {
+    if (opt.analysis.showTopHits) {
         show_candidates(os, db.taxo_cache(), candidates, fmt.lowestRank);
         os << colsep;
     }
-    if(opt.analysis.showLocations) {
+    if (opt.analysis.showLocations) {
         show_candidate_ranges(os, db.target_sketching(), candidates);
         os << colsep;
     }
 
     show_taxon(os, db.taxo_cache(), fmt, cls.best);
 
-    if(opt.analysis.showAlignment && cls.best) {
+    if (opt.analysis.showAlignment && cls.best) {
         show_alignment(os, db.target_sketching(), opt, query, candidates);
     }
 
@@ -532,7 +532,7 @@ void classify_and_evaluate(
     auto cls = make_classification(query, tophits, db.taxo_cache(),
                                    opt.classify, makeGroundTruth);
 
-    if(opt.make_tax_counts() && cls.best) {
+    if (opt.make_tax_counts() && cls.best) {
         ++taxCounts[cls.best];
     }
 
@@ -554,9 +554,9 @@ void publish_results(
     const query_options& opt,
     classification_results& results)
 {
-    if(opt.make_tax_counts()) {
+    if (opt.make_tax_counts()) {
         // add batch (taxon->read count) to global counts
-        for(const auto& taxCount : taxCounts)
+        for (const auto& taxCount : taxCounts)
             results.taxCounts[taxCount.first] += taxCount.second;
     }
     // write output buffer to output stream
@@ -584,13 +584,13 @@ void filter_targets_by_coverage(
     float coveragePercentagesSum = 0;
 
     //calculate coverage percentages
-    for(const auto& mapping : tgtMatches) {
+    for (const auto& mapping : tgtMatches) {
         target_id target = mapping.first;
         const taxon* tax = taxonomy.cached_taxon_of_target(target);
         const window_id targetSize = tax->source().windows;
         std::unordered_set<window_id> hitWindows;
-        for(const auto& candidate : mapping.second) {
-            for(window_id win = candidate.pos.beg; win <= candidate.pos.end; ++win)
+        for (const auto& candidate : mapping.second) {
+            for (window_id win = candidate.pos.beg; win <= candidate.pos.end; ++win)
                 hitWindows.emplace(win);
         }
         const float covP = float(hitWindows.size()) / targetSize;
@@ -606,9 +606,9 @@ void filter_targets_by_coverage(
 
     //filter out targets
     float coveragePercentagesPartSum = 0;
-    for(auto it = coveragePercentages.begin(); it != coveragePercentages.end(); ++it) {
+    for (auto it = coveragePercentages.begin(); it != coveragePercentages.end(); ++it) {
         coveragePercentagesPartSum += it->second;
-        if(coveragePercentagesPartSum > percentile * coveragePercentagesSum) {
+        if (coveragePercentagesPartSum > percentile * coveragePercentagesSum) {
             // coveragePercentages.resize(std::distance(it, coveragePercentages.rend()));
             break;
         }
@@ -644,8 +644,8 @@ void
 update_candidates(classification_candidates& candidates,
                   const matches_per_target& tgtMatches)
 {
-    for(auto it = candidates.begin(); it != candidates.end();) {
-        if(tgtMatches.find(it->tgt) == tgtMatches.end())
+    for (auto it = candidates.begin(); it != candidates.end();) {
+        if (tgtMatches.find(it->tgt) == tgtMatches.end())
             it = candidates.erase(it);
         else
             ++it;
@@ -669,17 +669,17 @@ void redo_classification_batched(
     std::vector<std::future<void>> threads;
     std::mutex mtx;
 
-    for(unsigned threadId = 0; threadId < opt.performance.numThreads; ++threadId) {
+    for (unsigned threadId = 0; threadId < opt.performance.numThreads; ++threadId) {
         threads.emplace_back(std::async(std::launch::async, [&, threadId] {
 
             query_mappings mappings;
 
-            while(queryMappingsQueue.size_approx()) {
-                if(queryMappingsQueue.try_dequeue(mappings)) {
+            while (queryMappingsQueue.size_approx()) {
+                if (queryMappingsQueue.try_dequeue(mappings)) {
                     std::ostringstream bufout;
                     taxon_count_map taxCounts;
 
-                    for(auto& mapping : mappings) {
+                    for (auto& mapping : mappings) {
                         // classify using only targets left in tgtMatches
                         update_candidates(mapping.candidates, tgtMatches);
 
@@ -696,7 +696,7 @@ void redo_classification_batched(
     }
 
     //wait for all threads to finish
-    for(auto& thread : threads) {
+    for (auto& thread : threads) {
         thread.get();
     }
 }
@@ -735,7 +735,7 @@ void map_queries_to_targets_default(
 
     moodycamel::ConcurrentQueue<query_mappings> queryMappingsQueue;
 
-    if(opt.output.evaluate.precision || opt.output.evaluate.determineGroundTruth) {
+    if (opt.output.evaluate.precision || opt.output.evaluate.determineGroundTruth) {
         //groundtruth may be outside of target lineages
         //cache lineages of *all* taxa
         db.taxo_cache().update_cached_lineages(taxon_rank::none);
@@ -757,16 +757,16 @@ void map_queries_to_targets_default(
         const span<const location> allhits,
         const span<const match_candidate> tophits)
     {
-        if(query.empty()) return;
+        if (query.empty()) return;
 
-        if(opt.output.analysis.showHitsPerTargetList || opt.classify.covPercentile > 0) {
+        if (opt.output.analysis.showHitsPerTargetList || opt.classify.covPercentile > 0) {
             //insert all candidates with at least 'hitsMin' hits into
             //target -> match list
             buf.hitsPerTarget.insert(query.id, tophits,
                                      opt.classify.hitsMin);
         }
 
-        if(opt.classify.covPercentile > 0) {
+        if (opt.classify.covPercentile > 0) {
             // copy id and header, sequence strings are not needed
             sequence_query qinfo;
             qinfo.id = query.id;
@@ -786,11 +786,11 @@ void map_queries_to_targets_default(
 
     //runs before a batch buffer is discarded
     const auto finalizeBatch = [&] (mappings_buffer&& buf) {
-        if(opt.output.analysis.showHitsPerTargetList || opt.classify.covPercentile > 0) {
+        if (opt.output.analysis.showHitsPerTargetList || opt.classify.covPercentile > 0) {
             //merge batch (target->hits) lists into global one
             tgtMatches.merge(std::move(buf.hitsPerTarget));
         }
-        if(opt.classify.covPercentile > 0) {
+        if (opt.classify.covPercentile > 0) {
             //move mappings to global map
             queryMappingsQueue.enqueue(std::move(buf.queryMappings));
             buf.queryMappings.clear();
@@ -811,7 +811,7 @@ void map_queries_to_targets_default(
                    appendToOutput);
 
     //filter all matches by coverage
-    if(opt.classify.covPercentile > 0) {
+    if (opt.classify.covPercentile > 0) {
         filter_targets_by_coverage(db.taxo_cache(), tgtMatches, opt.classify.covPercentile);
 
         redo_classification_batched(queryMappingsQueue, tgtMatches, db, opt, results);
@@ -819,17 +819,17 @@ void map_queries_to_targets_default(
 
     const auto& analysis = opt.output.analysis;
 
-    if(analysis.showHitsPerTargetList) {
+    if (analysis.showHitsPerTargetList) {
         tgtMatches.sort_match_lists();
         show_matches_per_targets(results.perTargetOut, db, tgtMatches, fmt);
     }
 
-    if(analysis.showTaxAbundances) {
+    if (analysis.showTaxAbundances) {
         show_abundances(results.perTaxonOut, results.taxCounts,
                         results.statistics, fmt);
     }
 
-    if(analysis.showAbundanceEstimatesOnRank != taxonomy::rank::none) {
+    if (analysis.showAbundanceEstimatesOnRank != taxonomy::rank::none) {
         estimate_abundance(db.taxo_cache(), results.taxCounts, analysis.showAbundanceEstimatesOnRank);
 
         show_abundance_estimates(results.perTaxonOut,
@@ -850,7 +850,7 @@ void map_queries_to_targets(const vector<string>& infiles,
                             const database& db, const query_options& opt,
                             classification_results& results)
 {
-    if(opt.output.format.mapViewMode != map_view_mode::none) {
+    if (opt.output.format.mapViewMode != map_view_mode::none) {
         show_query_mapping_header(results.perReadOut, opt.output);
     }
 
@@ -870,14 +870,14 @@ void map_candidates_to_targets(vector<string>&& queryHeaders,
                                const database& db, const query_options& opt,
                                classification_results& results)
 {
-    if(opt.output.format.mapViewMode != map_view_mode::none) {
+    if (opt.output.format.mapViewMode != map_view_mode::none) {
         show_query_mapping_header(results.perReadOut, opt.output);
     }
 
     //taxon -> read count
     taxon_count_map allTaxCounts;
 
-    for(size_t i = 0; i < queryHeaders.size(); ++i) {
+    for (size_t i = 0; i < queryHeaders.size(); ++i) {
         sequence_query query{i+1, std::move(queryHeaders[i]), {}};
 
         classify_and_evaluate(
@@ -886,12 +886,12 @@ void map_candidates_to_targets(vector<string>&& queryHeaders,
     }
 
     const auto& analysis = opt.output.analysis;
-    if(analysis.showTaxAbundances) {
+    if (analysis.showTaxAbundances) {
         show_abundances(results.perTaxonOut, allTaxCounts,
                         results.statistics, opt.output.format);
     }
 
-    if(analysis.showAbundanceEstimatesOnRank != taxonomy::rank::none) {
+    if (analysis.showAbundanceEstimatesOnRank != taxonomy::rank::none) {
         estimate_abundance(db.taxo_cache(), allTaxCounts, analysis.showAbundanceEstimatesOnRank);
 
         show_abundance_estimates(results.perTaxonOut,

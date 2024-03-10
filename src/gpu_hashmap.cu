@@ -45,9 +45,9 @@ void calculate_sizes_kernel(SizeT * d_offsets, BucketSizeT * d_sizes, SizeT batc
 {
     const auto tid = blockDim.x * blockIdx.x + threadIdx.x;
 
-    if(tid < batchSize) {
+    if (tid < batchSize) {
         SizeT size = d_offsets[tid+1] - d_offsets[tid];
-        if(size > std::numeric_limits<BucketSizeT>::max()) {
+        if (size > std::numeric_limits<BucketSizeT>::max()) {
             printf("Error: Id %d bucket size type overflow: %llu\n", tid, size);
             size = std::numeric_limits<BucketSizeT>::max();
         }
@@ -139,7 +139,7 @@ public:
 
     //---------------------------------------------------------------
     void validate() {
-        if(valid_ && hashTable_.peek_status(statusStream_).has_any_errors()) {
+        if (valid_ && hashTable_.peek_status(statusStream_).has_any_errors()) {
             valid_ = false;
         }
     }
@@ -201,7 +201,7 @@ public:
 
         constexpr int maxSketchSize = 16;
 
-        if(targetSketching.sketchlen <= maxSketchSize) {
+        if (targetSketching.sketchlen <= maxSketchSize) {
             constexpr int warpsPerBlock = 2;
             constexpr int threadsPerBlock = 32*warpsPerBlock;
 
@@ -248,7 +248,7 @@ public:
     {
         constexpr int maxSketchSize = 16;
 
-        if(querySketching.sketchlen <= maxSketchSize) {
+        if (querySketching.sketchlen <= maxSketchSize) {
             constexpr int warpsPerBlock = 2;
             constexpr int threadsPerBlock = 32*warpsPerBlock;
 
@@ -296,7 +296,7 @@ public:
         const size_type numCycles = numKeys / batchSize_;
         const size_type lastBatchSize = numKeys % batchSize_;
 
-        for(size_type b = 0; b < numCycles; ++b) {
+        for (size_type b = 0; b < numCycles; ++b) {
             hashTable_.num_values(
                 keys+b*batchSize_, batchSize_, *valuesCountPtr,
                 numValuesBuffer_d);
@@ -304,7 +304,7 @@ public:
 
             accumulator_d.accumulate(numValuesBuffer_d, batchSize_);
         }
-        if(lastBatchSize) {
+        if (lastBatchSize) {
             hashTable_.num_values(
                 keys+numCycles*batchSize_, lastBatchSize, *valuesCountPtr,
                 numValuesBuffer_d);
@@ -373,11 +373,11 @@ private:
             cudaFree    (d_binnedSegIds_); CUERR
             cudaFree    (d_segBinCounters_); CUERR
 
-            if(h_valuesAlloc0_)
+            if (h_valuesAlloc0_)
                 cudaFreeHost(h_values0_); CUERR
-            if(h_valuesAlloc1_)
+            if (h_valuesAlloc1_)
                 cudaFreeHost(h_values1_); CUERR
-            if(d_valuesAlloc_) {
+            if (d_valuesAlloc_) {
                 cudaFree    (d_values_); CUERR
                 cudaFree    (d_valuesTmp_); CUERR
             }
@@ -401,22 +401,22 @@ private:
         cudaStream_t stream() const noexcept { return stream_; }
 
         void resize(bool b) {
-            if(values_count() > d_valuesAlloc_) {
+            if (values_count() > d_valuesAlloc_) {
                 d_valuesAlloc_ = values_count() * 1.1;
                 cudaFree    (d_values_); CUERR
                 cudaFree    (d_valuesTmp_); CUERR
                 cudaMalloc    (&d_values_, d_valuesAlloc_*sizeof(location_type)); CUERR
                 cudaMalloc    (&d_valuesTmp_, d_valuesAlloc_*sizeof(location_type)); CUERR
             }
-            if(b) {
-                if(values_count() > h_valuesAlloc1_) {
+            if (b) {
+                if (values_count() > h_valuesAlloc1_) {
                     h_valuesAlloc1_ = values_count() * 1.1;
                     cudaFreeHost(h_values1_); CUERR
                     cudaMallocHost(&h_values1_, h_valuesAlloc1_*sizeof(location_type)); CUERR
                 }
             }
             else {
-                if(values_count() > h_valuesAlloc0_) {
+                if (values_count() > h_valuesAlloc0_) {
                     h_valuesAlloc0_ = values_count() * 1.1;
                     cudaFreeHost(h_values0_); CUERR
                     cudaMallocHost(&h_values0_, h_valuesAlloc0_*sizeof(location_type)); CUERR
@@ -500,7 +500,7 @@ private:
             cudaMemcpyDeviceToHost, buffer.stream());
 
         const auto tableStatus = hashTable_.pop_status(buffer.stream());
-        if(tableStatus.has_any())
+        if (tableStatus.has_any())
             std::cerr << tableStatus << '\n';
 
         cudaStreamSynchronize(buffer.stream()); CUERR
@@ -576,7 +576,7 @@ public:
             cudaSetDevice(gpuId);
             bool hostId = 0;
 
-            for(len_t b = hostId; b < numCycles; b+=2) {
+            for (len_t b = hostId; b < numCycles; b+=2) {
                 retrieve_and_write_batch(os,
                     d_keys + b * batchSize_,
                     buffer, hostId, batchSize_, maxLocationsPerFeature,
@@ -586,7 +586,7 @@ public:
 
         bool hostId = 1;
         // retrieve other half
-        for(len_t b = hostId; b < numCycles; b+=2) {
+        for (len_t b = hostId; b < numCycles; b+=2) {
             retrieve_and_write_batch(os,
                 d_keys + b * batchSize_,
                 buffer, hostId, batchSize_, maxLocationsPerFeature,
@@ -595,7 +595,7 @@ public:
 
         retriever.get();
 
-        if(lastBatchSize) {
+        if (lastBatchSize) {
             retrieve_and_write_batch(os,
                 d_keys + numCycles * batchSize_,
                 buffer, hostId, lastBatchSize, maxLocationsPerFeature,
@@ -698,7 +698,7 @@ public:
     {
         constexpr int maxSketchSize = 16;
 
-        if(querySketching.sketchlen <= maxSketchSize) {
+        if (querySketching.sketchlen <= maxSketchSize) {
             constexpr int warpsPerBlock = 2;
             constexpr int threadsPerBlock = 32*warpsPerBlock;
 
@@ -754,7 +754,7 @@ private:
         read_binary(is, h_keyBuffer, batchSize);
         read_binary(is, bsizeBuffer.data(), batchSize);
 
-        for(len_t i = 0; i < batchSize; ++i) {
+        for (len_t i = 0; i < batchSize; ++i) {
             //store offset and size together in 64bit
             //default is 56bit offset, 8bit size
             h_offsetBuffer[i] = (valuesOffset << sizeof(bucket_size_type)*CHAR_BIT)
@@ -766,7 +766,7 @@ private:
         //check status from previous batch
         //implicit sync
         const auto tableStatus = hashTable_.pop_status(stream);
-        if(tableStatus.has_any()) {
+        if (tableStatus.has_any()) {
             std::cerr << tableStatus << '\n';
         }
 
@@ -787,7 +787,7 @@ private:
 
         d_values += batchValuesOffset;
 
-        for(len_t i = 0; i < numBatches; ++i) {
+        for (len_t i = 0; i < numBatches; ++i) {
             const len_t id = i % 2;
             cudaEventSynchronize(events[id]);
             read_binary(is, valueBuffers[id], valBatchSize);
@@ -858,7 +858,7 @@ public:
 
             //load full batches
             const len_t numBatches = nkeys / batchSize;
-            for(len_t b = 0; b < numBatches; ++b) {
+            for (len_t b = 0; b < numBatches; ++b) {
                 auto batchValuesCount = deserialize_batch_of_buckets(is,
                     h_keyBuffer, d_keyBuffer, h_offsetBuffer, d_offsetBuffer,
                     bsizeBuffer, batchSize,
@@ -874,7 +874,7 @@ public:
 
             //load last batch
             const size_t remainingSize = nkeys % batchSize;
-            if(remainingSize) {
+            if (remainingSize) {
                 auto batchValuesCount = deserialize_batch_of_buckets(is,
                     h_keyBuffer, d_keyBuffer, h_offsetBuffer, d_offsetBuffer,
                     bsizeBuffer, remainingSize,
@@ -890,7 +890,7 @@ public:
                 //check status from last batch
                 //implicit sync
                 const auto tableStatus = hashTable_.pop_status(stream);
-                if(tableStatus.has_any()) {
+                if (tableStatus.has_any()) {
                     std::cerr << tableStatus << '\n';
                 }
             }
@@ -939,8 +939,8 @@ gpu_hashmap<Key,ValueT>::gpu_hashmap() :
 //-----------------------------------------------------
 template<class Key, class ValueT>
 gpu_hashmap<Key,ValueT>::~gpu_hashmap() {
-    for(auto& lins : lineages_) {
-        if(lins) cudaFree(lins); CUERR
+    for (auto& lins : lineages_) {
+        if (lins) cudaFree(lins); CUERR
     }
 }
 
@@ -960,7 +960,7 @@ gpu_hashmap<Key,ValueT>::gpu_hashmap(gpu_hashmap&& other) :
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 bool gpu_hashmap<Key,ValueT>::add_target_failed(part_id gpuId) const noexcept {
-    if(gpuId < buildHashTables_.size())
+    if (gpuId < buildHashTables_.size())
         return !(buildHashTables_[gpuId]->valid());
     else
         return true;
@@ -970,7 +970,7 @@ bool gpu_hashmap<Key,ValueT>::add_target_failed(part_id gpuId) const noexcept {
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 bool gpu_hashmap<Key,ValueT>::check_load_factor(part_id gpuId) const noexcept {
-    if(gpuId < buildHashTables_.size())
+    if (gpuId < buildHashTables_.size())
         return (buildHashTables_[gpuId]->load_factor() < maxLoadFactor_);
     else
         return false;
@@ -980,13 +980,13 @@ bool gpu_hashmap<Key,ValueT>::check_load_factor(part_id gpuId) const noexcept {
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::pop_status(part_id gpuId) {
-    if(gpuId < buildHashTables_.size()) {
+    if (gpuId < buildHashTables_.size()) {
         cudaSetDevice(gpuId); CUERR
         std::cerr
             << "gpu " << gpuId
             << " hashtable status: " << buildHashTables_[gpuId]->pop_status() << "\n";
     }
-    else if(gpuId < queryHashTables_.size()) {
+    else if (gpuId < queryHashTables_.size()) {
         cudaSetDevice(gpuId); CUERR
         std::cerr
             << "gpu " << gpuId
@@ -996,13 +996,13 @@ void gpu_hashmap<Key,ValueT>::pop_status(part_id gpuId) {
 //---------------------------------------------------------------
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::pop_status() {
-    for(part_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
+    for (part_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         std::cerr
             << "gpu " << gpuId
             <<  " hashtable status: " << buildHashTables_[gpuId]->pop_status() << "\n";
     }
-    for(part_id gpuId = 0; gpuId < queryHashTables_.size(); ++gpuId) {
+    for (part_id gpuId = 0; gpuId < queryHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         std::cerr
             << "gpu " << gpuId
@@ -1014,11 +1014,11 @@ void gpu_hashmap<Key,ValueT>::pop_status() {
 template<class Key, class ValueT>
 size_t gpu_hashmap<Key,ValueT>::bucket_count() const noexcept {
     size_t count = 0;
-    for(part_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
+    for (part_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         count += buildHashTables_[gpuId]->bucket_count();
     }
-    for(part_id gpuId = 0; gpuId < queryHashTables_.size(); ++gpuId) {
+    for (part_id gpuId = 0; gpuId < queryHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         count += queryHashTables_[gpuId]->bucket_count();
     }
@@ -1029,11 +1029,11 @@ size_t gpu_hashmap<Key,ValueT>::bucket_count() const noexcept {
 template<class Key, class ValueT>
 size_t gpu_hashmap<Key,ValueT>::key_count() noexcept {
     size_t count = 0;
-    for(part_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
+    for (part_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         count += buildHashTables_[gpuId]->key_count();
     }
-    for(part_id gpuId = 0; gpuId < queryHashTables_.size(); ++gpuId) {
+    for (part_id gpuId = 0; gpuId < queryHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         count += queryHashTables_[gpuId]->key_count();
     }
@@ -1044,11 +1044,11 @@ size_t gpu_hashmap<Key,ValueT>::key_count() noexcept {
 template<class Key, class ValueT>
 size_t gpu_hashmap<Key,ValueT>::value_count() noexcept {
     size_t count = 0;
-    for(part_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
+    for (part_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         count += buildHashTables_[gpuId]->location_count();
     }
-    for(part_id gpuId = 0; gpuId < queryHashTables_.size(); ++gpuId) {
+    for (part_id gpuId = 0; gpuId < queryHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         count += queryHashTables_[gpuId]->location_count();
     }
@@ -1061,7 +1061,7 @@ statistics_accumulator_gpu<policy::Host>
 gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
     statistics_accumulator_gpu<policy::Host> totalAccumulator = {};
 
-    for(part_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
+    for (part_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         auto accumulator = buildHashTables_[gpuId]->location_list_size_statistics();
 
@@ -1100,7 +1100,7 @@ void gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numParts)
 
     insertBuffers_.reserve(numGPUs_);
 
-    for(part_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
+    for (part_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
         cudaSetDevice(gpuId); CUERR
 
         size_t freeMemory = 0;
@@ -1158,7 +1158,7 @@ window_id gpu_hashmap<Key,ValueT>::add_target(
 
     window_id totalWindows = 0;
 
-    for(window_id processedWindows = 0;
+    for (window_id processedWindows = 0;
         distance(first, last) >= targetSketching.kmerlen;
         first += processedWindows*targetSketching.winstride)
     {
@@ -1167,12 +1167,12 @@ window_id gpu_hashmap<Key,ValueT>::add_target(
             first, last, tgt, totalWindows, targetSketching);
 
         // if no windows were processed batch must be full
-        if(!processedWindows && insertBuffers_[gpuId].current_seq_batch().num_targets()) {
+        if (!processedWindows && insertBuffers_[gpuId].current_seq_batch().num_targets()) {
             // std::cerr << "gpu " << gpuId << " insert\n";
             insert(gpuId, insertBuffers_[gpuId].current_seq_batch(), targetSketching);
             insertBuffers_[gpuId].switch_seq_batch();
             insertBuffers_[gpuId].current_seq_batch().clear();
-            if(!(buildHashTables_[gpuId]->valid())) break;
+            if (!(buildHashTables_[gpuId]->valid())) break;
         }
 
         totalWindows += processedWindows;
@@ -1192,7 +1192,7 @@ void gpu_hashmap<Key,ValueT>::insert(
     cudaSetDevice(gpuId); CUERR
     buildHashTables_[gpuId]->validate();
 
-    if(buildHashTables_[gpuId]->valid()) {
+    if (buildHashTables_[gpuId]->valid()) {
         buildHashTables_[gpuId]->insert_async(
             seqBatchHost, targetSketching);
     }
@@ -1202,10 +1202,10 @@ template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::wait_until_add_target_complete(
     part_id gpuId, const sketching_opt& targetSketching)
 {
-    if(gpuId < numGPUs_) {
+    if (gpuId < numGPUs_) {
         cudaSetDevice(gpuId); CUERR
 
-        if(insertBuffers_[gpuId].current_seq_batch().num_targets()) {
+        if (insertBuffers_[gpuId].current_seq_batch().num_targets()) {
             insert(gpuId, insertBuffers_[gpuId].current_seq_batch(), targetSketching);
         }
 
@@ -1235,13 +1235,13 @@ void gpu_hashmap<Key,ValueT>::query_hashtables_async(
     const sketching_opt& querySketching,
     taxon_rank lowestRank) const
 {
-    for(part_id gpuId = 0; gpuId < batch.num_gpus(); ++gpuId)
+    for (part_id gpuId = 0; gpuId < batch.num_gpus(); ++gpuId)
     {
         part_id gpu = batch.gpu(gpuId);
 
         cudaSetDevice(gpu); CUERR
 
-        if(gpuId == 0)
+        if (gpuId == 0)
             batch.copy_queries_to_device_async(hostId);
 
         hashtables[gpu]->query_async(
@@ -1254,7 +1254,7 @@ void gpu_hashmap<Key,ValueT>::query_hashtables_async(
 
         // batch.sync_work_stream(gpuId); CUERR
 
-        if(gpuId < batch.num_gpus()-1)
+        if (gpuId < batch.num_gpus()-1)
             batch.copy_queries_to_next_device_async(hostId, gpuId);
 
         batch.sort_and_copy_allhits_async(hostId, gpuId);
@@ -1276,11 +1276,11 @@ void gpu_hashmap<Key,ValueT>::query_async(
     const sketching_opt& querySketching,
     taxon_rank lowestRank) const
 {
-    if(!buildHashTables_.empty()) {
+    if (!buildHashTables_.empty()) {
         query_hashtables_async(
             buildHashTables_, batch, hostId, querySketching, lowestRank);
     }
-    else if(!queryHashTables_.empty()) {
+    else if (!queryHashTables_.empty()) {
         query_hashtables_async(
             queryHashTables_, batch, hostId, querySketching, lowestRank);
     }
@@ -1303,7 +1303,7 @@ void gpu_hashmap<Key,ValueT>::deserialize(
 
     // std::cerr << "\n\t#features: " << nkeys << " #locations: " << nvalues << "\n";
 
-    if(nkeys > 0) {
+    if (nkeys > 0) {
         // std::cerr << "\tloading database to gpu " << gpuId << "\n";
         cudaSetDevice(gpuId); CUERR
 
@@ -1355,7 +1355,7 @@ void gpu_hashmap<Key,ValueT>::copy_target_lineages_to_gpus(
     lineages_.resize(numGPUs_);
     const size_t size = lins.size()*sizeof(ranked_lineage);
 
-    for(part_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
+    for (part_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
         // std::cerr << "Copying lineages to GPU " << gpuId << " ...\n";
         cudaSetDevice(gpuId); CUERR
         cudaMalloc(&lineages_[gpuId], size); CUERR
@@ -1368,12 +1368,12 @@ void gpu_hashmap<Key,ValueT>::copy_target_lineages_to_gpus(
 template<class Key, class ValueT>
 void gpu_hashmap<Key,ValueT>::enable_peer_access()
 {
-    if(numParts_ > 0) {
+    if (numParts_ > 0) {
         // for each replicated db of numParts_ parts
-        for(unsigned firstGPU = 0; firstGPU < numGPUs_; firstGPU += numParts_) {
+        for (unsigned firstGPU = 0; firstGPU < numGPUs_; firstGPU += numParts_) {
             part_id lastGPU = firstGPU+numParts_-1;
             // enable access between consecutive gpus
-            for(part_id gpuId = firstGPU; gpuId < lastGPU; ++gpuId) {
+            for (part_id gpuId = firstGPU; gpuId < lastGPU; ++gpuId) {
                 // std::cerr << "Enabling peer access: GPUs "
                     // << gpuId << "<->" << << gpuId+1 " ...\n";
                 cudaSetDevice(gpuId);

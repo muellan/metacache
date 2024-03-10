@@ -113,13 +113,13 @@ public:
         result.predc = predecessor::diag;
 
         const auto weightAbove = above + gap();
-        if(weightAbove > result.score) {
+        if (weightAbove > result.score) {
             result.score = weightAbove;
             result.predc = predecessor::above;
         }
 
         const auto weightLeft = left + gap();
-        if(weightLeft > result.score) {
+        if (weightLeft > result.score) {
             result.score = weightLeft;
             result.predc = predecessor::left;
         }
@@ -140,7 +140,7 @@ public:
         using value_t = typename QuerySequence::value_type;
         using result_t = std::tuple<value_t,value_t>;
 
-        switch(predc) {
+        switch (predc) {
             case predecessor::diag:
                 --bsfQ;
                 --bsfS;
@@ -209,12 +209,12 @@ align_semi_global(const QuerySequence& query,
     std::vector<score_t> score((len_q+1)*(len_s+1), 0);
     std::vector<predc_t> predc((len_q+1)*(len_s+1), predc_t(0));
 
-    for(index_t q = 1; q < len_q+1; q++) {
+    for (index_t q = 1; q < len_q+1; q++) {
 
         //cache the query at position q
         const auto vquery = query[q-1];
 
-        for(index_t s = 1; s < len_s+1; s++) {
+        for (index_t s = 1; s < len_s+1; s++) {
             //cache the subject at position s
             auto vsubject = subject[s-1];
             //cache diagonal, above and left entry of score matrix
@@ -236,18 +236,18 @@ align_semi_global(const QuerySequence& query,
     auto bsfS = len_s;
     auto bsf_v = score[len_q*(len_s+1)+len_s];
 
-    for(index_t q = 1; q < len_q; q++) {
+    for (index_t q = 1; q < len_q; q++) {
         auto value = score[q*(len_s+1)+len_s];
-        if(value > bsf_v) {
+        if (value > bsf_v) {
             bsf_q = q;
             bsfS = len_s;
             bsf_v = value;
         }
     }
 
-    for(index_t s = 1; s < len_s; s++) {
+    for (index_t s = 1; s < len_s; s++) {
         auto value = score[len_q*(len_s+1)+s];
-        if(value > bsf_v) {
+        if (value > bsf_v) {
             bsf_q = len_q;
             bsfS = s;
             bsf_v = value;
@@ -258,7 +258,7 @@ align_semi_global(const QuerySequence& query,
     auto res = alignment<score_t,value_t>{};
     res.score = bsf_v;
 
-    if(mode == alignment_mode::backtrace) {
+    if (mode == alignment_mode::backtrace) {
         auto pred = predc[bsf_q*(len_s+1)+bsfS];
         //backtracing predecessor information
         do {
@@ -271,7 +271,7 @@ align_semi_global(const QuerySequence& query,
 
             //update pred
             pred = predc[bsf_q*(len_s+1)+bsfS];
-        } while(bool(pred));
+        } while (bool(pred));
 
         //reverse the alignment
         std::reverse(res.query.begin(), res.query.end());

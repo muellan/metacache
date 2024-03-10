@@ -89,7 +89,7 @@ public:
     }
     //-----------------------------------------------------
     void num_targets(index_type n) noexcept {
-        if(n > max_targets()) n = max_targets();
+        if (n > max_targets()) n = max_targets();
         numTargets_ = n;
     }
     //---------------------------------------------------------------
@@ -149,17 +149,17 @@ public:
 
         // no kmers in sequence, nothing to do here
         //TODO different case than batch full
-        if(seqLength < kmerSize) return processedWindows;
+        if (seqLength < kmerSize) return processedWindows;
 
         // batch full, nothing processed
-        if(numTargets_ == maxTargets_) return processedWindows;
+        if (numTargets_ == maxTargets_) return processedWindows;
 
         const auto availableLength = (maxSequenceLength_ - sequenceOffsets_[numTargets_]);
         // batch full, nothing processed
-        if(availableLength < windowSize) return processedWindows;
+        if (availableLength < windowSize) return processedWindows;
 
         InputIterator end = last;
-        if(seqLength > availableLength) {
+        if (seqLength > availableLength) {
             // sequence does not fit into batch as a whole
             // but we need to process whole windows
 

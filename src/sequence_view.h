@@ -87,7 +87,7 @@ public:
     template<class Ostream>
     inline friend Ostream&
     operator << (Ostream& os, const sequence_view& s) {
-        for(const auto& x : s) os << x;
+        for (const auto& x : s) os << x;
         return os;
     }
 
@@ -120,7 +120,7 @@ template<class OStream>
 inline OStream&
 operator << (OStream& os, const std::vector<char>& seq)
 {
-    for(const auto& x : seq)
+    for (const auto& x : seq)
         os << x;
 
     return os;

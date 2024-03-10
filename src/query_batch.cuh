@@ -106,9 +106,9 @@ public:
             resultBeginOffsets_[numQueries_] = numWindows_*maxResultsPerWindow;
 
             // no kmers in sequence
-            if(seqLength1 < kmerSize && seqLength2 < kmerSize) {
+            if (seqLength1 < kmerSize && seqLength2 < kmerSize) {
                 // batch full, nothing processed
-                if(numWindows_ + 1 > maxWindows) return false;
+                if (numWindows_ + 1 > maxWindows) return false;
 
                 // insert empty query
                 queryIds_[numWindows_] = numQueries_;
@@ -125,12 +125,12 @@ public:
                                             (seqLength2-kmerSize + windowStride) / windowStride : 0;
 
             // batch full, nothing processed
-            if(numWindows_ + windowsInSeq1 + windowsInSeq2 > maxWindows) return false;
+            if (numWindows_ + windowsInSeq1 + windowsInSeq2 > maxWindows) return false;
 
             const auto availableSize = maxSequenceLength - sequenceOffsets_[numWindows_];
             const auto windowSizePadded = (windowSize + 3) / 4 * 4;
             // batch full, nothing processed
-            if((windowsInSeq1 + windowsInSeq2)*windowSizePadded > availableSize) return false;
+            if ((windowsInSeq1 + windowsInSeq2)*windowSizePadded > availableSize) return false;
 
             index_type windowsInQuery = 0;
 
@@ -138,7 +138,7 @@ public:
             for_each_window(first1, last1, windowSize, windowStride,
                 [&] (InputIterator first, InputIterator last) {
                     auto length = distance(first, last);
-                    if(length >= kmerSize) {
+                    if (length >= kmerSize) {
                         // store window affiliation
                         queryIds_[numWindows_] = numQueries_;
                         // copy characters and pad for vectorized access
@@ -159,7 +159,7 @@ public:
             for_each_window(first2, last2, windowSize, windowStride,
                 [&] (InputIterator first, InputIterator last) {
                     auto length = distance(first, last);
-                    if(length >= kmerSize) {
+                    if (length >= kmerSize) {
                         // store window affiliation
                         queryIds_[numWindows_] = numQueries_;
                         // copy characters and pad for vectorized access
@@ -181,7 +181,7 @@ public:
             ++numQueries_;
 
             size_type segmentSize = windowsInQuery*maxResultsPerWindow;
-            if(largestSegmentSize_ < segmentSize) largestSegmentSize_ = segmentSize;
+            if (largestSegmentSize_ < segmentSize) largestSegmentSize_ = segmentSize;
 
             return true;
         }
@@ -211,7 +211,7 @@ public:
 
         //---------------------------------------------------------------
         span<const location_type> allhits(index_type id) const noexcept {
-            if(copyAllHits_ && id < num_queries()) {
+            if (copyAllHits_ && id < num_queries()) {
                 location_type * begin = query_results()+result_begin_offsets()[id];
                 location_type * end = query_results()+result_end_offsets()[id];
 
@@ -222,7 +222,7 @@ public:
         }
         //---------------------------------------------------------------
         span<const match_candidate> top_candidates(index_type id) const noexcept {
-            if(id < num_queries())
+            if (id < num_queries())
                 return span<const match_candidate>{
                     top_candidates()+id*maxCandidatesPerQuery_,
                     maxCandidatesPerQuery_
@@ -420,7 +420,7 @@ public:
     //---------------------------------------------------------------
     /** @brief switch dobule buffers */
     void switch_buffers() {
-        for(auto& data : gpuData_) data.switch_offsets();
+        for (auto& data : gpuData_) data.switch_offsets();
     }
 
     //---------------------------------------------------------------

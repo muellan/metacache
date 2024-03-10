@@ -56,7 +56,7 @@ void for_all_contiguous_window_ranges(
     using hit_count = match_candidate::count_type;
 
     //list empty?
-    if(fst == end) return;
+    if (fst == end) return;
 
     //first entry in list
     hit_count hits = 1;
@@ -70,15 +70,15 @@ void for_all_contiguous_window_ranges(
     ++lst;
 
     //rest of list: check hits per query sequence
-    while(lst != end) {
+    while (lst != end) {
         //look for neighboring windows with the highest total hit count
         //as long as we are in the same target and the windows are in a
         //contiguous range
-        if(lst->tgt == curBest.tgt) {
+        if (lst->tgt == curBest.tgt) {
             //add new hits to the right
             hits++;
             //subtract hits to the left that fall out of range
-            while(fst != lst &&
+            while (fst != lst &&
                 (lst->win - fst->win) >= numWindows)
             {
                 hits--;
@@ -86,14 +86,14 @@ void for_all_contiguous_window_ranges(
                 ++fst;
             }
             //track best of the local sub-ranges
-            if(hits > curBest.hits) {
+            if (hits > curBest.hits) {
                 curBest.hits    = hits;
                 curBest.pos.beg = fst->win;
                 curBest.pos.end = lst->win;
             }
         }
         else { //end of current target
-            if(!consume(curBest)) return;
+            if (!consume(curBest)) return;
             //reset to new target
             fst = lst;
             hits = 1;
@@ -106,7 +106,7 @@ void for_all_contiguous_window_ranges(
 
         ++lst;
     }
-    if(!consume(curBest)) return;
+    if (!consume(curBest)) return;
 }
 
 
@@ -161,7 +161,7 @@ public:
         const Locations& matches,
         const candidate_generation_rules& rules = candidate_generation_rules{})
     {
-        if(rules.maxCandidates < std::numeric_limits<std::size_t>::max())
+        if (rules.maxCandidates < std::numeric_limits<std::size_t>::max())
             top_.reserve(rules.maxCandidates+1);
 
         for_all_contiguous_window_ranges(matches, rules.maxWindowsInRange,
@@ -179,41 +179,41 @@ public:
                 const candidate_generation_rules& rules = candidate_generation_rules{})
     {
         // early exit
-        if(top_.size() == rules.maxCandidates && top_.back().hits >= cand.hits) return true;
+        if (top_.size() == rules.maxCandidates && top_.back().hits >= cand.hits) return true;
 
-        if(!cand.tax) {
-            if(rules.mergeBelow > taxon_rank::Sequence)
+        if (!cand.tax) {
+            if (rules.mergeBelow > taxon_rank::Sequence)
                 cand.tax = taxonomy.lowest_ranked_ancestor(cand.tgt, rules.mergeBelow);
             else
                 cand.tax = taxonomy.cached_taxon_of_target(cand.tgt);
         }
 
-        if(!cand.tax) return true;
+        if (!cand.tax) return true;
 
         auto greater = [] (const match_candidate& a, const match_candidate& b) {
                            return a.hits > b.hits;
                        };
 
-        if(rules.mergeBelow == taxon_rank::Sequence) {
+        if (rules.mergeBelow == taxon_rank::Sequence) {
             auto i = std::upper_bound(top_.begin(), top_.end(), cand, greater);
 
-            if(i != top_.end() || top_.size() < rules.maxCandidates) {
+            if (i != top_.end() || top_.size() < rules.maxCandidates) {
                 top_.insert(i, cand);
 
-                if(top_.size() > rules.maxCandidates)
+                if (top_.size() > rules.maxCandidates)
                     top_.resize(rules.maxCandidates);
             }
         }
         //above sequence level, taxa can occur more than once
         else {
-            auto i = std::find_if(top_.begin(), top_.end(),
+            auto i = std::find_if (top_.begin(), top_.end(),
                 [&] (const match_candidate& c) {
                     return c.tax == cand.tax;
                 });
 
-            if(i != top_.end()) {
+            if (i != top_.end()) {
                 //taxon already in list, update, if more hits
-                if(cand.hits > i->hits) {
+                if (cand.hits > i->hits) {
                     *i = cand;
                     std::sort(top_.begin(), i+1, greater);
                 }
@@ -222,10 +222,10 @@ public:
             else {
                 auto j = std::upper_bound(top_.begin(), top_.end(), cand, greater);
 
-                if(j != top_.end() || top_.size() < rules.maxCandidates) {
+                if (j != top_.end() || top_.size() < rules.maxCandidates) {
                     top_.insert(j, cand);
 
-                    if(top_.size() > rules.maxCandidates)
+                    if (top_.size() > rules.maxCandidates)
                         top_.resize(rules.maxCandidates);
                 }
             }

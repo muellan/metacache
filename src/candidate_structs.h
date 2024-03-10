@@ -57,14 +57,14 @@ struct window_range
 
     friend bool
     operator < (const window_range& a, const window_range& b) noexcept {
-        if(a.beg < b.beg) return true;
-        if(a.beg > b.beg) return false;
+        if (a.beg < b.beg) return true;
+        if (a.beg > b.beg) return false;
         return (a.end < b.end);
     }
     friend bool
     operator > (const window_range& a, const window_range& b) noexcept {
-        if(a.beg > b.beg) return true;
-        if(a.beg < b.beg) return false;
+        if (a.beg > b.beg) return true;
+        if (a.beg < b.beg) return false;
         return (a.end > b.end);
     }
 

@@ -57,17 +57,17 @@ for_each_window(InputIterator first, InputIterator last,
 {
     using std::distance;
     //sequence not longer than window?
-    if(size_t(distance(first,last)) <= len) {
+    if (size_t(distance(first,last)) <= len) {
         consume(first,last);
     }
     else {
-        for(auto wend = first + len;
+        for (auto wend = first + len;
             wend <= last;
             first += stride, wend += stride)
         {
             consume(first, wend);
         }
-        if(first < last) consume(first, last);
+        if (first < last) consume(first, last);
     }
 }
 //-------------------------------------------------------------------
@@ -212,10 +212,10 @@ public:
                 using std::end;
 
                 const auto n = distance(first,last);
-                if(n < opt.kmerlen) return;
+                if (n < opt.kmerlen) return;
 
                 const auto s = std::min(opt.sketchlen, sketch_size_type(n - opt.kmerlen + 1));
-                if(s < 1) return;
+                if (s < 1) return;
 
                 sketch.clear();
                 sketch.resize(s, feature_type(~0));
@@ -223,10 +223,10 @@ public:
                 for_each_unambiguous_canonical_kmer_2bit<kmer_type>(opt.kmerlen, first, last,
                     [&] (kmer_type kmer) {
                         auto h = hash_(kmer);
-                        if(h < sketch.back()) {
+                        if (h < sketch.back()) {
                             auto pos = std::lower_bound(sketch.begin(), sketch.end(), h);
                             //make sure we don't insert the same feature more than once
-                            if(pos != sketch.end() && *pos != h) {
+                            if (pos != sketch.end() && *pos != h) {
                                 sketch.pop_back();
                                 sketch.insert(pos, h);
                             }
@@ -234,9 +234,9 @@ public:
                     });
 
                 //check if some features are invalid (in case of many ambiguous kmers)
-                if(!sketch.empty() && sketch.back() == feature_type(~0)) {
-                    for(auto i = sketch.begin(), e = sketch.end(); i != e; ++i) {
-                        if(*i == feature_type(~0)) {
+                if (!sketch.empty() && sketch.back() == feature_type(~0)) {
+                    for (auto i = sketch.begin(), e = sketch.end(); i != e; ++i) {
+                        if (*i == feature_type(~0)) {
                             sketch.erase(i,sketch.end());
                             break;
                         }

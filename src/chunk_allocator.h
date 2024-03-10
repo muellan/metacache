@@ -87,7 +87,7 @@ class chunk_allocator
         bool owns(const T* p) const noexcept { return p >= begin() && p < end(); }
 
         T* next_buffer(std::size_t n) noexcept {
-            if(free_size() < n) return nullptr;
+            if (free_size() < n) return nullptr;
             auto p = bof_;
             bof_ += n;
             return p;
@@ -135,7 +135,7 @@ public:
     bool reserve(std::size_t total)
     {
 //        std::lock_guard<std::mutex> lock(mutables_);
-        if(total > freeSize_) {
+        if (total > freeSize_) {
             chunks_.emplace_back(total - freeSize_);
             freeSize_ += chunks_.back().free_size();
         }
@@ -147,10 +147,10 @@ public:
 //        std::lock_guard<std::mutex> lock(mutables_);
         //at the moment chunks will only be used,
         //if they have been reserved explicitly
-        if(n <= freeSize_) {
-            for(auto& c : chunks_) {
+        if (n <= freeSize_) {
+            for (auto& c : chunks_) {
                 auto p = c.next_buffer(n);
-                if(p) {
+                if (p) {
                     freeSize_ -= n;
                     return p;
                 }
@@ -159,7 +159,7 @@ public:
         //make new chunk
 //        chunks_.emplace_back(std::max(minChunkSize_,n));
 //        auto p = chunks_.back().next_buffer(n);
-//        if(p) return p;
+//        if (p) return p;
         //fallback
         try {
             auto p = new T[n];
@@ -174,10 +174,10 @@ public:
 //        std::lock_guard<std::mutex> lock(mutables_);
 
         //at the moment occupied chunk buffers are not given back
-        auto it = std::find_if(begin(chunks_), end(chunks_),
+        auto it = std::find_if (begin(chunks_), end(chunks_),
                                [p](const chunk& c){ return c.owns(p); });
 
-        if(it == end(chunks_)) {
+        if (it == end(chunks_)) {
             delete[] p;
         }
     }

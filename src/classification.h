@@ -48,8 +48,8 @@ struct query_options;
  *****************************************************************************/
 struct rank_higher {
     bool operator() (const taxon* lhs, const taxon* rhs) const noexcept {
-        if(lhs->rank() > rhs->rank()) return true;
-        if(lhs->rank() < rhs->rank()) return false;
+        if (lhs->rank() > rhs->rank()) return true;
+        if (lhs->rank() < rhs->rank()) return false;
         return lhs->id() < rhs->id();
     }
 };

@@ -74,7 +74,7 @@ struct concurrent_progress {
     void show(std::ostream& os) {
         initialized = true;
 
-        if(total > 0) {
+        if (total > 0) {
             show_progress_indicator(os, progress());
         }
         else
@@ -82,7 +82,7 @@ struct concurrent_progress {
     }
 
     void clear_line(std::ostream& os) const {
-        if(initialized)
+        if (initialized)
             clear_current_line(os);
     }
 };

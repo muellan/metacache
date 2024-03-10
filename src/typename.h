@@ -43,21 +43,21 @@ namespace mc {
 template<class T>
 std::string type_name()
 {
-    if(std::is_same<char,T>::value) return "char";
-    if(std::is_same<short int,T>::value) return "short int";
-    if(std::is_same<int,T>::value) return "int";
-    if(std::is_same<long int,T>::value) return "long int";
-    if(std::is_same<long long int,T>::value) return "long long int";
+    if (std::is_same<char,T>::value) return "char";
+    if (std::is_same<short int,T>::value) return "short int";
+    if (std::is_same<int,T>::value) return "int";
+    if (std::is_same<long int,T>::value) return "long int";
+    if (std::is_same<long long int,T>::value) return "long long int";
 
-    if(std::is_same<unsigned char,T>::value) return "unsigned char";
-    if(std::is_same<unsigned short int,T>::value) return "unsigned short int";
-    if(std::is_same<unsigned int,T>::value) return "unsigned int";
-    if(std::is_same<unsigned long int,T>::value) return "unsigned long int";
-    if(std::is_same<unsigned long long int,T>::value) return "unsigned long long int";
+    if (std::is_same<unsigned char,T>::value) return "unsigned char";
+    if (std::is_same<unsigned short int,T>::value) return "unsigned short int";
+    if (std::is_same<unsigned int,T>::value) return "unsigned int";
+    if (std::is_same<unsigned long int,T>::value) return "unsigned long int";
+    if (std::is_same<unsigned long long int,T>::value) return "unsigned long long int";
 
-    if(std::is_same<float,T>::value) return "float";
-    if(std::is_same<double,T>::value) return "double";
-    if(std::is_same<long double,T>::value) return "long double";
+    if (std::is_same<float,T>::value) return "float";
+    if (std::is_same<double,T>::value) return "double";
+    if (std::is_same<long double,T>::value) return "long double";
 
 #ifdef __GNUC__
     int status;

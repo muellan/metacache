@@ -34,7 +34,7 @@ namespace mc {
 std::vector<std::string>
 files_in_directory(std::string parentDir, int recurse)
 {
-    if(!parentDir.empty() &&
+    if (!parentDir.empty() &&
        (parentDir.back() == '/' || parentDir.back() == '\\'))
     {
         parentDir.pop_back();
@@ -44,19 +44,19 @@ files_in_directory(std::string parentDir, int recurse)
     DIR* dir;
     struct dirent *entry;
     dir = opendir(parentDir.c_str());
-    if(dir) {
-        while((entry = readdir(dir))) {
-            if(strcmp(entry->d_name, ".") != 0 &&
+    if (dir) {
+        while ((entry = readdir(dir))) {
+            if (strcmp(entry->d_name, ".") != 0 &&
                strcmp(entry->d_name, "..") != 0)
             {
                 bool single = true;
 
-                if(recurse > 0) {
+                if (recurse > 0) {
                     auto ff = files_in_directory(
                                   parentDir + "/" + std::string(entry->d_name),
                                   recurse-1);
 
-                    if(!ff.empty()) {
+                    if (!ff.empty()) {
                         files.insert(files.end(),
                                      std::make_move_iterator(ff.begin()),
                                      std::make_move_iterator(ff.end()));
@@ -64,7 +64,7 @@ files_in_directory(std::string parentDir, int recurse)
                     }
                 }
 
-                if(single) {
+                if (single) {
                     files.push_back(parentDir + "/" + std::string(entry->d_name));
                 }
             }
@@ -82,7 +82,7 @@ unique_directories(const std::vector<std::string>& filenames)
 {
     auto dirs = std::set<std::string>{};
 
-    for(const auto& filename : filenames) {
+    for (const auto& filename : filenames) {
         auto i = filename.find_last_of("/\\");
         dirs.insert(filename.substr(0,i));
     }
@@ -96,7 +96,7 @@ unique_directories(const std::vector<std::string>& filenames)
 std::string
 extract_filename(const std::string& filepath)
 {
-    if(filepath.empty()) return std::string("");
+    if (filepath.empty()) return std::string("");
 
     auto i = filepath.find_last_of("/\\");
     return filepath.substr(i+1);
@@ -109,7 +109,7 @@ std::ifstream::pos_type
 file_size(const std::string& filename)
 {
     std::ifstream is{filename, std::ifstream::ate | std::ifstream::binary};
-    if(!is.good()) return 0;
+    if (!is.good()) return 0;
     return is.tellg();
 }
 

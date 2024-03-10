@@ -75,8 +75,8 @@ public:
 
     string str() const {
         string s;
-        for(const auto& msg : messages_) {
-            if(!msg.empty()) s += msg + '\n';
+        for (const auto& msg : messages_) {
+            if (!msg.empty()) s += msg + '\n';
         }
         return s;
     }
@@ -99,7 +99,7 @@ private:
 string taxon_rank_names(const string& separator = ", ")
 {
     string s;
-    for(auto r = taxon_rank::Sequence; r < taxon_rank::Domain; ++r) {
+    for (auto r = taxon_rank::Sequence; r < taxon_rank::Domain; ++r) {
         s += taxonomy::rank_name(r);
         s += separator;
     }
@@ -114,12 +114,12 @@ string taxon_rank_names(const string& separator = ", ")
 void sanitize_database_name(string& name, int& partId)
 {
     auto pos = name.find(".meta");
-    if(pos != string::npos) {
+    if (pos != string::npos) {
         name.erase(pos);
     }
     else {
         pos = name.find(".cache");
-        if(pos != string::npos) {
+        if (pos != string::npos) {
             try {
                 partId = std::stoi(name.substr(pos+6));
             }
@@ -151,11 +151,11 @@ void replace_directories_with_contained_files(vector<string>& names)
     vector<string> result;
     result.reserve(names.size());
 
-    for(const auto& name : names) {
+    for (const auto& name : names) {
 
         auto fnames = files_in_directory(name);
 
-        if(!fnames.empty()) {
+        if (!fnames.empty()) {
             result.insert(result.end(), std::make_move_iterator(fnames.begin()),
                                         std::make_move_iterator(fnames.end()));
         } else {
@@ -206,7 +206,7 @@ taxon_rank rank_from_name(const string& name, error_messages& err)
 {
     auto r = taxonomy::rank_from_name(name);
 
-    if(r == taxon_rank::none) {
+    if (r == taxon_rank::none) {
         err += "Unknown taxonomic rank '"s + name + "'!\n";
         err += "Valid rank names are:\n    " + taxon_rank_names("\n    ") + "\n";
     }
@@ -224,12 +224,12 @@ void raise_default_error(const error_messages& err,
 {
     auto msg = err.str();
 
-    if(!msg.empty())      msg += "\n";
+    if (!msg.empty())      msg += "\n";
 
-    if(!usage.empty())    msg += "USAGE:\n" + usage + "\n\n";
-    if(!examples.empty()) msg += "EXAMPLES:\n" + examples + "\n\n";
+    if (!usage.empty())    msg += "USAGE:\n" + usage + "\n\n";
+    if (!examples.empty()) msg += "EXAMPLES:\n" + examples + "\n\n";
 
-    if(!mode.empty()) {
+    if (!mode.empty()) {
         msg += "\nYou can view the full interface documentation of mode '"s
             + mode + "' with:\n    metacache help " + mode + " | less";
     }
@@ -434,7 +434,7 @@ database_storage_options_cli(database_storage_options& opt, error_messages& err)
 //-------------------------------------------------------------------
 void augment_taxonomy_options(taxonomy_options& opt)
 {
-    if(!opt.path.empty() && opt.path.back() != '/') opt.path += '/';
+    if (!opt.path.empty() && opt.path.back() != '/') opt.path += '/';
 
     opt.nodesFile = opt.path + "nodes.dmp";
     opt.namesFile = opt.path + "names.dmp";
@@ -453,9 +453,9 @@ void augment_taxonomy_options(taxonomy_options& opt)
     opt.mappingPostFiles.push_back(opt.path + "nucl_gss.accession2taxid");
 
     //find additional maps by file extension ".accession2taxid"
-    for(const auto& f : files_in_directory(opt.path)) {
-        if(f.find(".accession2taxid") != string::npos) {
-            if(std::find(opt.mappingPostFiles.begin(),
+    for (const auto& f : files_in_directory(opt.path)) {
+        if (f.find(".accession2taxid") != string::npos) {
+            if (std::find(opt.mappingPostFiles.begin(),
                          opt.mappingPostFiles.end(), f)
                == opt.mappingPostFiles.end())
             {
@@ -542,11 +542,11 @@ void process_build_options(build_options& opt)
     augment_taxonomy_options(opt.taxonomy);
     replace_directories_with_contained_files(opt.infiles);
 
-    if(opt.dbconfig.maxLocationsPerFeature < 0)
+    if (opt.dbconfig.maxLocationsPerFeature < 0)
         opt.dbconfig.maxLocationsPerFeature = database::max_supported_locations_per_feature();
 
     auto& sk = opt.sketching;
-    if(sk.winstride == 0) sk.winstride = sk.winlen - sk.kmerlen + 1;
+    if (sk.winstride == 0) sk.winstride = sk.winlen - sk.kmerlen + 1;
 }
 
 
@@ -561,7 +561,7 @@ get_build_options(const cmdline_args& args, build_options opt)
 
     auto result = clipp::parse(args, cli);
 
-    if(!result || err.any()) {
+    if (!result || err.any()) {
         raise_default_error(err, "build", build_mode_usage());
     }
 
@@ -695,7 +695,7 @@ get_modify_options(const cmdline_args& args, modify_options opt)
 
     auto result = clipp::parse(args, cli);
 
-    if(!result || err.any()) {
+    if (!result || err.any()) {
         raise_default_error(err, "modify", modify_mode_usage());
     }
 
@@ -713,7 +713,7 @@ get_modify_options(const cmdline_args& args, modify_options opt)
     augment_taxonomy_options(opt.taxonomy);
     replace_directories_with_contained_files(opt.infiles);
 
-    if(opt.dbconfig.maxLocationsPerFeature < 0)
+    if (opt.dbconfig.maxLocationsPerFeature < 0)
         opt.dbconfig.maxLocationsPerFeature = database::max_supported_locations_per_feature();
 
     return opt;
@@ -790,7 +790,7 @@ classification_params_cli(classification_options& opt, error_messages& err)
     (   option("-lowest") &
         value("rank", [&](const string& name) {
                 auto r = rank_from_name(name, err);
-                if(opt.lowestRank < taxon_rank::root) opt.lowestRank = r;
+                if (opt.lowestRank < taxon_rank::root) opt.lowestRank = r;
             })
             .if_missing([&]{ err += "Taxonomic rank missing after '-lowest'!"; })
     )
@@ -801,7 +801,7 @@ classification_params_cli(classification_options& opt, error_messages& err)
     (   option("-highest") &
         value("rank", [&](const string& name) {
                 auto r = rank_from_name(name, err);
-                if(opt.highestRank <= taxon_rank::root) opt.highestRank = r;
+                if (opt.highestRank <= taxon_rank::root) opt.highestRank = r;
             })
             .if_missing([&]{ err += "Taxonomic rank missing after '-highest'!"; })
     )
@@ -945,7 +945,7 @@ classification_analysis_cli(classification_analysis_options& opt, error_messages
             (   option("-abundance-per") &
                 value("rank", [&](const string& name) {
                         auto r = rank_from_name(name, err);
-                        if(r < taxon_rank::root) opt.showAbundanceEstimatesOnRank = r;
+                        if (r < taxon_rank::root) opt.showAbundanceEstimatesOnRank = r;
                     })
                     .if_missing([&]{ err += "Taxonomic rank missing after '-abundance-per'!"; })
             )
@@ -1213,8 +1213,8 @@ void process_query_options(query_options& opt)
 {
     replace_directories_with_contained_files(opt.infiles);
 
-    if(opt.pairing == pairing_mode::files) {
-        if(opt.infiles.size() > 1) {
+    if (opt.pairing == pairing_mode::files) {
+        if (opt.infiles.size() > 1) {
             std::sort(opt.infiles.begin(), opt.infiles.end());
         } else {
             // TODO warning that pairing_mode::files requires at least 2 files
@@ -1224,30 +1224,30 @@ void process_query_options(query_options& opt)
 
     // interprest numbers > 1 as percentage
     auto& cl = opt.classify;
-    if(cl.hitsDiffFraction > 1) cl.hitsDiffFraction *= 0.01;
-    if(cl.covPercentile    > 1) cl.covPercentile    *= 0.01;
+    if (cl.hitsDiffFraction > 1) cl.hitsDiffFraction *= 0.01;
+    if (cl.covPercentile    > 1) cl.covPercentile    *= 0.01;
 
-    if(cl.maxNumCandidatesPerQuery < 1) {
+    if (cl.maxNumCandidatesPerQuery < 1) {
         cl.maxNumCandidatesPerQuery = std::numeric_limits<size_t>::max();
     }
 
 
     // classification rank consistency checks
-    if(cl.lowestRank  > cl.highestRank) cl.lowestRank  = cl.highestRank;
-    if(cl.highestRank < cl.lowestRank)  cl.highestRank = cl.lowestRank;
+    if (cl.lowestRank  > cl.highestRank) cl.lowestRank  = cl.highestRank;
+    if (cl.highestRank < cl.lowestRank)  cl.highestRank = cl.lowestRank;
 
 
     // processing option checks
     auto& perf = opt.performance;
-    if(perf.numThreads < 1) perf.numThreads = 1;
-    if(perf.batchSize  < 1) perf.batchSize  = 1;
-    if(perf.queryLimit < 0) perf.queryLimit = 0;
+    if (perf.numThreads < 1) perf.numThreads = 1;
+    if (perf.batchSize  < 1) perf.batchSize  = 1;
+    if (perf.queryLimit < 0) perf.queryLimit = 0;
 
 
     //output file consistency checks
     auto& ana = opt.output.analysis;
-    if(ana.targetMappingsFile == opt.queryMappingsFile) ana.targetMappingsFile.clear();
-    if(ana.abundanceFile == opt.queryMappingsFile) ana.abundanceFile.clear();
+    if (ana.targetMappingsFile == opt.queryMappingsFile) ana.targetMappingsFile.clear();
+    if (ana.abundanceFile == opt.queryMappingsFile) ana.abundanceFile.clear();
 
     // output option checks and consistency
 
@@ -1257,10 +1257,10 @@ void process_query_options(query_options& opt)
     fmt.lowestRank = cl.lowestRank;
     fmt.highestRank = cl.highestRank;
 
-    if(ana.showHitsPerTargetList) fmt.showQueryIds = true;
+    if (ana.showHitsPerTargetList) fmt.showQueryIds = true;
 
     // modify output tokens for separate column printig
-    if(fmt.useSeparateCols) {
+    if (fmt.useSeparateCols) {
         fmt.collapseUnclassifiedLineages = false;
         fmt.tokens.taxSeparator = fmt.tokens.column;
         fmt.tokens.rankSuffix   = fmt.tokens.column;
@@ -1269,10 +1269,10 @@ void process_query_options(query_options& opt)
     }
 
     // showing hits changes the mapping mode!
-    if(fmt.mapViewMode == map_view_mode::none && ana.showTopHits) {
+    if (fmt.mapViewMode == map_view_mode::none && ana.showTopHits) {
         fmt.mapViewMode = map_view_mode::mapped_only;
     }
-    else if(ana.showAllHits) {
+    else if (ana.showAllHits) {
         fmt.mapViewMode = map_view_mode::all;
     }
 }
@@ -1289,7 +1289,7 @@ get_query_options(const cmdline_args& args, query_options opt)
 
     auto result = clipp::parse(args, cli);
 
-    if(!result || err.any()) {
+    if (!result || err.any()) {
         raise_default_error(err, "query", query_mode_usage());
     }
 
@@ -1581,7 +1581,7 @@ get_build_query_options(const cmdline_args& args, build_query_options opt)
 
     auto result = clipp::parse(args, cli);
 
-    if(!result || err.any()) {
+    if (!result || err.any()) {
         raise_default_error(err, "build+query", build_query_mode_usage());
     }
 
@@ -1758,7 +1758,7 @@ get_merge_options(const cmdline_args& args, merge_options opt)
 
     auto result = clipp::parse(args, cli);
 
-    if(!result || err.any()) {
+    if (!result || err.any()) {
         raise_default_error(err, "merge", merge_mode_usage());
     }
 
@@ -1768,16 +1768,16 @@ get_merge_options(const cmdline_args& args, merge_options opt)
 
     auto& qo = opt.query;
 
-    if(qo.classify.hitsMin == 0) {
+    if (qo.classify.hitsMin == 0) {
         qo.classify.hitsMin = 5;
     }
-    if(qo.classify.lowestRank < taxon_rank::Species) {
+    if (qo.classify.lowestRank < taxon_rank::Species) {
         qo.classify.lowestRank = taxon_rank::Species;
     }
-    if(qo.output.format.lowestRank < taxon_rank::Species) {
+    if (qo.output.format.lowestRank < taxon_rank::Species) {
         qo.output.format.lowestRank = taxon_rank::Species;
     }
-    if(qo.performance.numThreads > 1) {
+    if (qo.performance.numThreads > 1) {
         qo.performance.numThreads = 1;
     }
 
@@ -1907,7 +1907,7 @@ get_info_options(const cmdline_args& args)
 
     auto result = clipp::parse(args, cli);
 
-    if(!result || err.any()) {
+    if (!result || err.any()) {
         raise_default_error(err, "info", info_mode_usage());
     }
 

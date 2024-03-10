@@ -53,7 +53,7 @@ void add_to_database_and_save(database& db, const build_options& opt)
 
     time.stop();
 
-    if(opt.infoLevel != info_level::silent) {
+    if (opt.infoLevel != info_level::silent) {
         cout << "Total build time: " << time.seconds() << " s" << endl;
     }
 
@@ -76,7 +76,7 @@ void main_mode_modify(const cmdline_args& args)
 
     auto db = make_database(opt.dbfile, opt.dbpart);
 
-    if(opt.infoLevel != info_level::silent && !opt.infiles.empty()) {
+    if (opt.infoLevel != info_level::silent && !opt.infiles.empty()) {
         cout << "Adding reference sequences to database..." << endl;
     }
 
@@ -94,7 +94,7 @@ void main_mode_build(const cmdline_args& args)
 {
     auto opt = get_build_options(args);
 
-    if(opt.infoLevel != info_level::silent) {
+    if (opt.infoLevel != info_level::silent) {
         cout << "Building new database '" << opt.dbfile
              << "' from reference sequences." << endl;
     }

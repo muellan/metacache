@@ -160,8 +160,8 @@ public:
 
         friend bool
         operator < (const location& a, const location& b) noexcept {
-            if(a.tgt < b.tgt) return true;
-            if(a.tgt > b.tgt) return false;
+            if (a.tgt < b.tgt) return true;
+            if (a.tgt > b.tgt) return false;
             return (a.win < b.win);
         }
 
@@ -268,7 +268,7 @@ public:
      */
     feature_count_type
     remove_ambiguous_features(taxon_rank r, bucket_size_type maxambig) {
-        if(taxonomyCache_.taxa_empty()) {
+        if (taxonomyCache_.taxa_empty()) {
             throw std::runtime_error{"no taxonomy available!"};
         }
         else {
@@ -295,7 +295,7 @@ public:
         taxonomyCache_.initialize_caches();
 
 #ifdef GPU_MODE
-        if(num_parts() > 0) {
+        if (num_parts() > 0) {
             featureStore_.enable_peer_access();
             featureStore_.copy_target_lineages_to_gpus(taxonomyCache_.target_lineages());
         }

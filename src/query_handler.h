@@ -75,12 +75,12 @@ private:
                std::vector<size_t>& offsets,
                match_locations& temp)
     {
-        if(offsets.size() < 3) return;
+        if (offsets.size() < 3) return;
         temp.resize(inout.size());
 
         int numChunks = offsets.size()-1;
-        for(int s = 1; s < numChunks; s *= 2) {
-            for(int i = 0; i < numChunks; i += 2*s) {
+        for (int s = 1; s < numChunks; s *= 2) {
+            for (int i = 0; i < numChunks; i += 2*s) {
                 auto begin = offsets[i];
                 auto mid = i + s <= numChunks ? offsets[i + s] : offsets[numChunks];
                 auto end = i + 2*s <= numChunks ? offsets[i + 2*s] : offsets[numChunks];
@@ -90,7 +90,7 @@ private:
             }
             std::swap(inout, temp);
         }
-        if(numChunks % 2) {
+        if (numChunks % 2) {
             std::copy(inout.begin()+offsets.front(),
                       inout.begin()+offsets.back(),
                       temp.begin()+offsets.front());

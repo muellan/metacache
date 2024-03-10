@@ -68,8 +68,8 @@ bits_as_string(Int x, std::uint8_t groupsize = CHAR_BIT)
 
     auto m = Int(1); m <<= (bits-1);
 
-    for(std::uint8_t i = 0; i < bits; ++i, m >>= 1) {
-          if(i > 0 && !(i % groupsize)) s.push_back('.');
+    for (std::uint8_t i = 0; i < bits; ++i, m >>= 1) {
+          if (i > 0 && !(i % groupsize)) s.push_back('.');
         s.push_back((x & m) ? '1' : '0');
     }
 

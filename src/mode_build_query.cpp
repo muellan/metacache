@@ -58,7 +58,7 @@ void add_to_database_and_query(database& db, build_query_options& opt)
 
     adapt_options_to_database(opt.query, db);
 
-    if(!opt.query.infiles.empty()) {
+    if (!opt.query.infiles.empty()) {
         cerr << "Classifying query sequences.\n";
 
         process_input_files(db, opt.query);
@@ -69,7 +69,7 @@ void add_to_database_and_query(database& db, build_query_options& opt)
         run_interactive_query_mode(db, opt.query);
     }
 
-    if(opt.saveDatabase) {
+    if (opt.saveDatabase) {
         write_database(db, opt.build);
     }
 
@@ -87,7 +87,7 @@ void main_mode_build_query(const cmdline_args& args)
 {
     auto opt = get_build_query_options(args);
 
-    if(opt.build.infoLevel != info_level::silent) {
+    if (opt.build.infoLevel != info_level::silent) {
         cout << "Building new database from reference sequences." << endl;
     }
 

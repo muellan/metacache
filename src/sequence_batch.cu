@@ -29,13 +29,13 @@ template<>
 sequence_batch<policy::Host>::sequence_batch(index_type maxTargets, size_type maxSequenceLength) :
     maxTargets_{maxTargets}, numTargets_{0}, maxSequenceLength_{maxSequenceLength}
 {
-    if(maxTargets_) {
+    if (maxTargets_) {
         cudaMallocHost(&targetIds_, maxTargets_*sizeof(target_id));
         cudaMallocHost(&windowOffsets_, maxTargets_*sizeof(window_id));
         cudaMallocHost(&sequenceOffsets_, (maxTargets_+1)*sizeof(size_type));
         sequenceOffsets_[0] = 0;
     }
-    if(maxSequenceLength_) {
+    if (maxSequenceLength_) {
         cudaMallocHost(&sequence_, maxSequenceLength_*sizeof(char));
     }
     CUERR
@@ -45,12 +45,12 @@ sequence_batch<policy::Host>::sequence_batch(index_type maxTargets, size_type ma
 //---------------------------------------------------------------
 template<>
 sequence_batch<policy::Host>::~sequence_batch() {
-    if(maxTargets_) {
+    if (maxTargets_) {
         cudaFreeHost(targetIds_);
         cudaFreeHost(windowOffsets_);
         cudaFreeHost(sequenceOffsets_);
     }
-    if(maxSequenceLength_) {
+    if (maxSequenceLength_) {
         cudaFreeHost(sequence_);
     }
     CUERR
@@ -61,12 +61,12 @@ template<>
 sequence_batch<policy::Device>::sequence_batch(index_type maxTargets, size_type maxSequenceLength) :
     maxTargets_{maxTargets}, numTargets_{0}, maxSequenceLength_{maxSequenceLength}
 {
-    if(maxTargets_) {
+    if (maxTargets_) {
         cudaMalloc(&targetIds_, maxTargets_*sizeof(target_id));
         cudaMalloc(&windowOffsets_, maxTargets_*sizeof(window_id));
         cudaMalloc(&sequenceOffsets_, (maxTargets_+1)*sizeof(size_type));
     }
-    if(maxSequenceLength_) {
+    if (maxSequenceLength_) {
         cudaMalloc(&sequence_, maxSequenceLength_*sizeof(char));
     }
     CUERR
@@ -81,12 +81,12 @@ sequence_batch<policy::Device>::sequence_batch(index_type maxTargets, size_type 
 //---------------------------------------------------------------
 template<>
 sequence_batch<policy::Device>::~sequence_batch() {
-    if(maxTargets_) {
+    if (maxTargets_) {
         cudaFree(targetIds_);
         cudaFree(windowOffsets_);
         cudaFree(sequenceOffsets_);
     }
-    if(maxSequenceLength_) {
+    if (maxSequenceLength_) {
         cudaFree(sequence_);
     }
     CUERR

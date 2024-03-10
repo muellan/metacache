@@ -112,13 +112,13 @@ public:
         consumers_{},
         consume_{std::move(consume)}
     {
-        for(auto& handler : producerBatches_)
+        for (auto& handler : producerBatches_)
             handler.batch_.resize(param_.batch_size());
 
         // fill batch storage queue with initial batches
         // we want to re-use the individual batches and all their members
         // => minimize/avoid batch-resizing during processing
-        for(std::size_t i = 0; i < param_.queue_size(); ++i) {
+        for (std::size_t i = 0; i < param_.queue_size(); ++i) {
             batch_type batch;
             batch.resize(param_.batch_size());
             storageQueue_.enqueue(std::move(batch));
@@ -126,13 +126,13 @@ public:
 
         // spawn consumer threads
         consumers_.reserve(param_.num_consumers());
-        for(int consumerId = 0; consumerId < param_.num_consumers(); ++consumerId) {
+        for (int consumerId = 0; consumerId < param_.num_consumers(); ++consumerId) {
             consumers_.emplace_back(std::async(std::launch::async, [&,consumerId] {
                 try {
                     batch_type batch;
-                    while(valid() || workQueue_.size_approx() > 0) {
-                        if(workQueue_.try_dequeue(batch)) {
-                            if(consume_(consumerId, batch)) {
+                    while (valid() || workQueue_.size_approx() > 0) {
+                        if (workQueue_.try_dequeue(batch)) {
+                            if (consume_(consumerId, batch)) {
                                 // batch processed completely
                                 // put batch storage back
                                 storageQueue_.enqueue(std::move(batch));
@@ -146,7 +146,7 @@ public:
                             }
                         }
                         else {
-                            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+                            std::this_thread::sleep_for (std::chrono::milliseconds{1});
                         }
                     }
                     param_.finalize_(consumerId);
@@ -163,15 +163,15 @@ public:
     // -----------------------------------------------------------------------
     ~batch_executor() {
         try {
-            for(int producerId = 0; producerId < param_.num_producers(); ++producerId) {
+            for (int producerId = 0; producerId < param_.num_producers(); ++producerId) {
                 finalize_producer(producerId);
             }
 
             // signal all consumers to finish as soon as no work is left
             keepWorking_.store(0);
             // wait until consumers are finished
-            for(auto& consumer : consumers_) {
-                if(consumer.valid()) consumer.get();
+            for (auto& consumer : consumers_) {
+                if (consumer.valid()) consumer.get();
             }
         }
         catch(std::exception& e) {
@@ -207,7 +207,7 @@ public:
 
         consume_batch_if_full(producerId);
 
-        if(handler.workCount_ >= handler.batch_.size()) {
+        if (handler.workCount_ >= handler.batch_.size()) {
             handler.batch_.resize(handler.workCount_+1);
         }
         return handler.batch_[handler.workCount_++];
@@ -219,11 +219,11 @@ public:
     void finalize_producer(int producerId = 0) {
         auto& handler = producerBatches_[producerId];
 
-        if(!handler.finalized_ && valid()) {
+        if (!handler.finalized_ && valid()) {
             consume_batch_if_full(producerId);
 
             // finalize last batch
-            if(handler.workCount_ > 0) {
+            if (handler.workCount_ > 0) {
                 handler.batch_.resize(handler.workCount_);
                 consume_batch(producerId);
                 handler.workCount_ = 0;
@@ -239,14 +239,14 @@ private:
     void consume_batch_if_full(int producerId) {
         auto& handler = producerBatches_[producerId];
 
-        if(handler.workCount_ > 0) {
+        if (handler.workCount_ > 0) {
             const std::size_t lastSize = param_.measureWorkItem_(handler.batch_[handler.workCount_-1]);
             handler.workSize_ += lastSize;
 
-            if(handler.workSize_ >= param_.batch_size()) {
+            if (handler.workSize_ >= param_.batch_size()) {
                 WorkItem lastItem;
                 // if batch too big, remove last item
-                if(handler.workSize_ > param_.batch_size())
+                if (handler.workSize_ > param_.batch_size())
                     lastItem = std::move(handler.batch_[--handler.workCount_]);
 
                 handler.batch_.resize(handler.workCount_);
@@ -254,12 +254,12 @@ private:
                 consume_batch(producerId);
 
                 // get new batch storage
-                while(valid() && !storageQueue_.try_dequeue(handler.batch_)) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds{1});
+                while (valid() && !storageQueue_.try_dequeue(handler.batch_)) {
+                    std::this_thread::sleep_for (std::chrono::milliseconds{1});
                 }
 
                 // reinsert last item
-                if(handler.workSize_ > param_.batch_size()) {
+                if (handler.workSize_ > param_.batch_size()) {
                     handler.batch_.front() = std::move(lastItem);
                     handler.workSize_ = lastSize;
                     handler.workCount_ = 1;

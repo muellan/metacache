@@ -105,7 +105,7 @@ public:
     host_hashmap& operator = (host_hashmap&&)      = default;
 
     ~host_hashmap() {
-        for(size_t i = 0; i < inserters_.size(); ++i)
+        for (size_t i = 0; i < inserters_.size(); ++i)
             destroy_inserter(i);
     }
 
@@ -120,7 +120,7 @@ public:
         inserters_.resize(numParts);
         sketchers_.resize(numParts);
 
-        for(auto& hashTable : hashTables_)
+        for (auto& hashTable : hashTables_)
             hashTable.max_load_factor(maxLoadFactor_);
     }
 
@@ -134,15 +134,15 @@ public:
 
     //---------------------------------------------------------------
     void max_load_factor(float lf) {
-        if(lf > 1.0f) lf = 1.0f;
-        if(lf < 0.1f) lf = 0.1f;
+        if (lf > 1.0f) lf = 1.0f;
+        if (lf < 0.1f) lf = 0.1f;
 
         using std::abs;
-        if(abs(maxLoadFactor_ - lf) > 0.00001f) {
+        if (abs(maxLoadFactor_ - lf) > 0.00001f) {
             maxLoadFactor_ = lf;
         }
 
-        for(auto& hashTable : hashTables_)
+        for (auto& hashTable : hashTables_)
             hashTable.max_load_factor(maxLoadFactor_);
     }
     //-----------------------------------------------------
@@ -162,28 +162,28 @@ public:
     //---------------------------------------------------------------
     std::uint64_t key_count() const noexcept {
         std::uint64_t count = 0;
-        for(const auto& hashTable : hashTables_)
+        for (const auto& hashTable : hashTables_)
             count += hashTable.key_count();
         return count;
     }
     //---------------------------------------------------------------
     std::uint64_t value_count() const noexcept {
         std::uint64_t count = 0;
-        for(const auto& hashTable : hashTables_)
+        for (const auto& hashTable : hashTables_)
             count += hashTable.value_count();
         return count;
     }
     //---------------------------------------------------------------
     std::uint64_t bucket_count() const noexcept {
         std::uint64_t count = 0;
-        for(const auto& hashTable : hashTables_)
+        for (const auto& hashTable : hashTables_)
             count += hashTable.bucket_count();
         return count;
     }
     //---------------------------------------------------------------
     std::uint64_t non_empty_bucket_count() const noexcept {
         std::uint64_t count = 0;
-        for(const auto& hashTable : hashTables_)
+        for (const auto& hashTable : hashTables_)
             count += hashTable.non_empty_bucket_count();
         return count;
     }
@@ -194,7 +194,7 @@ public:
 
     //---------------------------------------------------------------
     void clear() {
-        for(auto& hashTable : hashTables_)
+        for (auto& hashTable : hashTables_)
             hashTable.clear();
     }
     //---------------------------------------------------------------
@@ -202,7 +202,7 @@ public:
      * @brief very dangerous! clears hash table without memory deallocation
      */
     void clear_without_deallocation() {
-        for(auto& hashTable : hashTables_)
+        for (auto& hashTable : hashTables_)
             hashTable.clear_without_deallocation();
     }
 
@@ -212,16 +212,16 @@ public:
     location_list_size_statistics() const {
         auto totalAccumulator = statistics_accumulator{};
 
-        for(part_id part = 0; part < num_parts(); ++part) {
+        for (part_id part = 0; part < num_parts(); ++part) {
             auto accumulator = statistics_accumulator{};
 
-            for(const auto& bucket : hashTables_[part]) {
-                if(!bucket.empty()) {
+            for (const auto& bucket : hashTables_[part]) {
+                if (!bucket.empty()) {
                     accumulator += bucket.size();
                 }
             }
 
-            if(num_parts() > 1) {
+            if (num_parts() > 1) {
                 std::cout
                     << "------------------------------------------------\n"
                     << "database part " << part << ":\n"
@@ -246,14 +246,14 @@ public:
 
     //---------------------------------------------------------------
     void print_feature_map(std::ostream& os) const {
-        for(part_id part = 0; part < num_parts(); ++part) {
-            if(num_parts() > 1)
+        for (part_id part = 0; part < num_parts(); ++part) {
+            if (num_parts() > 1)
                 os << "database part " << part << ":\n";
 
-            for(const auto& bucket : hashTables_[part]) {
-                if(!bucket.empty()) {
+            for (const auto& bucket : hashTables_[part]) {
+                if (!bucket.empty()) {
                     os << std::int_least64_t(bucket.key()) << " -> ";
-                    for(location p : bucket) {
+                    for (location p : bucket) {
                         os << '(' << std::int_least64_t(p.tgt)
                         << ',' << std::int_least64_t(p.win) << ')';
                     }
@@ -266,12 +266,12 @@ public:
 
     //---------------------------------------------------------------
     void print_feature_counts(std::ostream& os) const {
-        for(part_id part = 0; part < num_parts(); ++part) {
-            if(num_parts() > 1)
+        for (part_id part = 0; part < num_parts(); ++part) {
+            if (num_parts() > 1)
                 os << "database part " << part << ":\n";
 
-            for(const auto& bucket : hashTables_[part]) {
-                if(!bucket.empty()) {
+            for (const auto& bucket : hashTables_[part]) {
+                if (!bucket.empty()) {
                     os << std::int_least64_t(bucket.key()) << " -> "
                     << std::int_least64_t(bucket.size()) << '\n';
                 }
@@ -288,12 +288,12 @@ public:
     //-----------------------------------------------------
     void max_locations_per_feature(bucket_size_type n)
     {
-        if(n < 1) n = 1;
-        if(n >= max_supported_locations_per_feature()) {
+        if (n < 1) n = 1;
+        if (n >= max_supported_locations_per_feature()) {
             n = max_supported_locations_per_feature();
         }
-        else if(n < maxLocationsPerFeature_) {
-            for(auto& hashTable : hashTables_)
+        else if (n < maxLocationsPerFeature_) {
+            for (auto& hashTable : hashTables_)
                 hashTable.shrink_all(n);
         }
         maxLocationsPerFeature_ = n;
@@ -315,9 +315,9 @@ public:
     {
         feature_count_type rem = 0;
 
-        for(auto& hashTable : hashTables_) {
-            for(auto i = hashTable.begin(), e = hashTable.end(); i != e; ++i) {
-                if(i->size() > n) {
+        for (auto& hashTable : hashTables_) {
+            for (auto i = hashTable.begin(), e = hashTable.end(); i != e; ++i) {
+                if (i->size() > n) {
                     hashTable.clear(i);
                     ++rem;
                 }
@@ -335,16 +335,16 @@ public:
     {
         feature_count_type rem = 0;
 
-        if(maxambig == 0) maxambig = 1;
+        if (maxambig == 0) maxambig = 1;
 
-        for(auto& hashTable : hashTables_) {
-            if(r == taxon_rank::Sequence) {
-                for(auto i = hashTable.begin(), e = hashTable.end(); i != e; ++i) {
-                    if(!i->empty()) {
+        for (auto& hashTable : hashTables_) {
+            if (r == taxon_rank::Sequence) {
+                for (auto i = hashTable.begin(), e = hashTable.end(); i != e; ++i) {
+                    if (!i->empty()) {
                         std::set<target_id> targets;
-                        for(auto loc : *i) {
+                        for (auto loc : *i) {
                             targets.insert(loc.tgt);
-                            if(targets.size() > maxambig) {
+                            if (targets.size() > maxambig) {
                                 hashTable.clear(i);
                                 ++rem;
                                 break;
@@ -354,12 +354,12 @@ public:
                 }
             }
             else {
-                for(auto i = hashTable.begin(), e = hashTable.end(); i != e; ++i) {
-                    if(!i->empty()) {
+                for (auto i = hashTable.begin(), e = hashTable.end(); i != e; ++i) {
+                    if (!i->empty()) {
                         std::unordered_set<const taxon*> taxa;
-                        for(auto loc : *i) {
+                        for (auto loc : *i) {
                             taxa.insert(taxonomy.cached_ancestor(loc.tgt, r));
-                            if(taxa.size() > maxambig) {
+                            if (taxa.size() > maxambig) {
                                 hashTable.clear(i);
                                 ++rem;
                                 break;
@@ -388,7 +388,7 @@ private:
 public:
     //---------------------------------------------------------------
     bool add_target_failed(part_id partId) const noexcept {
-        if(inserters_[partId])
+        if (inserters_[partId])
             return !(inserters_[partId]->valid());
         else
             return false;
@@ -408,12 +408,12 @@ public:
                          const sequence& seq, target_id tgt,
                          const sketching_opt& opt)
     {
-        if(!inserters_[part]) make_sketch_inserter(part);
+        if (!inserters_[part]) make_sketch_inserter(part);
 
         window_id win = 0;
         sketchers_[part].for_each_sketch(seq, opt,
             [&, this] (const auto& sk) {
-                if(inserters_[part]->valid()) {
+                if (inserters_[part]->valid()) {
                     //insert sketch into batch
                     auto& sketch = inserters_[part]->next_item();
                     sketch.tgt = tgt;
@@ -429,12 +429,12 @@ public:
 private:
     //---------------------------------------------------------------
     void add_sketch_batch(part_id part, const sketch_batch& batch) {
-        for(const auto& windowSketch : batch) {
+        for (const auto& windowSketch : batch) {
             //insert features from sketch into database
-            for(const auto& f : windowSketch.sk) {
+            for (const auto& f : windowSketch.sk) {
                 auto it = hashTables_[part].insert(
                     f, location{windowSketch.win, windowSketch.tgt});
-                if(it->size() > maxLocationsPerFeature_) {
+                if (it->size() > maxLocationsPerFeature_) {
                     hashTables_[part].shrink(it, maxLocationsPerFeature_);
                 }
             }
@@ -478,27 +478,27 @@ private:
 
         sketcher.for_each_sketch(begin(query1), end(query1), opt,
             [&, this] (const auto& sk) {
-                for(auto f : sk) {
+                for (auto f : sk) {
                     auto locs = hashTables_[0].find(f);
-                    if(locs != hashTables_[0].end() && locs->size() > 0) {
+                    if (locs != hashTables_[0].end() && locs->size() > 0) {
                         sorter.append(locs->begin(), locs->end());
                     }
                 }
 
-                if(keepSketches)
+                if (keepSketches)
                     allWindowSketch.insert(allWindowSketch.end(), sk.begin(), sk.end());
             });
 
         sketcher.for_each_sketch(begin(query2), end(query2), opt,
             [&, this] (const auto& sk) {
-                for(auto f : sk) {
+                for (auto f : sk) {
                     auto locs = hashTables_[0].find(f);
-                    if(locs != hashTables_[0].end() && locs->size() > 0) {
+                    if (locs != hashTables_[0].end() && locs->size() > 0) {
                         sorter.append(locs->begin(), locs->end());
                     }
                 }
 
-                if(keepSketches)
+                if (keepSketches)
                     allWindowSketch.insert(allWindowSketch.end(), sk.begin(), sk.end());
             });
 
@@ -517,9 +517,9 @@ private:
     {
         auto& sorter = queryHandler.matchesSorter;
 
-        for(auto f : allWindowSketch) {
+        for (auto f : allWindowSketch) {
             auto locs = hashTables_[part].find(f);
-            if(locs != hashTables_[part].end() && locs->size() > 0) {
+            if (locs != hashTables_[part].end() && locs->size() > 0) {
                 sorter.append(locs->begin(), locs->end());
             }
         }
@@ -547,7 +547,7 @@ public:
         sorter.sort();
 
         // accumulate and sort matches from other db parts
-        for(part_id part = 1; part < num_parts(); ++part) {
+        for (part_id part = 1; part < num_parts(); ++part) {
             sorter.next();
 
             accumulate_matches(part, queryHandler, allWindowSketch);
@@ -563,7 +563,7 @@ public:
     void prepare_for_query_hash_tables(part_id numParts, unsigned) {
         hashTables_.resize(numParts);
 
-        for(auto& hashTable : hashTables_)
+        for (auto& hashTable : hashTables_)
             hashTable.max_load_factor(maxLoadFactor_);
     }
 

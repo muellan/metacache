@@ -51,10 +51,10 @@ public:
     classification_statistics() noexcept :
         assigned_{}, known_{}, correct_{}, wrong_{}, coverage_{}, mtx_{}
     {
-        for(auto& x : assigned_) x = 0;
-        for(auto& x : known_)    x = 0;
-        for(auto& x : correct_)  x = 0;
-        for(auto& x : wrong_)    x = 0;
+        for (auto& x : assigned_) x = 0;
+        for (auto& x : known_)    x = 0;
+        for (auto& x : correct_)  x = 0;
+        for (auto& x : wrong_)    x = 0;
     }
 
     classification_statistics(const classification_statistics&) = delete;
@@ -90,18 +90,18 @@ public:
         assign(assigned);
 
         //plausibility check
-        if(correct < assigned) correct = assigned;
-        if(correct < known)    correct = known;
+        if (correct < assigned) correct = assigned;
+        if (correct < known)    correct = known;
 
         //if ground truth known -> count correct and wrong assignments
         ++known_[int(known)];
 
-        if(known != rank::none) {
+        if (known != rank::none) {
             ++correct_[int(correct)];
 
             //if ranks below the correct rank are known and assigned,
             //then all ranks below the correct rank are wrong
-            if(correct > known && correct > assigned) {
+            if (correct > known && correct > assigned) {
                 ++wrong_[int(correct)-1];
             }
         }
@@ -135,7 +135,7 @@ public:
 
     count_t assigned() const noexcept {
         count_t sum = 0;
-        for(rank r = rank::Sequence; r <= rank::root; ++r) sum += assigned_[int(r)];
+        for (rank r = rank::Sequence; r <= rank::root; ++r) sum += assigned_[int(r)];
         return sum;
     }
     /**
@@ -143,7 +143,7 @@ public:
      */
     count_t assigned(rank rr) const noexcept {
         count_t sum = 0;
-        for(rank r = rank::Sequence; r <= rr; ++r) sum += assigned_[int(r)];
+        for (rank r = rank::Sequence; r <= rr; ++r) sum += assigned_[int(r)];
         return sum;
     }
     count_t unassigned() const noexcept {
@@ -157,7 +157,7 @@ public:
 
     count_t known() const noexcept {
         count_t sum = 0;
-        for(rank r = rank::Sequence; r <= rank::root; ++r) sum += known_[int(r)];
+        for (rank r = rank::Sequence; r <= rank::root; ++r) sum += known_[int(r)];
         return sum;
     }
     /**
@@ -165,7 +165,7 @@ public:
      */
     count_t known(rank rr) const noexcept {
         count_t sum = 0;
-        for(rank r = rank::Sequence; r <= rr; ++r) sum += known_[int(r)];
+        for (rank r = rank::Sequence; r <= rr; ++r) sum += known_[int(r)];
         return sum;
     }
     count_t unknown() const noexcept {
@@ -177,12 +177,12 @@ public:
      */
     count_t correct(rank rr) const noexcept {
         count_t sum = 0;
-        for(rank r = rank::Sequence; r <= rr; ++r) sum += correct_[int(r)];
+        for (rank r = rank::Sequence; r <= rr; ++r) sum += correct_[int(r)];
         return sum;
     }
     count_t correct() const noexcept {
         count_t sum = 0;
-        for(rank r = rank::Sequence; r <= rank::root; ++r) sum += correct_[int(r)];
+        for (rank r = rank::Sequence; r <= rank::root; ++r) sum += correct_[int(r)];
         return sum;
     }
 
@@ -191,12 +191,12 @@ public:
      */
     count_t wrong(rank rr) const noexcept {
         count_t sum = 0;
-        for(rank r = rr; r <= rank::root; ++r) sum += wrong_[int(r)];
+        for (rank r = rr; r <= rank::root; ++r) sum += wrong_[int(r)];
         return sum;
     }
     count_t wrong() const noexcept {
         count_t sum = 0;
-        for(rank r = rank::Sequence; r <= rank::root; ++r) sum += wrong_[int(r)];
+        for (rank r = rank::Sequence; r <= rank::root; ++r) sum += wrong_[int(r)];
         return sum;
     }
 

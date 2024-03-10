@@ -69,14 +69,14 @@ void rank_targets_with_mapping_file(taxonomy_cache& taxonomy,
 {
     const bool showInfo = infoLvl != info_level::silent;
 
-    if(targetTaxa.empty()) return;
+    if (targetTaxa.empty()) return;
 
     std::ifstream is {mappingFile};
-    if(!is.good()) return;
+    if (!is.good()) return;
 
     const auto fsize = file_size(mappingFile);
 
-    if(showInfo) {
+    if (showInfo) {
         cout << "Try to map sequences to taxa using '" << mappingFile
              << "' (" << std::max(std::streamoff(1),
                                  fsize/(1024*1024)) << " MB)" << endl;
@@ -87,7 +87,7 @@ void rank_targets_with_mapping_file(taxonomy_cache& taxonomy,
     //update progress indicator every 1M lines
     size_t step = 0;
     size_t statStep = 1UL << 20;
-    if(showProgress) show_progress_indicator(cout, 0);
+    if (showProgress) show_progress_indicator(cout, 0);
 
     string acc;
     string accver;
@@ -98,33 +98,33 @@ void rank_targets_with_mapping_file(taxonomy_cache& taxonomy,
     getline(is, acc);
     acc.clear();
 
-    while(is >> acc >> accver >> taxid >> gi) {
+    while (is >> acc >> accver >> taxid >> gi) {
         //target in database?
         //accession.version is the default
         const taxon* tax = taxonomy.taxon_with_name(accver);
 
-        if(!tax) {
+        if (!tax) {
             tax = taxonomy.taxon_with_similar_name(acc);
-            if(!tax) tax = taxonomy.taxon_with_name(gi);
+            if (!tax) tax = taxonomy.taxon_with_name(gi);
         }
 
         //if in database then set parent
-        if(tax) {
+        if (tax) {
             auto i = targetTaxa.find(tax);
-            if(i != targetTaxa.end()) {
+            if (i != targetTaxa.end()) {
                 taxonomy.reset_target_parent(*tax, taxid);
                 targetTaxa.erase(i);
-                if(targetTaxa.empty()) break;
+                if (targetTaxa.empty()) break;
             }
         }
 
-        if(showProgress && !(++step % statStep)) {
+        if (showProgress && !(++step % statStep)) {
             auto pos = is.tellg();
             show_progress_indicator(cout, pos / float(fsize));
         }
     }
 
-    if(showProgress) clear_current_line(cout);
+    if (showProgress) clear_current_line(cout);
 }
 
 
@@ -139,8 +139,8 @@ unranked_targets(const taxonomy_cache& taxonomy)
 {
     auto res = taxon_pointer_set{};
 
-    for(const auto& tax : taxonomy.target_taxa()) {
-        if(!tax.has_parent()) res.insert(&tax);
+    for (const auto& tax : taxonomy.target_taxa()) {
+        if (!tax.has_parent()) res.insert(&tax);
     }
 
     return res;
@@ -158,7 +158,7 @@ all_targets(const taxonomy_cache& taxonomy)
 {
     auto res = taxon_pointer_set{};
 
-    for(const auto& tax : taxonomy.target_taxa()) {
+    for (const auto& tax : taxonomy.target_taxa()) {
         res.insert(&tax);
     }
 
@@ -175,26 +175,26 @@ all_targets(const taxonomy_cache& taxonomy)
 void try_to_rank_unranked_targets(taxonomy_cache& taxonomy, const build_options& opt)
 {
     taxon_pointer_set unranked;
-    if(opt.resetParents)
+    if (opt.resetParents)
         unranked = all_targets(taxonomy);
     else
         unranked = unranked_targets(taxonomy);
 
-    if(!unranked.empty()) {
-        if(opt.infoLevel != info_level::silent) {
+    if (!unranked.empty()) {
+        if (opt.infoLevel != info_level::silent) {
             cout << unranked.size()
                  << " targets are unranked." << endl;
         }
 
-        for(const auto& file : opt.taxonomy.mappingPostFiles) {
+        for (const auto& file : opt.taxonomy.mappingPostFiles) {
             rank_targets_with_mapping_file(taxonomy, unranked, file, opt.infoLevel);
-            if(unranked.empty()) break;
+            if (unranked.empty()) break;
         }
     }
 
     unranked = unranked_targets(taxonomy);
-    if(opt.infoLevel != info_level::silent) {
-        if(unranked.empty()) {
+    if (opt.infoLevel != info_level::silent) {
+        if (unranked.empty()) {
             cout << "All targets are ranked." << endl;
         }
         else {
@@ -215,20 +215,20 @@ taxon_id find_taxon_id(
     const std::map<string,taxon_id>& name2tax,
     const string& name)
 {
-    if(name2tax.empty()) return taxonomy::none_id();
-    if(name.empty()) return taxonomy::none_id();
+    if (name2tax.empty()) return taxonomy::none_id();
+    if (name.empty()) return taxonomy::none_id();
 
     //try to find exact match
     auto i = name2tax.find(name);
-    if(i != name2tax.end()) return i->second;
+    if (i != name2tax.end()) return i->second;
 
     //find nearest match
     i = name2tax.upper_bound(name);
-    if(i == name2tax.end()) return taxonomy::none_id();
+    if (i == name2tax.end()) return taxonomy::none_id();
 
     //if nearest match contains 'name' as prefix -> good enough
     //e.g. accession vs. accession.version
-    if(i->first.compare(0,name.size(),name) != 0) return taxonomy::none_id();
+    if (i->first.compare(0,name.size(),name) != 0) return taxonomy::none_id();
     return i->second;
 }
 
@@ -260,33 +260,33 @@ bool add_targets_to_database(
     const std::map<string,taxon_id>& sequ2taxid,
     info_level infoLvl)
 {
-    for(auto& seq : batch) {
-        if(!db.check_load_factor(dbPart)) return false;
-        if(db.add_target_failed(dbPart)) return false;
+    for (auto& seq : batch) {
+        if (!db.check_load_factor(dbPart)) return false;
+        if (db.add_target_failed(dbPart)) return false;
 
-        if(!seq.data.empty()) {
+        if (!seq.data.empty()) {
             auto seqId = extract_accession_string(
                              seq.header, sequence_id_type::any);
 
             // make sure sequence id is not empty,
             // use entire header if neccessary
-            if(seqId.empty()) seqId = seq.header;
+            if (seqId.empty()) seqId = seq.header;
 
             taxon_id parentTaxId = seq.fileTaxId;
 
-            if(parentTaxId == taxonomy::none_id())
+            if (parentTaxId == taxonomy::none_id())
                 parentTaxId = find_taxon_id(sequ2taxid, seqId);
 
-            if(parentTaxId == taxonomy::none_id())
+            if (parentTaxId == taxonomy::none_id())
                 parentTaxId = extract_taxon_id(seq.header);
 
             // try to add to database
             bool added = db.add_target(
                 dbPart, seq.data, seqId, parentTaxId, seq.fileSource);
 
-            if(infoLvl == info_level::verbose) {
+            if (infoLvl == info_level::verbose) {
                 cout << "        [" << seqId;
-                if(parentTaxId > 0) cout << ":" << parentTaxId;
+                if (parentTaxId > 0) cout << ":" << parentTaxId;
                 cout << "]  " << seq.data.size() << " bp";
                 if (added) {
                     cout << endl;
@@ -326,14 +326,14 @@ void add_targets_to_database(database& db,
 #endif
 
     execOpt.on_error([&] (std::exception& e) {
-        if(dynamic_cast<database::target_limit_exceeded_error*>(&e)) {
+        if (dynamic_cast<database::target_limit_exceeded_error*>(&e)) {
             cout << endl;
             cerr << "! Reached maximum number of targets per database ("
                  << db.max_target_count() << ").\n"
                  << "! See 'README.md' on how to compile MetaCache with "
                  << "support for databases with more reference targets.\n\n";
         }
-        else if(infoLvl == info_level::verbose) {
+        else if (infoLvl == info_level::verbose) {
             cout << "FAIL: " << e.what() << endl;
         }
     });
@@ -352,12 +352,12 @@ void add_targets_to_database(database& db,
     readingProgress.total = numFiles;
     std::mutex outputMtx;
 
-    for(int producerId = 0; producerId < execOpt.num_producers(); ++producerId) {
+    for (int producerId = 0; producerId < execOpt.num_producers(); ++producerId) {
         producers.emplace_back(std::async(std::launch::async, [&, producerId] {
             auto fileId = readingProgress.counter++;
-            while(fileId < numFiles && executor.valid()) {
+            while (fileId < numFiles && executor.valid()) {
                 const auto& filename = infiles[fileId];
-                if(infoLvl == info_level::verbose) {
+                if (infoLvl == info_level::verbose) {
                     std::lock_guard<std::mutex> lock(outputMtx);
                     cout << "  (" << fileId << '/' << numFiles << ") "
                          << filename << endl;
@@ -369,7 +369,7 @@ void add_targets_to_database(database& db,
 
                     const taxon_id fileTaxId = find_taxon_id(sequ2taxid, fileAccession);
 
-                    if(infoLvl == info_level::verbose) {
+                    if (infoLvl == info_level::verbose) {
                         std::lock_guard<std::mutex> lock(outputMtx);
                         cout << "      accession '" << fileAccession
                              << "' -> taxid " << fileTaxId << endl;
@@ -377,7 +377,7 @@ void add_targets_to_database(database& db,
 
                     sequence_reader reader{filename};
 
-                    while(reader.has_next() && executor.valid()) {
+                    while (reader.has_next() && executor.valid()) {
                         // get (ref to) next input sequence storage and fill it
                         auto& seq = executor.next_item(producerId);
                         seq.fileSource.filename = filename;
@@ -387,7 +387,7 @@ void add_targets_to_database(database& db,
                     }
                 }
                 catch(std::exception& e) {
-                    if(infoLvl == info_level::verbose) {
+                    if (infoLvl == info_level::verbose) {
                         std::lock_guard<std::mutex> lock(outputMtx);
                         cout << "FAIL: " << e.what() << endl;
                     }
@@ -400,17 +400,17 @@ void add_targets_to_database(database& db,
         }));
     }
 
-    if(infoLvl == info_level::moderate) {
+    if (infoLvl == info_level::moderate) {
         show_progress_until_ready(cerr, readingProgress, producers);
     }
     else {
-        for(auto& producer : producers) {
-            if(producer.valid()) producer.get();
+        for (auto& producer : producers) {
+            if (producer.valid()) producer.get();
         }
     }
 
     float progress = readingProgress.progress();
-    if(progress < 1.0f) {
+    if (progress < 1.0f) {
         cout << "WARNING: Could only only process " << 100*progress << "% of input files." << endl;
     }
 
@@ -427,41 +427,41 @@ void add_targets_to_database(database& db,
 void prepare_database(database& db, const build_options& opt)
 {
     const auto dbconf = opt.dbconfig;
-    if(dbconf.maxLocationsPerFeature > 0) {
+    if (dbconf.maxLocationsPerFeature > 0) {
         db.max_locations_per_feature(dbconf.maxLocationsPerFeature);
         cerr << "Max locations per feature set to "
              << int(db.max_locations_per_feature()) << '\n';
     }
 
-    if(dbconf.maxLoadFactor > 0.4 && dbconf.maxLoadFactor < 0.99) {
+    if (dbconf.maxLoadFactor > 0.4 && dbconf.maxLoadFactor < 0.99) {
         db.max_load_factor(dbconf.maxLoadFactor);
         cerr << "Using custom hash table load factor of "
              << db.max_load_factor() << '\n';
     }
 
-    if(!opt.taxonomy.path.empty()) {
+    if (!opt.taxonomy.path.empty()) {
         db.taxo_cache().reset_taxa_above_sequence_level(
             make_taxonomic_hierarchy(opt.taxonomy.nodesFile,
                                      opt.taxonomy.namesFile,
                                      opt.taxonomy.mergeFile,
                                      opt.infoLevel) );
 
-        if(opt.infoLevel != info_level::silent) {
+        if (opt.infoLevel != info_level::silent) {
             cout << "Taxonomy applied to database." << endl;
         }
     }
 
-    if(db.taxo_cache().non_target_taxon_count() < 1 && opt.infoLevel != info_level::silent) {
+    if (db.taxo_cache().non_target_taxon_count() < 1 && opt.infoLevel != info_level::silent) {
         cout << "The datbase doesn't contain a taxonomic hierarchy yet.\n"
              << "You can add one or update later via:\n"
              << "   metacache modify <database> -taxonomy <directory>"
              << endl;
     }
 
-    if(dbconf.removeAmbigFeaturesOnRank != taxon_rank::none &&
+    if (dbconf.removeAmbigFeaturesOnRank != taxon_rank::none &&
        opt.infoLevel != info_level::silent)
     {
-        if(db.taxo_cache().non_target_taxon_count() > 1) {
+        if (db.taxo_cache().non_target_taxon_count() > 1) {
             cout << "Ambiguous features on rank "
                  << taxonomy::rank_name(dbconf.removeAmbigFeaturesOnRank)
                  << " will be removed afterwards.\n";
@@ -487,27 +487,27 @@ void post_process_features(database& db, const build_options& opt)
 
     const auto& dbconf = opt.dbconfig;
 
-    if(dbconf.removeOverpopulatedFeatures) {
+    if (dbconf.removeOverpopulatedFeatures) {
         auto old = db.feature_count();
         auto maxlpf = db.max_locations_per_feature() - 1;
-        if(maxlpf > 0) { //always keep buckets with size 1
-            if(notSilent) {
+        if (maxlpf > 0) { //always keep buckets with size 1
+            if (notSilent) {
                 cout << "\nRemoving features with more than "
                      << maxlpf << " locations... " << flush;
             }
             auto rem = db.remove_features_with_more_locations_than(maxlpf);
 
-            if(notSilent) {
+            if (notSilent) {
                 cout << rem << " of " << old << " removed." << endl;
-                if(rem != old) print_content_properties(db);
+                if (rem != old) print_content_properties(db);
             }
         }
     }
 
-    if(dbconf.removeAmbigFeaturesOnRank != taxon_rank::none &&
+    if (dbconf.removeAmbigFeaturesOnRank != taxon_rank::none &&
         db.taxo_cache().non_target_taxon_count() > 1)
     {
-        if(notSilent) {
+        if (notSilent) {
             cout << "\nRemoving ambiguous features on rank "
                  << taxonomy::rank_name(dbconf.removeAmbigFeaturesOnRank)
                  << "... " << flush;
@@ -517,9 +517,9 @@ void post_process_features(database& db, const build_options& opt)
         auto rem = db.remove_ambiguous_features(dbconf.removeAmbigFeaturesOnRank,
                                                 dbconf.maxTaxaPerFeature);
 
-        if(notSilent) {
+        if (notSilent) {
             cout << rem << " of " << old << "." << endl;
-            if(rem != old) print_content_properties(db);
+            if (rem != old) print_content_properties(db);
         }
 
     }
@@ -536,15 +536,15 @@ void write_database(const database& db, const build_options& opt)
 {
     const bool notSilent = opt.infoLevel != info_level::silent;
 
-    if(notSilent) {
+    if (notSilent) {
         cout << "Writing database to file ... " << flush;
     }
     try {
         db.write(opt.dbfile);
-        if(notSilent) cout << "done." << endl;
+        if (notSilent) cout << "done." << endl;
     }
     catch(const file_access_error&) {
-        if(notSilent) cout << "FAIL" << endl;
+        if (notSilent) cout << "FAIL" << endl;
         cerr << "Could not write database file!\n";
     }
 }
@@ -561,9 +561,9 @@ void add_to_database(database& db, const build_options& opt, timer& time)
     prepare_database(db, opt);
 
     const bool notSilent = opt.infoLevel != info_level::silent;
-    if(notSilent) print_static_properties(db);
+    if (notSilent) print_static_properties(db);
 
-    if(!opt.infiles.empty()) {
+    if (!opt.infiles.empty()) {
         const auto initNumTargets = db.target_count();
 
         auto taxonMap = make_sequence_to_taxon_id_map(
@@ -571,11 +571,11 @@ void add_to_database(database& db, const build_options& opt, timer& time)
                             opt.taxonomy.mappingPreFilesGlobal,
                             opt.infiles, opt.infoLevel);
 
-        if(notSilent) cout << "Processing reference sequences." << endl;
+        if (notSilent) cout << "Processing reference sequences." << endl;
 
         add_targets_to_database(db, opt.infiles, taxonMap, opt.infoLevel);
 
-        if(notSilent) {
+        if (notSilent) {
             clear_current_line(cout);
             cout << "Added "
                  << (db.target_count() - initNumTargets) << " reference sequences "

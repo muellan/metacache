@@ -34,11 +34,11 @@ namespace mc {
 cmdline_args make_args_list(char** first, char** last)
 {
     cmdline_args args;
-    if(last < first) return args;
+    if (last < first) return args;
 
     args.reserve(last-first);
 
-    for(; first != last; ++first) {
+    for (; first != last; ++first) {
         args.push_back(*first);
     }
 
@@ -50,13 +50,13 @@ cmdline_args make_args_list(char** first, char** last)
 //-------------------------------------------------------------------
 void show_progress_indicator(std::ostream& os, float done, int totalLength)
 {
-    if(done < 0.f) done = 0.f;
+    if (done < 0.f) done = 0.f;
     auto m = int((totalLength - 7) * done);
     os << "\r[";
-    for(int j = 0; j < m; ++j) os << '=';
+    for (int j = 0; j < m; ++j) os << '=';
     os << ">";
     m = totalLength - 7 - m;
-    for(int j = 0; j < m; ++j) os << ' ';
+    for (int j = 0; j < m; ++j) os << ' ';
     os << "] " << int(100 * done) << "%" << std::flush;
 }
 
@@ -66,7 +66,7 @@ void show_progress_indicator(std::ostream& os, float done, int totalLength)
 void clear_current_line(std::ostream& os, int length)
 {
     os << '\r';
-    for(; length > 0; --length) os << ' ';
+    for (; length > 0; --length) os << ' ';
     os << '\r' << std::flush;
 }
 
@@ -81,11 +81,11 @@ void show_progress_until_ready(std::ostream& os, concurrent_progress& progress,
     size_t readyCounter = 0;
     std::vector<std::future_status> status(futures.size(), std::future_status::timeout);
 
-    while(readyCounter != futures.size()) {
-        for(size_t i = 0; i < futures.size(); ++i) {
-            if(status[i] != std::future_status::ready) {
-                status[i] = futures[i].wait_for(std::chrono::seconds(1));
-                if(status[i] == std::future_status::ready) {
+    while (readyCounter != futures.size()) {
+        for (size_t i = 0; i < futures.size(); ++i) {
+            if (status[i] != std::future_status::ready) {
+                status[i] = futures[i].wait_for (std::chrono::seconds(1));
+                if (status[i] == std::future_status::ready) {
                     futures[i].get();
                     ++readyCounter;
                 }

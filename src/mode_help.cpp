@@ -35,9 +35,9 @@ namespace mc {
 //-------------------------------------------------------------------
 void main_mode_help(const cmdline_args& args)
 {
-    if(args.size() < 3 || args[1] != "help" || args[2] == "help") {
+    if (args.size() < 3 || args[1] != "help" || args[2] == "help") {
 
-        if(args.size() > 1 && args[1] != "help") {
+        if (args.size() > 1 && args[1] != "help") {
             std::cerr << "ERROR: Invalid command line arguments!\n\n";
         }
         else {
@@ -86,22 +86,22 @@ void main_mode_help(const cmdline_args& args)
             "    View documentation on how to build databases:\n"
             "        metacache help build\n";
     }
-    else if(args[2] == "build") {
+    else if (args[2] == "build") {
         std::cout << build_mode_docs() << '\n';
     }
-    else if(args[2] == "modify") {
+    else if (args[2] == "modify") {
         std::cout << modify_mode_docs() << '\n';
     }
-    else if(args[2] == "query") {
+    else if (args[2] == "query") {
         std::cout << query_mode_docs() << '\n';
     }
-    else if(args[2] == "build+query") {
+    else if (args[2] == "build+query") {
         std::cout << build_query_mode_docs() << '\n';
     }
-    else if(args[2] == "merge") {
+    else if (args[2] == "merge") {
         std::cout << merge_mode_docs() << '\n';
     }
-    else if(args[2] == "info") {
+    else if (args[2] == "info") {
         std::cout << info_mode_docs() << '\n';
     }
     else {

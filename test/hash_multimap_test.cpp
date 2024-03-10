@@ -58,10 +58,10 @@ public:
 
         std::vector<std::pair<Key,Value>> kvpairs;
         kvpairs.reserve(n);
-        for(std::size_t i = 0; i < n; ++i) {
+        for (std::size_t i = 0; i < n; ++i) {
             auto k = keyDistr_(urng_);
             auto m = multiDistr_(urng_);
-            for(std::size_t j = 0; j < m; ++j) {
+            for (std::size_t j = 0; j < m; ++j) {
                 auto v = valueDistr_(urng_);
                 auto it = hm.insert(k, v);
                 //if insertion failed due to the limited bucket size, ignore (key,value)
@@ -87,9 +87,9 @@ template<class HashMultimap, class OStream = std::ostream>
 void print_hash_multimap(const HashMultimap& hm, OStream& os = std::cout)
 {
     int i = 0;
-    for(const auto& b : hm) {
+    for (const auto& b : hm) {
         os << i << ": \t" << b.key() << " [" << int(b.probe_length()) << "] = \t";
-        for(const auto& v : b) {
+        for (const auto& v : b) {
             os << v << " ";
         }
         os << '\n';
@@ -151,7 +151,7 @@ void hash_multimap_check_book_keeping(
 
     //make set of unique keys
     std::set<key_t> ukeys;
-    for(const auto& p : kvpairs) ukeys.insert(p.first);
+    for (const auto& p : kvpairs) ukeys.insert(p.first);
 
     if(ukeys.size() != hm.key_count()) {
         std::cout << ukeys.size() << " != " << hm.key_count() << std::endl;
@@ -170,7 +170,7 @@ void hash_multimap_check_presence(HashMultiMap&& hm,
 {
     hash_multimap_check_book_keeping(hm, kvpairs, message);
 
-    for(const auto& p : kvpairs) {
+    for (const auto& p : kvpairs) {
         auto it = hm.find(p.first);
         if(it == hm.end()) {
 
@@ -200,7 +200,7 @@ void hash_multimap_check_absence(HashMultiMap&& hm,
                                  const std::vector<K>& keys,
                                  const std::string& message = "")
 {
-    for(const auto& k : keys) {
+    for (const auto& k : keys) {
         auto it = hm.find(k);
         if(it != hm.end()) {
 //            std::ofstream os{"error.log"};
@@ -257,7 +257,7 @@ void hash_multimap_correctness(HashMultiMap&& hm, std::size_t n, KeyValGen&& key
     std::size_t numerased = 0;
     auto kvcand = kvpairs;
     auto numvalsold = hm.value_count();
-    for(std::size_t i = 0; i < m; ++i) {
+    for (std::size_t i = 0; i < m; ++i) {
 //        std::cout << "  erase " << keys.back() << std::endl;
         auto k = kvcand.back().first;
         kvcand.pop_back();
@@ -312,7 +312,7 @@ void hash_multimap_performance(HashMultiMap&& hm, std::size_t n, KeyValGen&& key
 
     variance_accumulator<double> bs;
     variance_accumulator<double> pl;
-    for(const auto& b : hm) {
+    for (const auto& b : hm) {
         bs += b.size();
         pl += b.probe_length();
     }
@@ -322,7 +322,7 @@ void hash_multimap_performance(HashMultiMap&& hm, std::size_t n, KeyValGen&& key
     //query
     time.restart();
     value_t v = 0;
-    for(const auto& p : kvpairs) {
+    for (const auto& p : kvpairs) {
         auto it = hm.find(p.first);
         if(it != hm.end()) v += (*it)[0];
     }

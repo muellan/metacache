@@ -94,7 +94,7 @@ struct sequence_query
         query_handler<location>& queryHandler,
         Buffer& resultsBuffer, BufferUpdate& update)
     {
-        for(const auto& query : batch) {
+        for (const auto& query : batch) {
             auto rules = make_candidate_generation_rules(
                 query, opt.classify, db.target_sketching().winstride);
 
@@ -114,18 +114,18 @@ struct sequence_query
         Buffer& batchBuffer, BufferUpdate& update,
         std::mutex& scheduleMtx)
     {
-        for(const auto& query : sequenceBatch) {
+        for (const auto& query : sequenceBatch) {
             auto rules = make_candidate_generation_rules(
                 query, opt.classify, db.target_sketching().winstride);
 
-            if(!queryBatch.add_paired_read(hostId, query.seq1, query.seq2,
+            if (!queryBatch.add_paired_read(hostId, query.seq1, query.seq2,
                                            opt.sketching, rules))
             {
                 std::cerr << "query batch is too small for a single read!\n";
             }
         }
 
-        if(queryBatch.host_data(hostId).num_windows() > 0)
+        if (queryBatch.host_data(hostId).num_windows() > 0)
         {
             {
                 std::lock_guard<std::mutex> lock(scheduleMtx);
@@ -133,7 +133,7 @@ struct sequence_query
             }
             queryBatch.host_data(hostId).wait_for_results();
 
-            for(size_t s = 0; s < queryBatch.host_data(hostId).num_queries(); ++s) {
+            for (size_t s = 0; s < queryBatch.host_data(hostId).num_queries(); ++s) {
                 update(batchBuffer, sequenceBatch[s],
                        queryBatch.host_data(hostId).allhits(s),
                        queryBatch.host_data(hostId).top_candidates(s));
@@ -177,7 +177,7 @@ query_id query_batched(
     BufferSource&& getBuffer, BufferUpdate&& update, BufferSink&& finalize,
     ErrorHandler&& handleErrors)
 {
-    if(opt.performance.queryLimit < 1) return idOffset;
+    if (opt.performance.queryLimit < 1) return idOffset;
     size_t queryLimit = opt.performance.queryLimit > 0 ?
                         size_t(opt.performance.queryLimit) :
                         std::numeric_limits<size_t>::max();
@@ -196,7 +196,7 @@ query_id query_batched(
     std::vector<query_batch<location>> queryBatches;
     queryBatches.reserve(opt.performance.replication);
 
-    for(unsigned rep = 0; rep < opt.performance.replication; ++rep)
+    for (unsigned rep = 0; rep < opt.performance.replication; ++rep)
         queryBatches.emplace_back(
             opt.performance.batchSize,
             opt.performance.batchSize*opt.sketching.winlen,
@@ -263,8 +263,8 @@ query_id query_batched(
         sequence_pair_reader reader{filename1, filename2};
         reader.index_offset(idOffset);
 
-        while(reader.has_next()) {
-            if(queryLimit < 1) break;
+        while (reader.has_next()) {
+            if (queryLimit < 1) break;
 
             // get (ref to) next query sequence storage and fill it
             auto& query = executor.next_item();
@@ -346,14 +346,14 @@ void query_database(
     // sequence -> infiles[i], infiles[i]
     // files    -> infiles[i], infiles[i+1]
 
-    for(size_t i = 0; i < infilenames.size(); i += stride+1) {
+    for (size_t i = 0; i < infilenames.size(); i += stride+1) {
         //pair up reads from two consecutive files in the list
         const auto& fname1 = infilenames[i];
 
         const auto& fname2 = (opt.pairing == pairing_mode::none)
                              ? nofile : infilenames[i+stride];
 
-        if(opt.pairing == pairing_mode::files) {
+        if (opt.pairing == pairing_mode::files) {
             showInfo(fname1 + " + " + fname2);
         } else {
             showInfo(fname1);

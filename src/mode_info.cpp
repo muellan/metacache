@@ -128,8 +128,8 @@ void show_target_info(std::ostream& os, const taxon& tax, const ranked_lineage& 
         << tax.source().filename << " / " << tax.source().index
         << "\n    length:     " << tax.source().windows << " windows";
 
-    for(const taxon* t : lineage) {
-        if(t) {
+    for (const taxon* t : lineage) {
+        if (t) {
             auto rn = string(t->rank_name()) + ":";
             rn.resize(12, ' ');
             os << "\n    " << rn << "(" << t->id() << ") " << t->name();
@@ -151,10 +151,10 @@ void show_target_info(const info_options& opt)
     auto db = make_database(opt.dbfile, dbPart, database::scope::metadata_only);
     const auto& taxonomy = db.taxo_cache();
 
-    if(!opt.targetNames.empty()) {
-        for(const auto& target : opt.targetNames) {
+    if (!opt.targetNames.empty()) {
+        for (const auto& target : opt.targetNames) {
             const taxon* tax = taxonomy.taxon_with_name(target);
-            if(tax && tax->id() < 0) {
+            if (tax && tax->id() < 0) {
                 target_id tgt = -tax->id()-1;
                 show_target_info(cout, *tax, taxonomy.cached_ranks(tgt));
             }
@@ -166,7 +166,7 @@ void show_target_info(const info_options& opt)
     }
     else {
         cout << "Targets (reference sequences) in database:\n";
-        for(const auto& ranks : taxonomy.target_lineages()) {
+        for (const auto& ranks : taxonomy.target_lineages()) {
             show_target_info(cout, *ranks[0], ranks);
         }
     }
@@ -185,11 +185,11 @@ void show_lineage_table(const info_options& opt)
 
     int dbPart = -1;
     auto db = make_database(opt.dbfile, dbPart, database::scope::metadata_only);
-    if(db.target_count() < 1) return;
+    if (db.target_count() < 1) return;
 
     //table header
     cout << "name";
-    for(auto r = rank::Sequence; r <= rank::Domain; ++r) {
+    for (auto r = rank::Sequence; r <= rank::Domain; ++r) {
         cout << '\t' << taxonomy::rank_name(r);
     }
     cout << '\n';
@@ -197,9 +197,9 @@ void show_lineage_table(const info_options& opt)
     const auto& taxonomy = db.taxo_cache();
 
     //rows
-    for(const auto& ranks : taxonomy.target_lineages()) {
+    for (const auto& ranks : taxonomy.target_lineages()) {
         cout << ranks[0]->name();
-        for(auto r = rank::Sequence; r <= rank::Domain; ++r) {
+        for (auto r = rank::Sequence; r <= rank::Domain; ++r) {
             cout << '\t'
                  << (ranks[int(r)] ? ranks[int(r)]->id() : taxonomy::none_id());
         }
@@ -217,9 +217,9 @@ void show_lineage_table(const info_options& opt)
  *****************************************************************************/
 void show_rank_statistics(const info_options& opt)
 {
-    if(opt.rank == taxon_rank::none) {
+    if (opt.rank == taxon_rank::none) {
         cerr << "Please specify a taxonomic rank:\n";
-        for(auto r = taxon_rank::Sequence; r <= taxon_rank::Domain; ++r) {
+        for (auto r = taxon_rank::Sequence; r <= taxon_rank::Domain; ++r) {
             cerr << "    " << taxonomy::rank_name(r) << '\n';
         }
         return;
@@ -231,11 +231,11 @@ void show_rank_statistics(const info_options& opt)
 
     std::map<const taxon*, std::size_t> stat;
 
-    for(target_id tgt = 0; tgt < db.target_count(); ++tgt) {
+    for (target_id tgt = 0; tgt < db.target_count(); ++tgt) {
         const taxon* t = taxonomy.cached_ancestor(tgt, opt.rank);
-        if(t) {
+        if (t) {
             auto it = stat.find(t);
-            if(it != stat.end()) {
+            if (it != stat.end()) {
                 ++(it->second);
             } else {
                 stat.insert({t, 1});
@@ -247,7 +247,7 @@ void show_rank_statistics(const info_options& opt)
          << taxonomy::rank_name(opt.rank) << "':\n"
          << "taxid \t taxon_name \t sequences" << endl;
 
-    for(const auto& s : stat) {
+    for (const auto& s : stat) {
         cout << s.first->id() << " \t "
              << s.first->name() << " \t "
              << s.second << '\n';
@@ -280,7 +280,7 @@ void main_mode_info(const cmdline_args& args)
 {
     auto opt = get_info_options(args);
 
-    switch(opt.mode) {
+    switch (opt.mode) {
         default:
         case info_mode::basic:
             show_basic_exec_info();

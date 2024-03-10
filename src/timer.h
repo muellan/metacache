@@ -45,7 +45,7 @@ public:
     //---------------------------------------------------------------
     void
     start() noexcept {
-        if(!running_) {
+        if (!running_) {
             running_ = true;
             start_ = std::chrono::high_resolution_clock::now();
         }
@@ -66,7 +66,7 @@ public:
     //-----------------------------------------------------
     void
     stop() noexcept {
-        if(running_) {
+        if (running_) {
             stop_ = std::chrono::high_resolution_clock::now();
             total_ += std::chrono::duration_cast<basic_duration_t>(stop_-start_);
             running_ = false;
@@ -141,9 +141,9 @@ public:
         int h = static_cast<int>(full_hours());
         int m = static_cast<int>(full_minutes());
         int s = static_cast<int>(full_seconds());
-        if(h < 10) { ss << "0"; } ss << h << ":";
-        if(m < 10) { ss << "0"; } ss << m << ":";
-        if(s < 10) { ss << "0"; } ss << s;
+        if (h < 10) { ss << "0"; } ss << h << ":";
+        if (m < 10) { ss << "0"; } ss << m << ":";
+        if (s < 10) { ss << "0"; } ss << s;
         return ss.str();
     }
 
@@ -152,7 +152,7 @@ private:
     //-----------------------------------------------------
     basic_duration_t
     current() const noexcept {
-        if(!running_) return total_;
+        if (!running_) return total_;
 
         return (
             total_ + (std::chrono::duration_cast<basic_duration_t>(

@@ -42,10 +42,10 @@ sequence_reader::sequence_reader(const std::string& filename) :
     stream_{},
     index_{0}
 {
-    if(!filename.empty()) {
+    if (!filename.empty()) {
         stream_.open(filename.c_str());
 
-        if(!stream_.good()) {
+        if (!stream_.good()) {
             throw file_access_error{"can't open file " + filename};
         }
     }
@@ -54,7 +54,7 @@ sequence_reader::sequence_reader(const std::string& filename) :
     }
 
     stream_.read_char();
-    if(stream_.last_char() != '>' && stream_.last_char() != '@')
+    if (stream_.last_char() != '>' && stream_.last_char() != '@')
         throw io_format_error{"malformed fasta/fastq file - "
                               "expected header char '>' or '@' not found"};
 }
@@ -75,7 +75,7 @@ sequence_reader::next()
 //-------------------------------------------------------------------
 void sequence_reader::next(sequence& seq)
 {
-    if(!has_next()) return;
+    if (!has_next()) return;
 
     ++index_;
     seq.index = index_;
@@ -88,7 +88,7 @@ void sequence_reader::next(sequence& seq)
 sequence_reader::header_type
 sequence_reader::next_header()
 {
-    if(!has_next()) return header_type{};
+    if (!has_next()) return header_type{};
 
     ++index_;
     header_type header;
@@ -102,7 +102,7 @@ sequence_reader::next_header()
 sequence_reader::data_type
 sequence_reader::next_data()
 {
-    if(!has_next()) return data_type{};
+    if (!has_next()) return data_type{};
 
     ++index_;
     data_type data;
@@ -116,7 +116,7 @@ sequence_reader::next_data()
 sequence_reader::index_type
 sequence_reader::next_data(sequence::data_type& data)
 {
-    if(!has_next()) {
+    if (!has_next()) {
         data.clear();
         return index();
     }
@@ -133,7 +133,7 @@ sequence_reader::index_type
 sequence_reader::next_header_and_data(sequence::header_type& header,
                                       sequence::data_type& data)
 {
-    if(!has_next()) {
+    if (!has_next()) {
         header.clear();
         data.clear();
         return index();
@@ -149,9 +149,9 @@ sequence_reader::next_header_and_data(sequence::header_type& header,
 //-------------------------------------------------------------------
 void sequence_reader::skip(index_type skip)
 {
-    if(skip < 1) return;
+    if (skip < 1) return;
 
-    for(; skip > 0 && has_next(); --skip) {
+    for (; skip > 0 && has_next(); --skip) {
         ++index_;
         skip_next();
     }
@@ -164,9 +164,9 @@ void sequence_reader::read_next(header_type* header,
                                 data_type* data,
                                 qualities_type* qualities)
 {
-    if(header) header->clear();
-    if(data) data->clear();
-    if(qualities) qualities->clear();
+    if (header) header->clear();
+    if (data) data->clear();
+    if (qualities) qualities->clear();
 
     while (stream_.good() && stream_.last_char() != '>' && stream_.last_char() != '@') {
         // malformed fastx file, try to recover at next line
@@ -176,7 +176,7 @@ void sequence_reader::read_next(header_type* header,
     }
     if (!stream_.good()) return; // end of file or error
 
-    if(header)
+    if (header)
         stream_.append_line(*header);
     else
         stream_.skip_line();
@@ -193,7 +193,7 @@ void sequence_reader::read_next(header_type* header,
             continue;
         }
         // append first character of next line
-        if(data) {
+        if (data) {
             // append line inlcuding peeked char
             stream_.append_line(*data);
         }
@@ -213,7 +213,7 @@ void sequence_reader::read_next(header_type* header,
     // skip 3rd FASTQ line
     stream_.skip_line();
 
-    if(qualities) {
+    if (qualities) {
         // qualities->reserve_exactly(data->capacity());
         qualities->reserve(data->capacity());
         // read quality string
@@ -253,11 +253,11 @@ sequence_pair_reader::sequence_pair_reader(const std::string& filename1,
     reader2_{},
     pairing_{pairing_mode::none}
 {
-    if(!filename1.empty()) {
+    if (!filename1.empty()) {
         reader1_ = sequence_reader(filename1);
 
-        if(!filename2.empty()) {
-            if(filename1 != filename2) {
+        if (!filename2.empty()) {
+            if (filename1 != filename2) {
                 pairing_ = pairing_mode::files;
                 reader2_ = sequence_reader(filename2);
             }
@@ -273,9 +273,9 @@ sequence_pair_reader::sequence_pair_reader(const std::string& filename1,
 //-------------------------------------------------------------------
 bool sequence_pair_reader::has_next() const noexcept
 {
-    if(!reader1_.has_next()) return false;
-    if(pairing_ != pairing_mode::files) return true;
-    if(!reader2_.has_next()) return false;
+    if (!reader1_.has_next()) return false;
+    if (pairing_ != pairing_mode::files) return true;
+    if (!reader2_.has_next()) return false;
     return true;
 }
 
@@ -295,9 +295,9 @@ sequence_pair_reader::next()
 //-------------------------------------------------------------------
 void sequence_pair_reader::next(sequence_pair& seq)
 {
-    if(!has_next()) return;
+    if (!has_next()) return;
 
-    switch(pairing_) {
+    switch (pairing_) {
         case pairing_mode::none :
             // only one sequence per call
             reader1_.next(seq.first);
@@ -327,9 +327,9 @@ void sequence_pair_reader::next(sequence_pair& seq)
 sequence_pair_reader::header_type
 sequence_pair_reader::next_header()
 {
-    if(!has_next()) return header_type{};
+    if (!has_next()) return header_type{};
 
-    switch(pairing_) {
+    switch (pairing_) {
         case pairing_mode::none :
             // only one sequence per call
             return reader1_.next_header();
@@ -356,9 +356,9 @@ sequence_pair_reader::index_type
 sequence_pair_reader::next_data(sequence::data_type& data1,
                                 sequence::data_type& data2)
 {
-    if(!has_next()) return index();
+    if (!has_next()) return index();
 
-    switch(pairing_) {
+    switch (pairing_) {
         case pairing_mode::none :
             // only one sequence per call
             data2.clear();
@@ -386,9 +386,9 @@ sequence_pair_reader::next_header_and_data(sequence::header_type& header1,
                                            sequence::data_type& data1,
                                            sequence::data_type& data2)
 {
-    if(!has_next()) return index();
+    if (!has_next()) return index();
 
-    switch(pairing_) {
+    switch (pairing_) {
         case pairing_mode::none :
             // only one sequence per call
             data2.clear();
@@ -413,9 +413,9 @@ sequence_pair_reader::next_header_and_data(sequence::header_type& header1,
 //-------------------------------------------------------------------
 void sequence_pair_reader::skip(index_type skip)
 {
-    if(skip < 1) return;
+    if (skip < 1) return;
 
-    switch(pairing_) {
+    switch (pairing_) {
         case pairing_mode::none :
             // only one sequence per call
             reader1_.skip(skip);
@@ -448,7 +448,7 @@ sequence_pair_reader::index_type sequence_pair_reader::index() const noexcept
 void sequence_pair_reader::index_offset(index_type index)
 {
     reader1_.index_offset(index);
-    if(pairing_ == pairing_mode::files)
+    if (pairing_ == pairing_mode::files)
         reader2_.index_offset(index);
 }
 
@@ -482,16 +482,16 @@ string
 extract_ncbi_accession_number(const string& text,
                               sequence_id_type idtype = sequence_id_type::any)
 {
-    if(text.empty()) return "";
+    if (text.empty()) return "";
 
     std::smatch match;
     std::regex_search(text, match, accession_regex);
 
-    switch(idtype) {
+    switch (idtype) {
         case sequence_id_type::acc:
             return match[3];
         case sequence_id_type::acc_ver:
-            if(match[4].length())
+            if (match[4].length())
                 return match[2];
             else
                 return "";
@@ -512,17 +512,17 @@ extract_ncbi_accession_number(const string& text,
 string
 extract_genbank_identifier(const string& text)
 {
-    if(text.empty()) return "";
+    if (text.empty()) return "";
 
     auto i = text.find("gi|");
-    if(i != string::npos) {
+    if (i != string::npos) {
         //skip prefix
         i += 3;
         //find end of number
         auto j = text.find('|', i);
-        if(j == string::npos) {
+        if (j == string::npos) {
             j = text.find(' ', i);
-            if(j == string::npos) j = text.size();
+            if (j == string::npos) j = text.size();
         }
         return trimmed(text.substr(i, j-i));
     }
@@ -535,9 +535,9 @@ extract_genbank_identifier(const string& text)
 string
 extract_accession_string(const string& text, sequence_id_type idtype)
 {
-    if(text.empty()) return "";
+    if (text.empty()) return "";
 
-    switch(idtype) {
+    switch (idtype) {
         case sequence_id_type::acc:
         // [[fallthrough]]
         case sequence_id_type::acc_ver:
@@ -546,7 +546,7 @@ extract_accession_string(const string& text, sequence_id_type idtype)
             return extract_genbank_identifier(text);
         default: {
             auto s = extract_ncbi_accession_number(text);
-            if(!s.empty()) return s;
+            if (!s.empty()) return s;
 
             s = extract_genbank_identifier(text);
 
@@ -561,17 +561,17 @@ extract_accession_string(const string& text, sequence_id_type idtype)
 std::int_least64_t
 extract_taxon_id(const string& text)
 {
-    if(text.empty()) return 0;
+    if (text.empty()) return 0;
 
     auto i = text.find("taxid");
-    if(i != string::npos) {
+    if (i != string::npos) {
         //skip "taxid" + separator char
         i += 6;
         //find end of number
         auto j = text.find('|', i);
-        if(j == string::npos) {
+        if (j == string::npos) {
             j = text.find(' ', i);
-            if(j == string::npos) j = text.size();
+            if (j == string::npos) j = text.size();
         }
 
         try {

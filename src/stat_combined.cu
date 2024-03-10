@@ -48,12 +48,12 @@ statistics_accumulator_gpu<policy::Device>::statistics_accumulator_gpu() : isCop
 
 template<>
 statistics_accumulator_gpu<policy::Host>::~statistics_accumulator_gpu() {
-    if(!isCopy_)
+    if (!isCopy_)
         cudaFreeHost(data_);
 }
 template<>
 statistics_accumulator_gpu<policy::Device>::~statistics_accumulator_gpu() {
-    if(!isCopy_)
+    if (!isCopy_)
         cudaFree(data_);
 }
 
@@ -75,7 +75,7 @@ statistics_accumulator_gpu<policy::Host>::operator = (const statistics_accumulat
 template<>
 statistics_accumulator_gpu<policy::Host>&
 statistics_accumulator_gpu<policy::Host>::operator += (const statistics_accumulator_gpu<policy::Host>& other) {
-    if(*max_() < *(other.max_())) *max_() = *(other.max_());
+    if (*max_() < *(other.max_())) *max_() = *(other.max_());
     *size_() += *(other.size_());
     *sum_()  += *(other.sum_());
     *sum2_() += *(other.sum2_());
@@ -100,7 +100,7 @@ void accumultate_statistics(statistics_accumulator_gpu<policy::Device> stats, Va
     __shared__  result_type s_sum2;
     __shared__  result_type s_sum3;
 
-    if(threadIdx.x == 0) {
+    if (threadIdx.x == 0) {
         s_count = 0;
         s_max = 0;
         s_sum = 0;
@@ -115,7 +115,7 @@ void accumultate_statistics(statistics_accumulator_gpu<policy::Device> stats, Va
     result_type sum2 = 0;
     result_type sum3 = 0;
 
-    for(int gid = threadIdx.x + blockIdx.x * blockDim.x;
+    for (int gid = threadIdx.x + blockIdx.x * blockDim.x;
         gid < numValues;
         gid += blockDim.x * gridDim.x)
     {
@@ -129,7 +129,7 @@ void accumultate_statistics(statistics_accumulator_gpu<policy::Device> stats, Va
     }
 
     // warp reduce
-    for(int stride = 1; stride < 32; stride *= 2) {
+    for (int stride = 1; stride < 32; stride *= 2) {
         count += __shfl_down_sync(0xFFFFFFFF, count, stride);
         auto x = __shfl_down_sync(0xFFFFFFFF, max, stride);
         max = (x > max) ? x : max;
@@ -139,7 +139,7 @@ void accumultate_statistics(statistics_accumulator_gpu<policy::Device> stats, Va
     }
 
     // block update
-    if(threadIdx.x % 32 == 0) {
+    if (threadIdx.x % 32 == 0) {
         atomicAdd(&s_count, count);
         atomicMax(&s_max, max);
         atomicAdd(&s_sum, sum);
@@ -150,7 +150,7 @@ void accumultate_statistics(statistics_accumulator_gpu<policy::Device> stats, Va
     __syncthreads();
 
     // global update
-    if(threadIdx.x == 0) {
+    if (threadIdx.x == 0) {
         stats.atomic_update(s_count, s_max, s_sum, s_sum2, s_sum3);
     }
 }

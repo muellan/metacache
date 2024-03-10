@@ -47,7 +47,7 @@ read_database(const query_options& opt)
 
     database db;
 
-    if(dbopt.maxLoadFactor > 0.4 && dbopt.maxLoadFactor < 0.99) {
+    if (dbopt.maxLoadFactor > 0.4 && dbopt.maxLoadFactor < 0.99) {
         db.max_load_factor(dbopt.maxLoadFactor);
         cerr << "Using custom hash table load factor of "
              << dbopt.maxLoadFactor << '\n';
@@ -61,15 +61,15 @@ read_database(const query_options& opt)
         throw;
     }
 
-    if(dbopt.removeOverpopulatedFeatures) {
+    if (dbopt.removeOverpopulatedFeatures) {
         auto old = db.feature_count();
 
         auto maxlpf = dbopt.maxLocationsPerFeature - 1;
-        if(maxlpf < 0 || maxlpf >= database::max_supported_locations_per_feature())
+        if (maxlpf < 0 || maxlpf >= database::max_supported_locations_per_feature())
             maxlpf = database::max_supported_locations_per_feature() - 1;
 
         maxlpf = std::min(maxlpf, db.max_locations_per_feature() - 1);
-        if(maxlpf > 0) { //always keep buckets with size 1
+        if (maxlpf > 0) { //always keep buckets with size 1
             cerr << "\nRemoving features with more than "
                  << maxlpf << " locations...\n";
 
@@ -80,7 +80,7 @@ read_database(const query_options& opt)
         //in case new max is less than the database setting
         db.max_locations_per_feature(dbopt.maxLocationsPerFeature);
     }
-    else if(dbopt.maxLocationsPerFeature > 1) {
+    else if (dbopt.maxLocationsPerFeature > 1) {
         db.max_locations_per_feature(dbopt.maxLocationsPerFeature);
         cerr << "Max locations per feature set to "
              << dbopt.maxLocationsPerFeature << '\n';
@@ -108,7 +108,7 @@ void main_mode_query(const cmdline_args& args)
     auto db = read_database(opt);
     adapt_options_to_database(opt, db);
 
-    if(!opt.infiles.empty()) {
+    if (!opt.infiles.empty()) {
         cerr << "Classifying query sequences.\n";
 
         process_input_files(db, opt);

@@ -59,10 +59,10 @@ public:
     }
 
     void count_outcome_truth(bool outcome, bool truth) {
-        if(outcome) {
-            if(truth) count_true_pos(); else count_false_pos();
+        if (outcome) {
+            if (truth) count_true_pos(); else count_false_pos();
         } else {
-            if(truth) count_true_neg(); else count_false_neg();
+            if (truth) count_true_neg(); else count_false_neg();
         }
     }
 

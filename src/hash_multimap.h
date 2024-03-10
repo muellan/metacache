@@ -109,8 +109,8 @@ struct linear_probing
 
         iterator& operator ++ () noexcept {
             ++pos_;
-            if(pos_ >= end_) {
-                if(beg_ == end_) {
+            if (pos_ >= end_) {
+                if (beg_ == end_) {
                     pos_ = end_;
                     return *this;
                 }
@@ -166,8 +166,8 @@ struct single_pass_quadratic_probing
 
         iterator& operator ++ () noexcept {
             pos_ += hop_;
-            if(pos_ >= end_) {
-                if(beg_ == end_) {
+            if (pos_ >= end_) {
+                if (beg_ == end_) {
                     pos_ = end_;
                     return *this;
                 }
@@ -312,7 +312,7 @@ public:
         //-----------------------------------------------------
         template<class V>
         bool insert(value_allocator& alloc, V&& v) {
-            if(!reserve(alloc, size_+1)) return false;
+            if (!reserve(alloc, size_+1)) return false;
             values_[size_] = std::forward<V>(v);
             ++size_;
             return true;
@@ -324,8 +324,8 @@ public:
         {
             using std::distance;
             auto nsize = size_ + size_type(distance(first,last));
-            if(!reserve(alloc, nsize)) return false;
-            for(auto p = values_+size_; first != last; ++p, ++first) {
+            if (!reserve(alloc, nsize)) return false;
+            for (auto p = values_+size_; first != last; ++p, ++first) {
                 *p = *first;
             }
             size_ = nsize;
@@ -343,7 +343,7 @@ public:
 
         //-------------------------------------------
         void free(value_allocator& alloc) {
-            if(!values_) return;
+            if (!values_) return;
             deallocate(alloc);
             values_ = nullptr;
             size_ = 0;
@@ -359,8 +359,8 @@ public:
 
         //-----------------------------------------------------
         bool resize(value_allocator& alloc, size_type n) {
-            if(size_ < n) {
-                if(!reserve(alloc, n)) return false;
+            if (size_ < n) {
+                if (!reserve(alloc, n)) return false;
             }
             size_ = n;
             return true;
@@ -374,15 +374,15 @@ public:
         //-----------------------------------------------------
         /// @brief does not change size!
         bool reserve(value_allocator& alloc, std::size_t n) {
-            if(n > max_bucket_size()) return false;
+            if (n > max_bucket_size()) return false;
 
-            if(!unused()) {
-                if(n > capacity_) {
+            if (!unused()) {
+                if (n > capacity_) {
                     auto ncap = std::size_t(n + 0.3*size_);
-                    if(ncap > max_bucket_size()) ncap = max_bucket_size();
+                    if (ncap > max_bucket_size()) ncap = max_bucket_size();
                     //make new array and copy old values
                     auto nvals = value_alloc::allocate(alloc, ncap);
-                    if(!nvals) return false;
+                    if (!nvals) return false;
                     std::copy(values_, values_ + size_, nvals);
                     deallocate(alloc);
                     values_ = nvals;
@@ -392,7 +392,7 @@ public:
             else {
                 //make new array
                 auto nvals = value_alloc::allocate(alloc, n);
-                if(!nvals) return false;
+                if (!nvals) return false;
                 values_ = nvals;
                 capacity_ = size_type(n);
             }
@@ -508,8 +508,8 @@ public:
         reserve_keys(src.numKeys_);
         reserve_values(src.numValues_);
 
-        for(const auto& b : src.buckets_) {
-            if(!b.unused()) insert(b.key(), b.begin(), b.end());
+        for (const auto& b : src.buckets_) {
+            if (!b.unused()) insert(b.key(), b.begin(), b.end());
         }
     }
 
@@ -549,7 +549,7 @@ public:
 
     //-------------------------------------------------------------------
     ~hash_multimap() {
-        for(auto& b : buckets_) {
+        for (auto& b : buckets_) {
             b.deallocate(alloc_);
         }
     }
@@ -590,8 +590,8 @@ public:
     size_type non_empty_bucket_count() const
     {
         auto n = size_type(0);
-        for(const auto& b : buckets_) {
-            if(!b.empty()) ++n;
+        for (const auto& b : buckets_) {
+            if (!b.empty()) ++n;
         }
         return n;
     }
@@ -637,7 +637,7 @@ public:
      */
     bool rehash(size_type n)
     {
-        if(!rehash_possible(n)) return false;
+        if (!rehash_possible(n)) return false;
 
         //make temporary new map
         //buckets resize might throw
@@ -646,8 +646,8 @@ public:
 
         //move old bucket contents into new hash slots
         //this should use only non-throwing operations
-        for(auto& b : buckets_) {
-            if(!b.unused()) {
+        for (auto& b : buckets_) {
+            if (!b.unused()) {
                 newmap.insert_into_slot(std::move(b.key_),
                                         b.values_, b.size_, b.capacity_);
             }
@@ -711,13 +711,13 @@ public:
     shrink(const key_type& key, bucket_size_type n)
     {
         auto it = find(key);
-        if(it != end()) shrink(it,n);
+        if (it != end()) shrink(it,n);
     }
     //-----------------------------------------------------
     void
     shrink(const_iterator it, bucket_size_type n)
     {
-        if(it->size() > n) {
+        if (it->size() > n) {
             const auto old = it->size();
             const_cast<bucket_type*>(&(*it))->resize(alloc_, n);
             numValues_ -= (old - it->size());
@@ -727,7 +727,7 @@ public:
     void
     shrink_all(bucket_size_type n)
     {
-        for(auto i = buckets_.begin(), e = buckets_.end(); i != e; ++i) {
+        for (auto i = buckets_.begin(), e = buckets_.end(); i != e; ++i) {
             shrink(i, n);
         }
     }
@@ -739,7 +739,7 @@ public:
     void
     clear(const_iterator it)
     {
-        if(!it->empty()) {
+        if (!it->empty()) {
             auto n = it->size();
             const_cast<bucket_type*>(&(*it))->clear();
             numValues_ -= n;
@@ -750,10 +750,10 @@ public:
     //---------------------------------------------------------------
     void clear()
     {
-        if(numKeys_ < 1) return;
+        if (numKeys_ < 1) return;
 
         //free bucket memory
-        for(auto& b : buckets_) {
+        for (auto& b : buckets_) {
             b.free(alloc_);
         }
         numKeys_ = 0;
@@ -768,7 +768,7 @@ public:
      */
     void clear_without_deallocation()
     {
-        for(auto& b : buckets_) {
+        for (auto& b : buckets_) {
             b.values_ = nullptr;
             b.size_ = 0;
             b.capacity_ = 0;
@@ -831,13 +831,13 @@ public:
     }
     //-----------------------------------------------------
     void max_load_factor(float lf) {
-        if(lf > 1.0f) lf = 1.0f;
-        if(lf < 0.1f) lf = 0.1f;
+        if (lf > 1.0f) lf = 1.0f;
+        if (lf < 0.1f) lf = 0.1f;
 
         using std::abs;
-        if(abs(maxLoadFactor_ - lf) > 0.00001f) {
+        if (abs(maxLoadFactor_ - lf) > 0.00001f) {
             maxLoadFactor_ = lf;
-            if(load_factor() > maxLoadFactor_) {
+            if (load_factor() > maxLoadFactor_) {
                 rehash(size_type(1.1 * buckets_.size() * maxLoadFactor_ + 2));
             }
         }
@@ -1000,14 +1000,14 @@ private:
         deserializer.condVar1.notify_one();
 
         // insert batch
-        for(serialization_size_type i = 0; i < batchSize; ++i) {
+        for (serialization_size_type i = 0; i < batchSize; ++i) {
             const auto& bucketSize = deserializer.sizeBuffer[i];
 
-            if(bucketSize > 0) {
+            if (bucketSize > 0) {
                 const auto& key = deserializer.keyBuffer[i];
 
                 auto it = insert_into_slot(key, deserializer.valuesOffset0, bucketSize, bucketSize);
-                if(it == buckets_.end())
+                if (it == buckets_.end())
                     std::cerr << "could not insert key " << key << '\n';
 
                 deserializer.valuesOffset0 += bucketSize;
@@ -1058,7 +1058,7 @@ private:
         serialization_size_type batchSize = 0;
         read_binary(is, batchSize);
 
-        if(nkeys > 0) {
+        if (nkeys > 0) {
             //if the allocator supports it: reserve one large memory chunk
             //for all values; individual buckets will then point into this
             //array; the default chunk_allocator does this
@@ -1071,7 +1071,7 @@ private:
             {// read keys & bucket sizes & values in batches
                 auto valueReader = std::async(std::launch::async, [&]
                 {
-                    for(serialization_size_type b = 0; b < deserializer.numFullBatches; ++b) {
+                    for (serialization_size_type b = 0; b < deserializer.numFullBatches; ++b) {
                         auto batchValuesCount = deserialize_batch_of_values(
                             is, deserializer, deserializer.fullBatchSize);
 
@@ -1088,7 +1088,7 @@ private:
                         + batchValuesCount*sizeof(value_type);
                 });
 
-                for(serialization_size_type b = 0; b < deserializer.numFullBatches; ++b) {
+                for (serialization_size_type b = 0; b < deserializer.numFullBatches; ++b) {
                     deserialize_batch_of_buckets(
                         is, deserializer, deserializer.fullBatchSize);
                 }
@@ -1131,13 +1131,13 @@ private:
             std::vector<value_type> valBuffer;
             valBuffer.reserve(batchSize*avgValueCount);
 
-            for(const auto& bucket : buckets_) {
-                if(!bucket.empty()) {
+            for (const auto& bucket : buckets_) {
+                if (!bucket.empty()) {
                     keyBuffer.emplace_back(bucket.key());
                     sizeBuffer.emplace_back(bucket.size());
                     valBuffer.insert(valBuffer.end(), bucket.begin(), bucket.end());
 
-                    if(keyBuffer.size() == batchSize) {
+                    if (keyBuffer.size() == batchSize) {
                         // store batch
                         write_binary(os, keyBuffer.data(), keyBuffer.size());
                         write_binary(os, sizeBuffer.data(), sizeBuffer.size());
@@ -1150,7 +1150,7 @@ private:
                 }
             }
 
-            if(keyBuffer.size() > 0) {
+            if (keyBuffer.size() > 0) {
                 // store last batch
                 write_binary(os, keyBuffer.data(), keyBuffer.size());
                 write_binary(os, sizeBuffer.data(), sizeBuffer.size());
@@ -1170,9 +1170,9 @@ private:
 
         //find bucket
         do {
-            if(it->unused()) return buckets_.end();
-            if(keyEqual_(it->key(), key)) return iterator(it);
-        } while(++it);
+            if (it->unused()) return buckets_.end();
+            if (keyEqual_(it->key(), key)) return iterator(it);
+        } while (++it);
 
         return buckets_.end();
     }
@@ -1188,8 +1188,8 @@ private:
 
         do {
             //empty slot found
-            if(it->unused()) {
-                if(it->insert(alloc_, std::forward<Values>(newvalues)...)) {
+            if (it->unused()) {
+                if (it->insert(alloc_, std::forward<Values>(newvalues)...)) {
                     it->key_ = std::move(key);
                     ++numKeys_;
                     numValues_ += it->size();
@@ -1199,15 +1199,15 @@ private:
                 return buckets_.end();
             }
             //key already inserted
-            if(keyEqual_(it->key(), key)) {
+            if (keyEqual_(it->key(), key)) {
                 auto oldsize = it->size();
-                if(it->insert(alloc_, std::forward<Values>(newvalues)...)) {
+                if (it->insert(alloc_, std::forward<Values>(newvalues)...)) {
                     numValues_ += it->size() - oldsize;
                     return iterator(it);
                 }
                 return buckets_.end();
             }
-        } while(++it);
+        } while (++it);
 
         return buckets_.end();
     }
@@ -1217,7 +1217,7 @@ private:
     {
         auto n = numKeys_ + more;
 
-        if( (n / float(buckets_.size()) > maxLoadFactor_ ) ||
+        if ( (n / float(buckets_.size()) > maxLoadFactor_ ) ||
             (n >= buckets_.size()) )
         {
             rehash(std::max(
@@ -1231,11 +1231,11 @@ private:
     bool rehash_possible(size_type n) const noexcept
     {
         //number of buckets must be greater or equal to the number of keys
-        if(n == bucket_count() || n < key_count()) return false;
+        if (n == bucket_count() || n < key_count()) return false;
 
         //make sure we stay below the maximum load factor
         auto newload = (load_factor() * (float(n)/bucket_count()));
-        if(n < bucket_count() && newload > max_load_factor()) return false;
+        if (n < bucket_count() && newload > max_load_factor()) return false;
         return true;
     }
 
