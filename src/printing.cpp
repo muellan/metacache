@@ -33,6 +33,8 @@
 
 #include <ostream>
 #include <utility>
+#include <iomanip>
+#include <cmath>
 
 
 namespace mc {
@@ -425,6 +427,8 @@ void show_abundance_table (std::ostream& os,
        << "number of reads" << opt.tokens.column
        << "abundance\n";
 
+    double ipart = 0.0;
+
     for (const auto& tc : allTaxCounts) {
         if (tc.first) {
             os << tc.first->rank_name() << opt.tokens.rankSuffix
@@ -436,10 +440,22 @@ void show_abundance_table (std::ostream& os,
         } else {
             os << "none";
         }
-        os << opt.tokens.column << tc.second << opt.tokens.column
+
+        os << opt.tokens.column;
+        // ensure that integer values are printed as such
+        // and not in scientific notation
+        if (std::modf(tc.second, &ipart) == 0.0) {
+            os << ipart;
+        } else {
+            // set higher precision to prevent scientific notation
+            // and set back to default (6) after that
+            os << std::setprecision(15) << tc.second << std::setprecision(6);
+        }
+        os << opt.tokens.column
            << (tc.second / double(statistics.total()) * 100) << "%\n";
     }
     os << "unclassified" << opt.tokens.column
+       << "--" << opt.tokens.column
        << '0' << opt.tokens.column
        << statistics.unassigned() << opt.tokens.column
        << statistics.unclassified_rate() * 100 << "%\n";

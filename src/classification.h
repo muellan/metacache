@@ -54,8 +54,7 @@ struct rank_higher {
     }
 };
 
-using taxon_count_map = std::map<const taxon*, float, rank_higher>;
-// using taxon_count_map = std::unordered_map<const taxon*, query_id>;
+using taxon_count_map = std::map<const taxon*, double, rank_higher>;
 
 
 /*************************************************************************//**
