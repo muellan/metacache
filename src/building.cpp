@@ -258,6 +258,7 @@ bool add_targets_to_database(
     int dbPart,
     input_batch& batch,
     const std::map<string,taxon_id>& sequ2taxid,
+    sequence_id_type seqIdType,
     info_level infoLvl)
 {
     for (auto& seq : batch) {
@@ -265,8 +266,7 @@ bool add_targets_to_database(
         if (db.add_target_failed(dbPart)) return false;
 
         if (!seq.data.empty()) {
-            auto seqId = extract_accession_string(
-                             seq.header, sequence_id_type::any);
+            auto seqId = extract_accession_string(seq.header, seqIdType);
 
             // make sure sequence id is not empty,
             // use entire header if neccessary
@@ -312,6 +312,7 @@ bool add_targets_to_database(
 void add_targets_to_database(database& db,
     const std::vector<string>& infiles,
     const std::map<string,taxon_id>& sequ2taxid,
+    sequence_id_type seqIdType,
     info_level infoLvl)
 {
     // make executor that runs database insertion (concurrently) in batches
@@ -342,7 +343,7 @@ void add_targets_to_database(database& db,
 
     batch_executor<input_sequence> executor { execOpt,
         [&] (int id, auto& batch) {
-            return add_targets_to_database(db, id, batch, sequ2taxid, infoLvl);
+            return add_targets_to_database(db, id, batch, sequ2taxid, seqIdType, infoLvl);
         }};
 
     // spawn threads to read sequences
@@ -364,10 +365,15 @@ void add_targets_to_database(database& db,
                 }
 
                 try {
-                    const auto fileAccession = extract_accession_string(
-                                            filename, sequence_id_type::acc_ver);
+                    auto fileAccession = extract_accession_string(filename, seqIdType);
+                    taxon_id fileTaxId = find_taxon_id(sequ2taxid, fileAccession);
 
-                    const taxon_id fileTaxId = find_taxon_id(sequ2taxid, fileAccession);
+                    if (fileTaxId == taxonomy::none_id() &&
+                        seqIdType == sequence_id_type::smart)
+                    {
+                        fileAccession = extract_accession_string(filename, sequence_id_type::filename);
+                        fileTaxId = find_taxon_id(sequ2taxid, fileAccession);
+                    }
 
                     if (infoLvl == info_level::verbose) {
                         std::lock_guard<std::mutex> lock(outputMtx);
@@ -571,9 +577,15 @@ void add_to_database(database& db, const build_options& opt, timer& time)
                             opt.taxonomy.mappingPreFilesGlobal,
                             opt.infiles, opt.infoLevel);
 
-        if (notSilent) cout << "Processing reference sequences." << endl;
+        if (notSilent) {
+            cout << "Sequence ID extraction method: "
+                 << to_string(opt.sequenceIdType)
+                 << "\nProcessing reference sequences." << endl;
+        }
 
-        add_targets_to_database(db, opt.infiles, taxonMap, opt.infoLevel);
+
+        add_targets_to_database(db, opt.infiles, taxonMap,
+                                opt.sequenceIdType, opt.infoLevel);
 
         if (notSilent) {
             clear_current_line(cout);

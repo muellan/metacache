@@ -201,21 +201,27 @@ private:
  *
  *
  *****************************************************************************/
-enum class sequence_id_type {
-    any, acc, acc_ver, gi
+enum class sequence_id_type
+{
+    smart,
+    ncbi, ncbi_acc, ncbi_acc_ver,
+    genbank,
+    filename,
+    leading_word
 };
 
+std::string to_string (sequence_id_type) noexcept;
 
 
 
 /*************************************************************************//**
  *
  * @brief extracts accession ID according to sequence_id_type
- *        sequence_id_type::any order: acc_ver > acc > gi
+ *        if sequence_id_type::ncbi_any is given, extraction order:
+ *        ncbi_acc_ver > ncbi_acc > genbank
  *
  *****************************************************************************/
-std::string extract_accession_string (const std::string&,
-                                      sequence_id_type idtype);
+std::string extract_accession_string (const std::string&, sequence_id_type);
 
 
 

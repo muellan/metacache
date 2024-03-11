@@ -117,6 +117,9 @@ struct build_options
     taxonomy_options taxonomy;
     bool resetParents = false;
 
+    // default sequence id format (used for parsing sequence headers and filenames)
+    sequence_id_type sequenceIdType = sequence_id_type::smart;
+
     info_level infoLevel = info_level::moderate;
 };
 

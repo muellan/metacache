@@ -111,18 +111,26 @@ ground_truth (const taxonomy_cache& taxonomy, const string& header)
 {
     // try to extract query id and find the corresponding target in database
     const taxon* tax = nullptr;
-    tax = taxonomy.taxon_with_name(extract_accession_string(header, sequence_id_type::acc_ver));
+    tax = taxonomy.taxon_with_name(extract_accession_string(header, sequence_id_type::ncbi_acc_ver));
     if (tax) return taxonomy.cached_next_ranked_ancestor(tax);
 
-    tax = taxonomy.taxon_with_similar_name(extract_accession_string(header, sequence_id_type::acc));
+    tax = taxonomy.taxon_with_similar_name(extract_accession_string(header, sequence_id_type::ncbi_acc));
     if (tax) return taxonomy.cached_next_ranked_ancestor(tax);
 
-    // try to extract id from header
+    // try to extract id directly from header
     tax = taxonomy.taxon_with_id(extract_taxon_id(header));
     if (tax) return taxonomy.cached_next_ranked_ancestor(tax);
 
     // try to find entire header as sequence identifier
     tax = taxonomy.taxon_with_name(header);
+    if (tax) return taxonomy.cached_next_ranked_ancestor(tax);
+
+    // try first word of header
+    tax = taxonomy.taxon_with_name(extract_accession_string(header, sequence_id_type::leading_word));
+    if (tax) return taxonomy.cached_next_ranked_ancestor(tax);
+
+    // try to extract filename in header
+    tax = taxonomy.taxon_with_name(extract_accession_string(header, sequence_id_type::filename));
     if (tax) return taxonomy.cached_next_ranked_ancestor(tax);
 
     return nullptr;

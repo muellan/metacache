@@ -38,6 +38,18 @@ BASIC OPTIONS
                       alternative source in a post processing step.
                       default: 'nucl_(gb|wgs|est|gss).accession2taxid'
 
+    -sequence-id-format (smart|ncbi|gi|filename|leadingword)
+                      Method used for extracting sequence IDs from filenames and
+                      sequence headers.Sequence IDs are also used to assign taxa
+                      to reference sequences.
+                      Available types are:
+                      smart       : try NCBI > genbank > filename
+                      ncbi        : NCBI-style accession/accession.version
+                      gi          : genbank identifier
+                      filename    : filename without extension
+                      leadingword : first stretch of non-whitespace characters
+                      default: smart
+
     -silent|-verbose  information level during build:
                       silent => none / verbose => most detailed
                       default: neither => only errors/important info

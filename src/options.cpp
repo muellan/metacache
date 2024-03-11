@@ -291,6 +291,36 @@ info_level_cli(info_level& lvl, error_messages& err)
 //-------------------------------------------------------------------
 // / @brief shared command-line options for taxonomy
 clipp::group
+sequence_id_format_cli(sequence_id_type& type, error_messages&)
+{
+    using namespace clipp;
+
+    return (
+    (   option("-sequence-id-format") & one_of(
+            command("smart"      ).set(type, sequence_id_type::smart),
+            command("ncbi"       ).set(type, sequence_id_type::ncbi),
+            command("gi"         ).set(type, sequence_id_type::genbank),
+            command("filename"   ).set(type, sequence_id_type::filename),
+            command("leadingword").set(type, sequence_id_type::leading_word)
+        )
+    )
+        % "Method used for extracting sequence IDs from filenames and sequence headers."
+          "Sequence IDs are also used to assign taxa to reference sequences.\n"
+          "Available types are:\n"
+          "    'smart'       : try NCBI accession > genbank identifier > filename\n"
+          "    'ncbi'        : NCBI-style accession or accession.version ID\n"
+          "    'gi'          : genbank identifier (number prefixed by 'gi|' or 'gi:' or 'gi=') \n"
+          "    'filename'    : use string between first path separator and file extension\n"
+          "    'leadingword' : extracts first contiguous stretch of non-whitespace characters\n"
+          "default: smart\n"
+    );
+}
+
+
+
+//-------------------------------------------------------------------
+// / @brief shared command-line options for taxonomy
+clipp::group
 taxonomy_cli(taxonomy_options& opt, error_messages& err)
 {
     using namespace clipp;
@@ -500,6 +530,7 @@ build_mode_cli(build_options& opt, error_messages& err)
     "BASIC OPTIONS" %
     (
         taxonomy_cli(opt.taxonomy, err),
+        sequence_id_format_cli(opt.sequenceIdType, err),
         info_level_cli(opt.infoLevel, err)
     ),
     "SKETCHING (SUBSAMPLING)" %

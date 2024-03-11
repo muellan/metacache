@@ -451,6 +451,24 @@ void sequence_pair_reader::index_offset (index_type index)
 
 
 
+/*************************************************************************//**
+ *
+ *****************************************************************************/
+std::string to_string (sequence_id_type id) noexcept
+{
+    switch (id) {
+        case sequence_id_type::smart:         return "smart (NCBI accession > genbank > filename)";
+        case sequence_id_type::ncbi:          return "NCBI accession";
+        case sequence_id_type::ncbi_acc:      return "NCBI accession";
+        case sequence_id_type::ncbi_acc_ver:  return "NCBI accession.version";
+        case sequence_id_type::filename:      return "filename (without extension)";
+        case sequence_id_type::leading_word:  return "leading contiguous stretch of non-whitespace characters";
+        case sequence_id_type::genbank:       return "genbank";
+    }
+    return "";
+}
+
+
 
 
 /*************************************************************************//**
@@ -468,6 +486,61 @@ accession_regex("(^|[^[:alnum:]])(([A-Z][_A-Z]{1,9}[0-9]{5,})(\\.[0-9]+)?)",
                 std::regex::optimize);
 
 
+
+/*************************************************************************//**
+ *
+ * @brief  extracts first contiguous stretch of non-whitespace characters
+ *
+ *****************************************************************************/
+string extract_leading_word (const string& text)
+{
+    if (text.empty()) return text;
+
+    // skip leading whitespace
+    auto fst = std::find_if(text.begin(), text.end(), [](char c) {
+                            return not std::isspace(static_cast<unsigned char>(c)); });
+
+    // whitespace only
+    if (fst == text.end()) return text;
+
+    // find first whitespace after first contiguous word
+    auto lst = std::find_if(fst+1, text.end(), [](char c) {
+                            return std::isspace(static_cast<unsigned char>(c)); });
+
+    return string{fst,lst};
+}
+
+
+
+/*************************************************************************//**
+ *
+ * @brief  extracts string between first path separator (or string start)
+ *         and extension separator (or string end)
+ *
+ *****************************************************************************/
+string extract_filename_without_extension (const string& text)
+{
+    if (text.empty()) return text;
+
+    // find first occurrence of path separator
+#ifdef _WIN32
+    // windows allows backslash *and* slash as path separator
+    auto fst = std::find(text.rbegin(), text.rend(), '\\').base();
+    auto sla = std::find(text.rbegin(), text.rend(), '/').base();
+    // use last position with either slash or backslash
+    if (sla > fst) fst = sla;
+#else
+    auto fst = std::find(text.rbegin(), text.rend(), '/').base();
+#endif
+
+    // find extension separator
+    auto ext = std::find(fst, text.end(), '.');
+
+    return string{fst,ext};
+}
+
+
+
 /*************************************************************************//**
  *
  * @brief extracts the NCBI accession[.version] number from a string
@@ -476,7 +549,7 @@ accession_regex("(^|[^[:alnum:]])(([A-Z][_A-Z]{1,9}[0-9]{5,})(\\.[0-9]+)?)",
  *****************************************************************************/
 string
 extract_ncbi_accession_number (const string& text,
-                               sequence_id_type idtype = sequence_id_type::any)
+                               sequence_id_type idtype = sequence_id_type::ncbi)
 {
     if (text.empty()) return "";
 
@@ -484,18 +557,27 @@ extract_ncbi_accession_number (const string& text,
     std::regex_search(text, match, accession_regex);
 
     switch (idtype) {
-        case sequence_id_type::acc:
-            return match[3];
-        case sequence_id_type::acc_ver:
-            if (match[4].length())
-                return match[2];
-            else
-                return "";
-        case sequence_id_type::gi:
-            return "";
-        default:
+        case sequence_id_type::smart:  // fallthrough
+        case sequence_id_type::ncbi:
             return match[2];
+
+        case sequence_id_type::ncbi_acc:
+            return match[3];
+
+        case sequence_id_type::ncbi_acc_ver:
+            if (match[4].length()) {
+                return match[2];
+            } else {
+                return "";
+            }
+
+        case sequence_id_type::filename:      // fallthrough
+        case sequence_id_type::leading_word:  // fallthrough
+        case sequence_id_type::genbank:       // fallthrough
+            break;
     }
+
+    return "";
 }
 
 
@@ -511,6 +593,9 @@ extract_genbank_identifier (const string& text)
     if (text.empty()) return "";
 
     auto i = text.find("gi|");
+    if (i == string::npos) { i = text.find("gi:"); }
+    if (i == string::npos) { i = text.find("gi="); }
+
     if (i != string::npos) {
         // skip prefix
         i += 3;
@@ -534,21 +619,34 @@ extract_accession_string (const string& text, sequence_id_type idtype)
     if (text.empty()) return "";
 
     switch (idtype) {
-        case sequence_id_type::acc:
-        // [[fallthrough]]
-        case sequence_id_type::acc_ver:
+        case sequence_id_type::ncbi_acc:  // fallthrough
+        case sequence_id_type::ncbi_acc_ver:
             return extract_ncbi_accession_number(text, idtype);
-        case sequence_id_type::gi:
+
+        case sequence_id_type::ncbi:
+            return extract_ncbi_accession_number(text);
+
+        case sequence_id_type::genbank:
             return extract_genbank_identifier(text);
-        default: {
+
+        case sequence_id_type::leading_word:
+            return extract_leading_word(text);
+
+        case sequence_id_type::filename:
+            return extract_filename_without_extension(text);
+
+        case sequence_id_type::smart:
+        {
             auto s = extract_ncbi_accession_number(text);
             if (!s.empty()) return s;
-
             s = extract_genbank_identifier(text);
-
-            return s;
+            if (!s.empty()) return s;
+            s = extract_filename_without_extension(text);
+            if (!s.empty()) return s;
         }
     }
+
+    return text;
 }
 
 
