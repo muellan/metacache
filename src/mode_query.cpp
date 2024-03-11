@@ -69,7 +69,7 @@ read_database(const query_options& opt)
             maxlpf = database::max_supported_locations_per_feature() - 1;
 
         maxlpf = std::min(maxlpf, db.max_locations_per_feature() - 1);
-        if (maxlpf > 0) { //always keep buckets with size 1
+        if (maxlpf > 0) { // always keep buckets with size 1
             cerr << "\nRemoving features with more than "
                  << maxlpf << " locations...\n";
 
@@ -77,7 +77,7 @@ read_database(const query_options& opt)
 
             cerr << rem << " of " << old << " removed.\n";
         }
-        //in case new max is less than the database setting
+        // in case new max is less than the database setting
         db.max_locations_per_feature(dbopt.maxLocationsPerFeature);
     }
     else if (dbopt.maxLocationsPerFeature > 1) {

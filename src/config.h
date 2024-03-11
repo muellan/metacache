@@ -88,7 +88,7 @@ using query_id = std::uint_least64_t;
 /**************************************************************************
  * @brief define sequence batch sizes
  */
-//TODO tune sizes
+// TODO tune sizes
 #define MAX_TARGETS_PER_BATCH 100
 #define MAX_LENGTH_PER_BATCH 10000000
 
@@ -111,7 +111,7 @@ using sketch_size_type = typename sketcher::sketch_type::size_type;
  *        note: std::hash<SomeUnsignedIntegerType>
  *              is mostly implemented as the identity function
  */
-//using feature_hash = std::hash<typename sketcher::feature_type>;
+// using feature_hash = std::hash<typename sketcher::feature_type>;
 using feature_hash = same_size_hash<typename sketcher::feature_type>;
 
 

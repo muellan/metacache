@@ -59,7 +59,7 @@ class gpu_hashmap
     class query_hash_table;
 
     //-----------------------------------------------------
-    /// @brief needed for batched, asynchonous insertion into build hash table
+    // / @brief needed for batched, asynchonous insertion into build hash table
     struct insert_buffer
     {
         insert_buffer() :

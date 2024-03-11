@@ -116,13 +116,13 @@ struct candidate_generation_rules
 {
     constexpr candidate_generation_rules() noexcept = default;
 
-    //maximum length of contiguous window range
+    // maximum length of contiguous window range
     window_id maxWindowsInRange = 3;
 
-    //maximum number of candidates to be generated
+    // maximum number of candidates to be generated
     std::size_t maxCandidates = std::numeric_limits<std::size_t>::max();
 
-    //list only the best candidate of a taxon on rank
+    // list only the best candidate of a taxon on rank
     taxon_rank mergeBelow = taxon_rank::Sequence;
 };
 

@@ -110,7 +110,7 @@ string taxon_rank_names(const string& separator = ", ")
 
 
 //-------------------------------------------------------------------
-/// @brief remove extension from database filename and extract part id
+// / @brief remove extension from database filename and extract part id
 void sanitize_database_name(string& name, int& partId)
 {
     auto pos = name.find(".meta");
@@ -134,7 +134,7 @@ void sanitize_database_name(string& name, int& partId)
 
 
 //-------------------------------------------------------------------
-/// @return replaces '\t' with tab char and remove other special chars
+// / @return replaces '\t' with tab char and remove other special chars
 string sanitize_special_chars(const string& text)
 {
     return std::regex_replace( std::regex_replace(text,
@@ -192,7 +192,7 @@ auto cli_usage_formatting()
 
 
 //-------------------------------------------------------------------
-/// @brief adds 'parameter' that catches unknown args with '-' prefix
+// / @brief adds 'parameter' that catches unknown args with '-' prefix
 clipp::parameter
 catch_unknown(error_messages& err) {
     return clipp::any(clipp::match::prefix{"-"},
@@ -248,7 +248,7 @@ void raise_default_error(const error_messages& err,
  *
  *****************************************************************************/
 
-/// @brief
+// / @brief
 clipp::parameter
 database_parameter(string& filename, int& partId, error_messages& err)
 {
@@ -289,7 +289,7 @@ info_level_cli(info_level& lvl, error_messages& err)
 
 
 //-------------------------------------------------------------------
-/// @brief shared command-line options for taxonomy
+// / @brief shared command-line options for taxonomy
 clipp::group
 taxonomy_cli(taxonomy_options& opt, error_messages& err)
 {
@@ -316,7 +316,7 @@ taxonomy_cli(taxonomy_options& opt, error_messages& err)
 
 
 //-------------------------------------------------------------------
-/// @brief shared command-line options for sequence sketching
+// / @brief shared command-line options for sequence sketching
 clipp::group
 sketching_options_cli(sketching_opt& opt, error_messages& err)
 {
@@ -362,7 +362,7 @@ sketching_options_cli(sketching_opt& opt, error_messages& err)
 
 
 //-------------------------------------------------------------------
-/// @brief shared command-line options for sequence sketching
+// / @brief shared command-line options for sequence sketching
 clipp::group
 database_storage_options_cli(database_storage_options& opt, error_messages& err)
 {
@@ -446,13 +446,13 @@ void augment_taxonomy_options(taxonomy_options& opt)
     opt.mappingPreFilesGlobal.push_back(opt.path + "assembly_summary_genbank.txt");
     opt.mappingPreFilesGlobal.push_back(opt.path + "assembly_summary_genbank_historical.txt");
 
-    //default NCBI accession to taxon map file names
+    // default NCBI accession to taxon map file names
     opt.mappingPostFiles.push_back(opt.path + "nucl_gb.accession2taxid");
     opt.mappingPostFiles.push_back(opt.path + "nucl_wgs.accession2taxid");
     opt.mappingPostFiles.push_back(opt.path + "nucl_est.accession2taxid");
     opt.mappingPostFiles.push_back(opt.path + "nucl_gss.accession2taxid");
 
-    //find additional maps by file extension ".accession2taxid"
+    // find additional maps by file extension ".accession2taxid"
     for (const auto& f : files_in_directory(opt.path)) {
         if (f.find(".accession2taxid") != string::npos) {
             if (std::find(opt.mappingPostFiles.begin(),
@@ -476,7 +476,7 @@ void augment_taxonomy_options(taxonomy_options& opt)
  *
  *
  *****************************************************************************/
-/// @brief build mode command-line options
+// / @brief build mode command-line options
 clipp::group
 build_mode_cli(build_options& opt, error_messages& err)
 {
@@ -640,7 +640,7 @@ string build_mode_docs() {
  *
  *****************************************************************************/
 
-/// @brief modify mode command-line options
+// / @brief modify mode command-line options
 clipp::group
 modify_mode_cli(build_options& opt, error_messages& err)
 {
@@ -780,7 +780,7 @@ string modify_mode_docs() {
  *
  *
  *****************************************************************************/
-/// @brief command line interface for classification parameter tuning
+// / @brief command line interface for classification parameter tuning
 clipp::group
 classification_params_cli(classification_options& opt, error_messages& err)
 {
@@ -856,7 +856,7 @@ classification_params_cli(classification_options& opt, error_messages& err)
 
 
 //-------------------------------------------------------------------
-/// @brief query mode command-line options
+// / @brief query mode command-line options
 clipp::group
 classification_output_format_cli(classification_output_formatting& opt,
                                  error_messages& err)
@@ -927,7 +927,7 @@ classification_output_format_cli(classification_output_formatting& opt,
 
 
 //-------------------------------------------------------------------
-/// @brief query mode command-line options
+// / @brief query mode command-line options
 clipp::group
 classification_analysis_cli(classification_analysis_options& opt, error_messages& err)
 {
@@ -1004,7 +1004,7 @@ classification_analysis_cli(classification_analysis_options& opt, error_messages
 
 
 //-------------------------------------------------------------------
-/// @brief query mode command-line options
+// / @brief query mode command-line options
 clipp::group
 classification_evaluation_cli(classification_evaluation_options& opt,
                               error_messages&)
@@ -1043,7 +1043,7 @@ classification_evaluation_cli(classification_evaluation_options& opt,
 
 
 //-------------------------------------------------------------------
-/// @brief query mode command-line options
+// / @brief query mode command-line options
 clipp::group
 performance_options_cli(performance_tuning_options& opt, error_messages& err)
 {
@@ -1084,7 +1084,7 @@ performance_options_cli(performance_tuning_options& opt, error_messages& err)
 
 
 //-------------------------------------------------------------------
-/// @brief query mode command-line options
+// / @brief query mode command-line options
 clipp::group
 query_mode_cli(query_options& opt, error_messages& err)
 {
@@ -1244,14 +1244,14 @@ void process_query_options(query_options& opt)
     if (perf.queryLimit < 0) perf.queryLimit = 0;
 
 
-    //output file consistency checks
+    // output file consistency checks
     auto& ana = opt.output.analysis;
     if (ana.targetMappingsFile == opt.queryMappingsFile) ana.targetMappingsFile.clear();
     if (ana.abundanceFile == opt.queryMappingsFile) ana.abundanceFile.clear();
 
     // output option checks and consistency
 
-    //always show query ids if hits per target list requested
+    // always show query ids if hits per target list requested
     auto& fmt = opt.output.format;
     // output ranks are the same as classification ranks
     fmt.lowestRank = cl.lowestRank;
@@ -1409,7 +1409,7 @@ string query_mode_docs() {
  *
  *
  *****************************************************************************/
-/// @brief build+query mode command-line options
+// / @brief build+query mode command-line options
 clipp::group
 build_query_mode_cli(build_query_options& opt, error_messages& err)
 {
@@ -1667,7 +1667,7 @@ string build_query_mode_docs() {
  *
  *****************************************************************************/
 
-/// @brief merge mode command-line options
+// / @brief merge mode command-line options
 clipp::group
 merge_mode_cli(merge_options& opt, error_messages& err)
 {
@@ -1849,7 +1849,7 @@ string merge_mode_docs() {
  *
  *
  *****************************************************************************/
-/// @brief shared command-line options for taxonomy
+// / @brief shared command-line options for taxonomy
 clipp::group
 info_mode_cli(info_options& opt, error_messages& err)
 {

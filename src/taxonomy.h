@@ -283,7 +283,7 @@ public:
             index_t index;
         };
 
-        //default: empty taxon
+        // default: empty taxon
         explicit
         taxon(taxon_id taxonId = none_id(),
               taxon_id parentId = none_id(),
@@ -569,7 +569,7 @@ public:
             if (it->rank() != rank::none) {
                 return &(*it);
             }
-            if (it->parent_ == id) break; //break cycles
+            if (it->parent_ == id) break; // break cycles
             id = it->parent_;
         }
         return nullptr;
@@ -594,7 +594,7 @@ public:
             if (it->rank() != rank::none) {
                 lin[static_cast<int>(it->rank())] = &(*it);
             }
-            if (it->parent_ == id) break; //break cycles
+            if (it->parent_ == id) break; // break cycles
             id = it->parent_;
         }
         return lin;
@@ -635,7 +635,7 @@ public:
             auto it = taxa_.find(taxon{id});
             if (it != taxa_.end()) {
                 lin.push_back(&(*it));
-                if (it->parent_ != id) { //break cycles
+                if (it->parent_ != id) { // break cycles
                     id = it->parent_;
                 } else {
                     id = none_id();
@@ -888,13 +888,13 @@ public:
     }
 
     //---------------------------------------------------------------
-    /// @brief only works if tax is cached - make sure to call update first
+    // / @brief only works if tax is cached - make sure to call update first
     const ranked_lineage&
     operator [](const taxon* tax) const {
         return tax ? operator [](*tax) : empty_;
     }
     //-----------------------------------------------------
-    /// @brief only works if tax is cached - make sure to call update first
+    // / @brief only works if tax is cached - make sure to call update first
     const ranked_lineage&
     operator [](const taxon& tax) const {
         assert(outdated_ == false);
@@ -930,7 +930,7 @@ public:
     using taxon_id       = taxonomy::taxon_id;
     using taxon_rank     = taxonomy::rank;
 
-    //use negative numbers for sequence level taxon ids
+    // use negative numbers for sequence level taxon ids
     static constexpr taxon_id
     taxon_id_of_target(target_id id) noexcept { return -taxon_id(id)-1; }
 
@@ -1380,7 +1380,7 @@ public:
         for (auto& t : tax.non_target_taxa()) {
             taxa_.insert_or_replace_non_target_taxon(std::move(t));
         }
-        //re-initialize ranks cache
+        // re-initialize ranks cache
         targetLineages_.reset();
         taxonLineages_.init_from_targets(targetLineages_.lineages());
     }

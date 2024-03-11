@@ -73,7 +73,7 @@ void add_to_database_and_query(database& db, build_query_options& opt)
         write_database(db, opt.build);
     }
 
-    //prevents slow deallocation
+    // prevents slow deallocation
     db.clear_without_deallocation();
 }
 

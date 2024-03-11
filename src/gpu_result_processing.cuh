@@ -328,7 +328,7 @@ void generate_top_candidates(
 {
     using hit_count = match_candidate::count_type;
 
-    //TODO reduce size
+    // TODO reduce size
     __shared__ struct {
         location locs[96];
         uint32_t hits[96];
@@ -420,7 +420,7 @@ void generate_top_candidates(
                     maxHits = otherHits;
             }
 
-            //TODO use whole warp for insertion
+            // TODO use whole warp for insertion
             bool insert = false;
             if (32-1 - tid == (maxHits & ((1 << 5) - 1))) {
                 insert = true;

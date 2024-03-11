@@ -96,16 +96,16 @@ public:
         return (true_pos() + true_neg()) / double(total());
     }
 
-    //true positive rate, hit rate, recall
+    // true positive rate, hit rate, recall
     double sensitivity() const noexcept {
         return true_pos() / double(condition_pos());
     }
-    //true negative rate
+    // true negative rate
     double specificity() const noexcept {
         return true_neg() / double(condition_neg());
     }
 
-    //positive predictive value
+    // positive predictive value
     double precision() const noexcept {
         return true_pos() / double(outcome_pos());
     }

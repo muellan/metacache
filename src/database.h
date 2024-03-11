@@ -144,7 +144,7 @@ public:
      *         these are stored in the in-memory database and on disk
      */
 #ifndef GPU_MODE
-    //avoid padding bits
+    // avoid padding bits
     #pragma pack(push, 1)
 #endif
     struct location
@@ -171,17 +171,17 @@ public:
         }
     };
 #ifndef GPU_MODE
-    //avoid padding bits
+    // avoid padding bits
     #pragma pack(pop)
 #endif
 
     //-----------------------------------------------------
-    using sketch  = typename sketcher::sketch_type;  //range of features
+    using sketch  = typename sketcher::sketch_type;  // range of features
     using feature = typename sketcher::feature_type;
 
 
 private:
-    //use negative numbers for sequence level taxon ids
+    // use negative numbers for sequence level taxon ids
     static constexpr taxon_id
     taxon_id_of_target(target_id id) noexcept {
         return ranked_lineages_of_targets::taxon_id_of_target(id);
@@ -189,12 +189,12 @@ private:
 
 
     //-----------------------------------------------------
-    /// @brief "heart of the database": maps features to target locations
+    // / @brief "heart of the database": maps features to target locations
 #ifndef GPU_MODE
     using feature_store = host_hashmap<location>;
     using result_handler = query_handler<location>;
 #else
-    using feature_store = gpu_hashmap<feature, location>; //key, value
+    using feature_store = gpu_hashmap<feature, location>; // key, value
     using result_handler = query_batch<location>;
 #endif
 

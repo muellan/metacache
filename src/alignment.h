@@ -195,43 +195,43 @@ align_semi_global(const QuerySequence& query,
                                typename SubjectSequence::value_type>::value,
                   "query and subject value type must be identical");
 
-    //datatypes from scoring scheme
+    // datatypes from scoring scheme
     using value_t = typename QuerySequence::value_type;
     using index_t = typename QuerySequence::size_type;
     using score_t = typename ScoringScheme::score_type;
     using predc_t = typename ScoringScheme::predecessor;
 
-    //get lengths from sequence containers
+    // get lengths from sequence containers
     const index_t len_q = query.size();
     const index_t len_s = subject.size();
 
-    //quadratic memory solution for relaxing and backtracking
+    // quadratic memory solution for relaxing and backtracking
     std::vector<score_t> score((len_q+1)*(len_s+1), 0);
     std::vector<predc_t> predc((len_q+1)*(len_s+1), predc_t(0));
 
     for (index_t q = 1; q < len_q+1; q++) {
 
-        //cache the query at position q
+        // cache the query at position q
         const auto vquery = query[q-1];
 
         for (index_t s = 1; s < len_s+1; s++) {
-            //cache the subject at position s
+            // cache the subject at position s
             auto vsubject = subject[s-1];
-            //cache diagonal, above and left entry of score matrix
+            // cache diagonal, above and left entry of score matrix
             score_t diag  = score[(q-1)*(len_s+1)+(s-1)];
             score_t above = score[(q-1)*(len_s+1)+(s-0)];
             score_t left  = score[(q-0)*(len_s+1)+(s-1)];
 
-            //relax ingoing edges
+            // relax ingoing edges
             auto argmax = scoring.relax(diag, above, left, vsubject, vquery);
 
-            //update current node
+            // update current node
             score[q*(len_s+1)+s] = argmax.score;
             predc[q*(len_s+1)+s] = argmax.predc;
         }
     }
 
-    //searching the best score
+    // searching the best score
     auto bsf_q = len_q;
     auto bsfS = len_s;
     auto bsf_v = score[len_q*(len_s+1)+len_s];
@@ -254,26 +254,26 @@ align_semi_global(const QuerySequence& query,
         }
     }
 
-    //construct the alignment
+    // construct the alignment
     auto res = alignment<score_t,value_t>{};
     res.score = bsf_v;
 
     if (mode == alignment_mode::backtrace) {
         auto pred = predc[bsf_q*(len_s+1)+bsfS];
-        //backtracing predecessor information
+        // backtracing predecessor information
         do {
-            //caution, encode changes the values of bsf_q and bsfS
+            // caution, encode changes the values of bsf_q and bsfS
             auto symbol = scoring.encode(bsf_q, bsfS, pred, query, subject);
 
-            //write down the aligment
+            // write down the aligment
             res.query.push_back(std::get<0>(symbol));
             res.subject.push_back(std::get<1>(symbol));
 
-            //update pred
+            // update pred
             pred = predc[bsf_q*(len_s+1)+bsfS];
         } while (bool(pred));
 
-        //reverse the alignment
+        // reverse the alignment
         std::reverse(res.query.begin(), res.query.end());
         std::reverse(res.subject.begin(), res.subject.end());
     }

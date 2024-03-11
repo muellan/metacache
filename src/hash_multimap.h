@@ -372,7 +372,7 @@ public:
         }
 
         //-----------------------------------------------------
-        /// @brief does not change size!
+        // / @brief does not change size!
         bool reserve(value_allocator& alloc, std::size_t n) {
             if (n > max_bucket_size()) return false;
 
@@ -380,7 +380,7 @@ public:
                 if (n > capacity_) {
                     auto ncap = std::size_t(n + 0.3*size_);
                     if (ncap > max_bucket_size()) ncap = max_bucket_size();
-                    //make new array and copy old values
+                    // make new array and copy old values
                     auto nvals = value_alloc::allocate(alloc, ncap);
                     if (!nvals) return false;
                     std::copy(values_, values_ + size_, nvals);
@@ -390,7 +390,7 @@ public:
                 }
             }
             else {
-                //make new array
+                // make new array
                 auto nvals = value_alloc::allocate(alloc, n);
                 if (!nvals) return false;
                 values_ = nvals;
@@ -639,13 +639,13 @@ public:
     {
         if (!rehash_possible(n)) return false;
 
-        //make temporary new map
-        //buckets resize might throw
+        // make temporary new map
+        // buckets resize might throw
         hash_multimap newmap{n};
         newmap.maxLoadFactor_ = maxLoadFactor_;
 
-        //move old bucket contents into new hash slots
-        //this should use only non-throwing operations
+        // move old bucket contents into new hash slots
+        // this should use only non-throwing operations
         for (auto& b : buckets_) {
             if (!b.unused()) {
                 newmap.insert_into_slot(std::move(b.key_),
@@ -653,7 +653,7 @@ public:
             }
         }
 
-        //should all be noexcept
+        // should all be noexcept
         buckets_ = std::move(newmap.buckets_);
         hash_ = std::move(newmap.hash_);
         return true;
@@ -752,7 +752,7 @@ public:
     {
         if (numKeys_ < 1) return;
 
-        //free bucket memory
+        // free bucket memory
         for (auto& b : buckets_) {
             b.free(alloc_);
         }
@@ -1059,9 +1059,9 @@ private:
         read_binary(is, batchSize);
 
         if (nkeys > 0) {
-            //if the allocator supports it: reserve one large memory chunk
-            //for all values; individual buckets will then point into this
-            //array; the default chunk_allocator does this
+            // if the allocator supports it: reserve one large memory chunk
+            // for all values; individual buckets will then point into this
+            // array; the default chunk_allocator does this
             reserve_keys(nkeys);
             reserve_values(nvalues);
             const auto valuesPointer = alloc_.allocate(nvalues);
@@ -1168,7 +1168,7 @@ private:
             buckets_.begin() + (hash_(key) % buckets_.size()),
             buckets_.begin(), buckets_.end()};
 
-        //find bucket
+        // find bucket
         do {
             if (it->unused()) return buckets_.end();
             if (keyEqual_(it->key(), key)) return iterator(it);
@@ -1187,7 +1187,7 @@ private:
             buckets_.begin(), buckets_.end()};
 
         do {
-            //empty slot found
+            // empty slot found
             if (it->unused()) {
                 if (it->insert(alloc_, std::forward<Values>(newvalues)...)) {
                     it->key_ = std::move(key);
@@ -1195,10 +1195,10 @@ private:
                     numValues_ += it->size();
                     return iterator(it);
                 }
-                //could not insert
+                // could not insert
                 return buckets_.end();
             }
-            //key already inserted
+            // key already inserted
             if (keyEqual_(it->key(), key)) {
                 auto oldsize = it->size();
                 if (it->insert(alloc_, std::forward<Values>(newvalues)...)) {
@@ -1230,10 +1230,10 @@ private:
     //---------------------------------------------------------------
     bool rehash_possible(size_type n) const noexcept
     {
-        //number of buckets must be greater or equal to the number of keys
+        // number of buckets must be greater or equal to the number of keys
         if (n == bucket_count() || n < key_count()) return false;
 
-        //make sure we stay below the maximum load factor
+        // make sure we stay below the maximum load factor
         auto newload = (load_factor() * (float(n)/bucket_count()));
         if (n < bucket_count() && newload > max_load_factor()) return false;
         return true;

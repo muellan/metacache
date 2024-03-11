@@ -90,7 +90,7 @@ get_results_file_properties(const string& filename)
 
     string line;
 
-    //check classification rank
+    // check classification rank
     while (ifs.good()) {
         getline(ifs, line);
         if (line[0] != '#') {
@@ -104,7 +104,7 @@ get_results_file_properties(const string& filename)
         }
     }
 
-    //get layout
+    // get layout
     while (ifs.good()) {
         getline(ifs, line);
         if (line[0] != '#') {
@@ -134,12 +134,12 @@ get_results_file_properties(const string& filename)
         throw io_format_error("no top_hits in file " + filename);
 
     char lineBegin = ifs.peek();
-    //skip comments
+    // skip comments
     while (ifs.good() && lineBegin == '#') {
         forward(ifs, '\n');
         lineBegin = ifs.peek();
     }
-    //count query results
+    // count query results
     res.resultsBegin = ifs.tellg();
     while (ifs.good()) {
         if (lineBegin != '#') ++res.numQueries;
@@ -251,7 +251,7 @@ void merge_result_files(const vector<string>& infiles,
     rules.mergeBelow    = opt.classify.lowestRank;
     if (opt.classify.maxNumCandidatesPerQuery > 0)
         rules.maxCandidates = opt.classify.maxNumCandidatesPerQuery;
-    //else default to 2
+    // else default to 2
 
     const auto& comment = opt.output.format.tokens.comment;
 
@@ -307,7 +307,7 @@ void process_result_files(const vector<string>& infiles,
         if (mapFile.good()) {
             cout << "Per-Read mappings will be written to file: " << queryMappingsFilename << endl;
             perReadOut = &mapFile;
-            //default: auxiliary output same as mappings output
+            // default: auxiliary output same as mappings output
             perTargetOut = perReadOut;
             perTaxonOut  = perReadOut;
         }
@@ -372,7 +372,7 @@ void process_result_files(const vector<string>& infiles,
             "None of the query sequence files could be opened"};
     }
 
-    //process all input files at once
+    // process all input files at once
     process_result_files(infiles, db, opt,
                          opt.queryMappingsFile,
                          opt.output.analysis.abundanceFile,
@@ -406,7 +406,7 @@ void main_mode_merge(const cmdline_args& args)
         }
     }
 
-    //TODO parallelize result processing?
+    // TODO parallelize result processing?
 
     if (opt.infiles.size() >= 2) {
         cerr << "Merging result files.\n";

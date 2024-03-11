@@ -83,8 +83,8 @@ void rank_targets_with_mapping_file(taxonomy_cache& taxonomy,
     }
 
     bool showProgress = showInfo && fsize > 100000000;
-    //accession2taxid files have 40-450M lines
-    //update progress indicator every 1M lines
+    // accession2taxid files have 40-450M lines
+    // update progress indicator every 1M lines
     size_t step = 0;
     size_t statStep = 1UL << 20;
     if (showProgress) show_progress_indicator(cout, 0);
@@ -94,13 +94,13 @@ void rank_targets_with_mapping_file(taxonomy_cache& taxonomy,
     std::uint64_t taxid;
     string gi;
 
-    //skip header
+    // skip header
     getline(is, acc);
     acc.clear();
 
     while (is >> acc >> accver >> taxid >> gi) {
-        //target in database?
-        //accession.version is the default
+        // target in database?
+        // accession.version is the default
         const taxon* tax = taxonomy.taxon_with_name(accver);
 
         if (!tax) {
@@ -108,7 +108,7 @@ void rank_targets_with_mapping_file(taxonomy_cache& taxonomy,
             if (!tax) tax = taxonomy.taxon_with_name(gi);
         }
 
-        //if in database then set parent
+        // if in database then set parent
         if (tax) {
             auto i = targetTaxa.find(tax);
             if (i != targetTaxa.end()) {
@@ -218,16 +218,16 @@ taxon_id find_taxon_id(
     if (name2tax.empty()) return taxonomy::none_id();
     if (name.empty()) return taxonomy::none_id();
 
-    //try to find exact match
+    // try to find exact match
     auto i = name2tax.find(name);
     if (i != name2tax.end()) return i->second;
 
-    //find nearest match
+    // find nearest match
     i = name2tax.upper_bound(name);
     if (i == name2tax.end()) return taxonomy::none_id();
 
-    //if nearest match contains 'name' as prefix -> good enough
-    //e.g. accession vs. accession.version
+    // if nearest match contains 'name' as prefix -> good enough
+    // e.g. accession vs. accession.version
     if (i->first.compare(0,name.size(),name) != 0) return taxonomy::none_id();
     return i->second;
 }
@@ -490,7 +490,7 @@ void post_process_features(database& db, const build_options& opt)
     if (dbconf.removeOverpopulatedFeatures) {
         auto old = db.feature_count();
         auto maxlpf = db.max_locations_per_feature() - 1;
-        if (maxlpf > 0) { //always keep buckets with size 1
+        if (maxlpf > 0) { // always keep buckets with size 1
             if (notSilent) {
                 cout << "\nRemoving features with more than "
                      << maxlpf << " locations... " << flush;

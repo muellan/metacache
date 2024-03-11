@@ -648,7 +648,7 @@ class gpu_hashmap<Key,ValueT>::query_hash_table {
         key_type, value_type,
         // warpcore::defaults::empty_key<key_type>(),       //=0
         key_type(-2),
-        warpcore::defaults::tombstone_key<key_type>(),      //=-1
+        warpcore::defaults::tombstone_key<key_type>(),      // =-1
         warpcore::defaults::probing_scheme_t<key_type, 8>,
         // warpcore::storage::key_value::SoAStore<key_type, value_type>>;
         warpcore::storage::key_value::AoSStore<key_type, value_type>>;
@@ -750,27 +750,27 @@ private:
 
         auto batchValuesOffset = valuesOffset;
 
-        //load batch
+        // load batch
         read_binary(is, h_keyBuffer, batchSize);
         read_binary(is, bsizeBuffer.data(), batchSize);
 
         for (len_t i = 0; i < batchSize; ++i) {
-            //store offset and size together in 64bit
-            //default is 56bit offset, 8bit size
+            // store offset and size together in 64bit
+            // default is 56bit offset, 8bit size
             h_offsetBuffer[i] = (valuesOffset << sizeof(bucket_size_type)*CHAR_BIT)
                                 + bsizeBuffer[i];
 
             valuesOffset += bsizeBuffer[i];
         }
 
-        //check status from previous batch
-        //implicit sync
+        // check status from previous batch
+        // implicit sync
         const auto tableStatus = hashTable_.pop_status(stream);
         if (tableStatus.has_any()) {
             std::cerr << tableStatus << '\n';
         }
 
-        //insert batch
+        // insert batch
         cudaMemcpy(d_keyBuffer, h_keyBuffer, batchSize*sizeof(key_type),
                     cudaMemcpyHostToDevice);
         cudaMemcpy(d_offsetBuffer, h_offsetBuffer, batchSize*sizeof(uint64_t),
@@ -781,7 +781,7 @@ private:
 
 
         std::uint64_t batchValuesCount = valuesOffset - batchValuesOffset;
-        //read batches of locations and copy to device
+        // read batches of locations and copy to device
         const len_t numBatches = batchValuesCount / valBatchSize;
         const size_t remainingSize = batchValuesCount % valBatchSize;
 
@@ -797,7 +797,7 @@ private:
 
             d_values += valBatchSize;
         }
-        //read remaining locations and copy to device
+        // read remaining locations and copy to device
         const len_t id = numBatches % 2;
         cudaEventSynchronize(events[id]);
         read_binary(is, valueBuffers[id], remainingSize);
@@ -819,18 +819,18 @@ public:
         len_t batchSize = 0;
         read_binary(is, batchSize);
 
-        //TODO tune sizes
+        // TODO tune sizes
         const len_t valBatchSize = 1UL << 20;
 
         cudaStream_t stream = 0;
 
-        //allocate large memory chunk for all locations,
-        //individual buckets will then point into this array
+        // allocate large memory chunk for all locations,
+        // individual buckets will then point into this array
         cudaMalloc(&locations_, nlocations*sizeof(location)); CUERR
         uint64_t locsOffset = 0;
 
-        {//load hash table
-            //allocate insert buffers
+        {// load hash table
+            // allocate insert buffers
             key_type * h_keyBuffer;
             key_type * d_keyBuffer;
             cudaMallocHost(&h_keyBuffer, batchSize*sizeof(key_type));
@@ -856,7 +856,7 @@ public:
             cudaMallocManaged(&status, batchSize*sizeof(handler_base_type));
             cudaMemset(status, 0, batchSize*sizeof(handler_base_type));
 
-            //load full batches
+            // load full batches
             const len_t numBatches = nkeys / batchSize;
             for (len_t b = 0; b < numBatches; ++b) {
                 auto batchValuesCount = deserialize_batch_of_buckets(is,
@@ -872,7 +872,7 @@ public:
                     + batchValuesCount*sizeof(location);
             }
 
-            //load last batch
+            // load last batch
             const size_t remainingSize = nkeys % batchSize;
             if (remainingSize) {
                 auto batchValuesCount = deserialize_batch_of_buckets(is,
@@ -887,8 +887,8 @@ public:
                     batchSize*(sizeof(key_type)+sizeof(bucket_size_type))
                     + batchValuesCount*sizeof(location);
 
-                //check status from last batch
-                //implicit sync
+                // check status from last batch
+                // implicit sync
                 const auto tableStatus = hashTable_.pop_status(stream);
                 if (tableStatus.has_any()) {
                     std::cerr << tableStatus << '\n';
@@ -1162,7 +1162,7 @@ window_id gpu_hashmap<Key,ValueT>::add_target(
         distance(first, last) >= targetSketching.kmerlen;
         first += processedWindows*targetSketching.winstride)
     {
-        //fill sequence batch
+        // fill sequence batch
         processedWindows = insertBuffers_[gpuId].current_seq_batch().add_target(
             first, last, tgt, totalWindows, targetSketching);
 

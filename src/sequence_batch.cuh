@@ -148,7 +148,7 @@ public:
         const size_t seqLength = distance(first, last);
 
         // no kmers in sequence, nothing to do here
-        //TODO different case than batch full
+        // TODO different case than batch full
         if (seqLength < kmerSize) return processedWindows;
 
         // batch full, nothing processed
@@ -167,7 +167,7 @@ public:
 
             const size_t providedLength = windowSize + (availableWindows-1) * windowStride;
 
-            //split sequence into [first,end] and [next,last] with overlap
+            // split sequence into [first,end] and [next,last] with overlap
             end = first + providedLength;
             processedWindows = availableWindows;
         }

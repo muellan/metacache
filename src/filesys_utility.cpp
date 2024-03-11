@@ -23,7 +23,7 @@
 #include "filesys_utility.h"
 
 #include <cstring>
-#include <dirent.h> //POSIX header
+#include <dirent.h> // POSIX header
 #include <iterator>
 
 

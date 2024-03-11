@@ -607,7 +607,7 @@ void query_batch<Location>::generate_and_copy_top_candidates_async(
 
     const index_type numBlocks = hostData_[hostId].num_queries();
 
-    //TODO different max cand cases
+    // TODO different max cand cases
     if (maxCandidatesPerQuery_ <= 2) {
         constexpr int maxCandidates = 2;
 

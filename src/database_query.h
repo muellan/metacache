@@ -347,7 +347,7 @@ void query_database(
     // files    -> infiles[i], infiles[i+1]
 
     for (size_t i = 0; i < infilenames.size(); i += stride+1) {
-        //pair up reads from two consecutive files in the list
+        // pair up reads from two consecutive files in the list
         const auto& fname1 = infilenames[i];
 
         const auto& fname2 = (opt.pairing == pairing_mode::none)

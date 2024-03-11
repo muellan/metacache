@@ -48,7 +48,7 @@ thomas_mueller_hash(std::uint32_t x) noexcept {
     return x;
 }
 
-//makes sure we cant't use the wrong types
+// makes sure we cant't use the wrong types
 template<class T> void thomas_mueller_hash(T) = delete;
 
 
@@ -70,7 +70,7 @@ nvidia_hash(std::uint32_t x) noexcept {
     return x;
 }
 
-//makes sure we cant't use the wrong types
+// makes sure we cant't use the wrong types
 template<class T> void nvidia_hash(T) = delete;
 
 
@@ -102,7 +102,7 @@ murmur3_fmix(std::uint32_t x) noexcept {
     return x;
 }
 
-//makes sure we cant't use the wrong types
+// makes sure we cant't use the wrong types
 template<class T> void murmur3_fmix(T) = delete;
 
 
@@ -123,7 +123,7 @@ splitmix64_hash(std::uint64_t x) noexcept
     return x;
 }
 
-//makes sure we cant't use the wrong types
+// makes sure we cant't use the wrong types
 template<class T> void splitmix64_hash(T) = delete;
 
 
@@ -146,7 +146,7 @@ halve_size_hash(std::uint64_t x) noexcept
     return std::uint32_t(x);
 }
 
-//makes sure we cant't use the wrong types
+// makes sure we cant't use the wrong types
 template<class T> void halve_size_hash(T) = delete;
 
 

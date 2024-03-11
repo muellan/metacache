@@ -55,10 +55,10 @@ void for_all_contiguous_window_ranges(
 {
     using hit_count = match_candidate::count_type;
 
-    //list empty?
+    // list empty?
     if (fst == end) return;
 
-    //first entry in list
+    // first entry in list
     hit_count hits = 1;
     match_candidate curBest;
     curBest.tax     = nullptr;
@@ -69,32 +69,32 @@ void for_all_contiguous_window_ranges(
     auto lst = fst;
     ++lst;
 
-    //rest of list: check hits per query sequence
+    // rest of list: check hits per query sequence
     while (lst != end) {
-        //look for neighboring windows with the highest total hit count
-        //as long as we are in the same target and the windows are in a
-        //contiguous range
+        // look for neighboring windows with the highest total hit count
+        // as long as we are in the same target and the windows are in a
+        // contiguous range
         if (lst->tgt == curBest.tgt) {
-            //add new hits to the right
+            // add new hits to the right
             hits++;
-            //subtract hits to the left that fall out of range
+            // subtract hits to the left that fall out of range
             while (fst != lst &&
                 (lst->win - fst->win) >= numWindows)
             {
                 hits--;
-                //move left side of range
+                // move left side of range
                 ++fst;
             }
-            //track best of the local sub-ranges
+            // track best of the local sub-ranges
             if (hits > curBest.hits) {
                 curBest.hits    = hits;
                 curBest.pos.beg = fst->win;
                 curBest.pos.end = lst->win;
             }
         }
-        else { //end of current target
+        else { // end of current target
             if (!consume(curBest)) return;
-            //reset to new target
+            // reset to new target
             fst = lst;
             hits = 1;
             curBest.tax     = nullptr;
@@ -204,7 +204,7 @@ public:
                     top_.resize(rules.maxCandidates);
             }
         }
-        //above sequence level, taxa can occur more than once
+        // above sequence level, taxa can occur more than once
         else {
             auto i = std::find_if (top_.begin(), top_.end(),
                 [&] (const match_candidate& c) {
@@ -212,13 +212,13 @@ public:
                 });
 
             if (i != top_.end()) {
-                //taxon already in list, update, if more hits
+                // taxon already in list, update, if more hits
                 if (cand.hits > i->hits) {
                     *i = cand;
                     std::sort(top_.begin(), i+1, greater);
                 }
             }
-            //taxon not in list yet
+            // taxon not in list yet
             else {
                 auto j = std::upper_bound(top_.begin(), top_.end(), cand, greater);
 

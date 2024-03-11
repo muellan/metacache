@@ -253,10 +253,10 @@ skewness(InputIterator begin, InputIterator end)
     const auto n2 = n*n;
     s *= s;
 
-    //2nd central moment
+    // 2nd central moment
     auto cm2 = (s2 - s /n) /(n - fp_t(1));
 
-    //3rd central moment
+    // 3rd central moment
     auto cm3 = (n2*s3 - fp_t(3)*n*(s2*s2) + fp_t(2)*s)/(n*n2);
 
     return fp_t(cm3 / pow(cm2, fp_t(3)/fp_t(2)) );
@@ -351,10 +351,10 @@ kurtosis(InputIterator begin, InputIterator end)
     const auto n2 = n*n;
     const auto ss = s*s ;
 
-    //2nd central moment
+    // 2nd central moment
     const auto cm2 = ((s2 - ss /n) /(n - fp_t(1)));
 
-    //4th central moment
+    // 4th central moment
     const auto cm4 = ((n2*n*s4 -
                  fp_t(4)*n2*(s*s3) + fp_t(6)*n*(ss*s2) - fp_t(3)*(ss*s)) /
                 (n2*n2));
@@ -1049,7 +1049,7 @@ template<class Arg = real_t, class Size = std::uint_least64_t>
 using kurtosis_accumulator = moments_accumulator<Arg,4,Size>;
 
 
-} //namespace mc
+} // namespace mc
 
 
 #endif

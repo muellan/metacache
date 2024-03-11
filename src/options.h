@@ -225,7 +225,7 @@ struct performance_tuning_options
     unsigned numThreads = std::min(std::thread::hardware_concurrency(), 8U);
     std::size_t batchSize = 8192;
 #endif
-    //limits number of reads per sequence source (file)
+    // limits number of reads per sequence source (file)
     std::int_least64_t queryLimit = std::numeric_limits<std::int_least64_t>::max();
 
     unsigned replication = 1;
@@ -239,13 +239,13 @@ struct performance_tuning_options
  *****************************************************************************/
 struct classification_options
 {
-    //ranks/taxa to classify on
+    // ranks/taxa to classify on
     taxon_rank lowestRank  = taxon_rank::Sequence;
     taxon_rank highestRank = taxon_rank::Domain;
 
-    std::uint16_t hitsMin  = 0;  //< 1 : deduced from database parameters
+    std::uint16_t hitsMin  = 0;  // < 1 : deduced from database parameters
     float hitsDiffFraction = 1.0f;
-    //maximum range in sequence that read (pair) is expected to be in
+    // maximum range in sequence that read (pair) is expected to be in
     std::size_t insertSizeMax = 0;
 
     std::size_t maxNumCandidatesPerQuery = 2;
@@ -261,14 +261,14 @@ struct classification_options
  *****************************************************************************/
 struct classification_evaluation_options
 {
-    //show ground thruth if available
+    // show ground thruth if available
     bool showGroundTruth = false;
 
-    //test precision (ground truth must be available)
+    // test precision (ground truth must be available)
     bool precision = false;
     bool taxonCoverage = false;
 
-    //show known taxon (or complete lineage if 'showLineage' on)
+    // show known taxon (or complete lineage if 'showLineage' on)
     bool determineGroundTruth = false;
 };
 
@@ -283,17 +283,17 @@ struct classification_evaluation_options
  *
  *****************************************************************************/
 struct formatting_tokens {
-    //prefix for each non-mapping line
+    // prefix for each non-mapping line
     std::string comment = "# ";
     std::string none = "--";
-    //column separator
+    // column separator
     std::string column = "\t|\t";
-    //taxon separator (in lineage output)
+    // taxon separator (in lineage output)
     std::string taxSeparator = ",";
-    //separates rank and taxon name or rank and taxid
+    // separates rank and taxon name or rank and taxid
     std::string rankSuffix = ":";
-    //if both taxid AND taxon name are to be printed,
-    //taxids will be enclosed by these:
+    // if both taxid AND taxon name are to be printed,
+    // taxids will be enclosed by these:
     std::string taxidPrefix = "(";
     std::string taxidSuffix = ")";
 };
@@ -306,19 +306,19 @@ struct formatting_tokens {
  *****************************************************************************/
 struct classification_output_formatting
 {
-    //how to show classification (read mappings), if 'none', only summary will be shown
+    // how to show classification (read mappings), if 'none', only summary will be shown
     map_view_mode mapViewMode = map_view_mode::all;
 
     bool showQueryIds = false;
-    //show all ranks that a sequence could be classified on
+    // show all ranks that a sequence could be classified on
     bool showLineage = false;
-    //don't print full lineage for unclassified queries
+    // don't print full lineage for unclassified queries
     bool collapseUnclassifiedLineages = true;
 
-    //print all classification info in separate columns
+    // print all classification info in separate columns
     bool useSeparateCols = false;
 
-    //ranks/taxa to show
+    // ranks/taxa to show
     taxon_rank lowestRank  = taxon_rank::Sequence;
     taxon_rank highestRank = taxon_rank::Domain;
 
@@ -335,27 +335,27 @@ struct classification_output_formatting
  *****************************************************************************/
 struct classification_analysis_options
 {
-    //show top candidate sequences and their associated k-mer hash hit count
+    // show top candidate sequences and their associated k-mer hash hit count
     bool showTopHits = false;
-    //show all k-mer-hash hits in database for each given read
+    // show all k-mer-hash hits in database for each given read
     bool showAllHits = false;
-    //show candidate position(s) in reference sequence(s)
+    // show candidate position(s) in reference sequence(s)
     bool showLocations = false;
 
-    //make statistics of semi-global alignment scores of queries against
-    //target candidate(s)
+    // make statistics of semi-global alignment scores of queries against
+    // target candidate(s)
     bool showAlignment = false;
 
-    //show list of target -> hit mappings
+    // show list of target -> hit mappings
     bool showHitsPerTargetList = false;
-    //output filename for mappings per target
+    // output filename for mappings per target
     std::string targetMappingsFile;
 
-    //show list of taxon -> number of reads
+    // show list of taxon -> number of reads
     bool showTaxAbundances = false;
-    //show estimated number of reads at specific rank
+    // show estimated number of reads at specific rank
     taxon_rank showAbundanceEstimatesOnRank = taxon_rank::none;
-    //output filename for mappings per taxon
+    // output filename for mappings per taxon
     std::string abundanceFile;
 };
 
@@ -371,7 +371,7 @@ struct classification_output_options
     classification_output_formatting format;
     classification_evaluation_options evaluate;
 
-    //show classification summary
+    // show classification summary
     bool showQueryParams = true;
     bool showSummary = true;
     bool showDBproperties = false;

@@ -149,7 +149,7 @@ using dna_2bit_encoding_t = typename detail::dna_2bit_encoding<k>::type;
 
 
 
-namespace { //internal linkage
+namespace { // internal linkage
 
 /*************************************************************************//**
  * @param  k : length to consider (in 2-bit letters, so #bits = 2*k)
@@ -283,13 +283,13 @@ for_each_kmer_2bit(numk_t k,
     auto kmerMsk = UInt(~0);
     kmerMsk >>= (sizeof(kmerMsk) * CHAR_BIT) - (k * 2);
 
-    auto ambig    = ambig_t(0);  //bitfield marking ambiguous nucleotides
+    auto ambig    = ambig_t(0);  // bitfield marking ambiguous nucleotides
     auto ambigMsk = ambig_t(~0);
     ambigMsk >>= (sizeof(ambigMsk) * CHAR_BIT) - k;
 
     ++last;
     for (auto ssend = next(first); ssend != last; ++first, ++ssend) {
-        //encode next letter
+        // encode next letter
         kmer <<= 2;
         ambig <<= 1;
         switch (*first) {
@@ -300,14 +300,14 @@ for_each_kmer_2bit(numk_t k,
             default: ambig |= 1; break;
         }
         --k;
-        //make sure we load k letters at the beginning
+        // make sure we load k letters at the beginning
         if (k == 0) {
-            kmer  &= kmerMsk;   //stamp out 2*k lower bits
-            ambig &= ambigMsk;  //stamp out k lower bits
+            kmer  &= kmerMsk;   // stamp out 2*k lower bits
+            ambig &= ambigMsk;  // stamp out k lower bits
 
-            //do something with the kmer (and the ambiguous letters flag)
+            // do something with the kmer (and the ambiguous letters flag)
             consume(kmer, ambig);
-            ++k; //we want only one letter next time
+            ++k; // we want only one letter next time
         }
     }
 }

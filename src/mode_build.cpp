@@ -57,7 +57,7 @@ void add_to_database_and_save(database& db, const build_options& opt)
         cout << "Total build time: " << time.seconds() << " s" << endl;
     }
 
-    //prevents slow deallocation
+    // prevents slow deallocation
     db.clear_without_deallocation();
 }
 

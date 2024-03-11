@@ -56,7 +56,7 @@ for_each_window(InputIterator first, InputIterator last,
                 Consumer&& consume)
 {
     using std::distance;
-    //sequence not longer than window?
+    // sequence not longer than window?
     if (size_t(distance(first,last)) <= len) {
         consume(first,last);
     }
@@ -225,7 +225,7 @@ public:
                         auto h = hash_(kmer);
                         if (h < sketch.back()) {
                             auto pos = std::lower_bound(sketch.begin(), sketch.end(), h);
-                            //make sure we don't insert the same feature more than once
+                            // make sure we don't insert the same feature more than once
                             if (pos != sketch.end() && *pos != h) {
                                 sketch.pop_back();
                                 sketch.insert(pos, h);
@@ -233,7 +233,7 @@ public:
                         }
                     });
 
-                //check if some features are invalid (in case of many ambiguous kmers)
+                // check if some features are invalid (in case of many ambiguous kmers)
                 if (!sketch.empty() && sketch.back() == feature_type(~0)) {
                     for (auto i = sketch.begin(), e = sketch.end(); i != e; ++i) {
                         if (*i == feature_type(~0)) {

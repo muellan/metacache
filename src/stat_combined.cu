@@ -164,4 +164,4 @@ void statistics_accumulator_gpu<policy::Device>::accumulate(Value * values, size
 
 template void statistics_accumulator_gpu<policy::Device>::accumulate(uint64_t *, size_type);
 
-} //namespace mc
+} // namespace mc

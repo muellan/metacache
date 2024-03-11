@@ -228,6 +228,6 @@ std::int_least64_t extract_taxon_id (const std::string&);
 
 
 
-} //namespace mc
+} // namespace mc
 
 #endif

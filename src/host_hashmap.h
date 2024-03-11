@@ -46,21 +46,21 @@ public:
     using location         = ValueT;
     using bucket_size_type = mc::loclist_size_t;
 
-    using sketch  = typename sketcher::sketch_type;  //range of features
+    using sketch  = typename sketcher::sketch_type;  // range of features
     using feature = typename sketcher::feature_type;
 
 private:
     //-----------------------------------------------------
-    /// @brief "heart of the database": maps features to target locations
-    using hash_table = hash_multimap<feature,location, //key, value
-                              feature_hash,               //key hasher
-                              std::equal_to<feature>,     //key comparator
-                              chunk_allocator<location>,  //value allocator
-                              std::allocator<feature>,    //bucket+key allocator
-                              bucket_size_type>;          //location list size
+    // / @brief "heart of the database": maps features to target locations
+    using hash_table = hash_multimap<feature,location, // key, value
+                              feature_hash,               // key hasher
+                              std::equal_to<feature>,     // key comparator
+                              chunk_allocator<location>,  // value allocator
+                              std::allocator<feature>,    // bucket+key allocator
+                              bucket_size_type>;          // location list size
 
     //-----------------------------------------------------
-    /// @brief needed for batched, asynchonous insertion into feature_store
+    // / @brief needed for batched, asynchonous insertion into feature_store
     struct window_sketch
     {
         window_sketch() :
@@ -414,7 +414,7 @@ public:
         sketchers_[part].for_each_sketch(seq, opt,
             [&, this] (const auto& sk) {
                 if (inserters_[part]->valid()) {
-                    //insert sketch into batch
+                    // insert sketch into batch
                     auto& sketch = inserters_[part]->next_item();
                     sketch.tgt = tgt;
                     sketch.win = win;
@@ -430,7 +430,7 @@ private:
     //---------------------------------------------------------------
     void add_sketch_batch(part_id part, const sketch_batch& batch) {
         for (const auto& windowSketch : batch) {
-            //insert features from sketch into database
+            // insert features from sketch into database
             for (const auto& f : windowSketch.sk) {
                 auto it = hashTables_[part].insert(
                     f, location{windowSketch.win, windowSketch.tgt});

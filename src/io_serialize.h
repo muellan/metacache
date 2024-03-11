@@ -73,7 +73,7 @@ template<class T, std::size_t n>
 inline void
 write_binary(std::ostream& os, const std::array<T,n>& a)
 {
-    //dummy
+    // dummy
     std::uint64_t l = n;
     os.write(reinterpret_cast<const char*>(&l), sizeof(l));
     if (l > 0)
@@ -138,10 +138,10 @@ template<class T, std::size_t n>
 inline void
 read_binary(std::istream& is, std::array<T,n>& a)
 {
-    //dummy
+    // dummy
     std::uint64_t l = 0;
     is.read(reinterpret_cast<char*>(&l), sizeof(l));
-    //what if l > n?
+    // what if l > n?
     if (l > 0 && l <= n)
         is.read(reinterpret_cast<char*>(a.data()), l * sizeof(T));
 }

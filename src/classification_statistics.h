@@ -89,18 +89,18 @@ public:
     {
         assign(assigned);
 
-        //plausibility check
+        // plausibility check
         if (correct < assigned) correct = assigned;
         if (correct < known)    correct = known;
 
-        //if ground truth known -> count correct and wrong assignments
+        // if ground truth known -> count correct and wrong assignments
         ++known_[int(known)];
 
         if (known != rank::none) {
             ++correct_[int(correct)];
 
-            //if ranks below the correct rank are known and assigned,
-            //then all ranks below the correct rank are wrong
+            // if ranks below the correct rank are known and assigned,
+            // then all ranks below the correct rank are wrong
             if (correct > known && correct > assigned) {
                 ++wrong_[int(correct)-1];
             }
@@ -109,19 +109,19 @@ public:
 
 
     //---------------------------------------------------------------
-    /// @details concurrency-safe
+    // / @details concurrency-safe
     void count_coverage_true_pos(rank r) {
         coverage_[int(r)].count_true_pos();
     }
-    /// @details concurrency-safe
+    // / @details concurrency-safe
     void count_coverage_false_pos(rank r) {
         coverage_[int(r)].count_false_pos();
     }
-    /// @details concurrency-safe
+    // / @details concurrency-safe
     void count_coverage_true_neg(rank r) {
         coverage_[int(r)].count_true_neg();
     }
-    /// @details concurrency-safe
+    // / @details concurrency-safe
     void count_coverage_false_neg(rank r) {
         coverage_[int(r)].count_false_neg();
     }
@@ -222,7 +222,7 @@ public:
         return known(r) > 0 ? correct(r) / double(known(r)) : 0;
     }
     double precision(rank r) const noexcept {
-        //note that in general tot != assigned(r) and tot != known(r)
+        // note that in general tot != assigned(r) and tot != known(r)
         double tot = correct(r) + wrong(r);
         return tot > 0 ? correct(r) / tot : 0;
     }

@@ -85,7 +85,7 @@ part_id database::read_meta(const std::string& filename, std::future<void>& taxo
         throw file_access_error{"Could not read database file '" + filename + "'"};
     }
 
-    //database version info
+    // database version info
     using std::uint64_t;
     using std::uint8_t;
     uint64_t dbVer = 0;
@@ -98,7 +98,7 @@ part_id database::read_meta(const std::string& filename, std::future<void>& taxo
             + " (uses version " + std::to_string(MC_DB_VERSION) + ")" };
     }
 
-    //data type widths
+    // data type widths
     uint8_t featureSize = 0; read_binary(is, featureSize);
     uint8_t targetSize = 0;  read_binary(is, targetSize);
     uint8_t windowSize = 0;  read_binary(is, windowSize);
@@ -130,12 +130,12 @@ part_id database::read_meta(const std::string& filename, std::future<void>& taxo
 
     clear();
 
-    //sketching parameters
+    // sketching parameters
     read_binary(is, targetSketchingOptions_);
-    //TODO: remove this and change db version
+    // TODO: remove this and change db version
     read_binary(is, targetSketchingOptions_);
 
-    //target insertion parameters
+    // target insertion parameters
     uint64_t maxLocationsPerFeature = 0;
     read_binary(is, maxLocationsPerFeature);
     max_locations_per_feature(maxLocationsPerFeature);
@@ -165,7 +165,7 @@ void database::read_cache(const std::string& filename, part_id partId,
         throw file_access_error{"Could not read database file '" + filename + "'"};
     }
 
-    //hash table
+    // hash table
     read_binary(is, featureStore_, partId, readingProgress);
 }
 
@@ -242,10 +242,10 @@ void database::write_meta(const std::string& filename) const
         throw file_access_error{"can't open file " + filename};
     }
 
-    //database version info
+    // database version info
     write_binary(os, uint64_t( MC_DB_VERSION ));
 
-    //data type widths
+    // data type widths
     write_binary(os, uint8_t(sizeof(feature)));
     write_binary(os, uint8_t(sizeof(target_id)));
     write_binary(os, uint8_t(sizeof(window_id)));
@@ -254,19 +254,19 @@ void database::write_meta(const std::string& filename) const
     write_binary(os, uint8_t(sizeof(taxon_id)));
     write_binary(os, uint8_t(taxonomy::num_ranks));
 
-    //sketching parameters
+    // sketching parameters
     write_binary(os, targetSketchingOptions_);
-    //TODO: remove this and change db version
+    // TODO: remove this and change db version
     write_binary(os, targetSketchingOptions_);
 
-    //target insertion parameters
+    // target insertion parameters
     write_binary(os, uint64_t(max_locations_per_feature()));
 
     write_binary(os, target_id(targetCount_));
 
     write_binary(os, num_parts());
 
-    //taxon & target metadata
+    // taxon & target metadata
     write_binary(os, taxonomyCache_);
 
     std::cerr << "done.\n";
@@ -287,7 +287,7 @@ void database::write_cache(const std::string& filename, part_id partId) const
         throw file_access_error{"can't open file " + filename};
     }
 
-    //hash table
+    // hash table
     write_binary(os, featureStore_, partId);
 
     std::cerr << "done.\n";

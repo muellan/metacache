@@ -102,7 +102,7 @@ public:
     using value_type = T;
 
     chunk_allocator():
-        minChunkSize_(128*1024*1024/sizeof(T)), //128 MiB
+        minChunkSize_(128*1024*1024/sizeof(T)), // 128 MiB
         freeSize_(0),
         chunks_{}
     {}
@@ -144,8 +144,8 @@ public:
     T* allocate(std::size_t n)
     {
 //        std::lock_guard<std::mutex> lock(mutables_);
-        //at the moment chunks will only be used,
-        //if they have been reserved explicitly
+        // at the moment chunks will only be used,
+        // if they have been reserved explicitly
         if (n <= freeSize_) {
             for (auto& c : chunks_) {
                 auto p = c.next_buffer(n);
@@ -155,11 +155,11 @@ public:
                 }
             }
         }
-        //make new chunk
+        // make new chunk
 //        chunks_.emplace_back(std::max(minChunkSize_,n));
 //        auto p = chunks_.back().next_buffer(n);
 //        if (p) return p;
-        //fallback
+        // fallback
         try {
             auto p = new T[n];
             return p;
@@ -172,7 +172,7 @@ public:
     {
 //        std::lock_guard<std::mutex> lock(mutables_);
 
-        //at the moment occupied chunk buffers are not given back
+        // at the moment occupied chunk buffers are not given back
         auto it = std::find_if (begin(chunks_), end(chunks_),
                                [p](const chunk& c){ return c.owns(p); });
 
@@ -183,7 +183,7 @@ public:
 
     chunk_allocator
     select_on_container_copy_construction() const {
-        //don't propagate
+        // don't propagate
         return chunk_allocator{};
     }
 

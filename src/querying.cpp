@@ -70,7 +70,7 @@ void process_input_files(const vector<string>& infiles,
         if (mapFile.good()) {
             cout << "Per-Read mappings will be written to file: " << queryMappingsFilename << endl;
             perReadOut = &mapFile;
-            //default: auxiliary output same as mappings output
+            // default: auxiliary output same as mappings output
             perTargetOut = perReadOut;
             perTaxonOut  = perReadOut;
         }
@@ -152,7 +152,7 @@ void process_input_files(const database& db,
         }
     }
 
-    //process files / file pairs separately
+    // process files / file pairs separately
     const auto& ano = opt.output.analysis;
 
     if (opt.splitOutputPerInput) {
@@ -167,7 +167,7 @@ void process_input_files(const database& db,
             vector<string> input;
 
             if (stride == 2) {
-                //process each input file pair separately
+                // process each input file pair separately
                 const auto& f1 = infiles[i];
                 const auto& f2 = infiles[i+1];
                 suffix = "_" + extract_filename(f1)
@@ -176,7 +176,7 @@ void process_input_files(const database& db,
                 input = vector<string>{f1,f2};
             }
             else {
-                //process each input file separately
+                // process each input file separately
                 const auto& f = infiles[i];
                 suffix = "_" + extract_filename(f) + ".txt";
                 input = vector<string>{f};
@@ -199,7 +199,7 @@ void process_input_files(const database& db,
                 queryMappingsFile, targetMappingsFile, abundanceFile);
         }
     }
-    //process all input files at once
+    // process all input files at once
     else {
         process_input_files(infiles, db, opt,
                             opt.queryMappingsFile,
@@ -220,7 +220,7 @@ void adapt_options_to_database(query_options& opt, const database& db)
 {
     sketching_opt& skopt = opt.sketching;
 
-    //use sketching scheme from database?
+    // use sketching scheme from database?
     const auto& dbsk = db.target_sketching();
 
     skopt.kmerlen = dbsk.kmerlen;
@@ -245,7 +245,7 @@ void adapt_options_to_database(query_options& opt, const database& db)
 
     classification_options& clopt = opt.classify;
 
-    //deduce hit threshold from database?
+    // deduce hit threshold from database?
     if (clopt.hitsMin < 1) {
         auto sks = db.target_sketching().sketchlen;
         if (sks >= 6) {
@@ -288,15 +288,15 @@ void run_interactive_query_mode(const database& db,
         }
         else if (input.find("#") == 0)
         {
-            //comment line, do nothing
+            // comment line, do nothing
         }
         else {
-            //tokenize input into whitespace-separated words and build args list
+            // tokenize input into whitespace-separated words and build args list
             vector<string> args {initOpt.dbfile};
             std::istringstream iss(input);
             while (iss >> input) { args.push_back(input); }
 
-            //read command line options (use initial ones as defaults)
+            // read command line options (use initial ones as defaults)
             try {
                 auto opt = get_query_options(args, initOpt);
                 adapt_options_to_database(opt, db);

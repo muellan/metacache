@@ -310,7 +310,7 @@ void sequence_pair_reader::next (sequence_pair& seq)
             // pair = 2 consecutive sequences from same file
             const auto idx = reader1_.index();
             reader1_.next(seq.first);
-            //make sure the index is only increased after the 2nd 'next()'
+            // make sure the index is only increased after the 2nd 'next()'
             reader1_.index_offset(idx);
             reader1_.next(seq.second);
             break;
@@ -338,7 +338,7 @@ sequence_pair_reader::next_header ()
             // pair = 2 consecutive sequences from same file
             const auto idx = reader1_.index();
             auto header = reader1_.next_header();
-            //make sure the index is only increased after the 2nd 'next()'
+            // make sure the index is only increased after the 2nd 'next()'
             reader1_.index_offset(idx);
             reader1_.next_header();
             return header;
@@ -368,7 +368,7 @@ sequence_pair_reader::next_data (sequence::data_type& data1,
             // pair = 2 consecutive sequences from same file
             const auto idx = reader1_.index();
             reader1_.next_data(data1);
-            //make sure the index is only increased after the 2nd 'next()'
+            // make sure the index is only increased after the 2nd 'next()'
             reader1_.index_offset(idx);
             return reader1_.next_data(data2);
     }
@@ -398,7 +398,7 @@ sequence_pair_reader::next_header_and_data (sequence::header_type& header1,
             // pair = 2 consecutive sequences from same file
             const auto idx = reader1_.index();
             reader1_.next_header_and_data(header1, data1);
-            //make sure the index is only increased after the 2nd 'next()'
+            // make sure the index is only increased after the 2nd 'next()'
             reader1_.index_offset(idx);
             return reader1_.next_data(data2);
     }
@@ -512,9 +512,9 @@ extract_genbank_identifier (const string& text)
 
     auto i = text.find("gi|");
     if (i != string::npos) {
-        //skip prefix
+        // skip prefix
         i += 3;
-        //find end of number
+        // find end of number
         auto j = text.find('|', i);
         if (j == string::npos) {
             j = text.find(' ', i);
@@ -561,9 +561,9 @@ extract_taxon_id (const string& text)
 
     auto i = text.find("taxid");
     if (i != string::npos) {
-        //skip "taxid" + separator char
+        // skip "taxid" + separator char
         i += 6;
-        //find end of number
+        // find end of number
         auto j = text.find('|', i);
         if (j == string::npos) {
             j = text.find(' ', i);

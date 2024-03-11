@@ -185,7 +185,7 @@ void show_lineage_table(const info_options& opt)
     auto db = make_database(opt.dbfile, dbPart, database::scope::metadata_only);
     if (db.target_count() < 1) return;
 
-    //table header
+    // table header
     cout << "name";
     for (auto r = rank::Sequence; r <= rank::Domain; ++r) {
         cout << '\t' << taxonomy::rank_name(r);
@@ -194,7 +194,7 @@ void show_lineage_table(const info_options& opt)
 
     const auto& taxonomy = db.taxo_cache();
 
-    //rows
+    // rows
     for (const auto& ranks : taxonomy.target_lineages()) {
         cout << ranks[0]->name();
         for (auto r = rank::Sequence; r <= rank::Domain; ++r) {

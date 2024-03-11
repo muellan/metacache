@@ -118,7 +118,7 @@ private:
 
 
 
-} //namespace mc
+} // namespace mc
 
 
 #endif

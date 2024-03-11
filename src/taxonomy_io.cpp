@@ -64,8 +64,8 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
 
     const bool showInfo = infoLvl != info_level::silent;
 
-    //read scientific taxon names
-    //failure to do so will not be fatal
+    // read scientific taxon names
+    // failure to do so will not be fatal
     auto taxonNames = std::map<taxon_id,string>{};
 
     std::ifstream is{taxNamesFile};
@@ -103,7 +103,7 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
     }
     is.close();
 
-    //read merged taxa
+    // read merged taxa
     taxonomy tax;
     auto mergedTaxa = std::map<taxon_id,taxon_id>{};
 
@@ -129,7 +129,7 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
     }
     is.close();
 
-    //read taxonomic structure
+    // read taxonomic structure
     is.open(taxNodesFile);
     // each line consists of taxonId, parentId, rank, ...
     // field terminator is "\t|\t"
@@ -148,7 +148,7 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
             getline(is, rankName, '\t');
             forward(is, '\n');
 
-            //get taxon name
+            // get taxon name
             auto it = taxonNames.find(taxonId);
             auto taxonName = (it != taxonNames.end())
                              ? it->second : string("--");
@@ -156,8 +156,8 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
                 taxonName = "<" + std::to_string(taxonId) + ">";
             }
 
-            //replace ids with new ids according to mergers
-            //TODO this is stupid, handle mergers properly
+            // replace ids with new ids according to mergers
+            // TODO this is stupid, handle mergers properly
             auto mi = mergedTaxa.find(taxonId);
             if (mi != mergedTaxa.end()) taxonId = mi->second;
             mi = mergedTaxa.find(parentId);
@@ -173,10 +173,10 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
         return tax;
     }
 
-    //set rank of root
+    // set rank of root
     tax.reset_rank(1, taxonomy::rank::root);
 
-    //make sure every taxon has a rank designation
+    // make sure every taxon has a rank designation
 //    tax.rank_all_unranked();
 
     return tax;
@@ -201,15 +201,15 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
         const auto fsize = file_size(mappingFile);
 
         bool showProgress = showInfo && fsize > 100000000;
-        //assembly_summary files have up to 550K lines
-        //update progress indicator every 128K lines
+        // assembly_summary files have up to 550K lines
+        // update progress indicator every 128K lines
         size_t step = 0;
         size_t statStep = 1UL << 17;
         if (showProgress) show_progress_indicator(cout, 0);
 
 
-        //read first line(s) and determine the columns which hold
-        //sequence ids (keys) and taxon ids
+        // read first line(s) and determine the columns which hold
+        // sequence ids (keys) and taxon ids
         int headerRow = 0;
         {
             string line;
@@ -220,7 +220,7 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
             if (headerRow > 0) --headerRow;
         }
 
-        //reopen and forward to header row
+        // reopen and forward to header row
         is.close();
         is.open(mappingFile);
         {
@@ -229,7 +229,7 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
         }
 
         if (is.good()) {
-            //process header row
+            // process header row
             int keycol = 0;
             int taxcol = 0;
             {
@@ -253,9 +253,9 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
                     ++col;
                 }
             }
-            //taxid column assignment not found
+            // taxid column assignment not found
             if (taxcol < 1) {
-                //reopen file and use 1st column as key and 2nd column as taxid
+                // reopen file and use 1st column as key and 2nd column as taxid
                 is.close();
                 is.open(mappingFile);
                 taxcol = 1;
@@ -264,10 +264,10 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
             string key;
             taxon_id taxonId;
             while (is.good()) {
-                //forward to column with key
+                // forward to column with key
                 for (int i = 0; i < keycol; ++i) forward(is, '\t');
                 is >> key;
-                //forward to column with taxid
+                // forward to column with taxid
                 for (int i = 0; i < taxcol; ++i) forward(is, '\t');
                 is >> taxonId;
                 forward(is, '\n');
@@ -294,8 +294,8 @@ make_sequence_to_taxon_id_map(const std::vector<string>& localMappingFilenames,
                               const std::vector<string>& infilenames,
                               info_level infoLvl)
 {
-    //gather all taxonomic mapping files that can be found in any
-    //of the input directories
+    // gather all taxonomic mapping files that can be found in any
+    // of the input directories
     auto indirs = unique_directories(infilenames);
 
     auto map = std::map<string,taxon_id>{};

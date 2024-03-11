@@ -561,7 +561,7 @@ void query_hashtable(
     for (int i = groupId; i < sketchSize; i += groupsPerWarp)
     {
         typename Hashtable::value_type valuesOffset = 0;
-        //if key not found valuesOffset stays 0
+        // if key not found valuesOffset stays 0
         const auto status = hashtable.retrieve(
             sketch[i], valuesOffset, group);
 
@@ -637,7 +637,7 @@ void copy_loctions(
         bucket_size_type bucketSize = min(bucket_size_type(bucketOffset), maxLocationsPerFeature);
         bucketOffset >>= sizeof(bucket_size_type)*CHAR_BIT;
 
-        //copy locations
+        // copy locations
         for (uint32_t i = warpLane; i < bucketSize; i += WARPSIZE) {
             out[i] = locations[bucketOffset + i];
         }

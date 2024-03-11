@@ -36,7 +36,7 @@
 
 namespace mc {
 
-/// @brief forward declarations
+// / @brief forward declarations
 struct query_options;
 
 
@@ -90,7 +90,7 @@ struct classification_results
     std::ostream& status;
     timer time;
     classification_statistics statistics;
-    taxon_count_map taxCounts; //global taxon -> read count
+    taxon_count_map taxCounts; // global taxon -> read count
 };
 
 
