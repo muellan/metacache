@@ -307,11 +307,11 @@ sequence_id_format_cli(sequence_id_type& type, error_messages&)
         % "Method used for extracting sequence IDs from filenames and sequence headers."
           "Sequence IDs are also used to assign taxa to reference sequences.\n"
           "Available types are:\n"
-          "    'smart'       : try NCBI accession > genbank identifier > filename\n"
-          "    'ncbi'        : NCBI-style accession or accession.version ID\n"
-          "    'gi'          : genbank identifier (number prefixed by 'gi|' or 'gi:' or 'gi=') \n"
-          "    'filename'    : use string between first path separator and file extension\n"
-          "    'leadingword' : extracts first contiguous stretch of non-whitespace characters\n"
+          "smart       : try NCBI > genbank > filename\n"
+          "ncbi        : NCBI-style accession/accession.version\n"
+          "gi          : genbank identifier\n"
+          "filename    : filename without extension\n"
+          "leadingword : first stretch of non-whitespace characters\n"
           "default: smart\n"
     );
 }
@@ -851,14 +851,16 @@ classification_params_cli(classification_options& opt, error_messages& err)
           "default: "s + to_string(opt.hitsMin))
     ,
     (   option("-hitdiff", "-hit-diff", "-hitsdiff", "-hits-diff") &
-        number("t", opt.hitsDiffFraction)
-            .if_missing([&]{ err += "Number missing after '-hitdiff'!"; })
+        number("d", opt.hitsDiffFraction)
+            .if_missing([&]{ err += "Percentage missing after '-hitdiff'!"; })
     )
-        %("Sets classification threshhold to <t>.\n"
-          "A read will not be classified if less than t features "
-          "from the database match. Higher values will increase "
-          "precision at the expense of sensitivity.\n"
-          "default: "s + to_string(opt.hitsMin))
+        %("Sets candidate LCA threshhold to <d> percent.\n"
+          "Influences if only candidate with the most hits will be used as "
+          "classification result or if taxa of other candidates will be considered.\n"
+          "All candidate (taxa) will be included that have at least "
+          "d% as many hits above the hit-min threshold as the candidate "
+          "with the most hits.\n"
+          "default: 100"s)
     ,
     (   option("-maxcand", "-max-cand") &
         integer("#", opt.maxNumCandidatesPerQuery)

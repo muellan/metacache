@@ -97,11 +97,14 @@ CLASSIFICATION
                       at the expense of sensitivity.
                       default: 0
 
-    -hitdiff <t>      Sets classification threshhold to <t>.
-                      A read will not be classified if less than t features from
-                      the database match. Higher values will increase precision
-                      at the expense of sensitivity.
-                      default: 0
+    -hitdiff <d>      Sets candidate LCA threshhold to <d> percent.
+                      Influences if only candidate with the most hits will be
+                      used as classification result or if taxa of other
+                      candidates will be considered.
+                      All candidate (taxa) will be included that have at least
+                      d% as many hits above the hit-min threshold as the
+                      candidate with the most hits.
+                      default: 100
 
     -maxcand <#>      maximum number of reference taxon candidates to consider
                       for each query;
