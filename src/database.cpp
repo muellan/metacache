@@ -193,9 +193,9 @@ void database::read(const std::string& filename, int singlePartId,
     std::vector<std::future<void>> cacheReaderThreads;
     concurrent_progress readingProgress{};
 
-    if (what != scope::metadata_only) {
-        featureStore_.prepare_for_query_hash_tables(numParts, replication);
+    featureStore_.prepare_for_query_hash_tables(numParts, replication);
 
+    if (what != scope::metadata_only) {
         cacheReaderThreads.reserve(numParts * replication);
 
         for (unsigned r = 0; r < replication; ++r) {

@@ -224,7 +224,7 @@ public:
             if (num_parts() > 1) {
                 std::cout
                     << "------------------------------------------------\n"
-                    << "database part " << part << ":\n"
+                    << "database part " << part << " / " << (num_parts()-1) << ":\n"
                     << "buckets              " << hashTables_[part].bucket_count() << '\n'
                     << "bucket size          " << "max: " << accumulator.max()
                                                << " mean: " << accumulator.mean()

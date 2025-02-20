@@ -657,8 +657,10 @@ void print_static_properties (const database& db)
 //-----------------------------------------------------------------------------
 void print_content_properties (const database& db)
 {
-    if (db.target_count() > 0) {
+    std::cout
+        << "database parts       " << db.num_parts() << '\n';
 
+    if (db.target_count() > 0) {
         std::uint64_t numRankedTargets = 0;
         for (const auto& t : db.taxo_cache().target_taxa()) {
             if (t.has_parent()) ++numRankedTargets;

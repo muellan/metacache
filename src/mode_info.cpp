@@ -46,11 +46,11 @@ using std::string;
  *
  *
  *****************************************************************************/
-void show_database_config(const string& dbfile)
+void print_query_config()
 {
-    int dbPart = -1;
-    auto db = make_database(dbfile, dbPart, database::scope::metadata_only);
-    print_static_properties(db);
+    cout << "hit classifier       "
+         << type_name<classification_candidates>() << '\n'
+         << "------------------------------------------------\n";
 }
 
 
@@ -59,10 +59,16 @@ void show_database_config(const string& dbfile)
  *
  *
  *****************************************************************************/
-void print_query_config()
+void show_database_config(const string& dbfile)
 {
-    cout << "hit classifier       "
-         << type_name<classification_candidates>() << '\n'
+    int dbPart = -1;
+    auto db = make_database(dbfile, dbPart, database::scope::metadata_only);
+
+    print_static_properties(db);
+    print_query_config();
+
+    cout << "database parts       "
+         << db.num_parts() << '\n'
          << "------------------------------------------------\n";
 }
 
@@ -294,7 +300,6 @@ void main_mode_info(const cmdline_args& args)
             break;
         case info_mode::db_config:
             show_database_config(opt.dbfile);
-            print_query_config();
             break;
         case info_mode::db_statistics:
             show_database_statistics(opt.dbfile, opt.dbpart);
