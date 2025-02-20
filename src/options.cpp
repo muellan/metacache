@@ -1800,6 +1800,7 @@ get_merge_options(const cmdline_args& args, merge_options opt)
     std::sort(opt.infiles.begin(), opt.infiles.end());
 
     auto& qo = opt.query;
+    process_query_options(qo);
 
     if (qo.classify.hitsMin == 0) {
         qo.classify.hitsMin = 5;
@@ -1809,9 +1810,6 @@ get_merge_options(const cmdline_args& args, merge_options opt)
     }
     if (qo.output.format.lowestRank < taxon_rank::Species) {
         qo.output.format.lowestRank = taxon_rank::Species;
-    }
-    if (qo.performance.numThreads > 1) {
-        qo.performance.numThreads = 1;
     }
 
     return opt;
