@@ -153,7 +153,9 @@ If you *don't* have the zlib compression library installed and/or want *don't* w
 
 
 #### Building the Default RefSeq Database
-Use the ```metacache-build-refseq``` script to build a MetaCache database based on complete bacterial, viral and archaea genomes from the latest NCBI RefSeq release. Note that the genomes will be downloaded first, which can take some time.
+
+Use the `metacache-build-refseq` script to build a MetaCache database based on complete bacterial, viral and archaea genomes from the latest NCBI RefSeq release. Note that the genomes will be downloaded first, which can take some time.
+The database files are put into the folder `genomes` in the current working directory.
 
 ### [Building Custom Databases...](docs/building.md)
 
