@@ -31,16 +31,19 @@ if [ $# -lt 1 ]; then
   echo "Usage:    $0 (big|standard|small)"
 fi
 
+# Get the path to this executable
+scriptpath="$(readlink -nf "$0")"
+scriptdir="$(dirname "$scriptpath")"
 
 # download-ncbi-genomes <sublibrary> <target folder>
-./download-ncbi-genomes refseq/bacteria genomes
-./download-ncbi-genomes refseq/viral genomes
-./download-ncbi-genomes refseq/archaea genomes
+"$scriptdir"/download-ncbi-genomes refseq/bacteria genomes
+"$scriptdir"/download-ncbi-genomes refseq/viral genomes
+"$scriptdir"/download-ncbi-genomes refseq/archaea genomes
 
 
 # download-ncbi-taxonomy <target folder>
 ./download-ncbi-taxonomy genomes/taxonomy
-# ./download-ncbi-taxmaps  genomes/taxonomy
+# ./download-ncbi-taxmaps genomes/taxonomy
 
 
 case "$MODE" in

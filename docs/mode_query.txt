@@ -343,7 +343,7 @@ EXAMPLES
     Query all sequences in multiple files against database 'refseq':
         metacache query refseq reads1.fna reads2.fna reads3.fna
 
-    Query all sequence files in folder 'test' againgst database 'refseq':
+    Query all sequence files in folder 'test' against database 'refseq':
         metacache query refseq test
 
     Query multiple files and folder contents against database 'refseq':
