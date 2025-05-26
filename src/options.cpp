@@ -526,6 +526,8 @@ build_mode_cli(build_options& opt, error_messages& err)
               "used as representatives of an organism/taxon.\n"
               "If directory names are given, they will be searched for "
               "sequence files (at most 10 levels deep).\n"
+              "The input files can also be compressed if MetaCache was"
+              "built with the zlib compression library.\n"
     ),
     "BASIC OPTIONS" %
     (
@@ -691,6 +693,8 @@ modify_mode_cli(build_options& opt, error_messages& err)
               "used as representatives of an organism/taxon.\n"
               "If directory names are given, they will be searched for "
               "sequence files (at most 10 levels deep).\n"
+              "The input files can also be compressed if MetaCache was"
+              "built with the zlib compression library.\n"
     ),
     "BASIC OPTIONS" %
     (
@@ -1137,7 +1141,9 @@ query_mode_cli(query_options& opt, error_messages& err)
               "* If no input filenames or directories are given, MetaCache will "
               "run in interactive query mode. This can be used to load the database into "
               "memory only once and then query it multiple times with different "
-              "query options."
+              "query options.\n"
+              "The input files can also be compressed if MetaCache was"
+              "built with the zlib compression library.\n"
     ),
     "MAPPING RESULTS OUTPUT" %
     one_of(
@@ -1461,6 +1467,8 @@ build_query_mode_cli(build_query_options& opt, error_messages& err)
               "used as representatives of an organism/taxon.\n"
               "If directory names are given, they will be searched for "
               "sequence files (at most 10 levels deep).\n"
+              "The input files can also be compressed if MetaCache was"
+              "built with the zlib compression library.\n"
     ),
     "BASIC OPTIONS" %
     (
@@ -1520,7 +1528,9 @@ build_query_mode_cli(build_query_options& opt, error_messages& err)
               "* If no input filenames or directories are given, MetaCache will "
               "run in interactive query mode. This can be used to load the database into "
               "memory only once and then query it multiple times with different "
-              "query options."
+              "query options.\n"
+              "The input files can also be compressed if MetaCache was"
+              "built with the zlib compression library.\n"
     ),
     "MAPPING RESULTS OUTPUT" %
     one_of(

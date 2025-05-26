@@ -25,11 +25,13 @@ BASIC PARAMETERS
                       reads, long reads, contigs, complete genomes, ...) that
                       shall be classified.
                       * If directory names are given, they will be searched for
-                      sequence files (at most 10 levels deep).
+                        sequence files (at most 10 levels deep).
                       * If no input filenames or directories are given,
-                      MetaCache will run in interactive query mode. This can be
-                      used to load the database into memory only once and then
-                      query it multiple times with different query options.
+                        MetaCache will run in interactive query mode. This can be
+                        used to load the database into memory only once and then
+                        query it multiple times with different query options.
+                      The input files can also be compressed if MetaCache was
+                      built with the zlib compression library.
 
 
 MAPPING RESULTS OUTPUT

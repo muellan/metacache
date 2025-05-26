@@ -31,7 +31,9 @@ This downloads the taxonomy and puts it in a folder called `ncbi_taxonomy`
 
 
 ## Reference Genome Files
-Must be in (uncompressed) FASTA or FASTQ format.
+Must be in FASTA or FASTQ format.
+If MetaCache was compiled with the zlib compression library (which is the default),
+the input files can also be compressed.
 
 You can either specify all input genome files separately:
 ```

@@ -25,6 +25,8 @@ REQUIRED PARAMETERS
                       beused as representatives of an organism/taxon.
                       If directory names are given, they will be searched for
                       sequence files (at most 10 levels deep).
+                      If MetaCache was compiled with the zlib compression
+                      library (default) the input files can also be compressed.
 
 
 
