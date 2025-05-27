@@ -34,17 +34,17 @@ The first read in the example has id `A_hydrophila_HiSeq.20480` and was mapped t
 # Using 64 threads
 # TABLE_LAYOUT: query_header    |   rank:taxname
 # /mnt/ssd/metagenomics/HiSeq_timing.fna
-A\_hydrophila\_HiSeq.20480    |   species:Aeromonas hydrophila
-A\_hydrophila\_HiSeq.20481    |   species:Aeromonas hydrophila
-A\_hydrophila\_HiSeq.20482    |   genus:Aeromonas
-A\_hydrophila\_HiSeq.20483    |   sequence:NZ\_CP007518.2
-A\_hydrophila\_HiSeq.20484    |   sequence:NZ\_CP007518.2
-A\_hydrophila\_HiSeq.20485    |   genus:Aeromonas
-A\_hydrophila\_HiSeq.20486    |   sequence:NZ\_CP007518.2
-A\_hydrophila\_HiSeq.20487    |   genus:Aeromonas
-A\_hydrophila\_HiSeq.20488    |   species:Aeromonas hydrophila
-A\_hydrophila\_HiSeq.20489    |   sequence:NZ\_CP007518.2
-A\_hydrophila\_HiSeq.20490    |   --
+A_hydrophila_HiSeq.20480    |   species:Aeromonas hydrophila
+A_hydrophila_HiSeq.20481    |   species:Aeromonas hydrophila
+A_hydrophila_HiSeq.20482    |   genus:Aeromonas
+A_hydrophila_HiSeq.20483    |   sequence:NZ_CP007518.2
+A_hydrophila_HiSeq.20484    |   sequence:NZ_CP007518.2
+A_hydrophila_HiSeq.20485    |   genus:Aeromonas
+A_hydrophila_HiSeq.20486    |   sequence:NZ_CP007518.2
+A_hydrophila_HiSeq.20487    |   genus:Aeromonas
+A_hydrophila_HiSeq.20488    |   species:Aeromonas hydrophila
+A_hydrophila_HiSeq.20489    |   sequence:NZ_CP007518.2
+A_hydrophila_HiSeq.20490    |   --
 ...
 ```
 
@@ -216,11 +216,11 @@ sequence:NC_002940.2    |       15035   |       8752/96:5/97:7
 ...
 ```
 
-This means that the reference sequence 'NC_002932.3' is divided into 19071 windows and that the input read with id '2371' produced 2 hits in window number '1267' and 4 hits in windows 1268 and the input read with id '8667' produced 5 hits in window number 17990 of that reference sequence.
+This means that the reference sequence `NC_002932.3` is divided into 19071 windows and that the input read with id `2371` produced 2 hits in window number `1267` and 4 hits in windows `1268` and the input read with id `8667` produced 5 hits in window number `17990` of that reference sequence.
 
 The positions in the genome can be calculated by multiplying a window index with the window stride, which is shown in the header of the table (in this case the stride is set to MetaCache's default of 113).
 
-This table can be used for, e.g., coverage analyses.
+This table can be used for, e.g., coverage analysis
 
 
 
@@ -235,7 +235,7 @@ Note that in order to obtain the ground truth for an input read, each read (pair
 #### Example Read Mappings Output
 
 run with options `-precision -ground-truth -omit-ranks -taxids`.
-Note that negative reference sequences in the database have nagative taxon ids in order to not interfere with the NCBI's taxon ids.
+Note that the reference sequences themselves have negative taxon ids in order to not interfere with the NCBI's taxon ids.
 
 ```
 # Reporting per-read mappings (non-mapping lines start with '# ').

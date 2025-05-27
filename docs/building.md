@@ -53,7 +53,7 @@ There are three ways for MetaCache to obtain the taxon of a reference genome.
 
 ### 1. NCBI-style `assembly_summary.txt` files
 
-MetaCache looks for a file named `assembly_summary.txt` (as used by the NCBI) in each refenrece genome input folder.
+MetaCache looks for a file named `assembly_summary.txt` (as used by the NCBI) in each reference genome input folder.
 Such files map reference genome filenames to taxon ids, so that all sequences in a reference genome file get the same taxid.
 
 A proper `assembly_summary.txt` file must contain at least:

@@ -211,7 +211,7 @@ or jump directly to a mode's man page with:
 
 
 
-MetaCache Copyright (C) 2016-2021 [André Müller](https://github.com/muellan) & [Robin Kobus](https://github.com/Funatiq)
+MetaCache Copyright (C) 2016-2025 [André Müller](https://github.com/muellan) & [Robin Kobus](https://github.com/Funatiq)
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain conditions. See the file 'LICENSE' for details.
 
