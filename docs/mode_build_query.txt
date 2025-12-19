@@ -13,8 +13,12 @@ SYNOPSIS
 
 DESCRIPTION
 
-    Create a new database of reference sequences (usually genomic sequences) and use it to map (other) sequences to their most likely taxon of origin.
-    This mode is mainly recommended for use with the GPU version.
+    Create a new database of reference sequences (usually genomic sequences)
+    and use it to map (other) sequences to their most likely taxon of origin.
+
+    The database is only held in memory and no database files are written.
+    This mode is mainly recommended for use with the GPU version
+    which allows for much shorter database build times than the CPU version.
 
 
 REQUIRED PARAMETERS
@@ -25,8 +29,8 @@ REQUIRED PARAMETERS
                       beused as representatives of an organism/taxon.
                       If directory names are given, they will be searched for
                       sequence files (at most 10 levels deep).
-                      If MetaCache was compiled with the zlib compression
-                      library (default) the input files can also be compressed.
+                      The input files can also be compressed if MetaCache was
+                      built with the zlib compression library.
 
 
 
@@ -42,8 +46,8 @@ BASIC OPTIONS
 
     -sequence-id-format (smart|ncbi|gi|filename|leadingword)
                       Method used for extracting sequence IDs from filenames and
-                      sequence headers.Sequence IDs are also used to assign taxa
-                      to reference sequences.
+                      sequence headers. Sequence IDs are also used to assign
+                      taxa to reference sequences.
                       Available types are:
                       smart       : try NCBI > genbank > filename
                       ncbi        : NCBI-style accession/accession.version
@@ -127,8 +131,13 @@ ADVANCED OPTIONS
                       Not available in the GPU version.
 
     -parts <#>        Splits the database into multiple parts. Each part
-                      contains a separate hash table.
+                      contains a separate hash table. 
                       default: 1
+
+    -max-part-size <GB>
+                      Sets the maximum size of a database partition in
+                      gigabytes.
+                      default: no limit
 
     -save-db <database filename>
                       Save database to disk after querying.
@@ -146,6 +155,9 @@ QUERY PARAMETERS
                       MetaCache will run in interactive query mode. This can be
                       used to load the database into memory only once and then
                       query it multiple times with different query options.
+                      The input files can also be compressed if MetaCache was
+                      built with the zlib compression library.
+
 
 
 MAPPING RESULTS OUTPUT
@@ -221,8 +233,8 @@ CLASSIFICATION
                       Remove the p-th percentile of hit reference sequences with
                       the lowest coverage. Classification is done using only the
                       remaining reference sequences. This can help to reduce
-                      false positives, especially whenyour input data has a high
-                      sequencing coverage.
+                      false positives, especially when your input data has a
+                      high sequencing coverage.
                       This feature decreases the querying speed!
                       default: off
 
@@ -238,6 +250,9 @@ GENERAL OUTPUT FORMATTING
                       default: off
 
     -no-err           Suppress all error messages.
+                      default: off
+
+    -no-info          Suppress all info messages.
                       default: off
 
 
@@ -364,7 +379,7 @@ ADVANCED: GROUND TRUTH BASED EVALUATION
 ADVANCED: PERFORMANCE TUNING / TESTING
 
     -threads <#>      Sets the maximum number of parallel threads to use.default
-                      (on this machine): 8
+                      (on this machine): 20
 
 
     -batch-size <#>   Process <#> many queries (reads or read pairs) per thread
@@ -373,7 +388,7 @@ ADVANCED: PERFORMANCE TUNING / TESTING
 
     -query-limit <#>  Classify at max. <#> queries (reads or read pairs) per
                       input file.
-                      default: 9223372036854775807
+                      default: no limit
 
 EXAMPLES
 

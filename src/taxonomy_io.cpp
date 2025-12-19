@@ -2,8 +2,8 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2024 André Müller (muellan@uni-mainz.de)
- *                       & Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2026 André Müller (github.com/muellan)
+ *                       & Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,9 +21,9 @@
  *****************************************************************************/
 
 
-#include "cmdline_utility.h"
-#include "filesys_utility.h"
-#include "taxonomy_io.h"
+#include "cmdline_utility.hpp"
+#include "filesys_utility.hpp"
+#include "taxonomy_io.hpp"
 
 #include <fstream>
 #include <limits>
@@ -40,11 +40,10 @@ using std::cerr;
 using taxon_id = taxonomy::taxon_id;
 
 
-/*************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief forward stream past the next occurence of a specific character
- *
- *****************************************************************************/
+ */
 inline void
 forward(std::istream& is, char c)
 {
@@ -55,14 +54,16 @@ forward(std::istream& is, char c)
 
 //-------------------------------------------------------------------
 taxonomy
-make_taxonomic_hierarchy(const string& taxNodesFile,
-                         const string& taxNamesFile,
-                         const string& mergeTaxFile,
-                         info_level infoLvl)
+make_taxonomic_hierarchy (
+    const string& taxNodesFile,
+    const string& taxNamesFile,
+    const string& mergeTaxFile,
+    info_level infoLvl)
 {
     using taxon_id = taxonomy::taxon_id;
 
-    const bool showInfo = infoLvl != info_level::silent;
+    const bool showInfo   = infoLvl != info_level::silent;
+    const bool showErrors = infoLvl != info_level::silent;
 
     // read scientific taxon names
     // failure to do so will not be fatal
@@ -96,7 +97,7 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
         }
         if (showInfo) cout << "done." << std::endl;
     }
-    else {
+    else if (showErrors) {
         cerr << "Could not read taxon names file "
              << taxNamesFile
              << "; continuing with ids only." << std::endl;
@@ -168,8 +169,10 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
         if (showInfo) cout << tax.non_target_taxon_count() << " taxa read." << std::endl;
     }
     else {
-        cerr << "Could not read taxonomic nodes file "
-             << taxNodesFile << std::endl;
+        if (showErrors) {
+            cerr << "Could not read taxonomic nodes file "
+                 << taxNodesFile << std::endl;
+        }
         return tax;
     }
 
@@ -185,9 +188,8 @@ make_taxonomic_hierarchy(const string& taxNodesFile,
 
 
 //-------------------------------------------------------------------
-void read_sequence_to_taxon_id_mapping(const string& mappingFile,
-                                       std::map<string,taxon_id>& map,
-                                       info_level infoLvl)
+void read_sequence_to_taxon_id_mapping (
+    const string& mappingFile, std::map<string,taxon_id>& map, info_level infoLvl)
 {
     const bool showInfo = infoLvl != info_level::silent;
 
@@ -246,7 +248,7 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
                         taxcol = col;
                     }
                     else if (header == "accession.version" ||
-                            header == "assembly_accession")
+                             header == "assembly_accession")
                     {
                         keycol = col;
                     }
@@ -274,7 +276,7 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
 
                 map.insert({key, taxonId});
 
-                if (showProgress && !(++step % statStep)) {
+                if (showProgress && not (++step % statStep)) {
                     auto pos = is.tellg();
                     show_progress_indicator(cout, pos / float(fsize));
                 }
@@ -289,10 +291,11 @@ void read_sequence_to_taxon_id_mapping(const string& mappingFile,
 
 //-------------------------------------------------------------------
 std::map<string,taxon_id>
-make_sequence_to_taxon_id_map(const std::vector<string>& localMappingFilenames,
-                              const std::vector<string>& globalMappingFilenames,
-                              const std::vector<string>& infilenames,
-                              info_level infoLvl)
+make_sequence_to_taxon_id_map (
+    const std::vector<string>& localMappingFilenames,
+    const std::vector<string>& globalMappingFilenames,
+    const std::vector<string>& infilenames,
+    info_level infoLvl)
 {
     // gather all taxonomic mapping files that can be found in any
     // of the input directories

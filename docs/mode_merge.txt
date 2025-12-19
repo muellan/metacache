@@ -1,8 +1,8 @@
 SYNOPSIS
 
-    metacache merge <result file/directory>... -taxonomy <path> [OPTION]...
+    metacache merge <query file/directory>... -taxonomy <path> [-out <result>] [OPTION]...
 
-    metacache merge -taxonomy <path> [OPTION]... <result file/directory>...
+    metacache merge -taxonomy <path> [-out <result>] [OPTION]... <query file/directory>...
 
 
 DESCRIPTION
@@ -27,15 +27,16 @@ DESCRIPTION
 
 REQUIRED PARAMETERS
 
-    <result file/directory>...
-                      MetaCache result files.
+    <query output file/directory>...
+                      MetaCache query output files.
                       If directory names are given, they will be searched for
                       sequence files (at most 10 levels deep).
-                      IMPORTANT: Result files must have been produced with:
-                      -tophits -queryids -lowest species
+                      IMPORTANT: Query output files must have been produced
+                      with:
+                      -tophits -queryids -lowest <taxrank>
                       and must NOT be run with options that suppress or alter
-                      the default output like, e.g.: -no-map, -no-summary,
-                      -separator, etc.
+                      the default output formatting like, e.g.: -no-map,
+                      -no-summary, -separator, etc.
 
     -taxonomy <path>  directory with taxonomic hierarchy data (see NCBI's
                       taxonomic data files)
@@ -88,8 +89,8 @@ CLASSIFICATION
                       Remove the p-th percentile of hit reference sequences with
                       the lowest coverage. Classification is done using only the
                       remaining reference sequences. This can help to reduce
-                      false positives, especially whenyour input data has a high
-                      sequencing coverage.
+                      false positives, especially when your input data has a
+                      high sequencing coverage.
                       This feature decreases the querying speed!
                       default: off
 
@@ -153,18 +154,15 @@ CLASSIFICATION RESULT FORMATTING
                       default: off
 
 
-ANALYSIS
+ANALYSIS: ABUNDANCES
 
-
-    ANALYSIS: ABUNDANCES
-
-        -abundances <file>
+    -abundances <file>
                       Show absolute and relative abundance of each taxon.
                       If a valid filename is given, the list will be written to
                       this file.
                       default: off
 
-        -abundance-per <rank>
+    -abundance-per <rank>
                       Show absolute and relative abundances for each taxon on
                       one specific rank.
                       Classifications on higher ranks will be estimated by
@@ -179,19 +177,19 @@ ANALYSIS
                       default: off
 
 
-    ANALYSIS: RAW DATABASE HITS
+ANALYSIS: RAW DATABASE HITS
 
-        -tophits      For each query, print top feature hits in database.
+    -tophits          For each query, print top feature hits in database.
                       default: off
 
-        -allhits      For each query, print all feature hits in database.
+    -allhits          For each query, print all feature hits in database.
                       default: off
 
-        -locations    Show locations in candidate reference sequences.
+    -locations        Show locations in candidate reference sequences.
                       Activates option '-tophits'.
                       default: off
 
-        -hits-per-ref <file>
+    -hits-per-ref <file>
                       Shows a list of all hits for each reference sequence.
                       If this condensed list is all you need, you should
                       deactive the per-read mapping output with '-no-map'.
@@ -202,9 +200,9 @@ ANALYSIS
                       default: off
 
 
-    ANALYSIS: ALIGNMENTS
+ANALYSIS: ALIGNMENTS
 
-        -align        Show semi-global alignment to best candidate reference
+    -align            Show semi-global alignment to best candidate reference
                       sequence.
                       Original files of reference sequences must be available.
                       This feature decreases the querying speed!
@@ -253,7 +251,7 @@ ADVANCED: CUSTOM QUERY SKETCHING (SUBSAMPLING)
 ADVANCED: PERFORMANCE TUNING / TESTING
 
     -threads <#>      Sets the maximum number of parallel threads to use.default
-                      (on this machine): 8
+                      (on this machine): 20
 
 
     -batch-size <#>   Process <#> many queries (reads or read pairs) per thread
@@ -262,4 +260,4 @@ ADVANCED: PERFORMANCE TUNING / TESTING
 
     -query-limit <#>  Classify at max. <#> queries (reads or read pairs) per
                       input file.
-                      default: 9223372036854775807
+                      default: no limit

@@ -15,7 +15,17 @@ DESCRIPTION
 
 BASIC PARAMETERS
 
-    <database>        database file name;
+    <database>        Name of database file.
+                      All parts of a partitioned database (multiple '.cache'
+                      files) will be loaded and queried at the same time if the
+                      database name is given without any '.cache#' extension.
+                      If a specific '.cache#' file is supplied as argument, only
+                      that part of the database will be loaded. This can be used
+                      to query database parts serially to save memory. Note that
+                      query output files of individual database parts need to be
+                      merged afterwards using the 'merge' mode.
+                      For more details on database partitioning see file
+                      'docs/partioning.md'
                       A MetaCache database contains taxonomic information and
                       min-hash signatures of reference sequences (complete
                       genomes, scaffolds, contigs, ...).
@@ -25,13 +35,14 @@ BASIC PARAMETERS
                       reads, long reads, contigs, complete genomes, ...) that
                       shall be classified.
                       * If directory names are given, they will be searched for
-                        sequence files (at most 10 levels deep).
+                      sequence files (at most 10 levels deep).
                       * If no input filenames or directories are given,
-                        MetaCache will run in interactive query mode. This can be
-                        used to load the database into memory only once and then
-                        query it multiple times with different query options.
+                      MetaCache will run in interactive query mode. This can be
+                      used to load the database into memory only once and then
+                      query it multiple times with different query options.
                       The input files can also be compressed if MetaCache was
                       built with the zlib compression library.
+
 
 
 MAPPING RESULTS OUTPUT
@@ -118,8 +129,8 @@ CLASSIFICATION
                       Remove the p-th percentile of hit reference sequences with
                       the lowest coverage. Classification is done using only the
                       remaining reference sequences. This can help to reduce
-                      false positives, especially whenyour input data has a high
-                      sequencing coverage.
+                      false positives, especially when your input data has a
+                      high sequencing coverage.
                       This feature decreases the querying speed!
                       default: off
 
@@ -325,7 +336,7 @@ ADVANCED: DATABASE MODIFICATION
 ADVANCED: PERFORMANCE TUNING / TESTING
 
     -threads <#>      Sets the maximum number of parallel threads to use.default
-                      (on this machine): 32
+                      (on this machine): 20
 
 
     -batch-size <#>   Process <#> many queries (reads or read pairs) per thread

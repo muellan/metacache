@@ -1,3 +1,21 @@
+# Copyright 2016-2026, André Müller (github.com/muellan),
+#                      Robin Kobus  (github.com/funatiq)
+#
+# This file is part of the MetaCache taxonomic sequence classification tool.
+#
+# MetaCache is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# MetaCache is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with MetaCache.  If not, see <http://www.gnu.org/licenses/>.
+
 REL_ARTIFACT      = metacache
 DBG_ARTIFACT      = metacache_debug
 PRF_ARTIFACT      = metacache_prf
@@ -34,52 +52,52 @@ endif
 
 #--------------------------------------------------------------------
 HEADERS = \
-          src/alignment.h \
-          src/batch_processing.h \
-          src/bitmanip.h \
-          src/building.h \
-          src/candidate_generation.h \
-          src/candidate_structs.h \
-          src/chunk_allocator.h \
-          src/classification.h \
-          src/classification_statistics.h \
-          src/cmdline_utility.h \
-          src/config.h \
-          src/database.h \
-          src/database_query.h \
-          src/dna_encoding.h \
-          src/filesys_utility.h \
+          src/alignment.hpp \
+          src/batch_processing.hpp \
+          src/bitmanip.hpp \
+          src/building.hpp \
+          src/candidate_generation.hpp \
+          src/candidate_structs.hpp \
+          src/chunk_allocator.hpp \
+          src/classification.hpp \
+          src/classification_statistics.hpp \
+          src/cmdline_utility.hpp \
+          src/config.hpp \
+          src/database.hpp \
+          src/database_query.hpp \
+          src/dna_encoding.hpp \
+          src/filesys_utility.hpp \
           src/gpu_hashmap.cuh \
           src/gpu_hashmap_operations.cuh \
           src/gpu_result_processing.cuh \
-          src/hash_dna.h \
-          src/hash_int.h \
-          src/hash_multimap.h \
-          src/host_hashmap.h \
-          src/io_error.h \
-          src/io_options.h \
-          src/io_serialize.h \
-          src/matches_per_target.h \
-          src/modes.h \
-          src/options.h \
-          src/printing.h \
+          src/hash_dna.hpp \
+          src/hash_int.hpp \
+          src/hash_multimap.hpp \
+          src/host_hashmap.hpp \
+          src/io_error.hpp \
+          src/io_options.hpp \
+          src/io_serialize.hpp \
+          src/matches_per_target.hpp \
+          src/modes.hpp \
+          src/options.hpp \
+          src/printing.hpp \
           src/query_batch.cuh \
-          src/query_handler.h \
-          src/querying.h \
+          src/query_handler.hpp \
+          src/querying.hpp \
           src/sequence_batch.cuh \
-          src/sequence_io.h \
-          src/sequence_iostream.h \
-          src/sequence_view.h \
-          src/span.h \
+          src/sequence_io.hpp \
+          src/sequence_iostream.hpp \
+          src/sequence_view.hpp \
+          src/span.hpp \
           src/stat_combined.cuh \
-          src/stat_combined.h \
-          src/stat_confusion.h \
-          src/stat_moments.h \
-          src/string_utils.h \
-          src/taxonomy.h \
-          src/taxonomy_io.h \
-          src/timer.h \
-          src/version.h
+          src/stat_combined.hpp \
+          src/stat_confusion.hpp \
+          src/stat_moments.hpp \
+          src/string_utils.hpp \
+          src/taxonomy.hpp \
+          src/taxonomy_io.hpp \
+          src/timer.hpp \
+          src/version.hpp
 
 SOURCES = \
           src/building.cpp \
@@ -208,7 +226,7 @@ $(ARTIFACT): $(OBJS)
 $(CUDA_ARTIFACT): $(OBJS) $(CUDA_OBJS)
 	$(CUDA_COMPILER) -o $(CUDA_ARTIFACT) $(OBJS) $(CUDA_OBJS) $(CUDA_LDFLAGS)
 
-$(DIR)/main.o : src/main.cpp src/modes.h
+$(DIR)/main.o : src/main.cpp src/modes.hpp
 	$(COMPILE)
 
 $(DIR)/building.o : src/building.cpp $(HEADERS)
@@ -247,16 +265,16 @@ $(DIR)/database.o : src/database.cpp $(HEADERS)
 $(DIR)/options.o : src/options.cpp $(HEADERS)
 	$(COMPILE)
 
-$(DIR)/mode_help.o : src/mode_help.cpp src/modes.h src/filesys_utility.h
+$(DIR)/mode_help.o : src/mode_help.cpp src/modes.hpp src/filesys_utility.hpp
 	$(COMPILE)
 
-$(DIR)/sequence_io.o : src/sequence_io.cpp src/sequence_io.h src/io_error.h src/sequence_iostream.h
+$(DIR)/sequence_io.o : src/sequence_io.cpp src/sequence_io.hpp src/io_error.hpp src/sequence_iostream.hpp
 	$(COMPILE)
 
-$(DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.h
+$(DIR)/filesys_utility.o : src/filesys_utility.cpp src/filesys_utility.hpp
 	$(COMPILE)
 
-$(DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.h
+$(DIR)/cmdline_utility.o : src/cmdline_utility.cpp src/cmdline_utility.hpp
 	$(COMPILE)
 
 $(DIR)/gpu_hashmap.o : src/gpu_hashmap.cu $(HEADERS)

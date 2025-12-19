@@ -1,4 +1,4 @@
-MetaCache  Copyright (C) 2016-2021  André Müller & Robin Kobus
+MetaCache  Copyright (C) 2016-2026  André Müller & Robin Kobus
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it
 under certain conditions. See the file 'LICENSE' for details.

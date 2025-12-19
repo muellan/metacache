@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2022 Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2022 Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,11 +19,11 @@
  *
  *****************************************************************************/
 
-#ifndef MC_SEQUENCE_BATCH_H_
-#define MC_SEQUENCE_BATCH_H_
+#ifndef MC_SEQUENCE_BATCH_HPP_
+#define MC_SEQUENCE_BATCH_HPP_
 
 
-#include "config.h"
+#include "config.hpp"
 
 #include "cuda_runtime.h"
 
@@ -33,13 +33,12 @@
 namespace mc {
 
 
-/*************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief batch contains sequence data of multiple targets
  *        allocated memory location depends on policy
- *
- *****************************************************************************/
-template<policy P>
+ */
+template <policy P>
 class sequence_batch
  {
 public:
@@ -79,58 +78,58 @@ public:
 
     //---------------------------------------------------------------
     void clear() noexcept;
-    //---------------------------------------------------------------
+  
     index_type max_targets() const noexcept {
         return maxTargets_;
     }
-    //---------------------------------------------------------------
+   
     index_type num_targets() const noexcept {
         return numTargets_;
     }
-    //-----------------------------------------------------
+    
     void num_targets(index_type n) noexcept {
         if (n > max_targets()) n = max_targets();
         numTargets_ = n;
     }
-    //---------------------------------------------------------------
+ 
     size_type max_sequence_length() const noexcept {
         return maxSequenceLength_;
     }
-    //---------------------------------------------------------------
+    
     target_id * target_ids() const noexcept {
         return targetIds_;
     }
-    //---------------------------------------------------------------
+    
     window_id * window_offsets() const noexcept {
         return windowOffsets_;
     }
-    //---------------------------------------------------------------
+    
     size_type * sequence_offsets() const noexcept {
         return sequenceOffsets_;
     }
-    //-----------------------------------------------------
+   
     size_type sequence_length() const noexcept {
         return sequenceOffsets_[numTargets_];
     }
-    //---------------------------------------------------------------
+    
     char * sequence() const noexcept {
         return sequence_;
     }
-    //---------------------------------------------------------------
+    
     cudaEvent_t& event() {
         return batchProcessedEvent_;
     }
 
-    /*************************************************************************//**
-    *
-    * @brief add target sequence and add it to batch
-    *
-    * @details if sequence does not fit into batch, only some windows of it are added
-    *
-    * @return number of processed windows
-    *
-    *****************************************************************************/
-    template<class InputIterator, policy U = P, std::enable_if_t<U==policy::Host, int> = 0>
+
+    //---------------------------------------------------------------
+    /**
+     * @brief add target sequence and add it to batch
+     *
+     * @details if sequence does not fit into batch, only some windows of it are added
+     *
+     * @return number of processed windows
+     */
+    template <class InputIterator, policy U = P, std::enable_if_t<U==policy::Host, int> = 0>
     window_id
     add_target(
         InputIterator first, InputIterator last,
@@ -200,6 +199,7 @@ public:
         const sequence_batch<policy::Host>& hostBatch,
         sequence_batch<policy::Device>& deviceBatch,
         cudaStream_t stream);
+
 
 private:
     index_type maxTargets_;

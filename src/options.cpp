@@ -2,8 +2,8 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2024 André Müller (muellan@uni-mainz.de)
- *                       & Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2026 André Müller (github.com/muellan)
+ *                       & Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,23 +20,21 @@
  *
  *****************************************************************************/
 
-/*************************************************************************//**
- *
+/**
  * @file Facilities that generate option objects from command line arguments.
  * Argument parsing and doc generation uses the 'CLIPP' library.
  * If an option has multiple associated flag strings like, e.g.,
  * "-no-map" or "-nomap" the first one will appear in the documentation
  * and is considered to be the canonical flag while following flags are
  * there to preserve backwards compatibility with older versions of MetaCach.
- *
- *****************************************************************************/
+ */
 
 
-#include "database.h"
-#include "filesys_utility.h"
-#include "options.h"
+#include "database.hpp"
+#include "filesys_utility.hpp"
+#include "options.hpp"
 
-#include "../dep/clipp.h"
+#include "../dep/clipp.hpp"
 
 #include <algorithm>
 #include <iostream>
@@ -54,12 +52,10 @@ using std::to_string;
 using namespace std::string_literals;
 
 
-
-/*************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief collects all command line interface error messages
- *
- *****************************************************************************/
+ */
 class error_messages {
 public:
     error_messages& operator += (const string& message) {
@@ -71,12 +67,12 @@ public:
         return *this;
     }
 
-    bool any() const noexcept   { return !messages_.empty(); }
+    bool any() const noexcept   { return not messages_.empty(); }
 
-    string str() const {
+    string str () const {
         string s;
         for (const auto& msg : messages_) {
-            if (!msg.empty()) s += msg + '\n';
+            if (not msg.empty()) s += msg + '\n';
         }
         return s;
     }
@@ -91,12 +87,12 @@ private:
 
 
 
-/*****************************************************************************
- *
- *  H E L P E R S
- *
- *****************************************************************************/
-string taxon_rank_names(const string& separator = ", ")
+//-----------------------------------------------------------------------------
+//
+//  H E L P E R S
+//
+//-----------------------------------------------------------------------------
+string taxon_rank_names (const string& separator = ", ")
 {
     string s;
     for (auto r = taxon_rank::Sequence; r < taxon_rank::Domain; ++r) {
@@ -109,9 +105,9 @@ string taxon_rank_names(const string& separator = ", ")
 
 
 
-//-------------------------------------------------------------------
-// / @brief remove extension from database filename and extract part id
-void sanitize_database_name(string& name, int& partId)
+//-----------------------------------------------------------------------------
+/// @brief remove extension from database filename and extract part id
+void sanitize_database_name (string& name, int& partId)
 {
     auto pos = name.find(".meta");
     if (pos != string::npos) {
@@ -123,7 +119,7 @@ void sanitize_database_name(string& name, int& partId)
             try {
                 partId = std::stoi(name.substr(pos+6));
             }
-            catch(std::invalid_argument& e) {
+            catch (std::invalid_argument& e) {
                 std::cerr << "No id found after '.cache'. Using whole database.\n";
             }
             name.erase(pos);
@@ -133,9 +129,9 @@ void sanitize_database_name(string& name, int& partId)
 
 
 
-//-------------------------------------------------------------------
-// / @return replaces '\t' with tab char and remove other special chars
-string sanitize_special_chars(const string& text)
+//-----------------------------------------------------------------------------
+/// @return replaces '\t' with tab char and remove other special chars
+string sanitize_special_chars (const string& text)
 {
     return std::regex_replace( std::regex_replace(text,
         // no newlines, vertical tabs, etc. allowed
@@ -145,8 +141,9 @@ string sanitize_special_chars(const string& text)
 }
 
 
-//-------------------------------------------------------------------
-void replace_directories_with_contained_files(vector<string>& names)
+
+//-----------------------------------------------------------------------------
+void replace_directories_with_contained_files (vector<string>& names)
 {
     vector<string> result;
     result.reserve(names.size());
@@ -168,8 +165,9 @@ void replace_directories_with_contained_files(vector<string>& names)
 
 
 
-//-------------------------------------------------------------------
-auto cli_doc_formatting()
+
+//-----------------------------------------------------------------------------
+auto cli_doc_formatting ()
 {
     return clipp::doc_formatting{}
         .first_column(0)
@@ -184,25 +182,26 @@ auto cli_doc_formatting()
         ;
 }
 
-auto cli_usage_formatting()
+auto cli_usage_formatting ()
 {
     return cli_doc_formatting().first_column(4).line_spacing(0);
 }
 
 
 
-//-------------------------------------------------------------------
-// / @brief adds 'parameter' that catches unknown args with '-' prefix
+
+//-----------------------------------------------------------------------------
+/// @brief adds 'parameter' that catches unknown args with '-' prefix
 clipp::parameter
-catch_unknown(error_messages& err) {
+catch_unknown (error_messages& err) {
     return clipp::any(clipp::match::prefix{"-"},
         [&](const string& arg) { err += "unknown argument: "s + arg; });
 }
 
 
 
-//-------------------------------------------------------------------
-taxon_rank rank_from_name(const string& name, error_messages& err)
+//-----------------------------------------------------------------------------
+taxon_rank rank_from_name (const string& name, error_messages& err)
 {
     auto r = taxonomy::rank_from_name(name);
 
@@ -216,20 +215,21 @@ taxon_rank rank_from_name(const string& name, error_messages& err)
 
 
 
-//-------------------------------------------------------------------
-void raise_default_error(const error_messages& err,
-                         const string& mode = "",
-                         const string& usage = "",
-                         const string& examples = "")
+//-----------------------------------------------------------------------------
+void raise_default_error (
+    const error_messages& err,
+    const string& mode = "",
+    const string& usage = "",
+    const string& examples = "")
 {
     auto msg = err.str();
 
-    if (!msg.empty())      msg += "\n";
+    if (not msg.empty())      msg += "\n";
 
-    if (!usage.empty())    msg += "USAGE:\n" + usage + "\n\n";
-    if (!examples.empty()) msg += "EXAMPLES:\n" + examples + "\n\n";
+    if (not usage.empty())    msg += "USAGE:\n" + usage + "\n\n";
+    if (not examples.empty()) msg += "EXAMPLES:\n" + examples + "\n\n";
 
-    if (!mode.empty()) {
+    if (not mode.empty()) {
         msg += "\nYou can view the full interface documentation of mode '"s
             + mode + "' with:\n    metacache help " + mode + " | less";
     }
@@ -240,17 +240,33 @@ void raise_default_error(const error_messages& err,
 
 
 
-/*****************************************************************************
- *
- *
- *  S H A R E D
- *
- *
- *****************************************************************************/
+//-----------------------------------------------------------------------------
+//
+// S H A R E D
+//
+//-----------------------------------------------------------------------------
 
-// / @brief
+/// @brief
 clipp::parameter
-database_parameter(string& filename, int& partId, error_messages& err)
+database_parameter (string& filename, int& partId, error_messages& err)
+{
+    using namespace clipp;
+
+    return value(match::prefix_not{"-"}, "database")
+        .call([&](const string& arg){
+            filename = arg;
+            sanitize_database_name(filename, partId);
+        })
+        .if_missing([&]{ err += "Database name is missing!"; })
+        .doc("Name of database.\n"
+             "A MetaCache database contains taxonomic information and "
+             "min-hash signatures of reference sequences "
+             "(complete genomes, scaffolds, contigs, ...).\n");
+}
+
+/// @brief
+clipp::parameter
+database_parameter_query (string& filename, int& partId, error_messages& err)
 {
     using namespace clipp;
 
@@ -260,7 +276,16 @@ database_parameter(string& filename, int& partId, error_messages& err)
             sanitize_database_name(filename, partId);
         })
         .if_missing([&]{ err += "Database filename is missing!"; })
-        .doc("database file name;\n"
+        .doc("Name of database file.\n"
+             "All parts of a partitioned database (multiple '.cache' files) "
+             "will be loaded and queried at the same time if the database name "
+             "is given without any '.cache#' extension.\n"
+             "If a specific '.cache#' file is supplied as argument, only that "
+             "part of the database will be loaded. This can be used to query "
+             "database parts serially to save memory. "
+             "Note that query output files of individual database "
+             "parts need to be merged afterwards using the 'merge' mode.\n"
+             "For more details on database partitioning see file 'docs/partioning.md'\n"
              "A MetaCache database contains taxonomic information and "
              "min-hash signatures of reference sequences "
              "(complete genomes, scaffolds, contigs, ...).\n");
@@ -270,7 +295,7 @@ database_parameter(string& filename, int& partId, error_messages& err)
 
 //-------------------------------------------------------------------
 clipp::group
-info_level_cli(info_level& lvl, error_messages& err)
+info_level_cli (info_level& lvl, error_messages& err)
 {
     using namespace clipp;
 
@@ -289,9 +314,9 @@ info_level_cli(info_level& lvl, error_messages& err)
 
 
 //-------------------------------------------------------------------
-// / @brief shared command-line options for taxonomy
+/// @brief shared command-line options for taxonomy
 clipp::group
-sequence_id_format_cli(sequence_id_type& type, error_messages&)
+sequence_id_format_cli (sequence_id_type& type, error_messages&)
 {
     using namespace clipp;
 
@@ -304,7 +329,7 @@ sequence_id_format_cli(sequence_id_type& type, error_messages&)
             command("leadingword").set(type, sequence_id_type::leading_word)
         )
     )
-        % "Method used for extracting sequence IDs from filenames and sequence headers."
+        % "Method used for extracting sequence IDs from filenames and sequence headers. "
           "Sequence IDs are also used to assign taxa to reference sequences.\n"
           "Available types are:\n"
           "smart       : try NCBI > genbank > filename\n"
@@ -319,9 +344,9 @@ sequence_id_format_cli(sequence_id_type& type, error_messages&)
 
 
 //-------------------------------------------------------------------
-// / @brief shared command-line options for taxonomy
+/// @brief shared command-line options for taxonomy
 clipp::group
-taxonomy_cli(taxonomy_options& opt, error_messages& err)
+taxonomy_cli (taxonomy_options& opt, error_messages& err)
 {
     using namespace clipp;
 
@@ -346,9 +371,9 @@ taxonomy_cli(taxonomy_options& opt, error_messages& err)
 
 
 //-------------------------------------------------------------------
-// / @brief shared command-line options for sequence sketching
+/// @brief shared command-line options for sequence sketching
 clipp::group
-sketching_options_cli(sketching_opt& opt, error_messages& err)
+sketching_options_cli (sketching_opt& opt, error_messages& err)
 {
     using namespace clipp;
     return (
@@ -392,9 +417,9 @@ sketching_options_cli(sketching_opt& opt, error_messages& err)
 
 
 //-------------------------------------------------------------------
-// / @brief shared command-line options for sequence sketching
+/// @brief shared command-line options for sequence sketching
 clipp::group
-database_storage_options_cli(database_storage_options& opt, error_messages& err)
+database_storage_options_cli (database_storage_options& opt, error_messages& err)
 {
     using namespace clipp;
 
@@ -462,7 +487,7 @@ database_storage_options_cli(database_storage_options& opt, error_messages& err)
 
 
 //-------------------------------------------------------------------
-void augment_taxonomy_options(taxonomy_options& opt)
+void augment_taxonomy_options (taxonomy_options& opt)
 {
     if (!opt.path.empty() && opt.path.back() != '/') opt.path += '/';
 
@@ -499,16 +524,15 @@ void augment_taxonomy_options(taxonomy_options& opt)
 
 
 
-/*****************************************************************************
- *
- *
- *  B U I L D   M O D E
- *
- *
- *****************************************************************************/
-// / @brief build mode command-line options
+//-----------------------------------------------------------------------------
+//
+// B U I L D   M O D E
+//
+//-----------------------------------------------------------------------------
+
+/// @brief build mode command-line options
 clipp::group
-build_mode_cli(build_options& opt, error_messages& err)
+build_mode_cli (build_options& opt, error_messages& err)
 {
     using namespace clipp;
 
@@ -526,7 +550,7 @@ build_mode_cli(build_options& opt, error_messages& err)
               "used as representatives of an organism/taxon.\n"
               "If directory names are given, they will be searched for "
               "sequence files (at most 10 levels deep).\n"
-              "The input files can also be compressed if MetaCache was"
+              "The input files can also be compressed if MetaCache was "
               "built with the zlib compression library.\n"
     ),
     "BASIC OPTIONS" %
@@ -554,13 +578,32 @@ build_mode_cli(build_options& opt, error_messages& err)
                 .if_missing([&]{ err += "Number missing after '-parts'!"; })
         )
             %("Splits the database into multiple parts. Each part contains "
-              "a separate hash table."
-#ifndef GPU_MODE
-            "\n"
-            "default: 1"s)
-#else
-            " Each part occupies one GPU.\n"
+              "a separate hash table. "
+#ifdef GPU_MODE
+            "Each part occupies one GPU.\n"
             "default: number of available GPUs"s)
+#else
+            "\ndefault: 1"s)
+        ,
+        (   option("-max-part-size") &
+            value("GB")
+                .call([&](const char* s){
+                    const double gb = std::strtod(s,nullptr);
+                    if (gb <= 0.00001) return;
+                    opt.maxPartBytes = static_cast<std::size_t>(1073741824 * gb);
+                })
+                .if_missing([&]{ err += "Size in GB missing after '-max-part-size'!"; })
+        )
+            %("Sets the maximum size of a database partition in gigabytes.\n"
+              "default: no limit\n")
+        ,
+        (   option("-threads") &
+            integer("#", opt.numThreads)
+                .if_missing([&]{ err += "Number missing after '-threads'!"; })
+        )
+            %("Sets the maximum number of parallel threads to use.\n"
+              "More threads speed up the build process but require more memory.\n" +
+              "default (on this machine): "s + to_string(opt.numThreads) + "\n")
 #endif
     ),
     catch_unknown(err)
@@ -570,7 +613,7 @@ build_mode_cli(build_options& opt, error_messages& err)
 
 
 //-------------------------------------------------------------------
-void process_build_options(build_options& opt)
+void process_build_options (build_options& opt)
 {
     augment_taxonomy_options(opt.taxonomy);
     replace_directories_with_contained_files(opt.infiles);
@@ -586,7 +629,7 @@ void process_build_options(build_options& opt)
 
 //-------------------------------------------------------------------
 build_options
-get_build_options(const cmdline_args& args, build_options opt)
+get_build_options (const cmdline_args& args, build_options opt)
 {
     error_messages err;
 
@@ -594,7 +637,7 @@ get_build_options(const cmdline_args& args, build_options opt)
 
     auto result = clipp::parse(args, cli);
 
-    if (!result || err.any()) {
+    if (not result || err.any()) {
         raise_default_error(err, "build", build_mode_usage());
     }
 
@@ -606,7 +649,7 @@ get_build_options(const cmdline_args& args, build_options opt)
 
 
 //-------------------------------------------------------------------
-string build_mode_usage() {
+string build_mode_usage () {
     return
     "    metacache build <database> <sequence file/directory>... [OPTION]...\n\n"
     "    metacache build <database> [OPTION]... <sequence file/directory>...";
@@ -615,7 +658,7 @@ string build_mode_usage() {
 
 
 //-------------------------------------------------------------------
-string build_mode_examples() {
+string build_mode_examples () {
     return
     "    Build database 'mydb' from sequence file 'genomes.fna':\n"
     "        metacache build mydb genomes.fna\n"
@@ -636,7 +679,7 @@ string build_mode_examples() {
 
 
 //-------------------------------------------------------------------
-string build_mode_docs() {
+string build_mode_docs () {
 
     build_options opt;
     error_messages err;
@@ -664,18 +707,15 @@ string build_mode_docs() {
 
 
 
+//-----------------------------------------------------------------------------
+//
+// M O D I F Y   M O D E
+//
+//-----------------------------------------------------------------------------
 
-/*****************************************************************************
- *
- *
- *  M O D I F Y   M O D E
- *
- *
- *****************************************************************************/
-
-// / @brief modify mode command-line options
+/// @brief modify mode command-line options
 clipp::group
-modify_mode_cli(build_options& opt, error_messages& err)
+modify_mode_cli (build_options& opt, error_messages& err)
 {
     using namespace clipp;
 
@@ -693,12 +733,13 @@ modify_mode_cli(build_options& opt, error_messages& err)
               "used as representatives of an organism/taxon.\n"
               "If directory names are given, they will be searched for "
               "sequence files (at most 10 levels deep).\n"
-              "The input files can also be compressed if MetaCache was"
+              "The input files can also be compressed if MetaCache was "
               "built with the zlib compression library.\n"
     ),
     "BASIC OPTIONS" %
     (
         taxonomy_cli(opt.taxonomy, err),
+        sequence_id_format_cli(opt.sequenceIdType, err),
         info_level_cli(opt.infoLevel, err)
     ),
     "ADVANCED OPTIONS" %
@@ -722,7 +763,7 @@ modify_mode_cli(build_options& opt, error_messages& err)
 
 //-------------------------------------------------------------------
 build_options
-get_modify_options(const cmdline_args& args, modify_options opt)
+get_modify_options (const cmdline_args& args, modify_options opt)
 {
     error_messages err;
 
@@ -730,7 +771,7 @@ get_modify_options(const cmdline_args& args, modify_options opt)
 
     auto result = clipp::parse(args, cli);
 
-    if (!result || err.any()) {
+    if (not result || err.any()) {
         raise_default_error(err, "modify", modify_mode_usage());
     }
 
@@ -757,7 +798,7 @@ get_modify_options(const cmdline_args& args, modify_options opt)
 
 
 //-------------------------------------------------------------------
-string modify_mode_usage() {
+string modify_mode_usage () {
     return
     "    metacache modify <database> <sequence file/directory>... [OPTION]...\n\n"
     "    metacache modify <database> [OPTION]... <sequence file/directory>...";
@@ -766,7 +807,7 @@ string modify_mode_usage() {
 
 
 //-------------------------------------------------------------------
-string modify_mode_examples() {
+string modify_mode_examples () {
     return
     "    Add reference sequence 'penicillium.fna' to database 'fungi'\n"
     "        metacache modify fungi penicillium.fna\n"
@@ -779,7 +820,7 @@ string modify_mode_examples() {
 
 
 //-------------------------------------------------------------------
-string modify_mode_docs() {
+string modify_mode_docs () {
 
     build_options opt;
     error_messages err;
@@ -808,16 +849,15 @@ string modify_mode_docs() {
 
 
 
-/*************************************************************************//**
- *
- *
- *  Q U E R Y   M O D E
- *
- *
- *****************************************************************************/
-// / @brief command line interface for classification parameter tuning
+//-----------------------------------------------------------------------------
+//
+//  Q U E R Y   M O D E
+//
+//-----------------------------------------------------------------------------
+
+/// @brief command line interface for classification parameter tuning
 clipp::group
-classification_params_cli(classification_options& opt, error_messages& err)
+classification_params_cli (classification_options& opt, error_messages& err)
 {
     using namespace clipp;
 
@@ -882,7 +922,7 @@ classification_params_cli(classification_options& opt, error_messages& err)
         %("Remove the p-th percentile of hit reference sequences "
           "with the lowest coverage. Classification is done using "
           "only the remaining reference sequences. "
-          "This can help to reduce false positives, especially when"
+          "This can help to reduce false positives, especially when "
           "your input data has a high sequencing coverage.\n"
           "This feature decreases the querying speed!\n"
           "default: "s + (opt.covPercentile > 1e-3 ? "on" : "off")
@@ -893,10 +933,10 @@ classification_params_cli(classification_options& opt, error_messages& err)
 
 
 //-------------------------------------------------------------------
-// / @brief query mode command-line options
+/// @brief query mode command-line options
 clipp::group
-classification_output_format_cli(classification_output_formatting& opt,
-                                 error_messages& err)
+classification_output_format_cli (
+    classification_output_formatting& opt, error_messages& err)
 {
     using namespace clipp;
     return (
@@ -964,9 +1004,10 @@ classification_output_format_cli(classification_output_formatting& opt,
 
 
 //-------------------------------------------------------------------
-// / @brief query mode command-line options
+/// @brief query mode command-line options
 clipp::group
-classification_analysis_cli(classification_analysis_options& opt, error_messages& err)
+classification_analysis_cli (
+    classification_analysis_options& opt, error_messages& err)
 {
     using namespace clipp;
     return (
@@ -1041,10 +1082,10 @@ classification_analysis_cli(classification_analysis_options& opt, error_messages
 
 
 //-------------------------------------------------------------------
-// / @brief query mode command-line options
+/// @brief query mode command-line options
 clipp::group
-classification_evaluation_cli(classification_evaluation_options& opt,
-                              error_messages&)
+classification_evaluation_cli (
+    classification_evaluation_options& opt, error_messages&)
 {
     using namespace clipp;
     return (
@@ -1080,11 +1121,16 @@ classification_evaluation_cli(classification_evaluation_options& opt,
 
 
 //-------------------------------------------------------------------
-// / @brief query mode command-line options
+/// @brief query mode command-line options
 clipp::group
-performance_options_cli(performance_tuning_options& opt, error_messages& err)
+performance_options_cli (performance_tuning_options& opt, error_messages& err)
 {
     using namespace clipp;
+
+    const bool noQueryLimit = 
+        opt.queryLimit < 1 ||
+        opt.queryLimit == std::numeric_limits<std::int_least64_t>::max();
+
     return (
     (   option("-threads") &
         integer("#", opt.numThreads)
@@ -1105,7 +1151,7 @@ performance_options_cli(performance_tuning_options& opt, error_messages& err)
             .if_missing([&]{ err += "Number missing after '-query-limit'!"; })
     )
         %("Classify at max. <#> queries (reads or read pairs) per input file.\n"
-          "default: "s + (opt.queryLimit < 1 ? "none"s : to_string(opt.queryLimit)))
+          "default: "s + (noQueryLimit ? "no limit"s : to_string(opt.queryLimit)))
 #ifdef GPU_MODE
     ,
     (   option("-replicate") &
@@ -1121,16 +1167,16 @@ performance_options_cli(performance_tuning_options& opt, error_messages& err)
 
 
 //-------------------------------------------------------------------
-// / @brief query mode command-line options
+/// @brief query mode command-line options
 clipp::group
-query_mode_cli(query_options& opt, error_messages& err)
+query_mode_cli (query_options& opt, error_messages& err)
 {
     using namespace clipp;
 
     return (
     "BASIC PARAMETERS" %
     (
-        database_parameter(opt.dbfile, opt.dbpart, err)
+        database_parameter_query(opt.dbfile, opt.dbpart, err)
         ,
         opt_values(match::prefix_not{"-"}, "sequence file/directory", opt.infiles)
             % "FASTA or FASTQ files containing genomic sequences "
@@ -1142,7 +1188,7 @@ query_mode_cli(query_options& opt, error_messages& err)
               "run in interactive query mode. This can be used to load the database into "
               "memory only once and then query it multiple times with different "
               "query options.\n"
-              "The input files can also be compressed if MetaCache was"
+              "The input files can also be compressed if MetaCache was "
               "built with the zlib compression library.\n"
     ),
     "MAPPING RESULTS OUTPUT" %
@@ -1211,17 +1257,17 @@ query_mode_cli(query_options& opt, error_messages& err)
         option("-no-summary", "-nosummary").set(opt.output.showSummary,false)
             %("Dont't show result summary & mapping statistics at the "
               "end of the mapping output\n"
-              "default: "s + (!opt.output.showSummary ? "on" : "off"))
+              "default: "s + (not opt.output.showSummary ? "on" : "off"))
         ,
         option("-no-query-params", "-no-queryparams", "-noqueryparams")
             .set(opt.output.showQueryParams,false)
             %("Don't show query settings at the beginning of the "
               "mapping output\n"
-              "default: "s + (!opt.output.showQueryParams ? "on" : "off"))
+              "default: "s + (not opt.output.showQueryParams ? "on" : "off"))
         ,
         option("-no-err", "-noerr", "-no-errors").set(opt.output.showErrors,false)
             %("Suppress all error messages.\n"
-              "default: "s + (!opt.output.showErrors ? "on" : "off"))
+              "default: "s + (not opt.output.showErrors ? "on" : "off"))
     )
     ,
     "CLASSIFICATION RESULT FORMATTING" %
@@ -1248,7 +1294,7 @@ query_mode_cli(query_options& opt, error_messages& err)
 
 
 //-------------------------------------------------------------------
-void process_query_options(query_options& opt)
+void process_query_options (query_options& opt)
 {
     replace_directories_with_contained_files(opt.infiles);
 
@@ -1320,7 +1366,7 @@ void process_query_options(query_options& opt)
 
 //-------------------------------------------------------------------
 query_options
-get_query_options(const cmdline_args& args, query_options opt)
+get_query_options (const cmdline_args& args, query_options opt)
 {
     error_messages err;
 
@@ -1328,7 +1374,7 @@ get_query_options(const cmdline_args& args, query_options opt)
 
     auto result = clipp::parse(args, cli);
 
-    if (!result || err.any()) {
+    if (not result || err.any()) {
         raise_default_error(err, "query", query_mode_usage());
     }
 
@@ -1340,7 +1386,7 @@ get_query_options(const cmdline_args& args, query_options opt)
 
 
 //-------------------------------------------------------------------
-string query_mode_usage() {
+string query_mode_usage () {
     return
     "    metacache query <database>\n\n"
     "    metacache query <database> <sequence file/directory>... [OPTION]...\n\n"
@@ -1350,7 +1396,7 @@ string query_mode_usage() {
 
 
 //-------------------------------------------------------------------
-string query_mode_examples() {
+string query_mode_examples () {
     return
     "    Query all sequences in 'myreads.fna' against pre-built database 'refseq':\n"
     "        metacache query refseq myreads.fna -out results.txt\n"
@@ -1358,7 +1404,7 @@ string query_mode_examples() {
     "    Query all sequences in multiple files against database 'refseq':\n"
     "        metacache query refseq reads1.fna reads2.fna reads3.fna\n"
     "\n"
-    "    Query all sequence files in folder 'test' againgst database 'refseq':\n"
+    "    Query all sequence files in folder 'test' against database 'refseq':\n"
     "        metacache query refseq test\n"
     "\n"
     "    Query multiple files and folder contents against database 'refseq':\n"
@@ -1377,7 +1423,7 @@ string query_mode_examples() {
 
 
 //-------------------------------------------------------------------
-string query_mode_docs() {
+string query_mode_docs () {
 
     query_options opt;
     error_messages err;
@@ -1441,16 +1487,15 @@ string query_mode_docs() {
 
 
 
-/*****************************************************************************
- *
- *
- *  B U I L D + Q U E R Y   M O D E
- *
- *
- *****************************************************************************/
-// / @brief build+query mode command-line options
+//-----------------------------------------------------------------------------
+//
+//  B U I L D + Q U E R Y   M O D E
+//
+//-----------------------------------------------------------------------------
+
+/// @brief build+query mode command-line options
 clipp::group
-build_query_mode_cli(build_query_options& opt, error_messages& err)
+build_query_mode_cli (build_query_options& opt, error_messages& err)
 {
     using namespace clipp;
 
@@ -1467,12 +1512,13 @@ build_query_mode_cli(build_query_options& opt, error_messages& err)
               "used as representatives of an organism/taxon.\n"
               "If directory names are given, they will be searched for "
               "sequence files (at most 10 levels deep).\n"
-              "The input files can also be compressed if MetaCache was"
+              "The input files can also be compressed if MetaCache was "
               "built with the zlib compression library.\n"
     ),
     "BASIC OPTIONS" %
     (
         taxonomy_cli(opt.build.taxonomy, err),
+        sequence_id_format_cli(opt.build.sequenceIdType, err),
         info_level_cli(opt.build.infoLevel, err)
     ),
     "SKETCHING (SUBSAMPLING)" %
@@ -1494,13 +1540,24 @@ build_query_mode_cli(build_query_options& opt, error_messages& err)
                 .if_missing([&]{ err += "Number missing after '-parts'!"; })
         )
             %("Splits the database into multiple parts. Each part contains "
-              "a separate hash table."
-#ifndef GPU_MODE
-            "\n"
-            "default: 1"s)
-#else
-            " Each part occupies one GPU.\n"
+              "a separate hash table. "
+#ifdef GPU_MODE
+            "Each part occupies one GPU.\n"
             "default: number of available GPUs"s)
+#else
+            "\ndefault: 1"s)
+        ,
+        (   option("-max-part-size") &
+            value("GB")
+                .call([&](const char* s){
+                    const double gb = std::strtod(s,nullptr);
+                    if (gb <= 0.00001) return;
+                    opt.build.maxPartBytes = static_cast<std::size_t>(1073741824 * gb);
+                })
+                .if_missing([&]{ err += "Size in GB missing after '-max-part-size'!"; })
+        )
+            %("Sets the maximum size of a database partition in gigabytes.\n"
+              "default: no limit\n")
 #endif
         ,
         (
@@ -1529,7 +1586,7 @@ build_query_mode_cli(build_query_options& opt, error_messages& err)
               "run in interactive query mode. This can be used to load the database into "
               "memory only once and then query it multiple times with different "
               "query options.\n"
-              "The input files can also be compressed if MetaCache was"
+              "The input files can also be compressed if MetaCache was "
               "built with the zlib compression library.\n"
     ),
     "MAPPING RESULTS OUTPUT" %
@@ -1584,17 +1641,21 @@ build_query_mode_cli(build_query_options& opt, error_messages& err)
         option("-no-summary", "-nosummary").set(opt.query.output.showSummary,false)
             %("Dont't show result summary & mapping statistics at the "
               "end of the mapping output\n"
-              "default: "s + (!opt.query.output.showSummary ? "on" : "off"))
+              "default: "s + (not opt.query.output.showSummary ? "on" : "off"))
         ,
         option("-no-query-params", "-no-queryparams", "-noqueryparams")
             .set(opt.query.output.showQueryParams,false)
             %("Don't show query settings at the beginning of the "
               "mapping output\n"
-              "default: "s + (!opt.query.output.showQueryParams ? "on" : "off"))
+              "default: "s + (not opt.query.output.showQueryParams ? "on" : "off"))
         ,
         option("-no-err", "-noerr", "-no-errors").set(opt.query.output.showErrors,false)
             %("Suppress all error messages.\n"
-              "default: "s + (!opt.query.output.showErrors ? "on" : "off"))
+              "default: "s + (not opt.query.output.showErrors ? "on" : "off"))
+        ,
+        option("-no-info", "-noinfo").set(opt.query.output.showInfo,false)
+            %("Suppress all info messages.\n"
+              "default: "s + (not opt.query.output.showInfo ? "on" : "off"))
     )
     ,
     "CLASSIFICATION RESULT FORMATTING" %
@@ -1616,7 +1677,7 @@ build_query_mode_cli(build_query_options& opt, error_messages& err)
 
 //-------------------------------------------------------------------
 build_query_options
-get_build_query_options(const cmdline_args& args, build_query_options opt)
+get_build_query_options (const cmdline_args& args, build_query_options opt)
 {
     error_messages err;
 
@@ -1624,7 +1685,7 @@ get_build_query_options(const cmdline_args& args, build_query_options opt)
 
     auto result = clipp::parse(args, cli);
 
-    if (!result || err.any()) {
+    if (not result || err.any()) {
         raise_default_error(err, "build+query", build_query_mode_usage());
     }
 
@@ -1637,7 +1698,7 @@ get_build_query_options(const cmdline_args& args, build_query_options opt)
 
 
 //-------------------------------------------------------------------
-string build_query_mode_usage() {
+string build_query_mode_usage () {
     return
     "    metacache build+query -targets <sequence file/directory>... [OPTION]...\n\n"
     "    metacache build+query [OPTION]... -targets <sequence file/directory>...\n\n"
@@ -1653,7 +1714,7 @@ string build_query_mode_usage() {
 
 
 //-------------------------------------------------------------------
-string build_query_mode_examples() {
+string build_query_mode_examples () {
     return
     "    Build database from sequence file 'genomes.fna' and query all sequences "
     "in 'myreads.fna':\n"
@@ -1671,7 +1732,7 @@ string build_query_mode_examples() {
 
 
 //-------------------------------------------------------------------
-string build_query_mode_docs() {
+string build_query_mode_docs () {
 
     build_query_options opt;
     error_messages err;
@@ -1685,9 +1746,11 @@ string build_query_mode_docs() {
     docs += "\n\n\n"
         "DESCRIPTION\n"
         "\n"
-        "    Create a new database of reference sequences (usually genomic sequences)"
-        " and use it to map (other) sequences to their most likely taxon of origin.\n"
-        "    This mode is mainly recommended for use with the GPU version.\n"
+        "    Create a new database of reference sequences (usually genomic sequences)\n"
+        "    and use it to map (other) sequences to their most likely taxon of origin.\n\n"
+        "    The database is only held in memory and no database files are written.\n"
+        "    This mode is mainly recommended for use with the GPU version\n"
+        "    which allows for much shorter database build times than the CPU version.\n"
         "\n\n";
 
     docs += clipp::documentation(cli, cli_doc_formatting()).str();
@@ -1702,17 +1765,15 @@ string build_query_mode_docs() {
 
 
 
-/*************************************************************************//**
- *
- *
- *  M E R G E   M O D E
- *
- *
- *****************************************************************************/
+//-----------------------------------------------------------------------------
+//
+//  M E R G E   M O D E
+//
+//-----------------------------------------------------------------------------
 
-// / @brief merge mode command-line options
+/// @brief merge mode command-line options
 clipp::group
-merge_mode_cli(merge_options& opt, error_messages& err)
+merge_mode_cli (merge_options& opt, error_messages& err)
 {
     using namespace clipp;
 
@@ -1721,15 +1782,16 @@ merge_mode_cli(merge_options& opt, error_messages& err)
     return (
     "REQUIRED PARAMETERS" %
     (
-        values(match::prefix_not{"-"}, "result file/directory", opt.infiles)
-            .if_missing([&]{ err += "No result filenames provided!"; })
-            % "MetaCache result files.\n"
+        values(match::prefix_not{"-"}, "query output file/directory", opt.infiles)
+            .if_missing([&]{ err += "No query output filenames provided!"; })
+            % "MetaCache query output files.\n"
               "If directory names are given, they will be searched for "
               "sequence files (at most 10 levels deep).\n"
-              "IMPORTANT: Result files must have been produced with:\n"
-              "    -tophits -queryids -lowest species\n"
+              "IMPORTANT: Query output files must have been produced with:\n"
+              "    -tophits -queryids -lowest <taxrank>\n"
               "and must NOT be run with options that suppress or alter the "
-              "default output like, e.g.: -no-map, -no-summary, -separator, etc.\n"
+              "default output formatting like, e.g.: "
+              "-no-map, -no-summary, -separator, etc.\n"
         ,
         (   required("-taxonomy")
                 .if_missing([&]{ err += "Taxonomy path missing. Use '-taxonomy <path>'!"; })
@@ -1757,24 +1819,23 @@ merge_mode_cli(merge_options& opt, error_messages& err)
         option("-no-summary", "-nosummary").set(qry.output.showSummary,false)
             %("Dont't show result summary & mapping statistics at the "
               "end of the mapping output\n"
-              "default: "s + (!qry.output.showSummary ? "on" : "off"))
+              "default: "s + (not qry.output.showSummary ? "on" : "off"))
         ,
         option("-no-query-params", "-no-queryparams", "-noqueryparams")
             .set(qry.output.showQueryParams,false)
             %("Don't show query settings at the beginning of the "
               "mapping output\n"
-              "default: "s + (!qry.output.showQueryParams ? "on" : "off"))
+              "default: "s + (not qry.output.showQueryParams ? "on" : "off"))
         ,
         option("-no-err", "-noerr", "-no-errors").set(qry.output.showErrors,false)
             %("Suppress all error messages.\n"
-              "default: "s + (!qry.output.showErrors ? "on" : "off"))
+              "default: "s + (not qry.output.showErrors ? "on" : "off"))
     )
     ,
     "CLASSIFICATION RESULT FORMATTING" %
         classification_output_format_cli(qry.output.format, err)
     ,
-    "ANALYSIS" %
-        classification_analysis_cli(qry.output.analysis, err)
+    classification_analysis_cli(qry.output.analysis, err)
     ,
     "ADVANCED: GROUND TRUTH BASED EVALUATION" %
         classification_evaluation_cli(qry.output.evaluate, err)
@@ -1793,7 +1854,7 @@ merge_mode_cli(merge_options& opt, error_messages& err)
 
 //-------------------------------------------------------------------
 merge_options
-get_merge_options(const cmdline_args& args, merge_options opt)
+get_merge_options (const cmdline_args& args, merge_options opt)
 {
     error_messages err;
 
@@ -1801,7 +1862,7 @@ get_merge_options(const cmdline_args& args, merge_options opt)
 
     auto result = clipp::parse(args, cli);
 
-    if (!result || err.any()) {
+    if (not result || err.any()) {
         raise_default_error(err, "merge", merge_mode_usage());
     }
 
@@ -1828,23 +1889,23 @@ get_merge_options(const cmdline_args& args, merge_options opt)
 
 
 //-------------------------------------------------------------------
-string merge_mode_usage() {
+string merge_mode_usage () {
     return
-    "    metacache merge <result file/directory>... -taxonomy <path> [OPTION]...\n\n"
-    "    metacache merge -taxonomy <path> [OPTION]... <result file/directory>...";
+    "    metacache merge <query file/directory>... -taxonomy <path> [-out <result>] [OPTION]...\n\n"
+    "    metacache merge -taxonomy <path> [-out <result>] [OPTION]... <query file/directory>...";
 }
 
 
 
 //-------------------------------------------------------------------
-string merge_mode_examples() {
+string merge_mode_examples () {
     return "";
 }
 
 
 
 //-------------------------------------------------------------------
-string merge_mode_docs() {
+string merge_mode_docs () {
 
     merge_options opt;
     error_messages err;
@@ -1883,16 +1944,15 @@ string merge_mode_docs() {
 
 
 
-/*************************************************************************//**
- *
- *
- *  I N F O   M O D E
- *
- *
- *****************************************************************************/
-// / @brief shared command-line options for taxonomy
+//-----------------------------------------------------------------------------
+//
+//  I N F O   M O D E
+//
+//-----------------------------------------------------------------------------
+
+/// @brief shared command-line options for taxonomy
 clipp::group
-info_mode_cli(info_options& opt, error_messages& err)
+info_mode_cli (info_options& opt, error_messages& err)
 {
     using namespace clipp;
 
@@ -1939,7 +1999,7 @@ info_mode_cli(info_options& opt, error_messages& err)
 
 //-------------------------------------------------------------------
 info_options
-get_info_options(const cmdline_args& args)
+get_info_options (const cmdline_args& args)
 {
     info_options opt;
     error_messages err;
@@ -1948,7 +2008,7 @@ get_info_options(const cmdline_args& args)
 
     auto result = clipp::parse(args, cli);
 
-    if (!result || err.any()) {
+    if (not result || err.any()) {
         raise_default_error(err, "info", info_mode_usage());
     }
 
@@ -1958,7 +2018,7 @@ get_info_options(const cmdline_args& args)
 
 
 //-------------------------------------------------------------------
-string info_mode_usage()
+string info_mode_usage ()
 {
     info_options opt;
     error_messages err;
@@ -1969,7 +2029,7 @@ string info_mode_usage()
 
 
 //-------------------------------------------------------------------
-string info_mode_examples() {
+string info_mode_examples () {
     return
     "    List metadata for all reference sequences in database 'refseq':\n"
     "        metacache info refseq ref\n"
@@ -1984,7 +2044,7 @@ string info_mode_examples() {
 
 
 //-------------------------------------------------------------------
-string info_mode_docs() {
+string info_mode_docs () {
 
     info_options opt;
     error_messages err;

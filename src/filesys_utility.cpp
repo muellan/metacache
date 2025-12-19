@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2024 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2026 André Müller (github.com/muellan)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@
  *****************************************************************************/
 
 
-#include "filesys_utility.h"
+#include "filesys_utility.hpp"
 
 #include <cstring>
 #include <dirent.h> // POSIX header
@@ -30,11 +30,11 @@
 namespace mc {
 
 
-//-------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 std::vector<std::string>
-files_in_directory(std::string parentDir, int recurse)
+files_in_directory (std::string parentDir, int recurse)
 {
-    if (!parentDir.empty() &&
+    if (not parentDir.empty() &&
        (parentDir.back() == '/' || parentDir.back() == '\\'))
     {
         parentDir.pop_back();
@@ -56,7 +56,7 @@ files_in_directory(std::string parentDir, int recurse)
                                   parentDir + "/" + std::string(entry->d_name),
                                   recurse-1);
 
-                    if (!ff.empty()) {
+                    if (not ff.empty()) {
                         files.insert(files.end(),
                                      std::make_move_iterator(ff.begin()),
                                      std::make_move_iterator(ff.end()));
@@ -76,9 +76,10 @@ files_in_directory(std::string parentDir, int recurse)
 
 
 
-//-------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
 std::set<std::string>
-unique_directories(const std::vector<std::string>& filenames)
+unique_directories (const std::vector<std::string>& filenames)
 {
     auto dirs = std::set<std::string>{};
 
@@ -92,9 +93,10 @@ unique_directories(const std::vector<std::string>& filenames)
 
 
 
-//-------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
 std::string
-extract_filename(const std::string& filepath)
+extract_filename (const std::string& filepath)
 {
     if (filepath.empty()) return std::string("");
 
@@ -104,19 +106,21 @@ extract_filename(const std::string& filepath)
 
 
 
-//-------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
 std::ifstream::pos_type
-file_size(const std::string& filename)
+file_size (const std::string& filename)
 {
     std::ifstream is{filename, std::ifstream::ate | std::ifstream::binary};
-    if (!is.good()) return 0;
+    if (not is.good()) return 0;
     return is.tellg();
 }
 
 
 
-//-------------------------------------------------------------------
-bool file_readable(const std::string& filename)
+
+//-----------------------------------------------------------------------------
+bool file_readable (const std::string& filename)
 {
     return std::ifstream{filename}.good();
 }

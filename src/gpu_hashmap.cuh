@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2022 Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2022 Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,15 +19,15 @@
  *
  *****************************************************************************/
 
-#ifndef MC_GPU_HASH_MAP_H_
-#define MC_GPU_HASH_MAP_H_
+#ifndef MC_GPU_HASH_MAP_HPP_
+#define MC_GPU_HASH_MAP_HPP_
 
 
-#include "config.h"
+#include "config.hpp"
 #include "query_batch.cuh"
 #include "sequence_batch.cuh"
 #include "stat_combined.cuh"
-#include "taxonomy.h"
+#include "taxonomy.hpp"
 
 #include <atomic>
 #include <limits>
@@ -37,7 +37,8 @@
 namespace mc {
 
 
-/*************************************************************************//**
+//-----------------------------------------------------------------------------
+/**
  * @brief   (integer) key -> value hashed multimap
  *          optimized for many values per key (pay attention to max_bucket_size()!
  *          Each bucket contains only one key and all values mapped to that key.
@@ -47,9 +48,8 @@ namespace mc {
  *
  * @tparam  Key:    key type
  * @tparam  ValueT: value type
- *
- *****************************************************************************/
-template<
+ */
+template <
     class Key,
     class ValueT
 >
@@ -59,10 +59,10 @@ class gpu_hashmap
     class query_hash_table;
 
     //-----------------------------------------------------
-    // / @brief needed for batched, asynchonous insertion into build hash table
+    /// @brief needed for batched, asynchonous insertion into build hash table
     struct insert_buffer
     {
-        insert_buffer() :
+        insert_buffer () :
             seqBatches_{{
                 {MAX_TARGETS_PER_BATCH, MAX_LENGTH_PER_BATCH},
                 {MAX_TARGETS_PER_BATCH, MAX_LENGTH_PER_BATCH}
@@ -70,11 +70,11 @@ class gpu_hashmap
             currentSeqBatch_(0)
         {};
 
-        sequence_batch<policy::Host>& current_seq_batch() noexcept {
+        sequence_batch<policy::Host>& current_seq_batch () noexcept {
             return seqBatches_[currentSeqBatch_];
         }
 
-        void switch_seq_batch() noexcept {
+        void switch_seq_batch () noexcept {
             currentSeqBatch_ ^= 1;
         }
 
@@ -84,9 +84,7 @@ class gpu_hashmap
 
     //---------------------------------------------------------------
     static constexpr std::size_t
-    bucket_size_bits() noexcept {
-        return 8;
-    }
+    bucket_size_bits () noexcept { return 8; }
 
 public:
     //---------------------------------------------------------------
@@ -103,58 +101,58 @@ public:
 
     //---------------------------------------------------------------
     static constexpr std::size_t
-    max_bucket_size() noexcept {
+    max_bucket_size () noexcept {
         return (std::size_t(1) << bucket_size_bits()) - 1;
     }
 
 public:
     //---------------------------------------------------------------
-    gpu_hashmap();
-    ~gpu_hashmap();
-    gpu_hashmap(gpu_hashmap&&);
-    gpu_hashmap(const gpu_hashmap&) = delete;
+    gpu_hashmap ();
+    ~gpu_hashmap ();
+    gpu_hashmap (gpu_hashmap&&);
+    gpu_hashmap (const gpu_hashmap&) = delete;
 
 private:
     //---------------------------------------------------------------
     /**
      * @brief set number of parts and number of used gpus
      */
-    void config_num_gpus(part_id numParts, unsigned replication = 1)
+    void config_gpu_count (part_id numParts, unsigned replication = 1)
     {
         const size_t numGPUs = size_t(numParts) * replication;
 
-        if (numGPUs > num_gpus())
-            throw std::runtime_error{"Number of GPUs must be greater than number of parts"};
+        if (numGPUs > gpu_count())
+            throw std::runtime_error{"Number of GPUs must be greater than number of database parts"};
 
-        numParts_ = numParts;
+        numTables_ = numParts;
         numGPUs_ = part_id(numGPUs);
     }
 
 public:
     //---------------------------------------------------------------
-    part_id num_parts() const noexcept { return numParts_; }
+    part_id table_count () const noexcept { return numTables_; }
     //---------------------------------------------------------------
-    part_id num_gpus() const noexcept { return numGPUs_; }
+    part_id gpu_count () const noexcept { return numGPUs_; }
 
     //---------------------------------------------------------------
-    bool add_target_failed(part_id gpuId) const noexcept;
+    bool add_target_failed (part_id gpuId) const noexcept;
     //---------------------------------------------------------------
-    bool check_load_factor(part_id gpuId) const noexcept;
+    bool check_load_factor (part_id gpuId) const noexcept;
 
     //---------------------------------------------------------------
-    void pop_status();
-    void pop_status(part_id gpuId);
+    void pop_status ();
+    void pop_status (part_id gpuId);
 
     //---------------------------------------------------------------
-    size_type bucket_count() const noexcept;
+    size_type bucket_count () const noexcept;
     //-----------------------------------------------------
-    size_type key_count() noexcept;
+    size_type key_count () noexcept;
     //-----------------------------------------------------
-    size_type dead_feature_count() noexcept { /*TODO count tombstones */ return 0;}
+    size_type dead_feature_count () noexcept { /*TODO count tombstones */ return 0;}
     //-----------------------------------------------------
-    size_type value_count() noexcept;
+    size_type value_count () noexcept;
     //-----------------------------------------------------
-    bool empty() noexcept {
+    bool empty () noexcept {
         return key_count() < 1;
     }
 
@@ -167,11 +165,11 @@ public:
 
     //---------------------------------------------------------------
     static bucket_size_type
-    max_supported_locations_per_feature() noexcept {
+    max_supported_locations_per_feature () noexcept {
         return (max_bucket_size() - 1);
     }
     //-----------------------------------------------------
-    void max_locations_per_feature(bucket_size_type n)
+    void max_locations_per_feature (bucket_size_type n)
     {
         if (n < 1) n = 1;
         if (n >= max_supported_locations_per_feature()) {
@@ -181,13 +179,13 @@ public:
     }
     //-----------------------------------------------------
     bucket_size_type
-    max_locations_per_feature() const noexcept {
+    max_locations_per_feature () const noexcept {
         return maxLocationsPerFeature_;
     }
 
     //-----------------------------------------------------
     feature_count_type
-    remove_features_with_more_locations_than(bucket_size_type) {
+    remove_features_with_more_locations_than (bucket_size_type) {
         std::cerr << "-remove-overpopulated-features is not supported in GPU version\n";
         return 0;
     };
@@ -195,18 +193,18 @@ public:
 
     //---------------------------------------------------------------
     feature_count_type
-    remove_ambiguous_features(taxon_rank, bucket_size_type, const taxonomy_cache&) {
+    remove_ambiguous_features (taxon_rank, bucket_size_type, const taxonomy_cache&) {
         std::cerr << "-remove-ambig-features is not supported in GPU version\n";
         return 0;
     }
 
 
     //---------------------------------------------------------------
-    static constexpr float default_max_load_factor() noexcept {
+    static constexpr float default_max_load_factor () noexcept {
         return 0.95;
     }
     //-----------------------------------------------------
-    void max_load_factor(float lf) {
+    void max_load_factor (float lf) {
         if (lf > 1.0f) lf = 1.0f;
         if (lf < 0.1f) lf = 0.1f;
 
@@ -216,45 +214,45 @@ public:
         }
     }
     //-----------------------------------------------------
-    float max_load_factor() const noexcept {
+    float max_load_factor () const noexcept {
         return maxLoadFactor_;
     }
 
     //---------------------------------------------------------------
     statistics_accumulator_gpu<policy::Host>
-    location_list_size_statistics();
+    location_list_size_statistics ();
 
     //---------------------------------------------------------------
-    void print_feature_map(std::ostream&) const {
+    void print_feature_map (std::ostream&) const {
         std::cerr << "feature map is not available in GPU version\n";
     }
 
     //---------------------------------------------------------------
-    void print_feature_counts(std::ostream&) const {
+    void print_feature_counts (std::ostream&) const {
         std::cerr << "featurecounts are not available in GPU version\n";
     }
 
-    /****************************************************************
-     * @brief allocate gpu hash tables for database building
+    //---------------------------------------------------------------
+    /** @brief allocate gpu hash tables for database building
      */
-    void initialize_build_hash_tables(part_id numGPUs);
+    void initialize_tables (part_id numGPUs);
 
-    /****************************************************************
-     * @brief set number of db parts and total number of gpus;
-     *        resize vector of gpu hash tables before database loading
+    //---------------------------------------------------------------
+    /** @brief set number of db parts and total number of gpus;
+     *         resize vector of gpu hash tables before database loading
      */
-    void prepare_for_query_hash_tables(part_id numParts, unsigned replication);
+    void prepare_query_tables( part_id numTables, unsigned replication);
 
-    /****************************************************************
-     * @brief split sequence into batches and insert into build hash table
+    //---------------------------------------------------------------
+    /** @brief split sequence into batches and insert into build hash table
      */
-    window_id add_target(
+    window_id add_target (
         part_id gpuId,
         const sequence& seq,
         target_id tgt,
         const sketching_opt& targetSketching);
-    //-----------------------------------------------------
-    window_id add_target(
+    
+    window_id add_target (
         part_id gpuId,
         sequence::const_iterator first,
         sequence::const_iterator last,
@@ -262,17 +260,17 @@ public:
         const sketching_opt& targetSketching);
 
     //---------------------------------------------------------------
-    void insert(
+    void insert (
         part_id gpuId, sequence_batch<policy::Host>& seqBatchHost,
         const sketching_opt& targetSketching);
 
-    //-----------------------------------------------------
     void wait_until_add_target_complete(part_id gpuId, const sketching_opt& targetSketching);
+
 
 private:
     //---------------------------------------------------------------
-    template<class Hashtable>
-    void query_hashtables_async(
+    template <class Hashtable>
+    void query_hashtables_async (
         const std::vector<Hashtable>& hashtables,
         query_batch<value_type>& batch,
         part_id hostId,
@@ -280,55 +278,53 @@ private:
         taxon_rank lowestRank) const;
 
 public:
-    //-----------------------------------------------------
-    void query_async(
+    //---------------------------------------------------------------
+    void query_async (
         query_batch<value_type>& batch,
         part_id hostId,
         const sketching_opt& querySketching,
         taxon_rank lowestRank) const;
 
 
-    /****************************************************************
-     * @brief deserialize hashmap from input stream
+    //---------------------------------------------------------------
+    /** @brief deserialize hashmap from input stream
      */
-     friend void read_binary(std::istream& is, gpu_hashmap& m, part_id gpuId,
-                             concurrent_progress& readingProgress)
+     friend void read_binary (std::istream& is, gpu_hashmap& m, part_id gpuId,
+                              concurrent_progress& readingProgress)
     {
         m.deserialize(is, gpuId, readingProgress);
     }
 
-    /****************************************************************
-     * @brief serialize hashmap to output stream
+    //---------------------------------------------------------------
+    /** @brief serialize hashmap to output stream
      */
-    friend void write_binary(std::ostream& os, gpu_hashmap& m, part_id gpuId) {
+    friend void write_binary (std::ostream& os, gpu_hashmap& m, part_id gpuId) {
         m.serialize(os, gpuId);
     }
 
     //---------------------------------------------------------------
-    void copy_target_lineages_to_gpus(const std::vector<ranked_lineage>& lins);
+    void copy_target_lineages_to_gpus (const std::vector<ranked_lineage>& lins);
 
     //---------------------------------------------------------------
-    /**
-     * @brief enable access between consecutive gpus of each replicated db
+    /** @brief enable access between consecutive gpus of each replicated db
      */
-    void enable_peer_access();
+    void enable_peer_access ();
 
 
 private:
     //---------------------------------------------------------------
-    void deserialize(std::istream& is, part_id gpuId, concurrent_progress& readingProgress);
+    void deserialize (std::istream& is, part_id gpuId, concurrent_progress& readingProgress);
 
     //---------------------------------------------------------------
-    /**
-     * @brief binary serialization of all non-emtpy buckets
+    /** @brief binary serialization of all non-emtpy buckets
      */
-    void serialize(std::ostream& os, part_id gpuId);
+    void serialize (std::ostream& os, part_id gpuId);
 
 
 private:
     //---------------------------------------------------------------
     part_id numGPUs_;
-    part_id numParts_;
+    part_id numTables_;
     float maxLoadFactor_;
     std::uint64_t maxLocationsPerFeature_;
 

@@ -2,8 +2,8 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2024 André Müller (muellan@uni-mainz.de)
- *                       & Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2026 André Müller (github.com/muellan)
+ *                       & Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,14 +21,12 @@
  *****************************************************************************/
 
 
-
-#include "building.h"
-#include "database.h"
-#include "options.h"
-#include "querying.h"
+#include "building.hpp"
+#include "database.hpp"
+#include "options.hpp"
+#include "querying.hpp"
 
 #include <iostream>
-
 
 
 namespace mc {
@@ -38,14 +36,11 @@ using std::cerr;
 using std::endl;
 
 
-
-
-/*************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief adds targets to datbase and queries
- *
- *****************************************************************************/
-void add_to_database_and_query(database& db, build_query_options& opt)
+ */
+void add_to_database_and_query (database& db, build_query_options& opt)
 {
     timer time;
     time.start();
@@ -54,18 +49,20 @@ void add_to_database_and_query(database& db, build_query_options& opt)
 
     time.stop();
 
-    db.initialize_taxonomy_caches();
+    db.initialize_taxonomy();
 
     adapt_options_to_database(opt.query, db);
 
-    if (!opt.query.infiles.empty()) {
-        cerr << "Classifying query sequences.\n";
-
+    if (not opt.query.infiles.empty()) {
+        if (not opt.query.output.showInfo) {
+            cerr << "Classifying query sequences.\n";
+        }
         process_input_files(db, opt.query);
     }
     else {
-        cout << "No input files provided.\n";
-
+        if (not opt.query.output.showInfo) {
+            cout << "No input files provided.\n";
+        }
         run_interactive_query_mode(db, opt.query);
     }
 
@@ -78,12 +75,13 @@ void add_to_database_and_query(database& db, build_query_options& opt)
 }
 
 
-/*************************************************************************//**
- *
+
+
+//-----------------------------------------------------------------------------
+/**
  * @brief builds a database from reference input sequences and query it
- *
- *****************************************************************************/
-void main_mode_build_query(const cmdline_args& args)
+ */
+void main_mode_build_query (const cmdline_args& args)
 {
     auto opt = get_build_query_options(args);
 

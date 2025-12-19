@@ -2,8 +2,8 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2024 André Müller (muellan@uni-mainz.de)
- *                       & Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2026 André Müller (github.com/muellan)
+ *                       & Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,8 +21,11 @@
  *****************************************************************************/
 
 
-#include "database.h"
+#include "database.hpp"
 
+#include "version.hpp"
+
+#include <fstream>
 #include <future>
 
 
@@ -30,10 +33,12 @@ namespace mc {
 
 
 // ----------------------------------------------------------------------------
-bool database::add_target(part_id dbPart,
-                          const sequence& seq, taxon_name sid,
-                          taxon_id parentTaxid,
-                          file_source source)
+bool database::add_target (
+    part_id dbPart,
+    const sequence& seq, taxon_name sid,
+    taxon_id parentTaxid,
+    file_source source,
+    info_level infoLvl)
 {
     // reached hard limit for number of targets
     if (targetCount_.load() >= max_target_count()) {
@@ -64,10 +69,12 @@ bool database::add_target(part_id dbPart,
 
     // duplicate sequence id
     if (result.second) {
-        std::cerr << "Warning: duplicate sequence id! '" << sid
-                  << "' already in database - '"
-                  << source.filename << "/" << source.index
-                  << "' inserted as '" << result.first->name() << "'\n" ;
+        if (infoLvl != info_level::silent) {
+            std::cerr << "Warning: duplicate sequence id! '" << sid
+                      << "' already in database - '"
+                      << source.filename << "/" << source.index
+                      << "' inserted as '" << result.first->name() << "'\n" ;
+        }
         return false;
     }
 
@@ -77,12 +84,13 @@ bool database::add_target(part_id dbPart,
 
 
 // ----------------------------------------------------------------------------
-part_id database::read_meta(const std::string& filename, std::future<void>& taxonomyReaderThread)
+part_id database::read_meta (
+    const std::string& filename, std::future<void>& taxonomyReaderThread)
 {
     std::ifstream is{filename, std::ios::in | std::ios::binary};
 
-    if (!is.good()) {
-        throw file_access_error{"Could not read database file '" + filename + "'"};
+    if (not is.good()) {
+        throw file_access_error{"Could not read database metadata file '" + filename + "'"};
     }
 
     // database version info
@@ -107,7 +115,7 @@ part_id database::read_meta(const std::string& filename, std::future<void>& taxo
     uint8_t taxidSize = 0;   read_binary(is, taxidSize);
     uint8_t numTaxRanks = 0; read_binary(is, numTaxRanks);
 
-    if ( (sizeof(feature) != featureSize) ||
+    if ((sizeof(feature) != featureSize) ||
         (sizeof(target_id) != targetSize) ||
         (sizeof(window_id) != windowSize) ||
         (sizeof(bucket_size_type) != bucketSize) ||
@@ -119,7 +127,7 @@ part_id database::read_meta(const std::string& filename, std::future<void>& taxo
             " due to different data type sizes"};
     }
 
-    if ( (sizeof(taxon_id) != taxidSize) ||
+    if ((sizeof(taxon_id) != taxidSize) ||
         (taxonomy::num_ranks != numTaxRanks) )
     {
         throw file_read_error{
@@ -156,12 +164,13 @@ part_id database::read_meta(const std::string& filename, std::future<void>& taxo
 
 
 // ----------------------------------------------------------------------------
-void database::read_cache(const std::string& filename, part_id partId,
-                          concurrent_progress& readingProgress)
+void database::read_cache (
+    const std::string& filename, part_id partId,
+    concurrent_progress& readingProgress)
 {
     std::ifstream is{filename, std::ios::in | std::ios::binary};
 
-    if (!is.good()) {
+    if (not is.good()) {
         throw file_access_error{"Could not read database file '" + filename + "'"};
     }
 
@@ -171,11 +180,13 @@ void database::read_cache(const std::string& filename, part_id partId,
 
 
 //-------------------------------------------------------------------
-void database::read(const std::string& filename, int singlePartId,
-                    unsigned replication,
-                    scope what)
+void database::read (
+    const std::string& filename, int singlePartId,
+    unsigned replication, scope what, info_level info)
 {
-    std::cerr << "Reading database metadata ...\n";
+    if (info != info_level::silent) {
+        std::cerr << "Reading database metadata ...\n";
+    }
 
     std::future<void> taxonomyReaderThread;
     part_id numParts = read_meta(filename+".meta", taxonomyReaderThread);
@@ -183,7 +194,7 @@ void database::read(const std::string& filename, int singlePartId,
     if (singlePartId >= 0) {
         if (part_id(singlePartId) >= numParts)
             throw std::runtime_error{
-                "Database part "+std::to_string(singlePartId)+" is not available. "
+                "Database part '.cache"+std::to_string(singlePartId)+"' is not available. "
                 "Database has only "+std::to_string(numParts)+" parts."};
 
         numParts = 1;
@@ -193,7 +204,7 @@ void database::read(const std::string& filename, int singlePartId,
     std::vector<std::future<void>> cacheReaderThreads;
     concurrent_progress readingProgress{};
 
-    featureStore_.prepare_for_query_hash_tables(numParts, replication);
+    featureStore_.prepare_query_tables(numParts, replication);
 
     if (what != scope::metadata_only) {
         cacheReaderThreads.reserve(numParts * replication);
@@ -215,31 +226,37 @@ void database::read(const std::string& filename, int singlePartId,
     }
 
     taxonomyReaderThread.get();
-    initialize_taxonomy_caches();
+    initialize_taxonomy();
 
     if (what != scope::metadata_only) {
-        std::cerr << "Reading " << numParts << " database part(s) ...\n";
+        if (info != info_level::silent) {
+            std::cerr << "Reading " << numParts << " database part(s) ...\n";
+        }
 
         show_progress_until_ready(std::cerr, readingProgress, cacheReaderThreads);
     }
 
-    std::cerr << "Completed database reading.\n";
+    if (info != info_level::silent) {
+        std::cerr << "Completed database reading.\n";
+    }
 }
 
 
 
 //-------------------------------------------------------------------
-void database::write_meta(const std::string& filename) const
+void database::write_meta (const std::string& filename, info_level info) const
 {
-    std::cerr << "Writing database metadata to file '" << filename << "' ...\n";
+    if (info != info_level::silent) {
+        std::cerr << "    Writing metadata to file '" << filename << "' ... ";
+    }
 
     using std::uint64_t;
     using std::uint8_t;
 
     std::ofstream os{filename, std::ios::out | std::ios::binary};
 
-    if (!os.good()) {
-        throw file_access_error{"can't open file " + filename};
+    if (not os.good()) {
+        throw file_access_error{"Could not write to file '" + filename + "'"};
     }
 
     // database version info
@@ -264,48 +281,52 @@ void database::write_meta(const std::string& filename) const
 
     write_binary(os, target_id(targetCount_));
 
-    write_binary(os, num_parts());
+    write_binary(os, part_count());
 
     // taxon & target metadata
     write_binary(os, taxonomyCache_);
 
-    std::cerr << "done.\n";
+    if (info != info_level::silent) { std::cerr << "done.\n"; }
 }
 
 
 //-------------------------------------------------------------------
-void database::write_cache(const std::string& filename, part_id partId) const
+void database::write_cache (
+    const std::string& filename, part_id partId, info_level info) const
 {
-    std::cerr << "Writing database part to file '" << filename << "' ...\n";
+    if (info != info_level::silent) {
+        std::cerr << "    Writing part " << (partId+1) << " to file '" << filename << "' ... ";
+    }
 
     using std::uint64_t;
     using std::uint8_t;
 
     std::ofstream os{filename, std::ios::out | std::ios::binary};
 
-    if (!os.good()) {
-        throw file_access_error{"can't open file " + filename};
+    if (not os.good()) {
+        throw file_access_error{"Could not write to file '" + filename + "'"};
     }
 
     // hash table
     write_binary(os, featureStore_, partId);
 
-    std::cerr << "done.\n";
+    if (info != info_level::silent) { std::cerr << "done.\n"; }
 }
 
 
 //-------------------------------------------------------------------
-void database::write(const std::string& filename) const
+void database::write (const std::string& filename, info_level info) const
 {
-    write_meta(filename+".meta");
+    write_meta(filename+".meta", info);
 
-    for (part_id partId = 0; partId < num_parts(); ++partId)
-        write_cache(filename+".cache"+std::to_string(partId), partId);
+    for (part_id partId = 0; partId < part_count(); ++partId) {
+        write_cache(filename+".cache"+std::to_string(partId), partId, info);
+    }
 }
 
 
 // ----------------------------------------------------------------------------
-void database::clear() {
+void database::clear () {
     taxonomyCache_.clear();
     featureStore_.clear();
 }
@@ -315,7 +336,7 @@ void database::clear() {
 /**
  * @brief very dangerous! clears feature map without memory deallocation
  */
-void database::clear_without_deallocation() {
+void database::clear_without_deallocation () {
     taxonomyCache_.clear();
     featureStore_.clear_without_deallocation();
 }
@@ -325,7 +346,8 @@ void database::clear_without_deallocation() {
 
 // ----------------------------------------------------------------------------
 database
-make_database(const std::string& filename, int dbPart, database::scope what, info_level info)
+make_database (
+    const std::string& filename, int dbPart, database::scope what, info_level info)
 {
     if (filename.empty()) throw file_access_error{"No database name given"};
 
@@ -334,16 +356,16 @@ make_database(const std::string& filename, int dbPart, database::scope what, inf
     const bool showInfo = info != info_level::silent;
 
     if (showInfo) {
-        std::cerr << "Reading database from file '" << filename << "' ...\n";
+        std::cerr << "Reading database '" << filename << "' ... ";
     }
     try {
         unsigned replication = 1;
-        db.read(filename, dbPart, replication, what);
-        // if (showInfo) std::cerr << "done.\n";
+        db.read(filename, dbPart, replication, what, info);
+        if (showInfo) std::cerr << "done.\n";
     }
-    catch(const file_access_error& e) {
+    catch (const file_access_error& e) {
         std::cerr << "FAIL\n";
-        throw file_access_error{"Could not read database file '" + filename + "'"};
+        throw file_access_error{"Could not read database '" + filename + "'"};
     }
 
     return db;

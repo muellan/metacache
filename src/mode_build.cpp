@@ -2,8 +2,8 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2024 André Müller (muellan@uni-mainz.de)
- *                       & Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2026 André Müller (github.com/muellan)
+ *                       & Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,13 +21,12 @@
  *****************************************************************************/
 
 
-#include "building.h"
-#include "database.h"
-#include "options.h"
-#include "timer.h"
+#include "building.hpp"
+#include "database.hpp"
+#include "options.hpp"
+#include "timer.hpp"
 
 #include <iostream>
-
 
 
 namespace mc {
@@ -36,25 +35,30 @@ using std::cout;
 using std::endl;
 
 
-
-/*************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief adds targets to datbase and writes to disk
- *
- *****************************************************************************/
-void add_to_database_and_save(database& db, const build_options& opt)
+ */
+void add_to_database_and_save (database& db, const build_options& opt)
 {
     timer time;
     time.start();
 
     add_to_database(db, opt, time);
 
+    const auto btime = time.seconds();
+
     write_database(db, opt);
 
     time.stop();
 
+    const auto wtime = time.seconds() - btime;
+
     if (opt.infoLevel != info_level::silent) {
-        cout << "Total build time: " << time.seconds() << " s" << endl;
+        cout << "------------------------------------------------\n"
+             << "Construction time: " << btime << " s\n"
+             << "Writing time:      " << wtime << " s\n"
+             << "Total build time:  " << time.seconds() << " s" << endl;
     }
 
     // prevents slow deallocation
@@ -63,12 +67,11 @@ void add_to_database_and_save(database& db, const build_options& opt)
 
 
 
-/*************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief adds reference sequences to an existing database
- *
- *****************************************************************************/
-void main_mode_modify(const cmdline_args& args)
+ */
+void main_mode_modify (const cmdline_args& args)
 {
     auto opt = get_modify_options(args);
 
@@ -85,12 +88,11 @@ void main_mode_modify(const cmdline_args& args)
 
 
 
-/*************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief builds a database from reference input sequences
- *
- *****************************************************************************/
-void main_mode_build(const cmdline_args& args)
+ */
+void main_mode_build (const cmdline_args& args)
 {
     auto opt = get_build_options(args);
 

@@ -2,8 +2,8 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2024 André Müller (muellan@uni-mainz.de)
- *                       & Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2026 André Müller (github.com/muellan)
+ *                       & Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,19 +21,19 @@
  *****************************************************************************/
 
 
-#include "building.h"
+#include "building.hpp"
 
-#include "batch_processing.h"
-#include "cmdline_utility.h"
-#include "database.h"
-#include "filesys_utility.h"
-#include "io_error.h"
-#include "io_options.h"
-#include "options.h"
-#include "printing.h"
-#include "sequence_io.h"
-#include "taxonomy_io.h"
-#include "timer.h"
+#include "batch_processing.hpp"
+#include "cmdline_utility.hpp"
+#include "database.hpp"
+#include "filesys_utility.hpp"
+#include "io_error.hpp"
+#include "io_options.hpp"
+#include "options.hpp"
+#include "printing.hpp"
+#include "sequence_io.hpp"
+#include "taxonomy_io.hpp"
+#include "timer.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -54,25 +54,46 @@ using std::endl;
 
 using taxon_pointer_set = std::unordered_set<const taxon*>;
 
-/*************************************************************************//**
- *
+
+constexpr std::size_t
+pow_of_2_floor (std::size_t n) noexcept
+{
+    // already power of 2 -> exit
+    if (n == 0) return 0;
+    if ((n & (n - 1)) == 0) return n;
+    // no -> find next lower
+    --n;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    if (sizeof(std::size_t) > 4) { n |= n >> 32; }
+    return (n + 1) >> 1;
+}
+
+
+
+
+//-----------------------------------------------------------------------------
+/**
  * @brief Alternative way of providing taxonomic mappings.
  *        The input file must be a text file with each line in the format:
  *        accession  accession.version taxid gi
  *        (like the NCBI's *.accession2version files)
- *
- *****************************************************************************/
-void rank_targets_with_mapping_file(taxonomy_cache& taxonomy,
-                                    taxon_pointer_set& targetTaxa,
-                                    const string& mappingFile,
-                                    info_level infoLvl)
+ */
+void rank_targets_with_mapping_file (
+    taxonomy_cache& taxonomy,
+    taxon_pointer_set& targetTaxa,
+    const string& mappingFile,
+    info_level infoLvl)
 {
     const bool showInfo = infoLvl != info_level::silent;
 
     if (targetTaxa.empty()) return;
 
     std::ifstream is {mappingFile};
-    if (!is.good()) return;
+    if (not is.good()) return;
 
     const auto fsize = file_size(mappingFile);
 
@@ -103,9 +124,9 @@ void rank_targets_with_mapping_file(taxonomy_cache& taxonomy,
         // accession.version is the default
         const taxon* tax = taxonomy.taxon_with_name(accver);
 
-        if (!tax) {
+        if (not tax) {
             tax = taxonomy.taxon_with_similar_name(acc);
-            if (!tax) tax = taxonomy.taxon_with_name(gi);
+            if (not tax) tax = taxonomy.taxon_with_name(gi);
         }
 
         // if in database then set parent
@@ -118,7 +139,7 @@ void rank_targets_with_mapping_file(taxonomy_cache& taxonomy,
             }
         }
 
-        if (showProgress && !(++step % statStep)) {
+        if (showProgress && not (++step % statStep)) {
             auto pos = is.tellg();
             show_progress_indicator(cout, pos / float(fsize));
         }
@@ -129,18 +150,18 @@ void rank_targets_with_mapping_file(taxonomy_cache& taxonomy,
 
 
 
-/*************************************************************************//**
- *
+
+//-----------------------------------------------------------------------------
+/**
  * @return target taxa that have no parent taxon assigned
- *
- *****************************************************************************/
+ */
 taxon_pointer_set
-unranked_targets(const taxonomy_cache& taxonomy)
+unranked_targets (const taxonomy_cache& taxonomy)
 {
     auto res = taxon_pointer_set{};
 
     for (const auto& tax : taxonomy.target_taxa()) {
-        if (!tax.has_parent()) res.insert(&tax);
+        if (not tax.has_parent()) res.insert(&tax);
     }
 
     return res;
@@ -148,13 +169,13 @@ unranked_targets(const taxonomy_cache& taxonomy)
 
 
 
-/*************************************************************************//**
- *
+
+//-----------------------------------------------------------------------------
+/**
  * @return all target taxa
- *
- *****************************************************************************/
+ */
 taxon_pointer_set
-all_targets(const taxonomy_cache& taxonomy)
+all_targets (const taxonomy_cache& taxonomy)
 {
     auto res = taxon_pointer_set{};
 
@@ -167,23 +188,26 @@ all_targets(const taxonomy_cache& taxonomy)
 
 
 
-/*************************************************************************//**
- *
- * @brief try to assign parent taxa to target taxa using mapping files
- *
- *****************************************************************************/
-void try_to_rank_unranked_targets(taxonomy_cache& taxonomy, const build_options& opt)
-{
-    taxon_pointer_set unranked;
-    if (opt.resetParents)
-        unranked = all_targets(taxonomy);
-    else
-        unranked = unranked_targets(taxonomy);
 
-    if (!unranked.empty()) {
-        if (opt.infoLevel != info_level::silent) {
+//-----------------------------------------------------------------------------
+/**
+ * @brief try to assign parent taxa to target taxa using mapping files
+ */
+void try_to_rank_unranked_targets (taxonomy_cache& taxonomy, const build_options& opt)
+{
+    const bool showInfo = opt.infoLevel != info_level::silent;
+
+    taxon_pointer_set unranked;
+    if (opt.resetParents) {
+        unranked = all_targets(taxonomy);
+    } else {
+        unranked = unranked_targets(taxonomy);
+    }
+
+    if (not unranked.empty()) {
+        if (showInfo) {
             cout << unranked.size()
-                 << " targets are unranked." << endl;
+                 << " targets are unranked (no taxon was assigned)." << endl;
         }
 
         for (const auto& file : opt.taxonomy.mappingPostFiles) {
@@ -193,25 +217,25 @@ void try_to_rank_unranked_targets(taxonomy_cache& taxonomy, const build_options&
     }
 
     unranked = unranked_targets(taxonomy);
-    if (opt.infoLevel != info_level::silent) {
+    if (showInfo) {
         if (unranked.empty()) {
-            cout << "All targets are ranked." << endl;
+            cout << "All targets are ranked (have a taxon assigned)." << endl;
         }
         else {
             cout << unranked.size()
-                 << " targets remain unranked." << endl;
+                 << " targets remain unranked (no taxon was assigned)." << endl;
         }
     }
 }
 
 
 
-/*************************************************************************//**
- *
+
+//-----------------------------------------------------------------------------
+/**
  * @brief look up taxon id based on an identifier (accession number etc.)
- *
- *****************************************************************************/
-taxon_id find_taxon_id(
+ */
+taxon_id find_taxon_id (
     const std::map<string,taxon_id>& name2tax,
     const string& name)
 {
@@ -234,8 +258,9 @@ taxon_id find_taxon_id(
 
 
 
-// ---------------------------------------------------------------------------
-struct input_sequence {
+//-----------------------------------------------------------------------------
+struct input_sequence 
+{
     sequence_reader::header_type header;
     sequence_reader::data_type data;
     database::file_source fileSource;
@@ -246,14 +271,14 @@ using input_batch = std::vector<input_sequence>;
 
 
 
-/*************************************************************************//**
- *
- * @brief add batch of reference targets to database
+
+//-----------------------------------------------------------------------------
+/**
+ * @brief add batch of reference targets to one database part
  *
  * @return false, if database not ready / insertion error
- *
- *****************************************************************************/
-bool add_targets_to_database(
+ */
+bool add_target_batch_to_database (
     database& db,
     int dbPart,
     input_batch& batch,
@@ -262,10 +287,10 @@ bool add_targets_to_database(
     info_level infoLvl)
 {
     for (auto& seq : batch) {
-        if (!db.check_load_factor(dbPart)) return false;
+        if (not db.check_load_factor(dbPart)) return false;
         if (db.add_target_failed(dbPart)) return false;
 
-        if (!seq.data.empty()) {
+        if (not seq.data.empty()) {
             auto seqId = extract_accession_string(seq.header, seqIdType);
 
             // make sure sequence id is not empty,
@@ -285,13 +310,13 @@ bool add_targets_to_database(
                 dbPart, seq.data, seqId, parentTaxId, seq.fileSource);
 
             if (infoLvl == info_level::verbose) {
-                cout << "        [" << seqId;
-                if (parentTaxId > 0) cout << ":" << parentTaxId;
-                cout << "]  " << seq.data.size() << " bp";
+                cerr << "    P" << dbPart << "  [" << seqId;
+                if (parentTaxId > 0) cerr << ":" << parentTaxId;
+                cerr << "]  " << seq.data.size() << " bp";
                 if (added) {
-                    cout << endl;
+                    cerr << '\n';
                 } else {
-                    cout << "  --  not added to database!" << endl;
+                    cerr << "  --  not added to database!\n";
                 }
             }
 
@@ -304,27 +329,31 @@ bool add_targets_to_database(
 
 
 
-/*************************************************************************//**
- *
+
+//-----------------------------------------------------------------------------
+/**
  * @brief adds reference sequences from *several* files to database
- *
- *****************************************************************************/
-void add_targets_to_database(database& db,
+ */
+void add_targets_to_database (database& db,
     const std::vector<string>& infiles,
     const std::map<string,taxon_id>& sequ2taxid,
     sequence_id_type seqIdType,
     info_level infoLvl)
 {
     // make executor that runs database insertion (concurrently) in batches
-    // IMPORTANT: do not use more than one worker thread!
+    // IMPORTANT: do not use more than one consumer thread per database part!
     batch_processing_options<input_sequence> execOpt;
-    execOpt.batch_size(8);
-    execOpt.queue_size(8);
-#ifndef GPU_MODE
-    execOpt.concurrency(db.num_parts(), db.num_parts());
+
+#ifdef GPU_MODE
+    const auto numProducers = 8;
 #else
-    execOpt.concurrency(8, db.num_parts());
+    const auto numProducers = std::max(1, std::min(4, int(db.part_count()/2)));
 #endif
+    // as many consumers as database parts (CPU: virtual, GPU: #GPUs) 
+    const auto numConsumers = db.part_count();
+    execOpt.batch_size(8);
+    execOpt.queue_size(numProducers);
+    execOpt.concurrency(numProducers, numConsumers);
 
     execOpt.on_error([&] (std::exception& e) {
         if (dynamic_cast<database::target_limit_exceeded_error*>(&e)) {
@@ -335,32 +364,38 @@ void add_targets_to_database(database& db,
                  << "support for databases with more reference targets.\n\n";
         }
         else if (infoLvl == info_level::verbose) {
-            cout << "FAIL: " << e.what() << endl;
+            cerr << "FAIL: " << e.what() << '\n';
         }
     });
 
     execOpt.on_work_done([&] (int id) { db.wait_until_add_target_complete(id); });
 
+    const size_t numFiles = infiles.size();
+
+    // each consumer inserts sequences into its associated database part 
     batch_executor<input_sequence> executor { execOpt,
-        [&] (int id, auto& batch) {
-            return add_targets_to_database(db, id, batch, sequ2taxid, seqIdType, infoLvl);
+        [&] (int id, auto& inSeqBatch) {
+            return add_target_batch_to_database(
+                        db, id, inSeqBatch, sequ2taxid, seqIdType, infoLvl);
         }};
 
-    // spawn threads to read sequences
+    // spawn producer threads to read sequences
     std::vector<std::future<void>> producers;
-    concurrent_progress readingProgress{};
-    const size_t numFiles = infiles.size();
-    readingProgress.total = numFiles;
+    concurrent_progress readProgress {};
+    readProgress.total = numFiles;
+
     std::mutex outputMtx;
 
-    for (int producerId = 0; producerId < execOpt.num_producers(); ++producerId) {
+    // each producer reads sequences from input files
+    // and places them into the batch executor's buffers (executor.next_item)
+    for (int producerId = 0; producerId < execOpt.producer_count(); ++producerId) {
         producers.emplace_back(std::async(std::launch::async, [&, producerId] {
-            auto fileId = readingProgress.counter++;
+            auto fileId = readProgress.counter++;
             while (fileId < numFiles && executor.valid()) {
                 const auto& filename = infiles[fileId];
                 if (infoLvl == info_level::verbose) {
                     std::lock_guard<std::mutex> lock(outputMtx);
-                    cout << "  (" << fileId << '/' << numFiles << ") "
+                    cerr << "  (" << fileId << '/' << numFiles << ") "
                          << filename << endl;
                 }
 
@@ -377,11 +412,11 @@ void add_targets_to_database(database& db,
 
                     if (infoLvl == info_level::verbose) {
                         std::lock_guard<std::mutex> lock(outputMtx);
-                        cout << "      accession '" << fileAccession
+                        cerr << "      accession '" << fileAccession
                              << "' -> taxid " << fileTaxId << endl;
                     }
 
-                    sequence_reader reader{filename};
+                    sequence_reader reader {filename};
 
                     while (reader.has_next() && executor.valid()) {
                         // get (ref to) next input sequence storage and fill it
@@ -392,22 +427,24 @@ void add_targets_to_database(database& db,
                         reader.next_header_and_data(seq.header, seq.data);
                     }
                 }
-                catch(std::exception& e) {
+                catch (std::exception& e) {
                     if (infoLvl == info_level::verbose) {
                         std::lock_guard<std::mutex> lock(outputMtx);
-                        cout << "FAIL: " << e.what() << endl;
+                        cerr << "FAIL: " << e.what() << '\n';
                     }
                 }
 
-                fileId = readingProgress.counter++;
+                fileId = readProgress.counter++;
             }
 
             executor.finalize_producer(producerId);
         }));
     }
 
+    // wait until operations are finished
     if (infoLvl == info_level::moderate) {
-        show_progress_until_ready(cerr, readingProgress, producers);
+        // show_progress_until_ready(cerr, readProgress, producers);
+        show_progress_until_ready(cerr, readProgress, producers);
     }
     else {
         for (auto& producer : producers) {
@@ -415,81 +452,81 @@ void add_targets_to_database(database& db,
         }
     }
 
-    float progress = readingProgress.progress();
+    float progress = readProgress.progress();
     if (progress < 1.0f) {
         cout << "WARNING: Could only only process " << 100*progress << "% of input files." << endl;
     }
 
-    db.taxo_cache().mark_cached_lineages_outdated();
+    db.taxa().mark_cached_lineages_outdated();
 }
 
 
 
-/*************************************************************************//**
- *
+
+//-----------------------------------------------------------------------------
+/**
  * @brief prepares datbase for build
- *
- *****************************************************************************/
-void prepare_database(database& db, const build_options& opt)
+ */
+void prepare_database (database& db, const build_options& opt)
 {
     const auto dbconf = opt.dbconfig;
+    const bool showInfo = opt.infoLevel != info_level::silent;
+
     if (dbconf.maxLocationsPerFeature > 0) {
         db.max_locations_per_feature(dbconf.maxLocationsPerFeature);
-        cerr << "Max locations per feature set to "
-             << int(db.max_locations_per_feature()) << '\n';
+        if (showInfo) {
+            cout << "Max locations per feature set to "
+                 << int(db.max_locations_per_feature()) << endl;
+        }
     }
 
     if (dbconf.maxLoadFactor > 0.4 && dbconf.maxLoadFactor < 0.99) {
         db.max_load_factor(dbconf.maxLoadFactor);
-        cerr << "Using custom hash table load factor of "
-             << db.max_load_factor() << '\n';
+        if (showInfo) {
+            cout << "Using custom hash table load factor of "
+                 << db.max_load_factor() << endl;
+        }
     }
 
-    if (!opt.taxonomy.path.empty()) {
-        db.taxo_cache().reset_taxa_above_sequence_level(
+    if (not opt.taxonomy.path.empty()) {
+        db.taxa().reset_taxa_above_sequence_level(
             make_taxonomic_hierarchy(opt.taxonomy.nodesFile,
                                      opt.taxonomy.namesFile,
                                      opt.taxonomy.mergeFile,
                                      opt.infoLevel) );
 
-        if (opt.infoLevel != info_level::silent) {
-            cout << "Taxonomy applied to database." << endl;
-        }
+        if (showInfo) { cout << "Taxonomy applied to database." << endl; }
     }
 
-    if (db.taxo_cache().non_target_taxon_count() < 1 && opt.infoLevel != info_level::silent) {
+    if (db.taxa().non_target_taxon_count() < 1 && showInfo) {
         cout << "The datbase doesn't contain a taxonomic hierarchy yet.\n"
              << "You can add one or update later via:\n"
              << "   metacache modify <database> -taxonomy <directory>"
              << endl;
     }
 
-    if (dbconf.removeAmbigFeaturesOnRank != taxon_rank::none &&
-       opt.infoLevel != info_level::silent)
-    {
-        if (db.taxo_cache().non_target_taxon_count() > 1) {
+    if (dbconf.removeAmbigFeaturesOnRank != taxon_rank::none && showInfo) {
+        if (db.taxa().non_target_taxon_count() > 1) {
             cout << "Ambiguous features on rank "
                  << taxonomy::rank_name(dbconf.removeAmbigFeaturesOnRank)
-                 << " will be removed afterwards.\n";
+                 << " will be removed afterwards." << endl;
         } else {
             cout << "Could not determine amiguous features "
-                 << "due to missing taxonomic information.\n";
+                 << "due to missing taxonomic information." << endl;
         }
     }
-
-    db.initialize_hash_table(opt.numDbParts);
 }
 
 
 
-/*************************************************************************//**
- *
+
+//-----------------------------------------------------------------------------
+/**
  * @brief database features post-processing
- *
- *****************************************************************************/
-void post_process_features(database& db, const build_options& opt)
+ */
+void post_process_features (database& db, const build_options& opt)
 {
-    const bool notSilent = opt.infoLevel != info_level::silent;
+    const bool showInfo = opt.infoLevel != info_level::silent;
 
     const auto& dbconf = opt.dbconfig;
 
@@ -497,13 +534,13 @@ void post_process_features(database& db, const build_options& opt)
         auto old = db.feature_count();
         auto maxlpf = db.max_locations_per_feature() - 1;
         if (maxlpf > 0) { // always keep buckets with size 1
-            if (notSilent) {
+            if (showInfo) {
                 cout << "\nRemoving features with more than "
                      << maxlpf << " locations... " << flush;
             }
             auto rem = db.remove_features_with_more_locations_than(maxlpf);
 
-            if (notSilent) {
+            if (showInfo) {
                 cout << rem << " of " << old << " removed." << endl;
                 if (rem != old) print_content_properties(db);
             }
@@ -511,9 +548,9 @@ void post_process_features(database& db, const build_options& opt)
     }
 
     if (dbconf.removeAmbigFeaturesOnRank != taxon_rank::none &&
-        db.taxo_cache().non_target_taxon_count() > 1)
+        db.taxa().non_target_taxon_count() > 1)
     {
-        if (notSilent) {
+        if (showInfo) {
             cout << "\nRemoving ambiguous features on rank "
                  << taxonomy::rank_name(dbconf.removeAmbigFeaturesOnRank)
                  << "... " << flush;
@@ -523,7 +560,7 @@ void post_process_features(database& db, const build_options& opt)
         auto rem = db.remove_ambiguous_features(dbconf.removeAmbigFeaturesOnRank,
                                                 dbconf.maxTaxaPerFeature);
 
-        if (notSilent) {
+        if (showInfo) {
             cout << rem << " of " << old << "." << endl;
             if (rem != old) print_content_properties(db);
         }
@@ -533,43 +570,61 @@ void post_process_features(database& db, const build_options& opt)
 
 
 
-/*************************************************************************//**
- *
- * @brief writes database to disk
- *
- *****************************************************************************/
-void write_database(const database& db, const build_options& opt)
-{
-    const bool notSilent = opt.infoLevel != info_level::silent;
 
-    if (notSilent) {
-        cout << "Writing database to file ... " << flush;
+//-----------------------------------------------------------------------------
+/**
+ * @brief writes database to disk
+ */
+void write_database (const database& db, const build_options& opt)
+{
+    const bool showInfo = opt.infoLevel != info_level::silent;
+
+    if (showInfo) {
+        cout << "------------------------------------------------\n"
+             << "Writing database to file ... " << endl;
     }
     try {
-        db.write(opt.dbfile);
-        if (notSilent) cout << "done." << endl;
+        db.write(opt.dbfile, opt.infoLevel);
+        if (showInfo) cout << "Completed database writing." << endl;
     }
-    catch(const file_access_error&) {
-        if (notSilent) cout << "FAIL" << endl;
+    catch (const file_access_error&) {
+        if (showInfo) cout << "FAIL" << endl;
         cerr << "Could not write database file!\n";
     }
 }
 
 
 
-/*************************************************************************//**
- *
+
+//-----------------------------------------------------------------------------
+/**
  * @brief prepares datbase for build, adds targets
- *
- *****************************************************************************/
-void add_to_database(database& db, const build_options& opt, timer& time)
+ */
+void add_to_database (database& db, const build_options& opt, timer& time)
 {
+    const bool showInfo = opt.infoLevel != info_level::silent;
+
     prepare_database(db, opt);
 
-    const bool notSilent = opt.infoLevel != info_level::silent;
-    if (notSilent) print_static_properties(db);
+    // number of (virtual) parts to use for initial hash table construction
+#ifdef GPU_MODE
+    const std::size_t numBuildParts = opt.numDbParts;
+#else
+    std::size_t numBuildParts = 
+        std::min(opt.infiles.size(),
+                 std::max(static_cast<std::size_t>(opt.numDbParts),
+                          static_cast<std::size_t>(std::max(1u,opt.numThreads/2))));
+    // prefer powers of 2 for monolithic databases
+    if (opt.numDbParts == 1 && numBuildParts > 2) {
+        numBuildParts = pow_of_2_floor(numBuildParts);
+    }
+#endif
 
-    if (!opt.infiles.empty()) {
+    db.initialize_parts(numBuildParts);
+
+    if (showInfo) print_static_properties(db);
+
+    if (not opt.infiles.empty()) {
         const auto initNumTargets = db.target_count();
 
         auto taxonMap = make_sequence_to_taxon_id_map(
@@ -577,17 +632,26 @@ void add_to_database(database& db, const build_options& opt, timer& time)
                             opt.taxonomy.mappingPreFilesGlobal,
                             opt.infiles, opt.infoLevel);
 
-        if (notSilent) {
+        if (showInfo) {
             cout << "Sequence ID extraction method: "
                  << to_string(opt.sequenceIdType)
                  << "\nProcessing reference sequences." << endl;
         }
 
-
         add_targets_to_database(db, opt.infiles, taxonMap,
                                 opt.sequenceIdType, opt.infoLevel);
 
-        if (notSilent) {
+#ifndef GPU_MODE
+        // merge virtual DB parts down to actually requested number of parts
+        if (db.part_count() > 1 && db.part_count() > opt.numDbParts) {
+            if (showInfo) { cout << "Consolidating Hash Tables. " << endl; }
+            db.remove_empty_parts();
+            db.merge_reduce_max_parts_max_bytes(opt.numDbParts, opt.maxPartBytes,
+                                                opt.numThreads, opt.infoLevel);
+        }
+#endif
+
+        if (showInfo) {
             clear_current_line(cout);
             cout << "Added "
                  << (db.target_count() - initNumTargets) << " reference sequences "
@@ -597,7 +661,7 @@ void add_to_database(database& db, const build_options& opt, timer& time)
         }
     }
 
-    try_to_rank_unranked_targets(db.taxo_cache(), opt);
+    try_to_rank_unranked_targets(db.taxa(), opt);
 
     post_process_features(db, opt);
 }

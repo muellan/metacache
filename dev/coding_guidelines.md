@@ -7,15 +7,16 @@ Project
  - DON'T introduce breaking changes to the (default) output format
  - try to avoid breaking database format changes
  - define all entities within namespace ```mc``` 
+ - for modes 'query', 'merge', etc. that produce classification output
+    - write classification results either to dedicated file or stdout
+    - write all other status information, error messages, etc. to stderr
 
 
 C++ Language Usage
 ------------------
- - C++14
+ - C++14 only for now
 
- - NO C++17 features (yet)
-
- - NO **owning** raw pointers
+ - NO **owning** raw pointers outside of data structures
    => Every resource must be cleaned up if it's owner is destroyed.
 
  - NO explicit ```new``` and ```delete``` 
@@ -26,24 +27,28 @@ C++ Language Usage
  - DON'T use ```#pragma once```, use include guards
  - DON'T use ```typedef A B;```, use ```using B = A;```
 
- - DON'T return meaningless pairs or tuples from functions
+ - DON'T return meaningless pairs or tuples from functions,
+   use sensibly named structs with meaningfully named members instead
  - DON'T use **unscoped** enums, use **scoped** enums: ```enum class { ... }```
  - avoid functions with more than 5 parameters
  - avoid out-parameters (non-const reference function parameters)
 
- - std::vector should be your default container choice
+ - std::vector should be the default container choice
  - prefer std::unordered_map/set over std::map/set
  - prefer range-based for loops
  - prefer std:: algorithms 
- - prefer free standing functions (over member functions)
+ - prefer free standing functions over member functions
  - prefer templates over std::function
+ - prefer concrete types/functions over generic ones
 
 
 Coding Style
 ------------------
  - indentation: 4 SPACES, NO Tabs
  - try to keep line lengths under 80-100 characters
- - file extensions: headers: ".h", TUs: ".cpp"
+ - file extensions: headers: ".hpp", TUs: ".cpp"
+ - if the body of a loop, an if statement etc. is on a separate line
+   from the loop head, if condition, etc. then put the body into curly braces
  - naming:
     - localVariables
     - memberVariables_
@@ -51,7 +56,7 @@ Coding Style
     - class_names           (should be nouns)
     - TemplateParameters    
     - DON'T use "_" at the begginning of names;
-      these are reserved for std:: library entities.
+      these are reserved for std:: library entities or compiler intrinsics.
 
 ```cpp
 #include <vector>

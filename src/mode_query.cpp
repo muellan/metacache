@@ -2,8 +2,8 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2024 André Müller (muellan@uni-mainz.de)
- *                       & Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2026 André Müller (github.com/muellan)
+ *                       & Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,9 +21,9 @@
  *****************************************************************************/
 
 
-#include "io_error.h"
-#include "options.h"
-#include "querying.h"
+#include "io_error.hpp"
+#include "options.hpp"
+#include "querying.hpp"
 
 #include <iostream>
 
@@ -34,14 +34,13 @@ using std::cout;
 using std::cerr;
 
 
-/*************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief read database and modify db content and sketching scheme according to
  *        command line options
- *
- *****************************************************************************/
+ */
 database
-read_database(const query_options& opt)
+read_database (const query_options& opt)
 {
     const database_storage_options& dbopt = opt.dbconfig;
 
@@ -49,14 +48,20 @@ read_database(const query_options& opt)
 
     if (dbopt.maxLoadFactor > 0.4 && dbopt.maxLoadFactor < 0.99) {
         db.max_load_factor(dbopt.maxLoadFactor);
-        cerr << "Using custom hash table load factor of "
-             << dbopt.maxLoadFactor << '\n';
+        if (opt.output.showInfo) {
+            cerr << "Using custom hash table load factor of "
+                 << dbopt.maxLoadFactor << '\n';
+        }
     }
 
     try {
-        db.read(opt.dbfile, opt.dbpart, opt.performance.replication);
+        const auto infoLvl = opt.output.showInfo 
+                    ? info_level::moderate : info_level::silent;
+
+        db.read(opt.dbfile, opt.dbpart, opt.performance.replication,
+                database::scope::everything, infoLvl);
     }
-    catch(const file_access_error& e) {
+    catch (const file_access_error& e) {
         cerr << "FAIL\n";
         throw;
     }
@@ -70,20 +75,25 @@ read_database(const query_options& opt)
 
         maxlpf = std::min(maxlpf, db.max_locations_per_feature() - 1);
         if (maxlpf > 0) { // always keep buckets with size 1
-            cerr << "\nRemoving features with more than "
-                 << maxlpf << " locations...\n";
-
+            if (opt.output.showInfo) {
+                cerr << "\nRemoving features with more than "
+                     << maxlpf << " locations...\n";
+            }
             auto rem = db.remove_features_with_more_locations_than(maxlpf);
 
-            cerr << rem << " of " << old << " removed.\n";
+            if (opt.output.showInfo) {
+                cerr << rem << " of " << old << " removed.\n";
+            }
         }
         // in case new max is less than the database setting
         db.max_locations_per_feature(dbopt.maxLocationsPerFeature);
     }
     else if (dbopt.maxLocationsPerFeature > 1) {
         db.max_locations_per_feature(dbopt.maxLocationsPerFeature);
-        cerr << "Max locations per feature set to "
-             << dbopt.maxLocationsPerFeature << '\n';
+        if (opt.output.showInfo) {
+            cerr << "Max locations per feature set to "
+                 << dbopt.maxLocationsPerFeature << '\n';
+        }
     }
 
     return db;
@@ -91,31 +101,33 @@ read_database(const query_options& opt)
 
 
 
-/*************************************************************************//**
- *
+
+//-----------------------------------------------------------------------------
+/**
  * @brief    run query reads against pre-built database
  *           entry point for query mode
  *
  * @details  note that precision (positive predictive value) and
  *           clade exclusion testing is much slower and only intended
  *           for classification performance evaluation
- *
- *****************************************************************************/
-void main_mode_query(const cmdline_args& args)
+ */
+void main_mode_query (const cmdline_args& args)
 {
     auto opt = get_query_options(args);
 
     auto db = read_database(opt);
     adapt_options_to_database(opt, db);
 
-    if (!opt.infiles.empty()) {
-        cerr << "Classifying query sequences.\n";
-
+    if (not opt.infiles.empty()) {
+        if (opt.output.showInfo) {
+            cerr << "Classifying query sequences.\n";
+        }
         process_input_files(db, opt);
     }
     else {
-        cout << "No input files provided.\n";
-
+        if (opt.output.showInfo) {
+            cout << "No input files provided.\n";
+        }
         run_interactive_query_mode(db, opt);
     }
 }

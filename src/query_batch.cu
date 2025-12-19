@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2022 Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2022 Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@
  *****************************************************************************/
 
 
-#include "database.h"
+#include "database.hpp"
 #include "gpu_result_processing.cuh"
 #include "query_batch.cuh"
 
@@ -31,7 +31,7 @@ namespace mc {
 
 
 //---------------------------------------------------------------
-template<class Location>
+template <class Location>
 class query_batch<Location>::segmented_sort
 {
     using location_type_equivalent = uint64_t;
@@ -62,7 +62,7 @@ private:
 
 
 //---------------------------------------------------------------
-template<class Location>
+template <class Location>
 query_batch<Location>::query_host_data::query_host_data(
     index_type maxQueries,
     size_type maxSequenceLength,
@@ -95,7 +95,7 @@ query_batch<Location>::query_host_data::query_host_data(
     CUERR
 }
 //---------------------------------------------------------------
-template<class Location>
+template <class Location>
 query_batch<Location>::query_host_data::~query_host_data()
 {
     if (queryIds_)           cudaFreeHost(queryIds_);
@@ -113,7 +113,7 @@ query_batch<Location>::query_host_data::~query_host_data()
     CUERR
 }
 //---------------------------------------------------------------
-template<class Location>
+template <class Location>
 query_batch<Location>::query_host_data::query_host_data(query_host_data&& other)
 {
     numQueries_ = other.numQueries_;
@@ -144,7 +144,7 @@ query_batch<Location>::query_host_data::query_host_data(query_host_data&& other)
     other.resultsCopiedEvent_ = 0;
 }
 //---------------------------------------------------------------
-template<class Location>
+template <class Location>
 void query_batch<Location>::query_host_data::wait_for_results()
 {
     cudaEventSynchronize(resultsCopiedEvent_);
@@ -154,7 +154,7 @@ void query_batch<Location>::query_host_data::wait_for_results()
 
 
 //---------------------------------------------------------------
-template<class Location>
+template <class Location>
 query_batch<Location>::query_gpu_data::query_gpu_data(
     index_type maxQueries,
     size_type maxSequenceLength,
@@ -242,7 +242,7 @@ query_batch<Location>::query_gpu_data::query_gpu_data(
     }
 }
 //---------------------------------------------------------------
-template<class Location>
+template <class Location>
 query_batch<Location>::query_gpu_data::query_gpu_data(query_gpu_data&& other)
 {
     queryIds_ = other.queryIds_;
@@ -300,7 +300,7 @@ query_batch<Location>::query_gpu_data::query_gpu_data(query_gpu_data&& other)
     other.offsetSwitcher_ = false;
 }
 //---------------------------------------------------------------
-template<class Location>
+template <class Location>
 query_batch<Location>::query_gpu_data::~query_gpu_data()
 {
     if (queryIds_)           cudaFree(queryIds_);
@@ -333,7 +333,7 @@ query_batch<Location>::query_gpu_data::~query_gpu_data()
 
 
 //---------------------------------------------------------------
-template<class Location>
+template <class Location>
 query_batch<Location>::query_batch(
     index_type maxQueries,
     size_type maxSequenceLength,
@@ -376,7 +376,7 @@ query_batch<Location>::query_batch(
     }
 }
 //---------------------------------------------------------------
-template<class Location>
+template <class Location>
 query_batch<Location>::query_batch(query_batch&& other) {
     numGPUs_ = other.numGPUs_;
 
@@ -400,7 +400,7 @@ query_batch<Location>::query_batch(query_batch&& other) {
 };
 
 //---------------------------------------------------------------
-template<class Location>
+template <class Location>
 query_batch<Location>::~query_batch()
 {
     if (h2dCopyStream_) cudaStreamDestroy(h2dCopyStream_);
@@ -412,7 +412,7 @@ query_batch<Location>::~query_batch()
 
 
 //---------------------------------------------------------------
-template<class Location>
+template <class Location>
 void query_batch<Location>::copy_queries_to_device_async(part_id hostId)
 {
     // copy from host to device 0
@@ -461,7 +461,7 @@ void query_batch<Location>::copy_queries_to_device_async(part_id hostId)
 
 
 //---------------------------------------------------------------
-template<class Location>
+template <class Location>
 void query_batch<Location>::copy_queries_to_next_device_async(part_id hostId, part_id gpuId)
 {
     // copy from device gpuId to device gpuId+1
@@ -528,7 +528,7 @@ void query_batch<Location>::copy_queries_to_next_device_async(part_id hostId, pa
 
 
 //---------------------------------------------------------------
-template<class Location>
+template <class Location>
 void query_batch<Location>::mark_query_finished(part_id gpuId)
 {
     cudaEventRecord(gpuData_[gpuId].queryFinishedEvent_, gpuData_[gpuId].workStream_);
@@ -539,7 +539,7 @@ void query_batch<Location>::mark_query_finished(part_id gpuId)
 
 
 //---------------------------------------------------------------
-template<class Location>
+template <class Location>
 void query_batch<Location>::sort_and_copy_allhits_async(part_id hostId, part_id gpuId)
 {
     cudaSetDevice(gpus_[gpuId]);
@@ -590,7 +590,7 @@ void query_batch<Location>::sort_and_copy_allhits_async(part_id hostId, part_id 
 
 
 //---------------------------------------------------------------
-template<class Location>
+template <class Location>
 void query_batch<Location>::generate_and_copy_top_candidates_async(
     part_id hostId,
     part_id gpuId,
@@ -659,14 +659,14 @@ void query_batch<Location>::generate_and_copy_top_candidates_async(
 
 
 //---------------------------------------------------------------
-template<class Location>
+template <class Location>
 void query_batch<Location>::sync_work_stream(part_id gpuId)
 {
     cudaStreamSynchronize(gpuData_[gpuId].workStream_);
 }
 
 //---------------------------------------------------------------
-template<class Location>
+template <class Location>
 void query_batch<Location>::sync_copy_stream(part_id gpuId)
 {
     cudaStreamSynchronize(gpuData_[gpuId].copyStream_);

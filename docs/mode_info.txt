@@ -48,7 +48,7 @@ SUB-MODES
 
 PARAMETERS
 
-    <database>        database file name;
+    <database>        Name of database.
                       A MetaCache database contains taxonomic information and
                       min-hash signatures of reference sequences (complete
                       genomes, scaffolds, contigs, ...).

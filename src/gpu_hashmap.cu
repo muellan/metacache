@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2022 Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2022 Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,11 +20,11 @@
  *****************************************************************************/
 
 
-#include "database.h"
+#include "database.hpp"
 #include "gpu_hashmap.cuh"
 #include "gpu_hashmap_operations.cuh"
-#include "hash_dna.h"
-#include "hash_int.h"
+#include "hash_dna.hpp"
+#include "hash_int.hpp"
 #include "stat_combined.cuh"
 
 #include "../dep/warpcore/include/single_value_hash_table.cuh"
@@ -39,9 +39,10 @@
 namespace mc {
 
 
-template<class SizeT, class BucketSizeT>
+//-----------------------------------------------------------------------------
+template <class SizeT, class BucketSizeT>
 __global__
-void calculate_sizes_kernel(SizeT * d_offsets, BucketSizeT * d_sizes, SizeT batchSize)
+void calculate_sizes_kernel (SizeT * d_offsets, BucketSizeT * d_sizes, SizeT batchSize)
 {
     const auto tid = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -56,8 +57,10 @@ void calculate_sizes_kernel(SizeT * d_offsets, BucketSizeT * d_sizes, SizeT batc
 }
 
 
-/*************************************************************************//**
- *
+
+
+//-----------------------------------------------------------------------------
+/**
  * @brief   key -> values hashed multimap
  *          for building metacache db on GPU
  *
@@ -65,9 +68,8 @@ void calculate_sizes_kernel(SizeT * d_offsets, BucketSizeT * d_sizes, SizeT batc
  *
  * @tparam  Key:    key type
  * @tparam  ValueT: value type
- *
- *****************************************************************************/
-template<class Key, class ValueT>
+ */
+template <class Key, class ValueT>
 class gpu_hashmap<Key,ValueT>::build_hash_table {
 
     using key_type   = Key;
@@ -95,7 +97,7 @@ class gpu_hashmap<Key,ValueT>::build_hash_table {
 
 public:
     //---------------------------------------------------------------
-    build_hash_table(
+    build_hash_table (
         size_type capacity,
         bucket_size_type maxLocationsPerFeature
     ) :
@@ -127,65 +129,65 @@ public:
 
 
     //---------------------------------------------------------------
-    static constexpr int bucket_size() noexcept
+    static constexpr int bucket_size () noexcept
     {
         return hash_table_t::bucket_size();
     }
 
     //---------------------------------------------------------------
-    bool valid() const noexcept {
+    bool valid () const noexcept {
         return valid_;
     }
 
     //---------------------------------------------------------------
-    void validate() {
+    void validate () {
         if (valid_ && hashTable_.peek_status(statusStream_).has_any_errors()) {
             valid_ = false;
         }
     }
 
     //---------------------------------------------------------------
-    status_type pop_status() {
+    status_type pop_status () {
         return hashTable_.pop_status() - status_type::duplicate_key();
     }
 
     //---------------------------------------------------------------
-    static constexpr size_type default_batch_size() noexcept {
+    static constexpr size_type default_batch_size () noexcept {
         return size_type(1) << 20;
     }
     //-----------------------------------------------------
-    size_type batch_size() const noexcept {
+    size_type batch_size () const noexcept {
         return batchSize_;
     }
     //---------------------------------------------------------------
-    float load_factor() const noexcept {
+    float load_factor () const noexcept {
         // return float(key_count()) / bucket_count();
         // return hashTable_.storage_density();
         return hashTable_.key_load_factor(statusStream_);
     }
     //---------------------------------------------------------------
-    float value_load_factor() const noexcept {
+    float value_load_factor () const noexcept {
         return hashTable_.value_load_factor(statusStream_);
     }
     //---------------------------------------------------------------
-    float storage_density() const noexcept {
+    float storage_density () const noexcept {
         return hashTable_.storage_density(statusStream_);
     }
     //---------------------------------------------------------------
-    size_type bucket_count() const noexcept {
+    size_type bucket_count () const noexcept {
         return hashTable_.capacity();
     }
     //-----------------------------------------------------
-    size_type key_count() const noexcept {
+    size_type key_count () const noexcept {
         return hashTable_.num_keys(statusStream_);
     }
     //-----------------------------------------------------
-    size_type location_count() noexcept {
+    size_type location_count () noexcept {
         return hashTable_.num_values(statusStream_);
     }
 
     //---------------------------------------------------------------
-    void insert_async(
+    void insert_async (
         sequence_batch<policy::Host>& seqBatchHost,
         const sketching_opt& targetSketching
     ) {
@@ -228,19 +230,18 @@ public:
     }
 
     //-----------------------------------------------------
-    void wait_until_insert_finished() const {
+    void wait_until_insert_finished () const {
         cudaStreamSynchronize(insertStream_); CUERR
     }
 
-    /*************************************************************************//**
-    *
-    * @brief   query batch against hashtable
-    *
-    * @details either generate sketches from sequences and save them for next gpu
-    *          or use sketches from previous gpu
-    *
-    *****************************************************************************/
-    void query_async(
+    //---------------------------------------------------------------
+    /**
+     * @brief   query batch against hashtable
+     *
+     * @details either generate sketches from sequences and save them for next gpu
+     *          or use sketches from previous gpu
+     */
+    void query_async (
         uint32_t numWindows,
         const typename query_batch<location_type>::query_gpu_data& gpuData,
         const sketching_opt& querySketching,
@@ -275,7 +276,7 @@ public:
 
     //---------------------------------------------------------------
     statistics_accumulator_gpu<policy::Host>
-    location_list_size_statistics()
+    location_list_size_statistics ()
     {
         cudaDeviceSynchronize(); CUERR
 
@@ -325,18 +326,17 @@ public:
 
 
 private:
-    /**********************************************************************//**
-    *
-    * @brief   buffers to retrieve batches of values from hashtable
-    *
-    * @details one batch on gpu shared by two host threads,
-    *          two separate batches on host
-    *
-    **************************************************************************/
+    //---------------------------------------------------------------
+    /**
+     * @brief   buffers to retrieve batches of values from hashtable
+     *
+     * @details one batch on gpu shared by two host threads,
+     *          two separate batches on host
+     */
     class retrieval_buffer
     {
     public:
-        retrieval_buffer(size_type batchSize) :
+        retrieval_buffer (size_type batchSize) :
             h_valuesAlloc0_{0},
             h_valuesAlloc1_{0},
             d_valuesAlloc_{0},
@@ -459,7 +459,7 @@ private:
     };
 
     //---------------------------------------------------------------
-    size_type retrieve_batch(
+    size_type retrieve_batch (
         key_type * d_keys,
         retrieval_buffer& buffer,
         bool hostId,
@@ -509,7 +509,7 @@ private:
     }
 
     //---------------------------------------------------------------
-    void write_batch(
+    void write_batch (
         std::ostream& os,
         retrieval_buffer& buffer,
         bool hostId,
@@ -522,7 +522,7 @@ private:
     }
 
     //---------------------------------------------------------------
-    void retrieve_and_write_batch(
+    void retrieve_and_write_batch (
         std::ostream& os,
         key_type * d_keys,
         retrieval_buffer& buffer,
@@ -545,7 +545,7 @@ private:
 
 public:
     //---------------------------------------------------------------
-    void serialize(std::ostream& os, bucket_size_type maxLocationsPerFeature)
+    void serialize (std::ostream& os, bucket_size_type maxLocationsPerFeature)
     {
         cudaDeviceSynchronize(); CUERR
 
@@ -622,8 +622,9 @@ private:
 
 
 
-/*************************************************************************//**
- *
+
+//-----------------------------------------------------------------------------
+/**
  * @brief   key -> values hashed multimap
  *          loads metacache db to GPU to enable queries on GPU
  *
@@ -632,9 +633,8 @@ private:
  *
  * @tparam  Key:    key type
  * @tparam  ValueT: value type
- *
- *****************************************************************************/
-template<class Key, class ValueT>
+ */
+template <class Key, class ValueT>
 class gpu_hashmap<Key,ValueT>::query_hash_table {
 
     using key_type   = Key;
@@ -654,43 +654,43 @@ class gpu_hashmap<Key,ValueT>::query_hash_table {
         warpcore::storage::key_value::AoSStore<key_type, value_type>>;
 
 public:
-    query_hash_table(size_t capacity) :
+    query_hash_table (size_t capacity) :
         hashTable_(capacity),
         numKeys_(0), numLocations_(0),
         locations_(nullptr)
     {}
 
     //---------------------------------------------------------------
-    auto pop_status() {
+    auto pop_status () {
         return hashTable_.pop_status();
     }
 
     //---------------------------------------------------------------
-    float load_factor() noexcept {
+    float load_factor () noexcept {
         return hashTable_.load_factor();
     }
     //---------------------------------------------------------------
-    size_type bucket_count() const noexcept {
+    size_type bucket_count () const noexcept {
         return hashTable_.capacity();
     }
     //-----------------------------------------------------
-    size_type key_count() const noexcept {
+    size_type key_count () const noexcept {
         return numKeys_;
     }
     //-----------------------------------------------------
-    size_type location_count() const noexcept {
+    size_type location_count () const noexcept {
         return numLocations_;
     }
 
-    /*************************************************************************//**
-    *
-    * @brief   query batch against hashtable
-    *
-    * @details either generate sketches from sequences and save them for next gpu
-    *          or use sketches from previous gpu
-    *
-    *****************************************************************************/
-    void query_async(
+    
+    //---------------------------------------------------------------
+    /**
+     * @brief   query batch against hashtable
+     *
+     * @details either generate sketches from sequences and save them for next gpu
+     *          or use sketches from previous gpu
+     */
+    void query_async (
         uint32_t numWindows,
         const typename query_batch<location_type>::query_gpu_data& gpuData,
         const sketching_opt& querySketching,
@@ -726,8 +726,8 @@ public:
 
 private:
     //---------------------------------------------------------------
-    template<class LenT, class Status>
-    LenT deserialize_batch_of_buckets(
+    template <class LenT, class Status>
+    LenT deserialize_batch_of_buckets (
         std::istream& is,
         key_type * h_keyBuffer,
         key_type * d_keyBuffer,
@@ -810,9 +810,9 @@ private:
 
 public:
     //---------------------------------------------------------------
-    template<class LenT>
-    void deserialize(std::istream& is, LenT nkeys, LenT nlocations,
-                     concurrent_progress& readingProgress)
+    template <class LenT>
+    void deserialize (std::istream& is, LenT nkeys, LenT nlocations,
+                      concurrent_progress& readingProgress)
     {
         using len_t = LenT;
 
@@ -921,11 +921,12 @@ private:
 
 
 
-//---------------------------------------------------------------
-template<class Key, class ValueT>
-gpu_hashmap<Key,ValueT>::gpu_hashmap() :
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+gpu_hashmap<Key,ValueT>::gpu_hashmap () :
     numGPUs_(0),
-    numParts_(0),
+    numTables_(0),
     maxLoadFactor_(default_max_load_factor()),
     maxLocationsPerFeature_(max_supported_locations_per_feature())
 {
@@ -936,19 +937,21 @@ gpu_hashmap<Key,ValueT>::gpu_hashmap() :
     // std::cerr << "found " << numGPUs_ << " CUDA devices\n";
 }
 
-//-----------------------------------------------------
-template<class Key, class ValueT>
-gpu_hashmap<Key,ValueT>::~gpu_hashmap() {
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+gpu_hashmap<Key,ValueT>::~gpu_hashmap () {
     for (auto& lins : lineages_) {
         if (lins) cudaFree(lins); CUERR
     }
 }
 
-//-----------------------------------------------------
-template<class Key, class ValueT>
-gpu_hashmap<Key,ValueT>::gpu_hashmap(gpu_hashmap&& other) :
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+gpu_hashmap<Key,ValueT>::gpu_hashmap (gpu_hashmap&& other) :
     numGPUs_{other.numGPUs_},
-    numParts_{other.numParts_},
+    numTables_{other.numTables_},
     maxLoadFactor_{other.maxLoadFactor_},
     maxLocationsPerFeature_{other.maxLocationsPerFeature_},
     buildHashTables_{std::move(other.buildHashTables_)},
@@ -957,19 +960,19 @@ gpu_hashmap<Key,ValueT>::gpu_hashmap(gpu_hashmap&& other) :
 {};
 
 
-//---------------------------------------------------------------
-template<class Key, class ValueT>
-bool gpu_hashmap<Key,ValueT>::add_target_failed(part_id gpuId) const noexcept {
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+bool gpu_hashmap<Key,ValueT>::add_target_failed (part_id gpuId) const noexcept {
     if (gpuId < buildHashTables_.size())
-        return !(buildHashTables_[gpuId]->valid());
+        return not (buildHashTables_[gpuId]->valid());
     else
         return true;
 };
 
 
-//---------------------------------------------------------------
-template<class Key, class ValueT>
-bool gpu_hashmap<Key,ValueT>::check_load_factor(part_id gpuId) const noexcept {
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+bool gpu_hashmap<Key,ValueT>::check_load_factor (part_id gpuId) const noexcept {
     if (gpuId < buildHashTables_.size())
         return (buildHashTables_[gpuId]->load_factor() < maxLoadFactor_);
     else
@@ -977,9 +980,9 @@ bool gpu_hashmap<Key,ValueT>::check_load_factor(part_id gpuId) const noexcept {
 };
 
 
-//---------------------------------------------------------------
-template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::pop_status(part_id gpuId) {
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::pop_status (part_id gpuId) {
     if (gpuId < buildHashTables_.size()) {
         cudaSetDevice(gpuId); CUERR
         std::cerr
@@ -993,9 +996,10 @@ void gpu_hashmap<Key,ValueT>::pop_status(part_id gpuId) {
             << " hashtable status: " << queryHashTables_[gpuId]->pop_status() << "\n";
     }
 }
-//---------------------------------------------------------------
-template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::pop_status() {
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::pop_status () {
     for (part_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
         std::cerr
@@ -1010,9 +1014,10 @@ void gpu_hashmap<Key,ValueT>::pop_status() {
     }
 }
 
-//---------------------------------------------------------------
-template<class Key, class ValueT>
-size_t gpu_hashmap<Key,ValueT>::bucket_count() const noexcept {
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+size_t gpu_hashmap<Key,ValueT>::bucket_count () const noexcept {
     size_t count = 0;
     for (part_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
@@ -1025,9 +1030,10 @@ size_t gpu_hashmap<Key,ValueT>::bucket_count() const noexcept {
     return count;
 }
 
-//---------------------------------------------------------------
-template<class Key, class ValueT>
-size_t gpu_hashmap<Key,ValueT>::key_count() noexcept {
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+size_t gpu_hashmap<Key,ValueT>::key_count () noexcept {
     size_t count = 0;
     for (part_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
@@ -1040,9 +1046,10 @@ size_t gpu_hashmap<Key,ValueT>::key_count() noexcept {
     return count;
 }
 
-//-----------------------------------------------------
-template<class Key, class ValueT>
-size_t gpu_hashmap<Key,ValueT>::value_count() noexcept {
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+size_t gpu_hashmap<Key,ValueT>::value_count () noexcept {
     size_t count = 0;
     for (part_id gpuId = 0; gpuId < buildHashTables_.size(); ++gpuId) {
         cudaSetDevice(gpuId); CUERR
@@ -1055,10 +1062,11 @@ size_t gpu_hashmap<Key,ValueT>::value_count() noexcept {
     return count;
 }
 
-//---------------------------------------------------------------
-template<class Key, class ValueT>
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
 statistics_accumulator_gpu<policy::Host>
-gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
+gpu_hashmap<Key,ValueT>::location_list_size_statistics () {
     statistics_accumulator_gpu<policy::Host> totalAccumulator = {};
 
     for (part_id gpuId = 0; gpuId < numGPUs_; ++gpuId) {
@@ -1068,19 +1076,18 @@ gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
         std::cout
             << "------------------------------------------------\n"
             << "gpu " << gpuId << ":\n"
-            << "hashtable status     " << buildHashTables_[gpuId]->pop_status() << '\n'
-            << "buckets              " << buildHashTables_[gpuId]->bucket_count() << '\n'
-            << "bucket size          " << "max: " << accumulator.max()
-                                       << " mean: " << accumulator.mean()
-                                       << " +/- " << accumulator.stddev()
-                                       << " <> " << accumulator.skewness() << '\n'
-            << "features             " << buildHashTables_[gpuId]->key_count()
+            << "hashtable status   " << buildHashTables_[gpuId]->pop_status() << '\n'
+            << "buckets            " << buildHashTables_[gpuId]->bucket_count() << '\n'
+            << "bucket size        " << "max: " << accumulator.max()
+                                     << " mean: " << accumulator.mean()
+                                     << " +/- " << accumulator.stddev()
+                                     << " <> " << accumulator.skewness() << '\n'
+            << "features           " << buildHashTables_[gpuId]->key_count()
             << " (" << 100*buildHashTables_[gpuId]->load_factor() << "%)\n"
-            << "dead features        " << dead_feature_count() << '\n'
-            << "locations            " << buildHashTables_[gpuId]->location_count()
+            << "dead features      " << dead_feature_count() << '\n'
+            << "locations          " << buildHashTables_[gpuId]->location_count()
             << " (" << 100*buildHashTables_[gpuId]->value_load_factor() << "%)\n"
-            << "storage density      " << 100*buildHashTables_[gpuId]->storage_density() << "%\n";
-
+            << "storage density    " << 100*buildHashTables_[gpuId]->storage_density() << "%\n";
         totalAccumulator += accumulator;
     }
 
@@ -1089,12 +1096,13 @@ gpu_hashmap<Key,ValueT>::location_list_size_statistics() {
 
 
 
-//---------------------------------------------------------------
-template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numParts)
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::initialize_tables (part_id numTables)
 {
-    part_id numGPUsFound = num_gpus();
-    config_num_gpus(numParts);
+    part_id numGPUsFound = gpu_count();
+    config_gpu_count(numTables);
 
     std::cerr << "using " << numGPUs_ << " of " << numGPUsFound << " available CUDA devices\n";
 
@@ -1133,9 +1141,11 @@ void gpu_hashmap<Key,ValueT>::initialize_build_hash_tables(part_id numParts)
 }
 
 
-//---------------------------------------------------------------
-template<class Key, class ValueT>
-window_id gpu_hashmap<Key,ValueT>::add_target(
+
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+window_id gpu_hashmap<Key,ValueT>::add_target (
     part_id gpuId, const sequence& seq, target_id tgt, const sketching_opt& targetSketching)
 {
     using std::begin;
@@ -1143,9 +1153,13 @@ window_id gpu_hashmap<Key,ValueT>::add_target(
 
     return add_target(gpuId, begin(seq), end(seq), tgt, targetSketching);
 }
-//-----------------------------------------------------
-template<class Key, class ValueT>
-window_id gpu_hashmap<Key,ValueT>::add_target(
+
+
+
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+window_id gpu_hashmap<Key,ValueT>::add_target (
     part_id gpuId,
     sequence::const_iterator first,
     sequence::const_iterator last,
@@ -1167,12 +1181,12 @@ window_id gpu_hashmap<Key,ValueT>::add_target(
             first, last, tgt, totalWindows, targetSketching);
 
         // if no windows were processed batch must be full
-        if (!processedWindows && insertBuffers_[gpuId].current_seq_batch().num_targets()) {
+        if (not processedWindows && insertBuffers_[gpuId].current_seq_batch().num_targets()) {
             // std::cerr << "gpu " << gpuId << " insert\n";
             insert(gpuId, insertBuffers_[gpuId].current_seq_batch(), targetSketching);
             insertBuffers_[gpuId].switch_seq_batch();
             insertBuffers_[gpuId].current_seq_batch().clear();
-            if (!(buildHashTables_[gpuId]->valid())) break;
+            if (not (buildHashTables_[gpuId]->valid())) break;
         }
 
         totalWindows += processedWindows;
@@ -1182,9 +1196,11 @@ window_id gpu_hashmap<Key,ValueT>::add_target(
 }
 
 
-//---------------------------------------------------------------
-template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::insert(
+
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::insert (
     part_id gpuId,
     sequence_batch<policy::Host>& seqBatchHost,
     const sketching_opt& targetSketching)
@@ -1197,9 +1213,13 @@ void gpu_hashmap<Key,ValueT>::insert(
             seqBatchHost, targetSketching);
     }
 }
-//-----------------------------------------------------
-template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::wait_until_add_target_complete(
+
+
+
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::wait_until_add_target_complete (
     part_id gpuId, const sketching_opt& targetSketching)
 {
     if (gpuId < numGPUs_) {
@@ -1214,28 +1234,32 @@ void gpu_hashmap<Key,ValueT>::wait_until_add_target_complete(
 }
 
 
-//---------------------------------------------------------------
-template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::prepare_for_query_hash_tables(
-    part_id numParts, unsigned replication)
-{
-    config_num_gpus(numParts, replication);
 
-    queryHashTables_.resize(num_gpus());
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::prepare_query_tables (
+    part_id numTables, unsigned replication)
+{
+    config_gpu_count(numTables, replication);
+
+    queryHashTables_.resize(gpu_count());
 }
 
 
-//---------------------------------------------------------------
-template<class Key, class ValueT>
-template<class Hashtable>
-void gpu_hashmap<Key,ValueT>::query_hashtables_async(
+
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+template <class Hashtable>
+void gpu_hashmap<Key,ValueT>::query_hashtables_async (
     const std::vector<Hashtable>& hashtables,
     query_batch<value_type>& batch,
     part_id hostId,
     const sketching_opt& querySketching,
     taxon_rank lowestRank) const
 {
-    for (part_id gpuId = 0; gpuId < batch.num_gpus(); ++gpuId)
+    for (part_id gpuId = 0; gpuId < batch.gpu_count(); ++gpuId)
     {
         part_id gpu = batch.gpu(gpuId);
 
@@ -1254,7 +1278,7 @@ void gpu_hashmap<Key,ValueT>::query_hashtables_async(
 
         // batch.sync_work_stream(gpuId); CUERR
 
-        if (gpuId < batch.num_gpus()-1)
+        if (gpuId < batch.gpu_count()-1)
             batch.copy_queries_to_next_device_async(hostId, gpuId);
 
         batch.sort_and_copy_allhits_async(hostId, gpuId);
@@ -1268,28 +1292,32 @@ void gpu_hashmap<Key,ValueT>::query_hashtables_async(
 }
 
 
-//---------------------------------------------------------------
-template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::query_async(
+
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::query_async (
     query_batch<value_type>& batch,
     part_id hostId,
     const sketching_opt& querySketching,
     taxon_rank lowestRank) const
 {
-    if (!buildHashTables_.empty()) {
+    if (not buildHashTables_.empty()) {
         query_hashtables_async(
             buildHashTables_, batch, hostId, querySketching, lowestRank);
     }
-    else if (!queryHashTables_.empty()) {
+    else if (not queryHashTables_.empty()) {
         query_hashtables_async(
             queryHashTables_, batch, hostId, querySketching, lowestRank);
     }
 }
 
 
-//---------------------------------------------------------------
-template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::deserialize(
+
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::deserialize (
     std::istream& is,
     part_id gpuId,
     concurrent_progress& readingProgress)
@@ -1334,22 +1362,26 @@ void gpu_hashmap<Key,ValueT>::deserialize(
 }
 
 
-/*************************************************************************//**
-*
-* @brief binary serialization of all non-empty buckets
-*
-*****************************************************************************/
-template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::serialize(std::ostream& os, part_id gpuId)
+
+
+//-----------------------------------------------------------------------------
+/**
+ *
+ * @brief binary serialization of all non-empty buckets
+ */
+template <class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::serialize (std::ostream& os, part_id gpuId)
 {
     cudaSetDevice(gpuId); CUERR
     buildHashTables_[gpuId]->serialize(os, max_locations_per_feature());
 }
 
 
-//---------------------------------------------------------------
-template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::copy_target_lineages_to_gpus(
+
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::copy_target_lineages_to_gpus (
     const std::vector<ranked_lineage>& lins)
 {
     lineages_.resize(numGPUs_);
@@ -1364,14 +1396,16 @@ void gpu_hashmap<Key,ValueT>::copy_target_lineages_to_gpus(
 }
 
 
-//---------------------------------------------------------------
-template<class Key, class ValueT>
-void gpu_hashmap<Key,ValueT>::enable_peer_access()
+
+
+//-----------------------------------------------------------------------------
+template <class Key, class ValueT>
+void gpu_hashmap<Key,ValueT>::enable_peer_access ()
 {
-    if (numParts_ > 0) {
-        // for each replicated db of numParts_ parts
-        for (unsigned firstGPU = 0; firstGPU < numGPUs_; firstGPU += numParts_) {
-            part_id lastGPU = firstGPU+numParts_-1;
+    if (numTables_ > 0) {
+        // for each replicated db of numTables_ tables
+        for (unsigned firstGPU = 0; firstGPU < numGPUs_; firstGPU += numTables_) {
+            part_id lastGPU = firstGPU+numTables_-1;
             // enable access between consecutive gpus
             for (part_id gpuId = firstGPU; gpuId < lastGPU; ++gpuId) {
                 // std::cerr << "Enabling peer access: GPUs "
@@ -1387,7 +1421,8 @@ void gpu_hashmap<Key,ValueT>::enable_peer_access()
 
 
 
-//---------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
 template class gpu_hashmap<kmer_type, location>;
 
 } // namespace mc

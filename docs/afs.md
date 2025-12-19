@@ -1,10 +1,8 @@
-# AFS-MetaCache: Food Ingredient Detection & Abundance Analysis
+# AFS-MetaCache2: Food Ingredient Detection & Abundance Analysis
 
 MetaCache is a classification system for mapping (short or long) reads from metagenomic samples to their most likely taxon of origin. It uses locality sensitive hashing to quickly identify candidate regions within one or multiple reference genomes. A read is then classified based on the similarity to those regions. 
 
-
-* [MetaCache Github Repository](https://github.com/muellan/metacache)
-* [**MetaCacheSpark**: Apache Spark&trade; implementation of MetaCache for big data clusters](https://github.com/jmabuin/MetaCacheSpark)
+[MetaCache Github Repository](https://github.com/muellan/metacache)
 
 
 
@@ -40,10 +38,12 @@ metacache build afs genomes_folder \
 
 It is important that you supply the option `-remove-overpopulated-features` if you add large eukaryotic genomes. This will improve classification accuracy and runtime performance.
 
+In case your workstation memory is not enough to fit the entire database, MetaCache allows partitioning into several smaller databases. These can be queried independently and the results can be merged to obtain final classifications.
+
 
 #### For more information see
-* [Building custom databases](building.md)
 * [Using partitioned databases](partitioning.md)
+* [Building custom databases](building.md)
 
 
 
@@ -66,6 +66,9 @@ If the option `-split-out` is given, mapping and abundance results will be writt
 -max-cand 4 -hitmin 4 -hitdiff 80
 ```
 for optimal results. This tells MetaCache to consider the 4 best matching candidates per read (the default is 2, which is fine for bacteria). It also makes sure that the best matching candidate wins over the lowest common ancestor of all candidates if the input read has at least 80% features more in common with this best candidate than it has with the 2nd best.
+
+
+##### [Generate Krona Plots From Abundance Results](docs/krona_plots.md)
 
 
 

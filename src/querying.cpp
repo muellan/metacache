@@ -2,8 +2,8 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2024 André Müller (muellan@uni-mainz.de)
- *                       & Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2026 André Müller (github.com/muellan)
+ *                       & Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,14 +21,14 @@
  *****************************************************************************/
 
 
-#include "querying.h"
+#include "querying.hpp"
 
-#include "classification.h"
-#include "cmdline_utility.h"
-#include "config.h"
-#include "filesys_utility.h"
-#include "options.h"
-#include "printing.h"
+#include "classification.hpp"
+#include "cmdline_utility.hpp"
+#include "config.hpp"
+#include "filesys_utility.hpp"
+#include "options.hpp"
+#include "printing.hpp"
 
 #include <algorithm>
 #include <iostream>
@@ -47,16 +47,16 @@ using std::endl;
 
 
 
-/*************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief runs classification on input files; sets output target streams
- *
- *****************************************************************************/
-void process_input_files(const vector<string>& infiles,
-                         const database& db, const query_options& opt,
-                         const string& queryMappingsFilename,
-                         const string& targetsFilename,
-                         const string& abundanceFilename)
+ */
+void process_input_files (
+    const vector<string>& infiles,
+    const database& db, const query_options& opt,
+    const string& queryMappingsFilename,
+    const string& targetsFilename,
+    const string& abundanceFilename)
 {
     std::ostream* perReadOut   = &cout;
     std::ostream* perTargetOut = &cout;
@@ -64,11 +64,13 @@ void process_input_files(const vector<string>& infiles,
     std::ostream* status       = &cerr;
 
     std::ofstream mapFile;
-    if (!queryMappingsFilename.empty()) {
+    if (not queryMappingsFilename.empty()) {
         mapFile.open(queryMappingsFilename, std::ios::out);
 
         if (mapFile.good()) {
-            cout << "Per-Read mappings will be written to file: " << queryMappingsFilename << endl;
+            if (opt.output.showInfo) {
+                cout << "Per-Read mappings will be written to file: " << queryMappingsFilename << endl;
+            }
             perReadOut = &mapFile;
             // default: auxiliary output same as mappings output
             perTargetOut = perReadOut;
@@ -80,11 +82,13 @@ void process_input_files(const vector<string>& infiles,
     }
 
     std::ofstream targetMappingsFile;
-    if (!targetsFilename.empty()) {
+    if (not targetsFilename.empty()) {
         targetMappingsFile.open(targetsFilename, std::ios::out);
 
         if (targetMappingsFile.good()) {
-            cout << "Per-Target mappings will be written to file: " << targetsFilename << endl;
+            if (opt.output.showInfo) {
+                cout << "Per-Target mappings will be written to file: " << targetsFilename << endl;
+            }
             perTargetOut = &targetMappingsFile;
         }
         else {
@@ -93,11 +97,13 @@ void process_input_files(const vector<string>& infiles,
     }
 
     std::ofstream abundanceFile;
-    if (!abundanceFilename.empty()) {
+    if (not abundanceFilename.empty()) {
         abundanceFile.open(abundanceFilename, std::ios::out);
 
         if (abundanceFile.good()) {
-            cout << "Per-Taxon mappings will be written to file: " << abundanceFilename << endl;
+            if (opt.output.showInfo) {
+                cout << "Per-Taxon mappings will be written to file: " << abundanceFilename << endl;
+            }
             perTaxonOut = &abundanceFile;
         }
         else {
@@ -127,19 +133,19 @@ void process_input_files(const vector<string>& infiles,
 
 
 
-/*************************************************************************//**
- *
+
+//-----------------------------------------------------------------------------
+/**
  * @brief runs classification on input files;
  *        handles output file split
- *
- *****************************************************************************/
-void process_input_files(const database& db,
-                         const query_options& opt)
+ */
+void process_input_files (
+    const database& db, const query_options& opt)
 {
     const auto& infiles = opt.infiles;
 
     if (infiles.empty()) {
-        cerr << "No input filenames provided!\n";
+        if (opt.output.showInfo) cerr << "No input filenames provided!\n";
         return;
     }
     else {
@@ -182,15 +188,15 @@ void process_input_files(const database& db,
                 input = vector<string>{f};
             }
 
-            if (!opt.queryMappingsFile.empty()) {
+            if (not opt.queryMappingsFile.empty()) {
                 queryMappingsFile = opt.queryMappingsFile + suffix;
             }
-            if (!ano.targetMappingsFile.empty() &&
+            if (not ano.targetMappingsFile.empty() &&
                 ano.targetMappingsFile != opt.queryMappingsFile)
             {
                 targetMappingsFile = ano.targetMappingsFile + suffix;
             }
-            if (!ano.abundanceFile.empty() &&
+            if (not ano.abundanceFile.empty() &&
                 ano.abundanceFile != opt.queryMappingsFile)
             {
                 abundanceFile = ano.abundanceFile + suffix;
@@ -210,13 +216,13 @@ void process_input_files(const database& db,
 
 
 
-/*************************************************************************//**
- *
+
+//-----------------------------------------------------------------------------
+/**
  * @brief sets up some query options according to database parameters
  *        or command line options
- *
- *****************************************************************************/
-void adapt_options_to_database(query_options& opt, const database& db)
+ */
+void adapt_options_to_database (query_options& opt, const database& db)
 {
     sketching_opt& skopt = opt.sketching;
 
@@ -232,9 +238,10 @@ void adapt_options_to_database(query_options& opt, const database& db)
     if (skopt.winstride < 1)
         skopt.winstride = skopt.winlen - skopt.kmerlen + 1;
 
-    if ((skopt.sketchlen != dbsk.sketchlen) ||
-       (skopt.winlen    != dbsk.winlen)    ||
-       (skopt.winstride != dbsk.winstride))
+    if (opt.output.showInfo &&
+        ((skopt.sketchlen != dbsk.sketchlen) ||
+         (skopt.winlen    != dbsk.winlen)    ||
+         (skopt.winstride != dbsk.winstride)) )
     {
         cerr << "custom query sketching settings:"
              << " -sketchlen " << skopt.sketchlen
@@ -260,13 +267,12 @@ void adapt_options_to_database(query_options& opt, const database& db)
 
 
 
-/*************************************************************************//**
- *
+
+//-----------------------------------------------------------------------------
+/**
  * @brief primitive REPL mode for repeated querying using the same database
- *
- *****************************************************************************/
-void run_interactive_query_mode(const database& db,
-                                const query_options& initOpt)
+ */
+void run_interactive_query_mode (const database& db, const query_options& initOpt)
 {
     cout << "Running in interactive mode:\n"
             " - Enter input file name(s) and command line options and press return.\n"
@@ -302,7 +308,7 @@ void run_interactive_query_mode(const database& db,
                 adapt_options_to_database(opt, db);
                 process_input_files(db, opt);
             }
-            catch(std::exception& e) {
+            catch (std::exception& e) {
                 if (initOpt.output.showErrors) cerr << e.what() << '\n';
             }
         }

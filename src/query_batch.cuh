@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2022 Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2022 Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,14 +19,15 @@
  *
  *****************************************************************************/
 
-#ifndef MC_QUERY_BATCH_H_
-#define MC_QUERY_BATCH_H_
+#ifndef MC_QUERY_BATCH_HPP_
+#define MC_QUERY_BATCH_HPP_
 
 
-#include "candidate_structs.h"
-#include "config.h"
-#include "hash_dna.h"
-#include "taxonomy.h"
+#include "candidate_structs.hpp"
+#include "config.hpp"
+#include "hash_dna.hpp"
+#include "taxonomy.hpp"
+#include "span.hpp"
 
 #include "cuda_runtime.h"
 
@@ -37,15 +38,14 @@
 namespace mc {
 
 
-/*************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief batch contains sequence data & query results of multiple reads,
  *        manages allocated memory on host and device,
  *        moves data between host & device,
  *        uses its own stream
- *
- *****************************************************************************/
-template<class Location>
+ */
+template <class Location>
 class query_batch
 {
     class segmented_sort;
@@ -73,17 +73,16 @@ public:
         query_host_data(query_host_data&&);
         ~query_host_data();
 
-        /*************************************************************************//**
-        *
-        * @brief add sequence pair to batch as windows of characters
-        *        if sequence pair does not fit into batch, don't add it
-        *
-        * @details each window of a sequence is added as a separate query
-        *
-        * @return true if added, false otherwise
-        *
-        *****************************************************************************/
-        template<class InputIterator>
+        //---------------------------------------------------------------------
+        /**
+         * @brief add sequence pair to batch as windows of characters
+         *        if sequence pair does not fit into batch, don't add it
+         *
+         * @details each window of a sequence is added as a separate query
+         *
+         * @return true if added, false otherwise
+         */
+        template <class InputIterator>
         bool add_paired_read(
             InputIterator first1, InputIterator last1,
             InputIterator first2, InputIterator last2,
@@ -187,7 +186,7 @@ public:
         }
 
         //-----------------------------------------------------
-        template<class Sequence>
+        template <class Sequence>
         bool add_paired_read(
             Sequence seq1, Sequence seq2,
             const sketching_opt& querySketching,
@@ -306,7 +305,7 @@ public:
         }
 
         void switch_offsets() {
-            offsetSwitcher_ = !offsetSwitcher_;
+            offsetSwitcher_ = not offsetSwitcher_;
         }
 
         //---------------------------------------------------------------
@@ -359,7 +358,7 @@ public:
     ~query_batch();
 
     //---------------------------------------------------------------
-    part_id num_gpus() const noexcept {
+    part_id gpu_count() const noexcept {
         return numGPUs_;
     }
     //---------------------------------------------------------------
@@ -381,7 +380,7 @@ public:
 
     //---------------------------------------------------------------
     /** @brief add read to host batch */
-    template<class... Args>
+    template <class... Args>
     bool add_paired_read(part_id hostId, Args&&... args)
     {
         return hostData_[hostId].add_paired_read(

@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2024 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2026 André Müller (github.com/muellan)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@
  *****************************************************************************/
 
 
-#include "cmdline_utility.h"
+#include "cmdline_utility.hpp"
 
 #include <future>
 #include <iostream>
@@ -31,7 +31,7 @@ namespace mc {
 
 
 //-------------------------------------------------------------------
-cmdline_args make_args_list(char** first, char** last)
+cmdline_args make_args_list (char** first, char** last)
 {
     cmdline_args args;
     if (last < first) return args;
@@ -48,7 +48,7 @@ cmdline_args make_args_list(char** first, char** last)
 
 
 //-------------------------------------------------------------------
-void show_progress_indicator(std::ostream& os, float done, int totalLength)
+void show_progress_indicator (std::ostream& os, float done, int totalLength)
 {
     if (done < 0.f) done = 0.f;
     auto m = int((totalLength - 7) * done);
@@ -63,7 +63,7 @@ void show_progress_indicator(std::ostream& os, float done, int totalLength)
 
 
 //-------------------------------------------------------------------
-void clear_current_line(std::ostream& os, int length)
+void clear_current_line (std::ostream& os, int length)
 {
     os << '\r';
     for (; length > 0; --length) os << ' ';
@@ -73,8 +73,10 @@ void clear_current_line(std::ostream& os, int length)
 
 
 //-------------------------------------------------------------------
-void show_progress_until_ready(std::ostream& os, concurrent_progress& progress,
-                               std::vector<std::future<void>>& futures)
+void show_progress_until_ready (
+    std::ostream& os,
+    concurrent_progress& progress,
+    std::vector<std::future<void>>& futures)
 {
     progress.show(os);
 

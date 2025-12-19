@@ -1,16 +1,17 @@
 # MetaCache
 
-[![Linux build status](https://travis-ci.org/muellan/metacache.svg?branch=master)](https://travis-ci.org/muellan/metacache)
-
 MetaCache is a classification system for mapping genomic sequences (short reads, long reads, contigs, ...) from metagenomic samples to their most likely taxon of origin. MetaCache aims to reduce the memory requirement usually associated with k-mer based methods while retaining their speed. It uses locality sensitive hashing to quickly identify candidate regions within one or multiple reference genomes. A read is then classified based on the similarity to those regions.
 
-For an independend comparison to other tools in terms of classification accuracy see the [LEMMI](https://lemmi.ezlab.org) benchmarking site.
-
-**MetaCache's CPU version** classifies around 60 Million reads (of length 100) per minute against all complete bacterial, viral and archaea genomes from NCBI RefSeq Release 97 running with 88 threads on a workstation with 2 Intel(R) Xeon(R) Gold 6238 CPUs.
+**MetaCache's CPU version** classifies around 110 million reads (of length 130bp) per minute against all complete bacterial, viral and archaea genomes from NCBI RefSeq Release 222 running with 128 threads on a workstation with an AMD Epyc 7713P 64-core CPU or 20 million long reads (200bp-19000bp, median 480bp) per minute on the same platform with the same database.
 
 **MetaCache's [GPU version](docs/gpu_version.md)** classifies around 300 Million reads (of length 100) per minute against all complete bacterial, viral, fungal and archaea genomes from NCBI RefSeq Release 202 running on a workstation with 4 NVIDIA(R) Tesla(R) V100 GPUs (32 GB model).
 [**MetaCache-GPU**](https://arxiv.org/abs/2106.08150) was presented at ICPP '21.
+Database build times are up to 100 times faster on the GPU and are typically on the order of a few seconds to a
+minute even for 100GB+ databases!
+MetaCache GPU has been successfully used to build and query (partitioned) databases of 1000s of eukaryotic genomes with a total size of multiple terabytes.
 
+**[All-Food-Seq](docs/afs.md)** shows how MetaCache can be used for shotgun sequencing based analysis of foodstuff 
+with large reference databases comprised of various eukaryotic and microbial genomes.
 
 
 
@@ -31,7 +32,7 @@ This will
   * download the complete bacterial, viral and archaea genomes from the latest NCBI RefSeq release (this can take some time)
   * build a classification database
 
-Once the default database is built you can classify reads:
+Once the refseq database is built you can classify reads:
   ```
   ./metacache query refseq myReads.fa -out results.txt
   ./metacache query refseq anyFolderWithFastaOrFastqFiles -out results.txt
@@ -60,7 +61,7 @@ MetaCache 2.0.0 was successfully tested on the following platforms (all 64 bit +
 - Ubuntu 20.04 with g++ 5.4, g++ 7.4
 - Windows 10 20H2 running Ubuntu 20.04 inside WSL2 and g++ 10.3
 
-In order to be able to build the default database (based on NCBI RefSeq Release 97) with default settings your system should have around 64GB of RAM (note that the NCBI RefSeq will still be growing in the near future).
+In order to be able to build a database based on NCBI RefSeq with default settings your system should have at least 128GB of RAM as of RefSeq Release 220 (note that the NCBI RefSeq will still be growing in the near future).
 If you don't have enough RAM, you can use [database partitioning](docs/partitioning.md).
 
 
@@ -152,12 +153,13 @@ If you *don't* have the zlib compression library installed and/or want *don't* w
 ## Building Databases
 
 
-#### Building the Default RefSeq Database
+#### Building a RefSeq-based Database
 
 Use the `metacache-build-refseq` script to build a MetaCache database based on complete bacterial, viral and archaea genomes from the latest NCBI RefSeq release. Note that the genomes will be downloaded first, which can take some time.
 The database files are put into the folder `genomes` in the current working directory.
 
 ### [Building Custom Databases...](docs/building.md)
+### [Building Partitioned Databases...](docs/partitioning.md)
 
 
 
@@ -184,6 +186,9 @@ Once a database (e.g. the standard 'refseq'), is built you can classify reads.
 
 ### [Classification Output Interpretation, Analysis & Formatting Options...](docs/output.md)
 
+### [Generate Krona Plots From Abundance Results](docs/krona_plots.md)
+
+
 
 
 
@@ -208,6 +213,7 @@ or jump directly to a mode's man page with:
 ./metacache help query
 ...
 ```
+
 
 
 

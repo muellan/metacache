@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2022 Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2022 Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@
 namespace mc {
 
 
-template<>
+template <>
 statistics_accumulator_gpu<policy::Host>::statistics_accumulator_gpu() : isCopy_(false) {
     cudaMallocHost(&data_, 5*sizeof(uint64_t));
 
@@ -38,7 +38,7 @@ statistics_accumulator_gpu<policy::Host>::statistics_accumulator_gpu() : isCopy_
     *sum2_() = 0;
     *sum3_() = 0;
 }
-template<>
+template <>
 statistics_accumulator_gpu<policy::Device>::statistics_accumulator_gpu() : isCopy_(false) {
     cudaMalloc(&data_, 5*sizeof(uint64_t));
 
@@ -46,25 +46,25 @@ statistics_accumulator_gpu<policy::Device>::statistics_accumulator_gpu() : isCop
 }
 
 
-template<>
+template <>
 statistics_accumulator_gpu<policy::Host>::~statistics_accumulator_gpu() {
-    if (!isCopy_)
+    if (not isCopy_)
         cudaFreeHost(data_);
 }
-template<>
+template <>
 statistics_accumulator_gpu<policy::Device>::~statistics_accumulator_gpu() {
-    if (!isCopy_)
+    if (not isCopy_)
         cudaFree(data_);
 }
 
 
-template<>
+template <>
 statistics_accumulator_gpu<policy::Host>&
 statistics_accumulator_gpu<policy::Host>::operator = (const statistics_accumulator_gpu<policy::Host>& other) {
     cudaMemcpy(data_, other.data_, 5*sizeof(uint64_t), cudaMemcpyDefault);
     return *this;
 };
-template<>
+template <>
 statistics_accumulator_gpu<policy::Host>&
 statistics_accumulator_gpu<policy::Host>::operator = (const statistics_accumulator_gpu<policy::Device>& other) {
     cudaMemcpy(data_, other.data_, 5*sizeof(uint64_t), cudaMemcpyDefault);
@@ -72,7 +72,7 @@ statistics_accumulator_gpu<policy::Host>::operator = (const statistics_accumulat
 };
 
 
-template<>
+template <>
 statistics_accumulator_gpu<policy::Host>&
 statistics_accumulator_gpu<policy::Host>::operator += (const statistics_accumulator_gpu<policy::Host>& other) {
     if (*max_() < *(other.max_())) *max_() = *(other.max_());
@@ -86,7 +86,7 @@ statistics_accumulator_gpu<policy::Host>::operator += (const statistics_accumula
 
 
 
-template<class Value>
+template <class Value>
 __global__
 void accumultate_statistics(statistics_accumulator_gpu<policy::Device> stats, Value * values, size_t numValues)
 {
@@ -156,8 +156,8 @@ void accumultate_statistics(statistics_accumulator_gpu<policy::Device> stats, Va
 }
 
 
-template<>
-template<class Value>
+template <>
+template <class Value>
 void statistics_accumulator_gpu<policy::Device>::accumulate(Value * values, size_type numValues) {
     accumultate_statistics<<<512, 512>>>(*this, values, numValues);
 }

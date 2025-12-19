@@ -12,7 +12,7 @@ DESCRIPTION
 
 REQUIRED PARAMETERS
 
-    <database>        database file name;
+    <database>        Name of database.
                       A MetaCache database contains taxonomic information and
                       min-hash signatures of reference sequences (complete
                       genomes, scaffolds, contigs, ...).
@@ -40,8 +40,8 @@ BASIC OPTIONS
 
     -sequence-id-format (smart|ncbi|gi|filename|leadingword)
                       Method used for extracting sequence IDs from filenames and
-                      sequence headers.Sequence IDs are also used to assign taxa
-                      to reference sequences.
+                      sequence headers. Sequence IDs are also used to assign
+                      taxa to reference sequences.
                       Available types are:
                       smart       : try NCBI > genbank > filename
                       ncbi        : NCBI-style accession/accession.version
@@ -125,8 +125,19 @@ ADVANCED OPTIONS
                       Not available in the GPU version.
 
     -parts <#>        Splits the database into multiple parts. Each part
-                      contains a separate hash table.
+                      contains a separate hash table. 
                       default: 1
+
+    -max-part-size <GB>
+                      Sets the maximum size of a database partition in
+                      gigabytes.
+                      default: no limit
+
+    -threads <#>      Sets the maximum number of parallel threads to use.
+                      More threads speed up the build process but require more
+                      memory.
+                      default (on this machine): 20
+
 
 EXAMPLES
 

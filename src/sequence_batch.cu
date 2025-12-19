@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2022 Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2022 Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@ namespace mc {
 
 
 //---------------------------------------------------------------
-template<>
+template <>
 sequence_batch<policy::Host>::sequence_batch(index_type maxTargets, size_type maxSequenceLength) :
     maxTargets_{maxTargets}, numTargets_{0}, maxSequenceLength_{maxSequenceLength}
 {
@@ -43,7 +43,7 @@ sequence_batch<policy::Host>::sequence_batch(index_type maxTargets, size_type ma
     cudaEventCreate(&batchProcessedEvent_); CUERR
 }
 //---------------------------------------------------------------
-template<>
+template <>
 sequence_batch<policy::Host>::~sequence_batch() {
     if (maxTargets_) {
         cudaFreeHost(targetIds_);
@@ -57,7 +57,7 @@ sequence_batch<policy::Host>::~sequence_batch() {
 }
 
 //---------------------------------------------------------------
-template<>
+template <>
 sequence_batch<policy::Device>::sequence_batch(index_type maxTargets, size_type maxSequenceLength) :
     maxTargets_{maxTargets}, numTargets_{0}, maxSequenceLength_{maxSequenceLength}
 {
@@ -79,7 +79,7 @@ sequence_batch<policy::Device>::sequence_batch(index_type maxTargets, size_type 
     cudaEventCreate(&batchProcessedEvent_); CUERR
 }
 //---------------------------------------------------------------
-template<>
+template <>
 sequence_batch<policy::Device>::~sequence_batch() {
     if (maxTargets_) {
         cudaFree(targetIds_);
@@ -94,13 +94,13 @@ sequence_batch<policy::Device>::~sequence_batch() {
 
 
 //---------------------------------------------------------------
-template<>
+template <>
 void sequence_batch<policy::Host>::clear() noexcept {
     cudaEventSynchronize(batchProcessedEvent_); CUERR
     num_targets(0);
 }
 //-----------------------------------------------------
-template<>
+template <>
 void sequence_batch<policy::Device>::clear() noexcept {
     cudaEventSynchronize(batchProcessedEvent_); CUERR
     num_targets(0);

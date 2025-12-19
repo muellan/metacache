@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2024 André Müller (muellan@uni-mainz.de)
+ * Copyright (C) 2016-2026 André Müller (github.com/muellan)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,11 +20,11 @@
  *****************************************************************************/
 
 
-#include "candidate_generation.h"
-#include "database.h"
-#include "options.h"
-#include "printing.h"
-#include "typename.h"
+#include "database.hpp"
+#include "options.hpp"
+#include "printing.hpp"
+#include "typename.hpp"
+#include "config.hpp"
 
 #include <array>
 #include <iostream>
@@ -42,11 +42,8 @@ using std::endl;
 using std::string;
 
 
-/*************************************************************************//**
- *
- *
- *****************************************************************************/
-void print_query_config()
+//-----------------------------------------------------------------------------
+void print_query_config ()
 {
     cout << "hit classifier       "
          << type_name<classification_candidates>() << '\n'
@@ -55,11 +52,9 @@ void print_query_config()
 
 
 
-/*************************************************************************//**
- *
- *
- *****************************************************************************/
-void show_database_config(const string& dbfile)
+
+//-----------------------------------------------------------------------------
+void show_database_config (const string& dbfile)
 {
     int dbPart = -1;
     auto db = make_database(dbfile, dbPart, database::scope::metadata_only);
@@ -68,17 +63,15 @@ void show_database_config(const string& dbfile)
     print_query_config();
 
     cout << "database parts       "
-         << db.num_parts() << '\n'
+         << db.part_count() << '\n'
          << "------------------------------------------------\n";
 }
 
 
 
-/*************************************************************************//**
- *
- *
- *****************************************************************************/
-void show_database_statistics(const string& dbfile, int dbPart)
+
+//-----------------------------------------------------------------------------
+void show_database_statistics (const string& dbfile, int dbPart)
 {
     auto db = make_database(dbfile, dbPart);
     print_static_properties(db);
@@ -88,11 +81,8 @@ void show_database_statistics(const string& dbfile, int dbPart)
 
 
 
-/*************************************************************************//**
- *
- *
- *****************************************************************************/
-void show_feature_map(const string& dbfile, int dbPart)
+//-----------------------------------------------------------------------------
+void show_feature_map (const string& dbfile, int dbPart)
 {
     auto db = make_database(dbfile, dbPart);
     print_static_properties(db);
@@ -104,11 +94,9 @@ void show_feature_map(const string& dbfile, int dbPart)
 
 
 
-/*************************************************************************//**
- *
- *
- *****************************************************************************/
-void show_feature_counts(const string& dbfile, int dbPart)
+
+//-----------------------------------------------------------------------------
+void show_feature_counts (const string& dbfile, int dbPart)
 {
     auto db = make_database(dbfile, dbPart);
     print_static_properties(db);
@@ -120,12 +108,9 @@ void show_feature_counts(const string& dbfile, int dbPart)
 
 
 
-/*************************************************************************//**
- *
- * @brief
- *
- *****************************************************************************/
-void show_target_info(std::ostream& os, const taxon& tax, const ranked_lineage& lineage)
+
+//-----------------------------------------------------------------------------
+void show_target_info (std::ostream& os, const taxon& tax, const ranked_lineage& lineage)
 {
     os  << "Target " << tax.name() << "):\n"
         << "    source:     "
@@ -144,23 +129,20 @@ void show_target_info(std::ostream& os, const taxon& tax, const ranked_lineage& 
 
 
 
-/*************************************************************************//**
- *
- * @brief
- *
- *****************************************************************************/
-void show_target_info(const info_options& opt)
+
+//-----------------------------------------------------------------------------
+void show_target_info (const info_options& opt)
 {
     int dbPart = -1;
     auto db = make_database(opt.dbfile, dbPart, database::scope::metadata_only);
-    const auto& taxonomy = db.taxo_cache();
+    const auto& taxa = db.taxa();
 
-    if (!opt.targetNames.empty()) {
+    if (not opt.targetNames.empty()) {
         for (const auto& target : opt.targetNames) {
-            const taxon* tax = taxonomy.taxon_with_name(target);
+            const taxon* tax = taxa.taxon_with_name(target);
             if (tax && tax->id() < 0) {
                 target_id tgt = -tax->id()-1;
-                show_target_info(cout, *tax, taxonomy.cached_ranks(tgt));
+                show_target_info(cout, *tax, taxa.cached_ranks(tgt));
             }
             else {
                 cout << "Target (reference sequence) '" << target
@@ -170,7 +152,7 @@ void show_target_info(const info_options& opt)
     }
     else {
         cout << "Targets (reference sequences) in database:\n";
-        for (const auto& ranks : taxonomy.target_lineages()) {
+        for (const auto& ranks : taxa.target_lineages()) {
             show_target_info(cout, *ranks[0], ranks);
         }
     }
@@ -178,12 +160,9 @@ void show_target_info(const info_options& opt)
 
 
 
-/*************************************************************************//**
- *
- * @brief
- *
- *****************************************************************************/
-void show_lineage_table(const info_options& opt)
+
+//-----------------------------------------------------------------------------
+void show_lineage_table (const info_options& opt)
 {
     using rank = taxonomy::rank;
 
@@ -198,10 +177,10 @@ void show_lineage_table(const info_options& opt)
     }
     cout << '\n';
 
-    const auto& taxonomy = db.taxo_cache();
+    const auto& taxa = db.taxa();
 
     // rows
-    for (const auto& ranks : taxonomy.target_lineages()) {
+    for (const auto& ranks : taxa.target_lineages()) {
         cout << ranks[0]->name();
         for (auto r = rank::Sequence; r <= rank::Domain; ++r) {
             cout << '\t'
@@ -214,12 +193,8 @@ void show_lineage_table(const info_options& opt)
 
 
 
-/*************************************************************************//**
- *
- * @brief
- *
- *****************************************************************************/
-void show_rank_statistics(const info_options& opt)
+//-----------------------------------------------------------------------------
+void show_rank_statistics (const info_options& opt)
 {
     if (opt.rank == taxon_rank::none) {
         cerr << "Please specify a taxonomic rank:\n";
@@ -231,12 +206,12 @@ void show_rank_statistics(const info_options& opt)
 
     int dbPart = -1;
     auto db = make_database(opt.dbfile, dbPart, database::scope::metadata_only);
-    const auto& taxonomy = db.taxo_cache();
+    const auto& taxa = db.taxa();
 
     std::map<const taxon*, std::size_t> stat;
 
     for (target_id tgt = 0; tgt < db.target_count(); ++tgt) {
-        const taxon* t = taxonomy.cached_ancestor(tgt, opt.rank);
+        const taxon* t = taxa.cached_ancestor(tgt, opt.rank);
         if (t) {
             auto it = stat.find(t);
             if (it != stat.end()) {
@@ -260,12 +235,9 @@ void show_rank_statistics(const info_options& opt)
 
 
 
-/*************************************************************************//**
- *
- * @brief
- *
- *****************************************************************************/
-void show_basic_exec_info()
+
+//-----------------------------------------------------------------------------
+void show_basic_exec_info ()
 {
     database db;
     print_static_properties(db);
@@ -275,12 +247,12 @@ void show_basic_exec_info()
 
 
 
-/*************************************************************************//**
- *
+
+//-----------------------------------------------------------------------------
+/**
  * @brief shows database properties
- *
- *****************************************************************************/
-void main_mode_info(const cmdline_args& args)
+ */
+void main_mode_info (const cmdline_args& args)
 {
     auto opt = get_info_options(args);
 

@@ -143,6 +143,8 @@ sequence:NC_004722.1            | 226900  | 7     |  0.07%
 This table represents the raw abundances based on MetaCache's read mapping. As one can see from the example, taxa on any taxonomic rank/level are listed. To get a best estimate with respect to one specific taxonomic rank only, like e.g., species, use `-abundance-per <taxonomic rank>` (see next section). 
 
 
+
+
 ## Abundance Estimation With Respect To One Taxonomic Rank Only
 
 with command line option `-abundance-per <taxonomic rank>`. 
@@ -187,6 +189,9 @@ phylum:Firmicutes     | 1239   | 1236.08 | 12.3608%
 phylum:Actinobacteria | 201174 | 2.02304 | 0.0202304%
 ...
 ```
+
+#### [Generate Krona Plots From Abundance Results](krona_plots.md)
+
 
 
 

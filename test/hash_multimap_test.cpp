@@ -1,8 +1,8 @@
 
-#include "../src/hash_multimap.h"
+#include "../src/hash_multimap.hpp"
 
-#include "../src/stat_moments.h"
-#include "../src/timer.h"
+#include "../src/stat_moments.hpp"
+#include "../src/timer.hpp"
 
 #include <stdexcept>
 #include <random>

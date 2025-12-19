@@ -2,8 +2,8 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2024 André Müller (muellan@uni-mainz.de)
- *                       & Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2026 André Müller (github.com/muellan)
+ *                       & Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,17 +21,16 @@
  *****************************************************************************/
 
 
-#include "modes.h"
+#include "modes.hpp"
 
 #include <iostream>
 #include <stdexcept>
 
 
-/*************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief  selects & executes main mode / shows quick help
- *
- *****************************************************************************/
+ */
 int main(int argc, char** argv)
 {
     using namespace mc;
@@ -40,7 +39,6 @@ int main(int argc, char** argv)
     if (argc > 1) { modestr = argv[1]; }
 
     try {
-
         if (modestr == "build") {
             main_mode_build(make_args_list(argv+2, argv+argc));
         }
@@ -63,16 +61,16 @@ int main(int argc, char** argv)
             main_mode_help(make_args_list(argv, argv+argc));
         }
     }
-    catch(std::runtime_error& e) {
+    catch (std::runtime_error& e) {
         std::cerr << "\nABORT: " << e.what() << '\n';
         return EXIT_FAILURE;
     }
-    catch(std::invalid_argument& e) {
+    catch (std::invalid_argument& e) {
         std::cerr << "ERROR: Invalid command line arguments!\n\n"
                   << e.what() << "\n";
         return EXIT_FAILURE;
     }
-    catch(std::exception& e) {
+    catch (std::exception& e) {
         std::cerr << e.what() << "\n\n";
         return EXIT_FAILURE;
     }

@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2022 Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2022 Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,20 +19,22 @@
  *
  *****************************************************************************/
 
-#ifndef MC_GPU_HASHMAP_OPERATIONS_H_
-#define MC_GPU_HASHMAP_OPERATIONS_H_
+#ifndef MC_GPU_HASHMAP_OPERATIONS_HPP_
+#define MC_GPU_HASHMAP_OPERATIONS_HPP_
 
-#include "config.h"
-#include "dna_encoding.h"
+
+#include "config.hpp"
+#include "dna_encoding.hpp"
 
 #include "../dep/hpc_helpers/include/cuda_helpers.cuh"
 #include "../dep/bb_segsort/src/bb_exch_keys.cuh"
 
+
 namespace mc {
 
 
-/**************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief extract kmers from sequence
  *
  * @details each thread processes 4 characters and extracts up to 4 kmers
@@ -41,12 +43,11 @@ namespace mc {
  * @param sequenceLength max length is 128 (32*4)
  * @param kmerSize size of kemrs to be extracted
  * @param items array to store 4 kmers per thread
- *
- *****************************************************************************/
- template<
+ */
+ template <
     class Offset>
 __device__ __inline__
-void warp_kmerize(
+void warp_kmerize (
     const char * sequenceBegin,
     Offset sequenceLength,
     numk_t kmerSize,
@@ -156,7 +157,7 @@ void warp_kmerize(
         kmer = make_canonical_2bit(kmer, kmerSize);
 
         // check for ambiguous base
-        bool pred = !(ambig & ambigMask);
+        bool pred = not (ambig & ambigMask);
 
         // ignore kmers with ambiguous base
         items[i] = pred ? sketching_hash{}(kmer) : feature(~0);
@@ -164,18 +165,19 @@ void warp_kmerize(
 }
 
 
-/**************************************************************************//**
- *
+
+
+//-----------------------------------------------------------------------------
+/**
  * @brief in-place bitonic sort of 128 (4*32) elements
  *
  * @details see bb_segsort submodule
  *
  * @param rg_k array of 4 items per thread
- *
- *****************************************************************************/
-template<class K>
+ */
+template <class K>
 __device__ __inline__
-void warp_sort_128(K rg_k[4])
+void warp_sort_128 (K rg_k[4])
 {
     const int warpLane = threadIdx.x % WARPSIZE;
     const int bit1 = (warpLane>>0)&0x1;
@@ -306,8 +308,10 @@ void warp_sort_128(K rg_k[4])
 }
 
 
-/**************************************************************************//**
- *
+
+
+//-----------------------------------------------------------------------------
+/**
  * @brief extract unique features from sorted items
  *
  * @param items         sorted features
@@ -315,16 +319,15 @@ void warp_sort_128(K rg_k[4])
  * @param maxSketchSize maximum allowed sketch size
  *
  * @return number of unique features stored in sketch
- *
- *****************************************************************************/
-template<
+ */
+template <
     int ITEMS_PER_THREAD,
     class Feature,
     class Feature2>
 __device__ __inline__
-uint32_t unique_sketch(
+uint32_t unique_sketch (
     const Feature items[ITEMS_PER_THREAD],
-    Feature2 * sketch,
+    Feature2* sketch,
     uint32_t maxSketchSize)
 {
     const int warpLane = threadIdx.x % WARPSIZE;
@@ -363,8 +366,10 @@ uint32_t unique_sketch(
 }
 
 
-/**************************************************************************//**
- *
+
+
+//-----------------------------------------------------------------------------
+/**
  * @brief use one warp to generate min-hasher sketch from sequence;
  *
  * @details smallest *unique* hash values of *one* hash function
@@ -376,15 +381,14 @@ uint32_t unique_sketch(
  * @param maxSketchSize maximum allowed sketch size
  *
  * @return number of features in sketch
- *
- *****************************************************************************/
- template<class Offset, class Feature>
+ */
+ template <class Offset, class Feature>
 __device__ __inline__
-uint32_t warp_make_sketch(
-    const char * sequenceBegin,
-    const char * sequenceEnd,
+uint32_t warp_make_sketch (
+    const char* sequenceBegin,
+    const char* sequenceEnd,
     const numk_t kmerSize,
-    Feature * sketch,
+    Feature* sketch,
     const uint32_t maxSketchSize)
 {
     using offset_type = Offset;
@@ -395,7 +399,7 @@ uint32_t warp_make_sketch(
     const offset_type sequenceLength = sequenceEnd - sequenceBegin;
 
     // skip empty queries
-    if (!sequenceLength) return sketchSize;
+    if (not sequenceLength) return sketchSize;
 
     constexpr int itemsPerThread = 4; // 32*4=128 items
     feature items[itemsPerThread];
@@ -449,8 +453,10 @@ uint32_t warp_make_sketch(
 }
 
 
-/**************************************************************************//**
- *
+
+
+//-----------------------------------------------------------------------------
+/**
  * @brief use one warp to load sketch from memory
  *
  * @param sketches       pointer to sketch in memory
@@ -458,13 +464,12 @@ uint32_t warp_make_sketch(
  * @param maxSketchSize  maximum allowed sketch size
  *
  * @return number of features in sketch
- *
- *****************************************************************************/
- template<class Feature>
+ */
+ template <class Feature>
 __device__ __inline__
-uint32_t warp_load_sketch(
-    const feature * sketches,
-    Feature * sketch,
+uint32_t warp_load_sketch (
+    const feature* sketches,
+    Feature* sketch,
     const uint32_t maxSketchSize)
 {
     const int warpLane = threadIdx.x % WARPSIZE;
@@ -489,23 +494,24 @@ uint32_t warp_load_sketch(
 }
 
 
-/**************************************************************************//**
- *
+
+
+//-----------------------------------------------------------------------------
+/**
  * @brief for each feature in sketch insert location into hash table
  *
  * @param hashtable  hashtable where sketch is inserted
  * @param sketch     pointer to sketch array (keys to insert)
  * @param sketchSize sketch size
  * @param loc        location (value to insert)
- *
- *****************************************************************************/
-template<
+ */
+template <
     class Hashtable,
     class Feature>
 __device__ __inline__
 void insert_into_hashtable(
     Hashtable& hashtable,
-    const Feature * sketch,
+    const Feature* sketch,
     uint32_t sketchSize,
     typename Hashtable::value_type loc)
 {
@@ -530,24 +536,22 @@ void insert_into_hashtable(
 }
 
 
-/**************************************************************************//**
- *
+
+
+//-----------------------------------------------------------------------------
+/**
  * @brief query the hash table with each feature in sketch;
  *        write the result back into sketch in place of the feature
  *
  * @param hashtable  hashtable which is queried
  * @param sketch     pointer to sketch array (keys to query)
  * @param sketchSize sketch size
- *
- *****************************************************************************/
-template<
+ */
+template <
     class Hashtable,
     class Feature>
 __device__ __inline__
-void query_hashtable(
-    Hashtable& hashtable,
-    Feature * sketch,
-    uint32_t sketchSize)
+void query_hashtable (Hashtable& hashtable, Feature* sketch, uint32_t sketchSize)
 {
     namespace cg = cooperative_groups;
 
@@ -577,8 +581,10 @@ void query_hashtable(
 }
 
 
-/**************************************************************************//**
- *
+
+
+//-----------------------------------------------------------------------------
+/**
  * @brief for each feature in sketch copy its loctions to the output
  *
  * @param sketch     pointer to sketch array (offset and size of location buckets)
@@ -590,15 +596,14 @@ void query_hashtable(
  * @param outOffset  pointer to output offset
  *
  * @return total number of locations copied for sketch
- *
- *****************************************************************************/
-template<
+ */
+template <
     int MAX_SKETCH_SIZE,
     class Feature,
     class Location,
     class BucketSizeT>
 __device__ __inline__
-void copy_loctions(
+void copy_loctions (
     Feature * sketch,
     uint32_t sketchSize,
     const Location * locations,
@@ -646,9 +651,11 @@ void copy_loctions(
     }
 }
 
+ 
 
-/**************************************************************************//**
- *
+
+//-----------------------------------------------------------------------------
+/**
  * @brief query the hash table with each feature in sketch;
  *        for each feature copy its loctions to the output
  *
@@ -658,9 +665,8 @@ void copy_loctions(
  * @param sketchSize sketch size
  * @param out        pointer to output array
  * @param outOffset  pointer to output offset
- *
- *****************************************************************************/
-template<
+ */
+template <
     int MAX_SKETCH_SIZE,
     class Hashtable>
 __device__ __inline__
@@ -737,14 +743,13 @@ void query_bucket_hashtable(
 
 
 
-/**************************************************************************//**
- *
- * @brief insert batch of sequences into bucket list hashtable
+//-----------------------------------------------------------------------------
+/**
+ * @brief   insert batch of sequences into bucket list hashtable
  *
  * @details each warp processes one sequence (window)
- *
- *****************************************************************************/
-template<
+ */
+template <
     int BLOCK_THREADS,
     int MAX_SKETCH_SIZE,
     class Hashtable,
@@ -831,14 +836,15 @@ void insert_features(
 }
 
 
-/**************************************************************************//**
- *
+
+
+//-----------------------------------------------------------------------------
+/**
  * @brief query batch of sequences against hashtable
  *
  * @details each warp processes one sequence (window)
- *
- *****************************************************************************/
-template<
+ */
+template <
     int BLOCK_THREADS,
     int MAX_SKETCH_SIZE,
     class Hashtable,
@@ -936,14 +942,15 @@ void gpu_hahstable_query(
 }
 
 
-/**************************************************************************//**
- *
+
+
+//-----------------------------------------------------------------------------
+/**
  * @brief query batch of sequences against bucket list hashtable
  *
  * @details each warp processes one sequence (window)
- *
- *****************************************************************************/
-template<
+ */
+template <
     int BLOCK_THREADS,
     int MAX_SKETCH_SIZE,
     class Hashtable,

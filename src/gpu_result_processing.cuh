@@ -2,7 +2,7 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2022 Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2022 Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,25 +19,25 @@
  *
  *****************************************************************************/
 
-#ifndef MC_GPU_RESULT_PROCESSING_H_
-#define MC_GPU_RESULT_PROCESSING_H_
+#ifndef MC_GPU_RESULT_PROCESSING_HPP_
+#define MC_GPU_RESULT_PROCESSING_HPP_
 
-#include "config.h"
-#include "candidate_structs.h"
-#include "dna_encoding.h"
+
+#include "config.hpp"
+#include "candidate_structs.hpp"
+#include "dna_encoding.hpp"
 
 #include "../dep/hpc_helpers/include/cuda_helpers.cuh"
 
+
 namespace mc {
 
-
-/*************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief  remove memory gaps between results of different windows;
  *         determine segment offsets and store them in global memory
- *
- *****************************************************************************/
-template<class Id, class Result>
+ */
+template <class Id, class Result>
 __global__
 void compact_results(
     uint32_t numWindows,
@@ -86,6 +86,8 @@ void compact_results(
 }
 
 
+
+
 //-----------------------------------------------------------------------------
 __device__
 const taxon*
@@ -101,6 +103,9 @@ lowest_ranked_ancestor(const ranked_lineage * targetLineages,
     return nullptr;
 }
 
+
+
+
 //-----------------------------------------------------------------------------
 __device__
 const taxon*
@@ -110,21 +115,23 @@ cached_taxon_of_target(const ranked_lineage * targetLineages, target_id tgt)
 }
 
 
-/*************************************************************************//**
- * @brief  a location with one or more hits
- *****************************************************************************/
+
+
+//-----------------------------------------------------------------------------
+/** @brief  a location with one or more hits */
 struct match {
     location loc;
     uint32_t hits;
 };
 
 
-/*************************************************************************//**
- *
+
+
+//-----------------------------------------------------------------------------
+/**
  * @brief  calculate length of runs of identical locations to create matches
- *
- *****************************************************************************/
-template<class Iterator, class Matches>
+ */
+template <class Iterator, class Matches>
 __device__
 uint32_t reduce_locations(
     const Iterator begin, const Iterator end,
@@ -154,7 +161,7 @@ uint32_t reduce_locations(
     otherLocation = __shfl_up_sync(0xFFFFFFFF, myLocation, 1);
 
     // find threads which have to write
-    bool predicate = !(myLocation == otherLocation);
+    bool predicate = not (myLocation == otherLocation);
 
     if (tid == 0) {
         // predicate is false because myLocation == otherLocation
@@ -191,12 +198,13 @@ uint32_t reduce_locations(
 }
 
 
-/*************************************************************************//**
- *
+
+
+//-----------------------------------------------------------------------------
+/**
  * @brief  insert candidate into thread local tophits list
- *
- *****************************************************************************/
- template<int MAX_CANDIDATES>
+ */
+ template <int MAX_CANDIDATES>
 __device__
 bool insert_into_tophits(
     match_candidate& cand, match_candidate (&top)[MAX_CANDIDATES],
@@ -210,7 +218,7 @@ bool insert_into_tophits(
     else
         cand.tax = cached_taxon_of_target(lineages, cand.tgt);
 
-    if (!cand.tax) return true;
+    if (not cand.tax) return true;
 
     int insertPos = MAX_CANDIDATES;
     int taxPos = MAX_CANDIDATES-1;
@@ -252,13 +260,14 @@ bool insert_into_tophits(
 }
 
 
-/*************************************************************************//**
- *
+
+
+//-----------------------------------------------------------------------------
+/**
  * @brief  produces contiguous window ranges of matches
  *         that are at most 'maxWin' long;
- *
- *****************************************************************************/
- template<int MAX_CANDIDATES, class Matches>
+ */
+ template <int MAX_CANDIDATES, class Matches>
  __device__
 uint32_t process_matches(
     const Matches& matches, const uint32_t matchesBeginOffset, const uint32_t numLocations,
@@ -310,7 +319,10 @@ uint32_t process_matches(
 }
 
 
-template<
+
+
+//-----------------------------------------------------------------------------
+template <
     int MAX_CANDIDATES,
     class Result>
 __global__
@@ -459,8 +471,6 @@ void generate_top_candidates(
         }
     }
 }
-
-
 
 
 } // namespace mc

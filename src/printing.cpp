@@ -2,8 +2,8 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2024 André Müller (muellan@uni-mainz.de)
- *                       & Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2026 André Müller (github.com/muellan)
+ *                       & Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,15 +21,17 @@
  *****************************************************************************/
 
 
-#include "printing.h"
+#include "printing.hpp"
 
-#include "classification.h"
-#include "classification_statistics.h"
-#include "database.h"
-#include "matches_per_target.h"
-#include "options.h"
-#include "stat_confusion.h"
-#include "taxonomy.h"
+#include "classification.hpp"
+#include "classification_statistics.hpp"
+#include "database.hpp"
+#include "matches_per_target.hpp"
+#include "options.hpp"
+#include "stat_confusion.hpp"
+#include "taxonomy.hpp"
+#include "typename.hpp"
+#include "version.hpp"
 
 #include <ostream>
 #include <utility>
@@ -38,6 +40,10 @@
 
 
 namespace mc {
+
+using std::cout;
+using std::endl;
+
 
 //-----------------------------------------------------------------------------
 void show_query_parameters (std::ostream& os, const query_options& opt)
@@ -246,11 +252,11 @@ void show_taxon (std::ostream& os,
                  const classification_output_formatting& opt,
                  const taxon* tax)
 {
-    if (!tax || tax->rank() > opt.highestRank) {
+    if (not tax || tax->rank() > opt.highestRank) {
         if (opt.collapseUnclassifiedLineages) {
             if (opt.taxonStyle.showId
-               && !opt.taxonStyle.showName
-               && !opt.taxonStyle.showRankName)
+               && not opt.taxonStyle.showName
+               && not opt.taxonStyle.showRankName)
             {
                 os << taxonomy::none_id();
             }
@@ -341,7 +347,7 @@ void show_matches (std::ostream& os,
                 ++count;
             else {
                 const taxon* tax = taxonomy.cached_ancestor(cur->tgt, lowest);
-                if (!tax) {
+                if (not tax) {
                     tax = taxonomy.cached_taxon_of_target(cur->tgt);
                 }
                 os << tax->name() << ':' << count << ',';
@@ -351,7 +357,7 @@ void show_matches (std::ostream& os,
             }
         }
         const taxon* tax = taxonomy.cached_ancestor(cur->tgt, lowest);
-        if (!tax) {
+        if (not tax) {
             tax = taxonomy.cached_taxon_of_target(cur->tgt);
         }
         os << tax->name() << ':' << count << ',';
@@ -396,8 +402,8 @@ void show_matches_per_targets (std::ostream& os,
     const auto rmax = opt.showLineage ? opt.highestRank : rmin;
 
     for (const auto& mapping : tgtMatches) {
-        show_lineage(os, db.taxo_cache().cached_ranks(mapping.first), opt.taxonStyle, rmin, rmax, opt.tokens);
-        os << opt.tokens.column << db.taxo_cache().cached_taxon_of_target(mapping.first)->source().windows
+        show_lineage(os, db.taxa().cached_ranks(mapping.first), opt.taxonStyle, rmin, rmax, opt.tokens);
+        os << opt.tokens.column << db.taxa().cached_taxon_of_target(mapping.first)->source().windows
            << opt.tokens.column;
 
         bool first = true;
@@ -588,11 +594,10 @@ void show_taxon_statistics (std::ostream& os,
 }
 
 
-/*************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief show summary and statistics of classification
- *
- *****************************************************************************/
+ */
 void show_summary (const query_options& opt,
                    const classification_results& results)
 {
@@ -624,32 +629,31 @@ void print_static_properties (const database& db)
     using feature_t = database::feature;
     using bkt_sz_t  = database::bucket_size_type;
 
-    std::cout
+    cout<< "------------------------------------------------\n"
+        << "MetaCache version  " << MC_VERSION_STRING << " (" << MC_VERSION << ")\n"
+        << "database version   " << MC_DB_VERSION << '\n'
         << "------------------------------------------------\n"
-        << "MetaCache version    " << MC_VERSION_STRING << " (" << MC_VERSION << ")\n"
-        << "database version     " << MC_DB_VERSION << '\n'
+        << "sequence type      " << type_name<database::sequence>() << '\n'
+        << "target id type     " << type_name<target_id>() << " " << (sizeof(target_id)*CHAR_BIT) << " bits\n"
+        << "target limit       " << std::uint64_t(db.max_target_count()) << '\n'
         << "------------------------------------------------\n"
-        << "sequence type        " << type_name<database::sequence>() << '\n'
-        << "target id type       " << type_name<target_id>() << " " << (sizeof(target_id)*CHAR_BIT) << " bits\n"
-        << "target limit         " << std::uint64_t(db.max_target_count()) << '\n'
+        << "window id type     " << type_name<window_id>() << " " << (sizeof(window_id)*CHAR_BIT) << " bits\n"
+        << "window limit       " << std::uint64_t(db.max_windows_per_target()) << '\n'
+        << "window length      " << db.target_sketching().winlen << '\n'
+        << "window stride      " << db.target_sketching().winstride << '\n'
         << "------------------------------------------------\n"
-        << "window id type       " << type_name<window_id>() << " " << (sizeof(window_id)*CHAR_BIT) << " bits\n"
-        << "window limit         " << std::uint64_t(db.max_windows_per_target()) << '\n'
-        << "window length        " << db.target_sketching().winlen << '\n'
-        << "window stride        " << db.target_sketching().winstride << '\n'
+        << "sketcher type      " << type_name<database::sketcher>() << '\n'
+        << "feature type       " << type_name<feature_t>() << " " << (sizeof(feature_t)*CHAR_BIT) << " bits\n"
+        << "feature hash       " << type_name<database::feature_hash>() << '\n'
+        << "kmer size          " << std::uint64_t(db.target_sketching().kmerlen) << '\n'
+        << "kmer limit         " << std::uint64_t(db.target_sketching().max_kmer_size()) << '\n'
+        << "sketch size        " << db.target_sketching().sketchlen << '\n'
         << "------------------------------------------------\n"
-        << "sketcher type        " << type_name<database::sketcher>() << '\n'
-        << "feature type         " << type_name<feature_t>() << " " << (sizeof(feature_t)*CHAR_BIT) << " bits\n"
-        << "feature hash         " << type_name<database::feature_hash>() << '\n'
-        << "kmer size            " << std::uint64_t(db.target_sketching().kmerlen) << '\n'
-        << "kmer limit           " << std::uint64_t(db.target_sketching().max_kmer_size()) << '\n'
-        << "sketch size          " << db.target_sketching().sketchlen << '\n'
-        << "------------------------------------------------\n"
-        << "bucket size type     " << type_name<bkt_sz_t>() << " " << (sizeof(bkt_sz_t)*CHAR_BIT) << " bits\n"
-        << "max. locations       " << std::uint64_t(db.max_locations_per_feature()) << '\n'
-        << "location limit       " << std::uint64_t(db.max_supported_locations_per_feature()) << '\n'
+        << "bucket size type   " << type_name<bkt_sz_t>() << " " << (sizeof(bkt_sz_t)*CHAR_BIT) << " bits\n"
+        << "max. locations     " << std::uint64_t(db.max_locations_per_feature()) << '\n'
+        << "location limit     " << std::uint64_t(db.max_supported_locations_per_feature()) << '\n'
         << "------------------------------------------------"
-        << std::endl;
+        << endl;
 }
 
 
@@ -657,37 +661,38 @@ void print_static_properties (const database& db)
 //-----------------------------------------------------------------------------
 void print_content_properties (const database& db)
 {
-    std::cout
-        << "database parts       " << db.num_parts() << '\n';
+    cout    << "------------------------------------------------\n"
+            << "database parts     " << db.part_count() << '\n';
 
     if (db.target_count() > 0) {
         std::uint64_t numRankedTargets = 0;
-        for (const auto& t : db.taxo_cache().target_taxa()) {
+        for (const auto& t : db.taxa().target_taxa()) {
             if (t.has_parent()) ++numRankedTargets;
         }
 
-        std::cout
-        << "targets              " << db.target_count() << '\n'
-        << "ranked targets       " << numRankedTargets << '\n'
-        << "taxa in tree         " << db.taxo_cache().non_target_taxon_count() << '\n';
+        cout<< "targets            " << db.target_count() << '\n'
+            << "ranked targets     " << numRankedTargets << '\n'
+            << "taxa in tree       " << db.taxa().non_target_taxon_count() << '\n';
     }
 
     if (db.feature_count() > 0) {
         auto lss = db.location_list_size_statistics();
 
-        std::cout
-        << "------------------------------------------------\n"
-        << "buckets              " << db.bucket_count() << '\n'
-        << "bucket size          " << "max: " << lss.max()
-                                   << " mean: " << lss.mean()
-                                   << " +/- " << lss.stddev()
-                                   << " <> " << lss.skewness() << '\n'
-        << "features             " << std::uint64_t(lss.size()) << '\n'
-        << "dead features        " << db.dead_feature_count() << '\n'
-        << "locations            " << std::uint64_t(lss.sum()) << '\n';
+        if (db.part_count() > 1) {
+            cout
+            << "------------------------------------------------\n"
+            << "complete database (all parts):\n";
+        }
+        cout<< "buckets            " << db.bucket_count() << '\n'
+            << "bucket size        " << "max: " << lss.max()
+                                     << " mean: " << lss.mean()
+                                     << " +/- " << lss.stddev()
+                                     << " <> " << lss.skewness() << '\n'
+            << "features           " << std::uint64_t(lss.size()) << '\n'
+            << "dead features      " << db.dead_feature_count() << '\n'
+            << "locations          " << std::uint64_t(lss.sum()) << '\n';
     }
-    std::cout
-        << "------------------------------------------------\n";
+    cout    << "------------------------------------------------\n";
 }
 
 

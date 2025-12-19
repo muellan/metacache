@@ -2,8 +2,8 @@
  *
  * MetaCache - Meta-Genomic Classification Tool
  *
- * Copyright (C) 2016-2024 André Müller (muellan@uni-mainz.de)
- *                       & Robin Kobus  (kobus@uni-mainz.de)
+ * Copyright (C) 2016-2026 André Müller (github.com/muellan)
+ *                       & Robin Kobus  (github.com/funatiq)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,9 +20,10 @@
  *
  *****************************************************************************/
 
-#include "sequence_io.h"
-#include "io_error.h"
-#include "string_utils.h"
+
+#include "sequence_io.hpp"
+
+#include "string_utils.hpp"
 
 #include <regex>
 
@@ -38,10 +39,10 @@ sequence_reader::sequence_reader (const std::string& filename) :
     stream_{},
     index_{0}
 {
-    if (!filename.empty()) {
+    if (not filename.empty()) {
         stream_.open(filename.c_str());
 
-        if (!stream_.good()) {
+        if (not stream_.good()) {
             throw file_access_error{"can't open file " + filename};
         }
     }
@@ -71,7 +72,7 @@ sequence_reader::next ()
 //-------------------------------------------------------------------
 void sequence_reader::next (sequence& seq)
 {
-    if (!has_next()) return;
+    if (not has_next()) return;
 
     ++index_;
     seq.index = index_;
@@ -84,7 +85,7 @@ void sequence_reader::next (sequence& seq)
 sequence_reader::header_type
 sequence_reader::next_header ()
 {
-    if (!has_next()) return header_type{};
+    if (not has_next()) return header_type{};
 
     ++index_;
     header_type header;
@@ -98,7 +99,7 @@ sequence_reader::next_header ()
 sequence_reader::data_type
 sequence_reader::next_data ()
 {
-    if (!has_next()) return data_type{};
+    if (not has_next()) return data_type{};
 
     ++index_;
     data_type data;
@@ -112,7 +113,7 @@ sequence_reader::next_data ()
 sequence_reader::index_type
 sequence_reader::next_data (sequence::data_type& data)
 {
-    if (!has_next()) {
+    if (not has_next()) {
         data.clear();
         return index();
     }
@@ -129,7 +130,7 @@ sequence_reader::index_type
 sequence_reader::next_header_and_data (sequence::header_type& header,
                                        sequence::data_type& data)
 {
-    if (!has_next()) {
+    if (not has_next()) {
         header.clear();
         data.clear();
         return index();
@@ -170,13 +171,13 @@ void sequence_reader::read_next (header_type* header,
         // read first character of next line
         stream_.read_char();
     }
-    if (!stream_.good()) return; // end of file or error
+    if (not stream_.good()) return; // end of file or error
 
     if (header)
         stream_.append_line(*header);
     else
         stream_.skip_line();
-    if (!stream_.good()) return;  // end of file or error
+    if (not stream_.good()) return;  // end of file or error
 
     // read first character of next line
     stream_.peek_char();
@@ -200,7 +201,7 @@ void sequence_reader::read_next (header_type* header,
     }
     stream_.read_char();
 
-    if (!stream_.good()) return;  // end of file or error
+    if (not stream_.good()) return;  // end of file or error
 
     // check for 3rd FASTQ line
     if (stream_.last_char() != '+') return; // FASTA
@@ -218,7 +219,7 @@ void sequence_reader::read_next (header_type* header,
     else {
         stream_.skip_line();
     }
-    if (!stream_.good()) return;  // end of file or error
+    if (not stream_.good()) return;  // end of file or error
 
     // read first character of next line
     stream_.read_char();
@@ -249,10 +250,10 @@ sequence_pair_reader::sequence_pair_reader (const std::string& filename1,
     reader2_{},
     pairing_{pairing_mode::none}
 {
-    if (!filename1.empty()) {
+    if (not filename1.empty()) {
         reader1_ = sequence_reader(filename1);
 
-        if (!filename2.empty()) {
+        if (not filename2.empty()) {
             if (filename1 != filename2) {
                 pairing_ = pairing_mode::files;
                 reader2_ = sequence_reader(filename2);
@@ -269,9 +270,9 @@ sequence_pair_reader::sequence_pair_reader (const std::string& filename1,
 //-------------------------------------------------------------------
 bool sequence_pair_reader::has_next () const noexcept
 {
-    if (!reader1_.has_next()) return false;
+    if (not reader1_.has_next()) return false;
     if (pairing_ != pairing_mode::files) return true;
-    if (!reader2_.has_next()) return false;
+    if (not reader2_.has_next()) return false;
     return true;
 }
 
@@ -291,7 +292,7 @@ sequence_pair_reader::next ()
 //-------------------------------------------------------------------
 void sequence_pair_reader::next (sequence_pair& seq)
 {
-    if (!has_next()) return;
+    if (not has_next()) return;
 
     switch (pairing_) {
         case pairing_mode::none :
@@ -323,7 +324,7 @@ void sequence_pair_reader::next (sequence_pair& seq)
 sequence_pair_reader::header_type
 sequence_pair_reader::next_header ()
 {
-    if (!has_next()) return header_type{};
+    if (not has_next()) return header_type{};
 
     switch (pairing_) {
         case pairing_mode::none :
@@ -352,7 +353,7 @@ sequence_pair_reader::index_type
 sequence_pair_reader::next_data (sequence::data_type& data1,
                                  sequence::data_type& data2)
 {
-    if (!has_next()) return index();
+    if (not has_next()) return index();
 
     switch (pairing_) {
         case pairing_mode::none :
@@ -382,7 +383,7 @@ sequence_pair_reader::next_header_and_data (sequence::header_type& header1,
                                             sequence::data_type& data1,
                                             sequence::data_type& data2)
 {
-    if (!has_next()) return index();
+    if (not has_next()) return index();
 
     switch (pairing_) {
         case pairing_mode::none :
@@ -451,9 +452,7 @@ void sequence_pair_reader::index_offset (index_type index)
 
 
 
-/*************************************************************************//**
- *
- *****************************************************************************/
+//-----------------------------------------------------------------------------
 std::string to_string (sequence_id_type id) noexcept
 {
     switch (id) {
@@ -471,27 +470,25 @@ std::string to_string (sequence_id_type id) noexcept
 
 
 
-/*************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief regex to find accession[.version] number
  *
  * @details first sub-match will be ignored
  *          second sub-match is accession[.version] number
  *          third sub-match is accession number
  *          forth sub-match is version
- *
- *****************************************************************************/
+ */
 const std::regex
 accession_regex("(^|[^[:alnum:]])(([A-Z][_A-Z]{1,9}[0-9]{5,})(\\.[0-9]+)?)",
                 std::regex::optimize);
 
 
 
-/*************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief  extracts first contiguous stretch of non-whitespace characters
- *
- *****************************************************************************/
+ */
 string extract_leading_word (const string& text)
 {
     if (text.empty()) return text;
@@ -512,12 +509,11 @@ string extract_leading_word (const string& text)
 
 
 
-/*************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief  extracts string between first path separator (or string start)
  *         and extension separator (or string end)
- *
- *****************************************************************************/
+ */
 string extract_filename_without_extension (const string& text)
 {
     if (text.empty()) return text;
@@ -541,12 +537,11 @@ string extract_filename_without_extension (const string& text)
 
 
 
-/*************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief extracts the NCBI accession[.version] number from a string
  *        by searching for a regular expression
- *
- *****************************************************************************/
+ */
 string
 extract_ncbi_accession_number (const string& text,
                                sequence_id_type idtype = sequence_id_type::ncbi)
@@ -582,11 +577,10 @@ extract_ncbi_accession_number (const string& text,
 
 
 
-/*************************************************************************//**
- *
+//-----------------------------------------------------------------------------
+/**
  * @brief extracts the numeric part from a gi identifier
- *
- *****************************************************************************/
+ */
 string
 extract_genbank_identifier (const string& text)
 {
@@ -612,7 +606,7 @@ extract_genbank_identifier (const string& text)
 
 
 
-//-------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 string
 extract_accession_string (const string& text, sequence_id_type idtype)
 {
@@ -638,11 +632,11 @@ extract_accession_string (const string& text, sequence_id_type idtype)
         case sequence_id_type::smart:
         {
             auto s = extract_ncbi_accession_number(text);
-            if (!s.empty()) return s;
+            if (not s.empty()) return s;
             s = extract_genbank_identifier(text);
-            if (!s.empty()) return s;
+            if (not s.empty()) return s;
             s = extract_filename_without_extension(text);
-            if (!s.empty()) return s;
+            if (not s.empty()) return s;
         }
     }
 
@@ -651,7 +645,7 @@ extract_accession_string (const string& text, sequence_id_type idtype)
 
 
 
-//-------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 std::int_least64_t
 extract_taxon_id (const string& text)
 {
@@ -671,7 +665,7 @@ extract_taxon_id (const string& text)
         try {
             return std::stoull(text.substr(i, j-i));
         }
-        catch(std::exception&) {
+        catch (std::exception&) {
             return 0;
         }
     }

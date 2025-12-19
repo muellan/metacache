@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2016-2021, André Müller <muellan@uni-mainz.de>
+# Copyright 2016-2026, Robin Kobus (github.com/funatiq)
 #
 # This file is part of the MetaCache taxonomic sequence classification tool.
 #
@@ -23,11 +23,15 @@
 set -u  # Protect against uninitialized vars.
 set -e  # Stop on error
 
+
 if [ $# -lt 2 ]; then
   echo "Partition genome files into separate directories for partioned database construction."
+  echo "Each generated partition directory contains symlinks to the original files."
+  echo ""
   echo "Usage:    $0 <path to genomes> <partition size in MB>"
   exit
 fi
+
 
 directory=$1
 sizelimit=$(expr $2 \* 1024 \* 1024)

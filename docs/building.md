@@ -19,6 +19,7 @@ You need
 
 
 If your machine doesn't have enough RAM to fit an entire database you can use [database partitioning](partitioning.md) to split up the reference genomes into several partitions.
+As of version 2.6.0, a faster parallel database construction algorithm is used, however this can sometimes lead to slightly higher memory consumption. To switch back to the old construction scheme, you can supply command line option `-threads 1`.
 
 
 ## Taxonomic Hierarchy
